@@ -51,8 +51,7 @@ Or simply export the variable globally:
 
 Adding the meta-aws layer to the project can be done via the command
 
- bitbake-layers add-layer meta-aws
-
+    bitbake-layers add-layer meta-aws
 
 or simply editing the `bblayers.conf` file `~/yocto/build/conf` directory
 
@@ -60,11 +59,11 @@ or simply editing the `bblayers.conf` file `~/yocto/build/conf` directory
 
 Once the setup is done the recipes provided in the `meta-aws` will be available and can be added to the target image by adding:
 
- IMAGE_INSTALL += "<name-of-the-bb-recipe>"
+    IMAGE_INSTALL += "<name-of-the-bb-recipe>"
 
 after which the image can be built with the command:
 
- bitbake <image-name>
+    bitbake <image-name>
 
 For more information please refer to https://www.yoctoproject.org/docs/1.8/dev-manual/dev-manual.html
 
