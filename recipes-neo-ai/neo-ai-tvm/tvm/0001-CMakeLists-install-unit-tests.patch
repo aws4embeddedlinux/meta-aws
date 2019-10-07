@@ -1,0 +1,36 @@
+From 2663c9682e427ce64f5bfa53e1ee389f80133cac Mon Sep 17 00:00:00 2001
+From: Jacob Stiffler <j-stiffler@ti.com>
+Date: Wed, 14 Aug 2019 16:27:51 -0400
+Subject: [PATCH] CMakeLists: install unit tests
+
+* Install the unittests (cpptest) to /usr/share/tvm/cpptest
+* For simplicity, do not exclude cpptest from the default build.
+
+Upstream-Status: Innappropriate [Configuration]
+
+Signed-off-by: Jacob Stiffler <j-stiffler@ti.com>
+---
+ CMakeLists.txt | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 494afbd..7e887f6 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -233,10 +233,11 @@ if(GTEST_LIB)
+     list(APPEND TEST_EXECS ${__execname})
+     target_link_libraries(${__execname}
+       tvm ${GTEST_LIB} pthread)
+-    set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
+-    set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
++    #set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
++    #set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+   endforeach()
+   add_custom_target(cpptest DEPENDS ${TEST_EXECS})
++  install(TARGETS ${TEST_EXECS} DESTINATION share/tvm/cpptest)
+ endif()
+ 
+ # Custom targets
+-- 
+2.7.4
+

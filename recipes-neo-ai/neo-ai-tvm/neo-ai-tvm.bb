@@ -1,42 +1,61 @@
-SUMMARY = "TVM is a compiler stack for deep learning systems"
-DESCRIPTION = "Neo-AI/TVM is a downstream branch of TVM that includes vendor- and product-specific features on top of the upstream codebase."
-LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM="file://${COMMON_LICENSE_DIR}/Apache-2.0;md5=89aea4e17d99a7cacdbeed46a0096b10"
-PACKAGES = "${PN}"
+SUMMARY = "Open Deep Learning Compiler Stack"
+HOMEPAGE = "https://tvm.ai/"
+LICENSE = "Apache-2.0 & BSD-3-Clause"
 
-BRANCH = "master"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e \
+                    file://3rdparty/dmlc-core/LICENSE;md5=0ca7d6e8f4af26868cb42025ad83374b \
+                    file://3rdparty/dlpack/LICENSE;md5=f62d4e85ba68a1574b74d97ab8dea9ab \
+                    file://3rdparty/HalideIR/LICENSE;md5=9910386e68f0616e1ecf1037479fa97e \
+"
 
-TVM_URI         = "git://github.com/neo-ai/tvm.git"
-TVM_PATH        = "git/"
-TVM_SR          = "d1c7a3d2f6ab701ff7315f23c1d528185975bfb0"
+PV = "0.5"
 
-TVM_DMLC_URI    = "git://github.com/dmlc/dmlc-core.git"
-TVM_DMLC_PATH   = "git/3rdparty/dmlc-core/"
-TVM_DMLC_SR     = "3943914eed66470bd010df581e29e4dca4f7df6f"
+BRANCH ?= "v${PV}"
 
-TVM_HIR_URI     = "git://github.com/dmlc/HalideIR"
-TVM_HIR_PATH    = "git/3rdparty/HalideIR/"
-TVM_HIR_SR      = "c4e5bc77bd7bca05e45664b35c6ce88246c43b1b"
+# Main TVM sources plus submodules.
+SRC_URI = "git://github.com/dmlc/tvm;protocol=https;branch=${BRANCH};name=tvm \
+           git://github.com/dmlc/dmlc-core;protocol=https;branch=master;destsuffix=${S}/3rdparty/dmlc-core;name=dmlc-core \
+           git://github.com/dmlc/HalideIR;protocol=https;branch=master;destsuffix=${S}/3rdparty/HalideIR;name=halideir \
+           git://github.com/dmlc/dlpack;protocol=https;branch=master;destsuffix=${S}/3rdparty/dlpack;name=dlpack \
+           git://github.com/agauniyal/rang;protocol=https;branch=master;destsuffix=${S}/3rdparty/rang;name=rang \
+           file://0001-CMakeLists-install-unit-tests.patch \
+"
 
-TVM_DLPACK_URI  = "git://github.com/dmlc/dlpack.git"
-TVM_DLPACK_PATH = "git/3rdparty/dlpack/"
-TVM_DLPACK_SR   = "0acb731e0e43d15deee27b66f10e4c5b4e667913"
-
-TVM_RANG_URI    = "git://github.com/agauniyal/rang.git"
-TVM_RANG_PATH   = "git/3rdparty/rang/"
-TVM_RANG_SR     = "cabe04d6d6b05356fa8f9741704924788f0dd762"
-
-
-SRC_URI = "${TVM_URI};protocol=https;rev=${TVM_SR};nobranch=1;destsuffix=${TVM_PATH} \
-           ${TVM_DMLC_URI};protocol=https;rev=${TVM_DMLC_SR};destsuffix=${TVM_DMLC_PATH} \
-           ${TVM_HIR_URI};protocol=https;rev=${TVM_HIR_SR};destsuffix=${TVM_HIR_PATH} \
-           ${TVM_DLPACK_URI};protocol=https;rev=${TVM_DLPACK_SR};destsuffix=${TVM_DLPACK_PATH} \
-           ${TVM_RANG_URI};protocol=https;rev=${TVM_RANG_SR};nobranch=1;destsuffix=${TVM_RANG_PATH}"
-
+SRCREV_tvm = "f08015e7fde92c835907d4c9b7ad6d3f634e94a5"
+SRCREV_dmlc-core = "d07fb7a443b5db8a89d65a15a024af6a425615a5"
+SRCREV_halideir = "b257a9221ee1e5180d994b3488ddcc259b0ac157"
+SRCREV_dlpack = "5c792cef3aee54ad8b7000111c9dc1797f327b59"
+SRCREV_rang = "cabe04d6d6b05356fa8f9741704924788f0dd762"
 
 S = "${WORKDIR}/git"
 
-EXTRA_OECMAKE += "-C ${WORKDIR}/git/cmake/config.cmake ${WORKDIR}/git"
+inherit setuptools3 cmake python3native
 
-inherit cmake
+DEPENDS += "zlib llvm llvm-native gtest"
 
+# Point to llvm-config
+LLVM_RELEASE = "6.0"
+EXTRA_OECMAKE += "-DUSE_LLVM=llvm-config${LLVM_RELEASE}"
+
+# This is how we enable the unittests
+export GTEST_LIB = "${STAGING_LIBDIR}"
+
+do_install() {
+    cmake_do_install
+
+    cd ${S}/python
+    TVM_LIBRARY_PATH=${D}${libdir} distutils3_do_install
+    cd ${B}
+
+    # setup.py install some libs under datadir, but we don't need them, so remove.
+    rm ${D}${datadir}/tvm/*.so
+}
+
+# Versioned libs are not produced
+FILES_SOLIBSDEV = ""
+
+# Help llvm-native find target llvm-config and libs
+export YOCTO_ALTERNATE_MULTILIB_NAME = "/${BASELIB}"
+export YOCTO_ALTERNATE_EXE_PATH = "${STAGING_LIBDIR}/llvm${LLVM_RELEASE}/llvm-config"
+
+BBCLASSEXTEND = "nativesdk"
