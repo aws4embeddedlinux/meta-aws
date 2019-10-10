@@ -4,12 +4,12 @@ The **meta-aws** project provides *recipes* for building in AWS edge software ca
 
 This layer depends on the additional mandatory layers:
 
- meta-yocto-bsp
- meta-openembedded/meta-oe
- meta-openembedded/meta-filesystems
- meta-openembedded/meta-python
+- meta-yocto-bsp
+- meta-openembedded/meta-oe
+- meta-openembedded/meta-filesystems
+- meta-openembedded/meta-python
 
-so make sure you have them in your Yocto Project
+Please make sure you have them in your Yocto Project.
 
 # Getting Started
 
