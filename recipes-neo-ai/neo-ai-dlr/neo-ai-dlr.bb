@@ -13,7 +13,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658 \
                     file://3rdparty/treelite/3rdparty/fmt/LICENSE.rst;md5=c2e38bc8629eac247a73b65c1548b2f0 \
 "
 
-PV = "1.0"
+PV = "1.1"
 
 BRANCH ?= "master"
 
@@ -26,9 +26,10 @@ SRC_URI = "git://github.com/neo-ai/neo-ai-dlr;protocol=https;branch=${BRANCH};na
            git://github.com/neo-ai/treelite;protocol=https;branch=master;destsuffix=${S}/3rdparty/treelite;name=neo-ai-treelite \
            git://github.com/dmlc/dmlc-core;protocol=https;branch=master;destsuffix=${S}/3rdparty/treelite/dmlc-core;name=neo-ai-treelite-dmlc-core \
            git://github.com/fmtlib/fmt;protocol=https;nobranch=1;destsuffix=${S}/3rdparty/treelite/3rdparty/fmt;name=neo-ai-treelite-fmt \
+           file://0001-CMakeLists-skip-cloning-of-googletests.patch \
 "
 
-SRCREV_neo-ai-dlr = "dd9c8e806065b2c0fca97209c8bfd1cce0749ea9"
+SRCREV_neo-ai-dlr = "35ed4fa2607056608451d85508fea70f458a14a6"
 SRCREV_neo-ai-tvm = "44779571412930681eef9e8b9d32aa845b8cc5ad"
 SRCREV_neo-ai-tvm-dmlc-core = "4d49691f1a9d944c3b0aa5e63f1db3cad1f941f8"
 SRCREV_neo-ai-tvm-dlpack = "bee4d1dd8dc1ee4a1fd8fa6a96476c2f8b7492a3"
@@ -41,26 +42,31 @@ S = "${WORKDIR}/git"
 
 inherit setuptools3 cmake python3native
 
+# Set B so that DLR Python installation can find the library
+B = "${S}/build"
+
 do_install() {
     # This does not do anything
     #cmake_do_install
 
-    install -d ${D}${libdir}
-    install -m 0644 ${S}/lib/* ${D}${libdir}
+    install -d ${D}${includedir}/dlr_tflite
+    install -m 0644 ${S}/include/*.h ${D}${includedir}
+    install -m 0644 ${S}/include/dlr_tflite/*.h ${D}${includedir}/dlr_tflite
 
-    install -d ${D}${includedir}
-    install -m 0644 ${S}/include/* ${D}${includedir}
-
+    # Install DLR Python binding
     cd ${S}/python
     distutils3_do_install
-    cd ${B}
 
     # setup.py install some libs under datadir, but we don't need them, so remove.
     rm ${D}${datadir}/dlr/*.so
 
+    # Install DLR library to Python import search path
+    install -m 0644 ${S}/build/lib/libdlr.so ${D}${PYTHON_SITEPACKAGES_DIR}/dlr
+
     # Now install python test scripts
-    install -d ${D}${datadir}/dlr/tests
-    install -m 0644 ${S}/tests/python/integration/*.py ${D}${datadir}/dlr/tests/
+    install -d ${D}${datadir}/dlr/tests/python/integration
+    install -m 0644 ${S}/tests/python/integration/*.py ${D}${datadir}/dlr/tests/python/integration
+    install -m 0644 ${S}/tests/python/integration/*.npy ${D}${datadir}/dlr/tests/python/integration
 }
 
 PACKAGES =+ "${PN}-tests"
