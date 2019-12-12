@@ -8,9 +8,12 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e \
                     file://3rdparty/HalideIR/LICENSE;md5=9910386e68f0616e1ecf1037479fa97e \
 "
 
+RDEPENDS_${PN} = " python3-decorator \
+"
+
 PV = "0.5"
 
-BRANCH ?= "v${PV}"
+BRANCH = "master"
 
 # Main TVM sources plus submodules.
 SRC_URI = "git://github.com/dmlc/tvm;protocol=https;branch=${BRANCH};name=tvm \
@@ -21,7 +24,7 @@ SRC_URI = "git://github.com/dmlc/tvm;protocol=https;branch=${BRANCH};name=tvm \
            file://0001-CMakeLists-install-unit-tests.patch \
 "
 
-SRCREV_tvm = "f08015e7fde92c835907d4c9b7ad6d3f634e94a5"
+SRCREV_tvm = "76c239269935288e51fbce14f135d75ad9742b2a"
 SRCREV_dmlc-core = "d07fb7a443b5db8a89d65a15a024af6a425615a5"
 SRCREV_halideir = "b257a9221ee1e5180d994b3488ddcc259b0ac157"
 SRCREV_dlpack = "5c792cef3aee54ad8b7000111c9dc1797f327b59"
