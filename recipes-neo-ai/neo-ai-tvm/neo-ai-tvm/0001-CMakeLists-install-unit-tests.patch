@@ -1,26 +1,29 @@
-From 2663c9682e427ce64f5bfa53e1ee389f80133cac Mon Sep 17 00:00:00 2001
-From: Jacob Stiffler <j-stiffler@ti.com>
-Date: Wed, 14 Aug 2019 16:27:51 -0400
-Subject: [PATCH] CMakeLists: install unit tests
+From 5904aa69d8f022678aa19dd4c1b5569d5fc243ee Mon Sep 17 00:00:00 2001
+From: Jianzhong Xu <xuj@ti.com>
+Date: Tue, 8 Oct 2019 16:56:30 -0400
+Subject: [PATCH] [PATCH] CMakeLists: install unit tests
 
 * Install the unittests (cpptest) to /usr/share/tvm/cpptest
 * For simplicity, do not exclude cpptest from the default build.
 
 Upstream-Status: Innappropriate [Configuration]
 
-Signed-off-by: Jacob Stiffler <j-stiffler@ti.com>
+Signed-off-by: Jianzhong Xu <xuj@ti.com>
 ---
  CMakeLists.txt | 5 +++--
  1 file changed, 3 insertions(+), 2 deletions(-)
+ mode change 100644 => 100755 CMakeLists.txt
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 494afbd..7e887f6 100644
+old mode 100644
+new mode 100755
+index 10730ac7..ea369a6e
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -233,10 +233,11 @@ if(GTEST_LIB)
+@@ -333,10 +333,11 @@ if(GTEST_INCLUDE_DIR AND GTEST_LIB)
      list(APPEND TEST_EXECS ${__execname})
-     target_link_libraries(${__execname}
-       tvm ${GTEST_LIB} pthread)
+     target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR})
+     target_link_libraries(${__execname} tvm ${GTEST_LIB} pthread dl)
 -    set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
 -    set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
 +    #set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
@@ -28,9 +31,9 @@ index 494afbd..7e887f6 100644
    endforeach()
    add_custom_target(cpptest DEPENDS ${TEST_EXECS})
 +  install(TARGETS ${TEST_EXECS} DESTINATION share/tvm/cpptest)
- endif()
- 
- # Custom targets
+ elseif(NOT GTEST_INCLUDE_DIR)
+   add_custom_target(cpptest
+       COMMAND echo "Missing Google Test headers in include path"
 -- 
-2.7.4
+2.17.1
 
