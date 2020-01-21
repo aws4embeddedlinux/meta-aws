@@ -21,7 +21,7 @@ SRC_URI_x86-64 = " \
 "
 
 LIC_FILES_CHKSUM = " \
-    file://ggc/core/THIRD-PARTY-LICENSES;md5=53b6a4caa097863bc3971d5e0ac6d1db \
+    file://ggc/core/THIRD-PARTY-LICENSES;md5=1f0ad815f019455e3a0efe55e888a69a \
 "
 
 SRC_URI[arm.md5sum]        = "63a1f6aae22260be19f34f278f7e7833"
@@ -30,8 +30,8 @@ SRC_URI[arm.sha256sum]     = "4bc0bc8a938cdb3d846df92e502155c6ec8cbaf1b63dfa9f3c
 SRC_URI[aarch64.md5sum]    = "967cd25ac77e733b0a1b42d83dc96ed1"
 SRC_URI[aarch64.sha256sum] = "4cbaf91e5354fe49ded160415394413f068426c2bba13089e6b8a28775990a9c"
 
-SRC_URI[x86-64.md5sum]     = "a1f90898cc324b3c2a6a7cf50038d70a"
-SRC_URI[x86-64.sha256sum]  = "ee55e370491905415cfab962f5429228c58aec4c7f481e66a14e952e1b62fe36"
+SRC_URI[x86-64.md5sum] = "cd363d38e22a1918ca0bc6ea8d07a931"
+SRC_URI[x86-64.sha256sum] = "589d91ab2a358d028cd0c458efdcc1a80d19a1fb8d41c358f928d6a98c333f42"
 
 S = "${WORKDIR}/${BPN}"
 
@@ -41,7 +41,7 @@ GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no',
 
 # Check if we have all the env variables set
 python __anonymous () {
-	pkgname = d.getVar("PN")
+        pkgname = d.getVar("PN")
 #	if d.getVar("GREENGRASS_CERTS_DIR", False) == None:
 #		bb.error("%s: GREENGRASS_CERTS_DIR is not set" % pkgname)
 
