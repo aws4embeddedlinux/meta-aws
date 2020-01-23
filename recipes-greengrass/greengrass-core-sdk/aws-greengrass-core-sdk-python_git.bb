@@ -13,6 +13,7 @@ S = "${WORKDIR}/git"
 
 # Needed for install script
 DEPENDS = "python3 python3-setuptools"
+RDEPENDS_${PN} = "python3"
 
 # Copy sdk into rootfs and run python3 install script
 do_install() {

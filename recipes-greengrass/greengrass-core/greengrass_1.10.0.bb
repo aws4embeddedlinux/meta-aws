@@ -24,14 +24,14 @@ LIC_FILES_CHKSUM = " \
     file://ggc/core/THIRD-PARTY-LICENSES;md5=1f0ad815f019455e3a0efe55e888a69a \
 "
 
-SRC_URI[arm.md5sum]        = "63a1f6aae22260be19f34f278f7e7833"
-SRC_URI[arm.sha256sum]     = "4bc0bc8a938cdb3d846df92e502155c6ec8cbaf1b63dfa9f3cc3a51372d95af5"
+SRC_URI[arm.md5sum]        = "e54bb57929bc278ea89737c4abcd89e8"
+SRC_URI[arm.sha256sum]     = "91f3d92dca977ea504921c7dbae96a926adce441c8f9ec1896e4c8cf085d6d2e"
 
-SRC_URI[aarch64.md5sum]    = "967cd25ac77e733b0a1b42d83dc96ed1"
-SRC_URI[aarch64.sha256sum] = "4cbaf91e5354fe49ded160415394413f068426c2bba13089e6b8a28775990a9c"
+SRC_URI[aarch64.md5sum]    = "1bdde4df4c461cd5502f7adbb79b2903"
+SRC_URI[aarch64.sha256sum] = "912ecbe10398382894045f9b9dafd16eac7fabce0fc04fc9ee83c8ec8f67ca5a"
 
-SRC_URI[x86-64.md5sum] = "cd363d38e22a1918ca0bc6ea8d07a931"
-SRC_URI[x86-64.sha256sum] = "589d91ab2a358d028cd0c458efdcc1a80d19a1fb8d41c358f928d6a98c333f42"
+SRC_URI[x86-64.md5sum]     = "cd363d38e22a1918ca0bc6ea8d07a931"
+SRC_URI[x86-64.sha256sum]  = "589d91ab2a358d028cd0c458efdcc1a80d19a1fb8d41c358f928d6a98c333f42"
 
 S = "${WORKDIR}/${BPN}"
 
