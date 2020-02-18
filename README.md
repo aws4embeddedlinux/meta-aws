@@ -6,7 +6,7 @@ This layer depends on the additional mandatory layers:
 
 - meta-yocto-bsp
 - meta-openembedded/meta-oe
-- meta-openembedded/meta-filesystems
+- meta-openembedded/meta-networking
 - meta-openembedded/meta-python
 
 Please make sure you have them in your Yocto Project.
@@ -19,53 +19,95 @@ More information on how to get started can be found in the original Yocto docume
 
 ## Install System Dependencies
 
-    sudo apt-get update && sudo apt-get upgrade
-    sudo apt-get install gawk wget git-core diffstat unzip texinfo gcc-multilib build-essential chrpath socat libsdl1.2-dev xterm lzop u-boot-tools git build-essential curl libusb-1.0-0-dev python-pip minicom libncurses5-dev
-    sudo pip install --upgrade pip && sudo pip install pyserial
+```bash
+$ sudo apt-get update && sudo apt-get upgrade
+$ sudo apt-get install gawk wget git-core diffstat unzip texinfo gcc-multilib \
+       build-essential chrpath socat cpio python python3 python3-pip python3-pexpect \
+       xz-utils debianutils iputils-ping python3-git python3-jinja2 libegl1-mesa \
+       libsdl1.2-dev pylint3 xterm
+```
 
 Additional packages might be needed depending on the intended image build
 
 ## Get sources
 
-Clone sources:
+In this section, you will checkout the Poky reference implementation, meta-aws, and dependent source trees.  When you build for specific `MACHINE` targets, you will need to checkout additional sources.
 
-    git clone --branch fido git://git.yoctoproject.org/poky.git ~/yocto/poky
-    git clone --branch fido git://git.openembedded.org/meta-openembedded ~/yocto/meta-openembedded
+In this case, we will be checking out sources for the **zeus** release.
+
+```bash
+$ git clone git://git.yoctoproject.org/poky ~/poky-zeus
+$ cd ~/poky-zeus
+$ git fetch --tags
+$ git checkout tags/yocto-3.0.1
+```
+
+Next, check out the `openembedded` distribution for the **zeus** release.
+
+```bash
+$ git clone git://git.openembedded.org/meta-openembedded \
+      ~/poky-zeus/meta-openembedded
+
+$ cd ~/poky-zeus/meta-openembedded
+
+$ git fetch --tags
+$ git checkout zeus
+```
+
+Next, checkout `meta-aws` to the **zeus** branch.
+
+```bash
+$ git clone https://github.com/aws/meta-aws ~/poky-zeus/meta-aws
+$ pushd ~/poky-zeus/meta-aws
+$ git fetch --tags
+$ git checkout zeus
+```
 
 ## Configure build
 
-Setup environment:
+Initialize the build environment. This will create a build directory named **zeus**.
 
-    cd ~/yocto
-    source poky/oe-init-build-env
+```bash
+$ cd ~/poky-zeus
+$ source poky/oe-init-build-env zeus
+```
 
-Set machine in the configuration file `~/yocto/build/conf/local.conf`:
+Next, add layers to the build.
 
-    MACHINE ??= <target_machine>
-
-Or simply export the variable globally:
-
-    export MACHINE = <target_machine>
-
-# Adding the Layer and Specific Recipes
-
-Adding the meta-aws layer to the project can be done via the command
-
-    bitbake-layers add-layer meta-aws
-
-or simply editing the `bblayers.conf` file `~/yocto/build/conf` directory
+```bash
+$ cd ~/poky-zeus/zeus
+$ bitbake-layers add-layer $BASEDIR/meta-openembedded/meta-oe
+$ bitbake-layers add-layer $BASEDIR/meta-openembedded/meta-python
+$ bitbake-layers add-layer $BASEDIR/meta-openembedded/meta-networking
+```
+Now you are ready to build.
 
 ## Adding Recipes to Your Image
 
 Once the setup is done the recipes provided in the `meta-aws` will be available and can be added to the target image by adding:
 
-    IMAGE_INSTALL += "<name-of-the-bb-recipe>"
+```cfg
+IMAGE_INSTALL += "<name-of-the-bb-recipe>"
+```
+
+For example:
+
+```cfg
+IMAGE_INSTALL += "greengrass-core"
+```
 
 after which the image can be built with the command:
 
-    bitbake <image-name>
+```bash
+bitbake <image-name>
+```
+
+for example
+
+```bash
+$ bitbake core-image-minimal
+```
 
 For more information please refer to https://www.yoctoproject.org/docs/1.8/dev-manual/dev-manual.html
-
 
 © 2019, Amazon Web Services, Inc. or its affiliates. All rights reserved.
