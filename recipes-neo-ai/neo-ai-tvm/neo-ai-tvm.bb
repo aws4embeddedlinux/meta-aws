@@ -34,7 +34,7 @@ S = "${WORKDIR}/git"
 
 inherit setuptools3 cmake python3native
 
-DEPENDS += "zlib llvm llvm-native gtest"
+DEPENDS += "zlib llvm llvm-native googletest"
 
 # Point to llvm-config
 LLVM_RELEASE = "6.0"
@@ -53,9 +53,10 @@ do_install() {
     # setup.py install some libs under datadir, but we don't need them, so remove.
     rm ${D}${datadir}/tvm/*.so
 }
+
 PACKAGES =+ "${PN}-tests"
 FILES_${PN}-tests = "${datadir}/tvm/cpptest"
-RDEPENDS_${PN}-tests += "${PN}"
+RDEPENDS_${PN}-tests += "${PN} "
 
 # Versioned libs are not produced
 FILES_SOLIBSDEV = ""
