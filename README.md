@@ -108,6 +108,12 @@ for example
 $ MACHINE=qemux86-64 bitbake core-image-minimal
 ```
 
+You can then test with QEMU.  For example, if you want to run the image with ext4 and 2GB memory:
+
+```bash
+runqemu qemux86-64 core-image-minimal ext4 qemuparams="-m 2048"
+```
+
 For more information please refer to https://www.yoctoproject.org/docs/1.8/dev-manual/dev-manual.html
 
 © 2019, Amazon Web Services, Inc. or its affiliates. All rights reserved.
