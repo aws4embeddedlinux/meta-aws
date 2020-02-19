@@ -1,9 +1,11 @@
 SUMMARY = "AWS IoT Greengrass Core Recipe"
-DESCRIPTION = "AWS IoT Greengrass seamlessly extends AWS to edge devices so they can \
-               act locally on the data they generate, while still using the cloud for management, \
-               analytics, and durable storage. With AWS IoT Greengrass, connected devices can run \
-               AWS Lambda functions, Docker containers, or both, execute predictions based on machine \
-               learning models, keep device data in sync, and communicate with other devices \
+DESCRIPTION = "AWS IoT Greengrass seamlessly extends AWS to edge devices so \
+               they can act locally on the data they generate, while \
+               still using the cloud for management, analytics, and durable \
+               storage. With AWS IoT Greengrass, connected devices can run \
+               AWS Lambda functions, Docker containers, or both, \
+               execute predictions based on machine learning models, keep \
+               device data in sync, and communicate with other devices \
                securely – even when not connected to the Internet."
 
 LICENSE = "MIT"
@@ -15,17 +17,18 @@ S = "${WORKDIR}/${BPN}"
 
 inherit update-rc.d useradd systemd
 
-GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
-
-# Check if we have all the env variables set
+# Kernel module override per distribution
+# This is required if the BSP drives the need for differentiation
 python __anonymous () {
-        pkgname = d.getVar("PN")
-#	if d.getVar("GREENGRASS_CERTS_DIR", False) == None:
-#		bb.error("%s: GREENGRASS_CERTS_DIR is not set" % pkgname)
-
-#	if d.getVar("GREENGRASS_CONFIG_DIR", False) == None:
-#		bb.error("%s: GREENGRASS_CONFIG_DIR is not set" % pkgname)
+    if d.getVar('DISTRO') == 'arago':
+        d.setVar('GG_KERNEL_MOD', '${THISDIR}/arago')
+    else:
+        d.setVar('GG_KERNEL_MOD', '${THISDIR}/base')
 }
+
+FILESEXTRAPATHS_prepend := "${GG_KERNEL_MOD}:"
+
+GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
 
 # Disable tasks not needed for the binary package
 do_configure[noexec] = "1"
