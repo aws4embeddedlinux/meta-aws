@@ -84,16 +84,16 @@ Now you are ready to build.
 
 ## Adding Recipes to Your Image
 
-Once the setup is done the recipes provided in the `meta-aws` will be available and can be added to the target image by adding:
+Once the setup is done the recipes provided in the `meta-aws` will be available and can be added to the target image by adding the following to the end of the `local.conf`.  Ensure that a leading space is there.
 
 ```cfg
-IMAGE_INSTALL += "<name-of-the-bb-recipe>"
+IMAGE_INSTALL_append = " <name-of-the-bb-recipe>"
 ```
 
 For example:
 
 ```cfg
-IMAGE_INSTALL += "greengrass-core"
+IMAGE_INSTALL_append = " greengrass"
 ```
 
 after which the image can be built with the command:
