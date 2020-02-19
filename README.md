@@ -105,7 +105,7 @@ bitbake <image-name>
 for example
 
 ```bash
-$ bitbake core-image-minimal
+$ MACHINE=qemux86-64 bitbake core-image-minimal
 ```
 
 For more information please refer to https://www.yoctoproject.org/docs/1.8/dev-manual/dev-manual.html
