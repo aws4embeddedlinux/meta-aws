@@ -59,7 +59,7 @@ do_install() {
 
 pkg_postinst_ontarget_${PN}() {
     # Enable protection for hardlinks and symlinks
-    if ! grep -qs 'protected_.*links' $D${sysconfdir}/sysctl.conf; then
+    if ! grep -qs 'protected_.*links' $D${sysconfdir}/sysctl.conf | grep -v '^#'; then
     cat >> $D${sysconfdir}/sysctl.conf <<-_EOF_
 # Greengrass: protect hardlinks/symlinks
 fs.protected_hardlinks = 1
