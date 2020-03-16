@@ -79,6 +79,7 @@ $ cd ~/poky-zeus/zeus
 $ bitbake-layers add-layer $BASEDIR/meta-openembedded/meta-oe
 $ bitbake-layers add-layer $BASEDIR/meta-openembedded/meta-python
 $ bitbake-layers add-layer $BASEDIR/meta-openembedded/meta-networking
+$ bitbake-layers add-layer $BASEDIR/meta-aws
 ```
 Now you are ready to build.
 
