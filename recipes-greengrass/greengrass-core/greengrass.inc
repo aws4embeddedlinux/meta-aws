@@ -59,7 +59,7 @@ do_install() {
 
 pkg_postinst_ontarget_${PN}() {
     # Enable protection for hardlinks and symlinks
-    if ! grep -qs 'protected_.*links' $D${sysconfdir}/sysctl.conf; then
+    if ! grep -qs 'protected_.*links' $D${sysconfdir}/sysctl.conf | grep -v '^#'; then
     cat >> $D${sysconfdir}/sysctl.conf <<-_EOF_
 # Greengrass: protect hardlinks/symlinks
 fs.protected_hardlinks = 1
@@ -112,5 +112,5 @@ USERADD_PARAM_${PN} = "-r -M -N -g ggc_group -s /bin/false ggc_user"
 #
 INSANE_SKIP_${PN} += "already-stripped ldflags file-rdeps"
 
-RDEPENDS_${PN} += "ca-certificates python-argparse python-json python-numbers sqlite3"
+RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3"
 
