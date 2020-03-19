@@ -12,5 +12,5 @@ SRCREV = "${AUTOREV}"
 S = "${WORKDIR}/git"
 
 RDEPENDS_${PN} += " \
-    awscrt \
+    aws-crt-python \
 "
