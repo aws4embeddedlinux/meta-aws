@@ -9,7 +9,15 @@ SRC_URI[sha256sum] = "fa787d248505edae6640442134c032dfe22fb73df40b834341d66409f5
 
 PYPI_PACKAGE = "awscrt"
 
-inherit pypi
+inherit pypi setuptools3
+
+CFLAGS_append = " -Wl,-Bsymbolic"
+
+DEPENDS += "cmake-native ${PYTHON_PN}-setuptools-scm-native"
+
+RDEPENDS_${PN} += " \
+    python3 \
+"
 
 # LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
@@ -25,5 +33,3 @@ inherit pypi
 #   cd ${S}
 #   git submodule update --init --recursive
 # }
-
-# inherit pypi setuptools3
