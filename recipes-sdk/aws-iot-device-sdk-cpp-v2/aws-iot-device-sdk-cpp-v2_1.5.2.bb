@@ -1,6 +1,6 @@
 require aws-iot-device-sdk-v2.inc
-PV=1.5.2
-SRC_URI = "LIC_FILES_CHKSUM = "file://aws-common-runtime/aws-crt-cpp/aws-common-runtime/aws-c-mqtt/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57 \
+PV = "1.5.2"
+LIC_FILES_CHKSUM = "file://aws-common-runtime/aws-crt-cpp/aws-common-runtime/aws-c-mqtt/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57 \
 file://aws-common-runtime/aws-crt-cpp/aws-common-runtime/aws-c-compression/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57 \
 file://aws-common-runtime/aws-crt-cpp/aws-common-runtime/aws-c-http/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57 \
 file://aws-common-runtime/aws-crt-cpp/aws-common-runtime/aws-c-common/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57 \
