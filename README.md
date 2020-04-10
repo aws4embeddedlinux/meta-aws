@@ -2,14 +2,7 @@
 
 The **meta-aws** project provides *recipes* for building in AWS edge software capabilities to [Embedded Linux](https://elinux.org) built with [OpenEmbedded](https://www.openembedded.org) and [Yocto Project](https://www.yoctoproject.org/) build frameworks.
 
-This layer depends on the additional mandatory layers:
-
-- meta-yocto-bsp
-- meta-openembedded/meta-oe
-- meta-openembedded/meta-networking
-- meta-openembedded/meta-python
-
-Please make sure you have them in your Yocto Project.
+Please check out [our sister project meta-aws-demos](https://github.com/aws-samples/meta-aws-demos)!  Over time, we will continuously be adding MACHINE specific demonstrations for AWS software on Embedded Linux built by the Yocto Project build framework with the meta-aws Metadata Layer.
 
 # Getting Started
 
