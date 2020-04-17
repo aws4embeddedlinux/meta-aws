@@ -1,0 +1,13 @@
+diff --git a/samples/linux/subscribe_publish_sample/Makefile b/samples/linux/subscribe_publish_sample/Makefile
+index 4b32391..6a5ca85 100644
+--- a/samples/linux/subscribe_publish_sample/Makefile
++++ b/samples/linux/subscribe_publish_sample/Makefile
+@@ -2,7 +2,7 @@
+ .prevent_execution:
+ 	exit 0
+ 
+-CC = gcc
++#CC = gcc
+ 
+ #remove @ for no make command prints
+ DEBUG = @

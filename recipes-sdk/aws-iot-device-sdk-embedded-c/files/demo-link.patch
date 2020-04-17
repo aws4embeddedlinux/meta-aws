@@ -1,0 +1,14 @@
+diff --git a/demos/CMakeLists.txt b/demos/CMakeLists.txt
+index cd8aa43a..d80da0c0 100644
+--- a/demos/CMakeLists.txt
++++ b/demos/CMakeLists.txt
+@@ -37,7 +37,7 @@ set( DEMO_SOURCES
+      src/aws_iot_demo_defender.c
+      src/aws_iot_demo_jobs.c )
+ set( DEMO_LIBRARY_DEPENDENCY
+-     iotmqtt
++     "iotmqtt\\\;mbedtls"
+      "awsiotshadow\\\;awsiotcommon"
+      awsiotdefender 
+      "awsiotjobs\\\;awsiotcommon" )
+
