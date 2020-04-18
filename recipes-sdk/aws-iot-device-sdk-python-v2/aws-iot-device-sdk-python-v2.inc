@@ -7,7 +7,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 BRANCH ?= "master"
 
 SRC_URI = "git://github.com/aws/aws-iot-device-sdk-python-v2.git;branch=${BRANCH};name=aws-iot-device-sdk-python-v2"
-SRCREV = "${AUTOREV}"
+SRCREV = "907cbde44a0e01debe3c615339daa28be0eb075c"
 
 S = "${WORKDIR}/git"
 
