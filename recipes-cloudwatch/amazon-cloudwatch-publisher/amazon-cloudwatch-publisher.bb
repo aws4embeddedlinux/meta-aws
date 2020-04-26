@@ -32,8 +32,9 @@ do_install() {
 	touch ${D}/opt/aws/${PN}/etc/.gitkeep
 	install -d ${D}/opt/aws/${PN}/logs
 	touch ${D}/opt/aws/${PN}/logs/.gitkeep
-	install -m 644 ${WORKDIR}/git/${PN} ${D}/opt/aws/${PN}/
+	install -m 744 ${WORKDIR}/git/${PN} ${D}/opt/aws/${PN}/
 
+	# TODO: user and group should be cwpublisher/wheel
 	cat <<-EOF > ${D}${systemd_system_unitdir}/${PN}.service
 [Unit]
 Description=Push metrics and logs to CloudWatch from any system that can run Python
@@ -43,10 +44,9 @@ After=network.target network-online.target
 
 [Service]
 Type=simple
-# TODO: user and group should be cwpublisher/wheel
 User=root
 Group=root
-ExecStart=${PN}
+ExecStart=${D}/opt/aws/${PN}/${PN}
 Restart=on-failure
 WorkingDirectory=/opt/aws/${PN}
 
