@@ -1,6 +1,7 @@
 DESCRIPTION = "Push metrics and logs to CloudWatch from any system that can run Python"
 HOMEPAGE = "https://github.com/awslabs/${PN}"
 LICENSE = "Apache-2.0"
+LIC_FILES_CHKSUM = "file://${WORKDIR}/git/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 RDEPENDS_${PN} += " \
 	python3-boto3 \
@@ -15,19 +16,23 @@ SYSTEMD_SERVICE_${PN} = "${PN}.service"
 SYSTEMD_AUTO_ENABLE = "enable"
 
 FILES_${PN} += " \
-	${systemd_system_unitdir}/${PN}.service
-	/opt/aws/${PN}/${PN}
+	${systemd_system_unitdir}/${PN}.service \
+	/opt/aws/${PN}/${PN} \
+	/opt/aws/${PN}/etc/.gitkeep \
+	/opt/aws/${PN}/logs/.gitkeep \
 "
 
 SRC_URI += " \
-	git://github.com/awslabs/${PN};destsuffix=${PN};protocol=http;rev=8714318477f2d627e5eea5a7b8c354dabaf6a4e1 \
+	git://github.com/awslabs/${PN};protocol=http;rev=8714318477f2d627e5eea5a7b8c354dabaf6a4e1 \
 "
 
 do_install() {
+	install -d ${D}${systemd_system_unitdir}
 	install -d ${D}/opt/aws/${PN}/etc
+	touch ${D}/opt/aws/${PN}/etc/.gitkeep
 	install -d ${D}/opt/aws/${PN}/logs
-	install -m 644 ${WORKDIR}/${PN}/${PN}.service ${D}${systemd_system_unitdir}/
-	install -m 644 ${WORKDIR}/${PN}/${PN} ${D}/opt/aws/${PN}/
+	touch ${D}/opt/aws/${PN}/logs/.gitkeep
+	install -m 644 ${WORKDIR}/git/${PN} ${D}/opt/aws/${PN}/
 
 	cat <<-EOF > ${D}${systemd_system_unitdir}/${PN}.service
 [Unit]
