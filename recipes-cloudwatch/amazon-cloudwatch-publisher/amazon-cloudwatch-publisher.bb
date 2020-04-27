@@ -46,7 +46,7 @@ After=network.target network-online.target
 Type=simple
 User=root
 Group=root
-ExecStart=${D}/opt/aws/${PN}/${PN}
+ExecStart=/opt/aws/${PN}/${PN}
 Restart=on-failure
 WorkingDirectory=/opt/aws/${PN}
 
