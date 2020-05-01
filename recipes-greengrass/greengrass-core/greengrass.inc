@@ -1,9 +1,11 @@
 SUMMARY = "AWS IoT Greengrass Core Recipe"
-DESCRIPTION = "AWS IoT Greengrass seamlessly extends AWS to edge devices so they can \
-               act locally on the data they generate, while still using the cloud for management, \
-               analytics, and durable storage. With AWS IoT Greengrass, connected devices can run \
-               AWS Lambda functions, Docker containers, or both, execute predictions based on machine \
-               learning models, keep device data in sync, and communicate with other devices \
+DESCRIPTION = "AWS IoT Greengrass seamlessly extends AWS to edge devices so \
+               they can act locally on the data they generate, while \
+               still using the cloud for management, analytics, and durable \
+               storage. With AWS IoT Greengrass, connected devices can run \
+               AWS Lambda functions, Docker containers, or both, \
+               execute predictions based on machine learning models, keep \
+               device data in sync, and communicate with other devices \
                securely – even when not connected to the Internet."
 
 LICENSE = "MIT"
@@ -15,17 +17,18 @@ S = "${WORKDIR}/${BPN}"
 
 inherit update-rc.d useradd systemd
 
-GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
-
-# Check if we have all the env variables set
+# Kernel module override per distribution
+# This is required if the BSP drives the need for differentiation
 python __anonymous () {
-        pkgname = d.getVar("PN")
-#	if d.getVar("GREENGRASS_CERTS_DIR", False) == None:
-#		bb.error("%s: GREENGRASS_CERTS_DIR is not set" % pkgname)
-
-#	if d.getVar("GREENGRASS_CONFIG_DIR", False) == None:
-#		bb.error("%s: GREENGRASS_CONFIG_DIR is not set" % pkgname)
+    if d.getVar('DISTRO') == 'arago':
+        d.setVar('GG_KERNEL_MOD', '${THISDIR}/arago')
+    else:
+        d.setVar('GG_KERNEL_MOD', '${THISDIR}/base')
 }
+
+FILESEXTRAPATHS_prepend := "${GG_KERNEL_MOD}:"
+
+GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
 
 # Disable tasks not needed for the binary package
 do_configure[noexec] = "1"
@@ -56,7 +59,7 @@ do_install() {
 
 pkg_postinst_ontarget_${PN}() {
     # Enable protection for hardlinks and symlinks
-    if ! grep -qs 'protected_.*links' $D${sysconfdir}/sysctl.conf; then
+    if ! grep -qs 'protected_.*links' $D${sysconfdir}/sysctl.conf | grep -v '^#'; then
     cat >> $D${sysconfdir}/sysctl.conf <<-_EOF_
 # Greengrass: protect hardlinks/symlinks
 fs.protected_hardlinks = 1
@@ -109,5 +112,5 @@ USERADD_PARAM_${PN} = "-r -M -N -g ggc_group -s /bin/false ggc_user"
 #
 INSANE_SKIP_${PN} += "already-stripped ldflags file-rdeps"
 
-RDEPENDS_${PN} += "ca-certificates python-argparse python-json python-numbers sqlite3"
+RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3"
 
