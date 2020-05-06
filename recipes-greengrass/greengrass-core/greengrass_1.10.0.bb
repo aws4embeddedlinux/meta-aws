@@ -26,3 +26,12 @@ SRC_URI[aarch64.sha256sum] = "912ecbe10398382894045f9b9dafd16eac7fabce0fc04fc9ee
 
 SRC_URI[x86-64.md5sum]     = "cd363d38e22a1918ca0bc6ea8d07a931"
 SRC_URI[x86-64.sha256sum]  = "589d91ab2a358d028cd0c458efdcc1a80d19a1fb8d41c358f928d6a98c333f42"
+
+# Release specific configuration
+
+DEPENDS += "patchelf-native"
+RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3 docker python3-docker-compose openjdk-8"
+
+do_install_append_x86-64() {
+    patchelf --set-interpreter /lib/ld-linux-x86-64.so.2 ${D}/greengrass/ggc/core/bin/daemon
+}
