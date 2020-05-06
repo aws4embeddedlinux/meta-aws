@@ -112,5 +112,4 @@ USERADD_PARAM_${PN} = "-r -M -N -g ggc_group -s /bin/false ggc_user"
 #
 INSANE_SKIP_${PN} += "already-stripped ldflags file-rdeps"
 
-RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3"
-
+RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3 docker python3-docker-compose openjdk-8"
