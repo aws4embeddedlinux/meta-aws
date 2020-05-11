@@ -78,6 +78,7 @@ _EOF_
 				# Greengrass: mount cgroups
 				cgroup    /sys/fs/cgroup    cgroup    defaults    0  0
 			_EOF_
+			mount -at cgroup 2>/dev/null
 		fi
 	fi
 
