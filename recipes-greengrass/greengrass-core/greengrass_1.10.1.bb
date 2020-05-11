@@ -34,4 +34,5 @@ RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3 docker p
 
 do_install_append_x86-64() {
     patchelf --set-interpreter /lib/ld-linux-x86-64.so.2 ${D}/greengrass/ggc/core/bin/daemon
+    patchelf --set-interpreter /lib/ld-linux-x86-64.so.2 ${D}/greengrass/ggc/core/lambda/GreengrassSystemComponents/greengrassSystemComponents
 }
