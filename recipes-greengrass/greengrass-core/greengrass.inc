@@ -17,17 +17,6 @@ S = "${WORKDIR}/${BPN}"
 
 inherit update-rc.d useradd systemd
 
-# Kernel module override per distribution
-# This is required if the BSP drives the need for differentiation
-python __anonymous () {
-    if d.getVar('DISTRO') == 'arago':
-        d.setVar('GG_KERNEL_MOD', '${THISDIR}/arago')
-    else:
-        d.setVar('GG_KERNEL_MOD', '${THISDIR}/base')
-}
-
-FILESEXTRAPATHS_prepend := "${GG_KERNEL_MOD}:"
-
 GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
 
 # Disable tasks not needed for the binary package
