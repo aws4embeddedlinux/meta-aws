@@ -29,10 +29,15 @@ SRC_URI[x86-64.sha256sum]  = "8fded584f9291510ee91fe98cfd8bc69e01d1b8e4147f24fa1
 
 # Release specific configuration
 
-DEPENDS += "patchelf-native"
 RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3 docker python3-docker-compose openjdk-8"
 
 do_install_append_x86-64() {
-    patchelf --set-interpreter /lib/ld-linux-x86-64.so.2 ${D}/greengrass/ggc/core/bin/daemon
-    patchelf --set-interpreter /lib/ld-linux-x86-64.so.2 ${D}/greengrass/ggc/core/lambda/GreengrassSystemComponents/greengrassSystemComponents
+    # create symbolic link /lib64/ld-linux-x86-64.so.2 to enable loading the binary
+    install -d ${D}/lib64
+    cd ${D}/lib64
+    ln -s ../lib/ld-linux-x86-64.so.2 ld-linux-x86-64.so.2
 }
+
+FILES_${PN} += " /lib64"
+INSANE_SKIP_${PN} += " libdir"
+
