@@ -40,4 +40,3 @@ do_install_append_x86-64() {
 
 FILES_${PN} += " /lib64"
 INSANE_SKIP_${PN} += " libdir"
-
