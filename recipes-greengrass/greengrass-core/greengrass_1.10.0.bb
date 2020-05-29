@@ -30,7 +30,7 @@ SRC_URI[x86-64.sha256sum]  = "589d91ab2a358d028cd0c458efdcc1a80d19a1fb8d41c358f9
 # Release specific configuration
 
 DEPENDS += "patchelf-native"
-RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3 docker python3-docker-compose openjdk-8"
+RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3"
 
 do_install_append_x86-64() {
     # create symbolic link /lib64/ld-linux-x86-64.so.2 to enable loading the binary
