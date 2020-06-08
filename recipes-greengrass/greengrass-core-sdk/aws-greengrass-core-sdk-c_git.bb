@@ -1,6 +1,8 @@
 SUMMARY = "AWS Greengrass Core SDK C with Example"
 DESCRIPTION = "A simple hello world application"
 LICENSE = "Apache-2.0"
+LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/\
+${LICENSE};md5=89aea4e17d99a7cacdbeed46a0096b10"
 
 BRANCH = "master"
 SRCREV = "f269fc8d07f2922f49429e1d8bc097d65bb67188"
