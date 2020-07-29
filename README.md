@@ -29,31 +29,18 @@ In this section, you will checkout the Poky reference implementation, meta-aws, 
 In this case, we will be checking out sources for the **zeus** release.
 
 ```bash
-$ git clone git://git.yoctoproject.org/poky ~/poky-zeus
-$ cd ~/poky-zeus
-$ git fetch --tags
-$ git checkout tags/yocto-3.0.1
+git clone -b zeus git://git.yoctoproject.org/poky ~/poky-zeus
+cd ~/poky-zeus
 ```
 
-Next, check out the `openembedded` distribution for the **zeus** release.
+Next, check out the `openembedded` distribution for the **zeus**
+release.  **NOTE** This will be updated to dunfell soon.
 
 ```bash
-$ git clone git://git.openembedded.org/meta-openembedded \
-      ~/poky-zeus/meta-openembedded
-
-$ cd ~/poky-zeus/meta-openembedded
-
-$ git fetch --tags
-$ git checkout zeus
-```
-
-Next, checkout `meta-aws` to the **zeus** branch.
-
-```bash
-$ git clone https://github.com/aws/meta-aws ~/poky-zeus/meta-aws
-$ pushd ~/poky-zeus/meta-aws
-$ git fetch --tags
-$ git checkout zeus
+git clone -b zeus git://git.openembedded.org/meta-openembedded
+git clone -b zeus git://git.yoctoproject.org/meta-virtualization
+git clone -b zeus git://git.yoctoproject.org/meta-java
+git clone -b zeus git://github.com/aws/meta-aws
 ```
 
 ## Configure build
@@ -61,19 +48,34 @@ $ git checkout zeus
 Initialize the build environment. This will create a build directory named **zeus**.
 
 ```bash
-$ cd ~/poky-zeus
-$ source poky/oe-init-build-env zeus
+source oe-init-build-env
 ```
 
-Next, add layers to the build.
+Next, modify conf/bblayers.conf to resemble the following.  The reason
+for manual editing is the bitbake-layers command gets broken by a
+couple of the layers.
 
-```bash
-$ cd ~/poky-zeus/zeus
-$ bitbake-layers add-layer $BASEDIR/meta-openembedded/meta-oe
-$ bitbake-layers add-layer $BASEDIR/meta-openembedded/meta-python
-$ bitbake-layers add-layer $BASEDIR/meta-openembedded/meta-networking
-$ bitbake-layers add-layer $BASEDIR/meta-aws
+```text
+# POKY_BBLAYERS_CONF_VERSION is increased each time build/conf/bblayers.conf
+# changes incompatibly
+POKY_BBLAYERS_CONF_VERSION = "2"
+
+BBPATH = "${TOPDIR}"
+BBFILES ?= ""
+
+BBLAYERS ?= " \
+  /src/poky-zeus/meta \
+  /src/poky-zeus/meta-poky \
+  /src/poky-zeus/meta-yocto-bsp \
+  /src/poky-zeus/meta-openembedded/meta-oe \
+  /src/poky-zeus/meta-openembedded/meta-python \
+  /src/poky-zeus/meta-openembedded/meta-filesystems \
+  /src/poky-zeus/meta-openembedded/meta-networking \
+  /src/poky-zeus/meta-virtualization \
+  /src/poky-zeus/meta-aws \
+  "
 ```
+
 Now you are ready to build.
 
 ## Adding Recipes to Your Image
@@ -99,8 +101,11 @@ bitbake <image-name>
 for example
 
 ```bash
-$ MACHINE=qemux86-64 bitbake core-image-minimal
+MACHINE=qemux86-64 bitbake core-image-minimal
 ```
+
+If you want to add support for IoT Greengrass Connectors and/or Stream
+Manager, you will need to add Docker and JDK respectively to the build.
 
 You can then test with QEMU.  For example, if you want to run the image with ext4 and 2GB memory:
 
