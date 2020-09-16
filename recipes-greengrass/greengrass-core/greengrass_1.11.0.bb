@@ -2,7 +2,7 @@ require greengrass.inc
 
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = " \
-    file://ggc/core/THIRD-PARTY-LICENSES;md5=1f0ad815f019455e3a0efe55e888a69a \
+    file://ggc/core/THIRD-PARTY-LICENSES;md5=d3fb176f85edb203d99ed157c1301989 \
 "
 
 SRC_URI_arm = " \
@@ -23,18 +23,18 @@ SRC_URI_x86-64 = " \
     file://greengrass-init \
 "
 
-SRC_URI[arm.md5sum]        = "f9b1181efe9b0c65dd490b01e9193b61"
-SRC_URI[arm.sha256sum]     = "9e77cc841558a15326b6145ddab2b145db8dc735a3710cb4dd0feb023d16ae2f"
+SRC_URI[arm.md5sum]        = "c5f2981d724e200c0d68ee41e6f6b47c"
+SRC_URI[arm.sha256sum]     = "af6ac0b277193a17d59b010071e153aa3d9aca1136062dd044caab3a9b663b13"
 
-SRC_URI[aarch64.md5sum]    = "4de5bd70bcc024634cd6cebe44d3e3f1"
-SRC_URI[aarch64.sha256sum] = "b79449eadfdbe64d8c6700ac4fe8cd167495e53359c08eb2fc6071559da2cdd3"
+SRC_URI[aarch64.md5sum]    = "98cf7b575c2f60cc31d0bb83cabecbfd"
+SRC_URI[aarch64.sha256sum] = "20bf2f5bf0bd92db5eb944551057bfcaf4f05309bff2e834286d69e774655e19"
 
-SRC_URI[x86-64.md5sum]     = "e01f095bc1d43e62d1bfadb95f6a8d53"
-SRC_URI[x86-64.sha256sum]  = "8fded584f9291510ee91fe98cfd8bc69e01d1b8e4147f24fa1366e0eb9172b28"
+SRC_URI[x86-64.md5sum]     = "03eb60225cd5fb2c725560d8e81fd99e"
+SRC_URI[x86-64.sha256sum]  = "28f9ec7c64e937d309bd5b70903020e9ed590626de08a8151b7b9bd4a618727e"
 
 # Release specific configuration
 
-RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3 docker python3-docker-compose openjdk-8"
+RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3"
 
 do_install_append_x86-64() {
     # create symbolic link /lib64/ld-linux-x86-64.so.2 to enable loading the binary
@@ -45,4 +45,3 @@ do_install_append_x86-64() {
 
 FILES_${PN} += " /lib64"
 INSANE_SKIP_${PN} += " libdir"
-

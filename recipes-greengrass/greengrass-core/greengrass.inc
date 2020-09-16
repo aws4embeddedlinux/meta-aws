@@ -8,11 +8,6 @@ DESCRIPTION = "AWS IoT Greengrass seamlessly extends AWS to edge devices so \
                device data in sync, and communicate with other devices \
                securely – even when not connected to the Internet."
 
-LICENSE = "MIT"
-LIC_FILES_CHKSUM = " \
-    file://ggc/core/THIRD-PARTY-LICENSES;md5=1f0ad815f019455e3a0efe55e888a69a \
-"
-
 S = "${WORKDIR}/${BPN}"
 
 inherit update-rc.d useradd systemd
@@ -37,10 +32,6 @@ do_install() {
     # Install systemd service
     install -d ${D}${systemd_unitdir}/system/
     install -m 0644 ${WORKDIR}/greengrass.service ${D}${systemd_unitdir}/system/greengrass.service
-
-    # Install the greengrass core specific certificates and config.json
-#    install -m 0644 ${GREENGRASS_CERTS_DIR}/* ${D}/${BPN}/certs/
-#    install -m 0644 ${GREENGRASS_CONFIG_DIR}/* ${D}/${BPN}/config/
 
     # Configure whether to use systemd or not
     sed -i -e "/useSystemd/{s,\[yes|no],${GG_USESYSTEMD},g}" ${D}/${BPN}/config/config.json
