@@ -83,11 +83,8 @@ SYSTEMD_SERVICE_${PN} = "greengrass.service"
 
 inherit useradd
 USERADD_PACKAGES = "${PN}"
-USERADDEXTENSION = "useradd-staticids"
 GROUPADD_PARAM_${PN} = "--system ggc_group"
-USERADD_PARAM_${PN} = "\
- --no-create-home --no-user-group --system --gid ggc_group --shell /bin/false \
- --key PASS_MAX_DAYS=-1 ggc_user"
+USERADD_PARAM_${PN}  = "--system --gid ggc_group --shell /bin/false ggc_user"
 
 #
 # Disable failing QA checks:
