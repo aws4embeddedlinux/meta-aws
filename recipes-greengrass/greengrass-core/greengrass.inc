@@ -8,11 +8,6 @@ DESCRIPTION = "AWS IoT Greengrass seamlessly extends AWS to edge devices so \
                device data in sync, and communicate with other devices \
                securely – even when not connected to the Internet."
 
-LICENSE = "MIT"
-LIC_FILES_CHKSUM = " \
-    file://ggc/core/THIRD-PARTY-LICENSES;md5=1f0ad815f019455e3a0efe55e888a69a \
-"
-
 S = "${WORKDIR}/${BPN}"
 
 inherit update-rc.d systemd

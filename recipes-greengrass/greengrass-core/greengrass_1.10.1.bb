@@ -1,5 +1,10 @@
 require greengrass.inc
 
+LICENSE = "MIT"
+LIC_FILES_CHKSUM = " \
+    file://ggc/core/THIRD-PARTY-LICENSES;md5=1f0ad815f019455e3a0efe55e888a69a \
+"
+
 SRC_URI_arm = " \
     https://d1onfpft10uf5o.cloudfront.net/greengrass-core/downloads/${PV}/greengrass-linux-armv7l-${PV}.tar.gz;name=arm \
     file://greengrass.service \

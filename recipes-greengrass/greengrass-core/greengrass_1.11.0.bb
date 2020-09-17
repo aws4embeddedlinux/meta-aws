@@ -2,7 +2,7 @@ require greengrass.inc
 
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = " \
-    file://ggc/core/THIRD-PARTY-LICENSES;md5=1f0ad815f019455e3a0efe55e888a69a \
+    file://ggc/core/THIRD-PARTY-LICENSES;md5=d3fb176f85edb203d99ed157c1301989 \
 "
 
 SRC_URI_arm = " \
@@ -23,14 +23,14 @@ SRC_URI_x86-64 = " \
     file://greengrass-init \
 "
 
-SRC_URI[arm.md5sum]        = "e54bb57929bc278ea89737c4abcd89e8"
-SRC_URI[arm.sha256sum]     = "91f3d92dca977ea504921c7dbae96a926adce441c8f9ec1896e4c8cf085d6d2e"
+SRC_URI[arm.md5sum]        = "c5f2981d724e200c0d68ee41e6f6b47c"
+SRC_URI[arm.sha256sum]     = "af6ac0b277193a17d59b010071e153aa3d9aca1136062dd044caab3a9b663b13"
 
-SRC_URI[aarch64.md5sum]    = "1bdde4df4c461cd5502f7adbb79b2903"
-SRC_URI[aarch64.sha256sum] = "912ecbe10398382894045f9b9dafd16eac7fabce0fc04fc9ee83c8ec8f67ca5a"
+SRC_URI[aarch64.md5sum]    = "98cf7b575c2f60cc31d0bb83cabecbfd"
+SRC_URI[aarch64.sha256sum] = "20bf2f5bf0bd92db5eb944551057bfcaf4f05309bff2e834286d69e774655e19"
 
-SRC_URI[x86-64.md5sum]     = "cd363d38e22a1918ca0bc6ea8d07a931"
-SRC_URI[x86-64.sha256sum]  = "589d91ab2a358d028cd0c458efdcc1a80d19a1fb8d41c358f928d6a98c333f42"
+SRC_URI[x86-64.md5sum]     = "03eb60225cd5fb2c725560d8e81fd99e"
+SRC_URI[x86-64.sha256sum]  = "28f9ec7c64e937d309bd5b70903020e9ed590626de08a8151b7b9bd4a618727e"
 
 # Release specific configuration
 
