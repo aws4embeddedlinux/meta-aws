@@ -47,10 +47,6 @@ FILES_${PN} += "${libdir}/libIotJobs-cpp.so"
 FILES_${PN} += "${libdir}/libIotShadow-cpp.so"
 FILES_${PN} += "${libdir}/libs2n.so"
 
-#FILES_${PN}-dev += "${libdir}/*1.0.0"
-#FILES_${PN}-dev += "${libdir}/libaws-crt-cpp.so"
-#FILES_${PN}-dev += "${libdir}/libs2n.so"
-
 PACKAGES = "${PN}"
 INSANE_SKIP_${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
