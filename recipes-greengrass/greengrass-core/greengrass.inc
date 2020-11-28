@@ -35,6 +35,9 @@ do_install() {
 
     # Configure whether to use systemd or not
     sed -i -e "/useSystemd/{s,\[yes|no],${GG_USESYSTEMD},g}" ${D}/${BPN}/config/config.json
+
+    install -d ${D}${sysconfdir}/sudoers.d
+    install -m 0440 ${WORKDIR}/ggc_user ${D}${sysconfdir}/sudoers.d/ggc_user
 }
 
 pkg_postinst_ontarget_${PN}() {
@@ -82,7 +85,7 @@ SYSTEMD_SERVICE_${PN} = "greengrass.service"
 
 USERADD_PACKAGES = "${PN}"
 GROUPADD_PARAM_${PN} = "-r ggc_group"
-USERADD_PARAM_${PN} = "-r -M -N -g ggc_group -s /bin/false ggc_user"
+USERADD_PARAM_${PN} = "-r -N -g ggc_group -s /bin/false ggc_user"
 
 #
 # Disable failing QA checks:
