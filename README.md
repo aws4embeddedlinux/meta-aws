@@ -4,6 +4,8 @@ The **meta-aws** project provides *recipes* for building in AWS edge software ca
 
 Please check out [our sister project meta-aws-demos](https://github.com/aws-samples/meta-aws-demos)!  Over time, we will continuously be adding MACHINE specific demonstrations for AWS software on Embedded Linux built by the Yocto Project build framework with the meta-aws Metadata Layer.
 
+**IMPORTANT NOTE**: Automotive Grade Linux: This distribution uses a specific static ID process. When adding AWS IoT Greengrass, you will need to define users in the passwd and group files manually. Please see https://github.com/aws/meta-aws/issues/75 for more information.
+
 # Getting Started
 
 The following tutorial is useful to start building your own Yocto project. The development machine should be running Ubuntu 16.04 and above.
