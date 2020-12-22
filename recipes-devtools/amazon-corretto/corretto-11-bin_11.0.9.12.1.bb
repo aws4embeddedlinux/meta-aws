@@ -4,7 +4,7 @@ LICENSE = "GPL-2"
 
 LIC_FILES_CHKSUM = "file://../${BASE}/LICENSE;md5=3e0b59f8fac05c3c03d4a26bbda13f8f"
 SHR             = "amazon-corretto-${PV}"
-BASE_aarch64    = "amazon-corretto-${PV}-linux-x64"
+BASE_aarch64    = "amazon-corretto-${PV}-linux-aarch64"
 SRC_URI_aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
 
 BASE_arm        = "amazon-corretto-${PV}-linux-armv7"
