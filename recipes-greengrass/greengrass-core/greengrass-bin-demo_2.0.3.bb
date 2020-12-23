@@ -8,9 +8,9 @@ GG_ROOT                    = "${D}/${GG_BASENAME}"
 LIC_FILES_CHKSUM           = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 SRC_URI                    = "https://raw.githubusercontent.com/aws-greengrass/aws-greengrass-nucleus/main/LICENSE;name=license; \
                               file://greengrassv2-init.yaml \
-                              file://${GGV2_PKEY}           \
-                              file://${GGV2_CERT}           \
-                              file://${GGV2_CA}             \
+                              file://demo.pkey.pem          \
+                              file://demo.cert.pem          \
+                              file://demo.root.pem          \
                               "
 SRC_URI[license.md5sum]    = "34400b68072d710fecd0a2940a0d1658"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
@@ -23,9 +23,9 @@ do_compile[noexec]   = "1"
 do_install() {
     install -d ${GG_ROOT}/auth
     install -d ${GG_ROOT}/config
-    install -m 0440 ${WORKDIR}/${GGV2_PKEY} ${GG_ROOT}/auth
-    install -m 0440 ${WORKDIR}/${GGV2_CERT} ${GG_ROOT}/auth
-    install -m 0440 ${WORKDIR}/${GGV2_CA}   ${GG_ROOT}/auth
+    install -m 0440 ${WORKDIR}/demo.pkey.pem ${GG_ROOT}/auth
+    install -m 0440 ${WORKDIR}/demo.cert.pem ${GG_ROOT}/auth
+    install -m 0440 ${WORKDIR}/demo.root.pem ${GG_ROOT}/auth
 
     install -m 0640 ${WORKDIR}/greengrassv2-init.yaml ${GG_ROOT}/config/config.yaml
 
