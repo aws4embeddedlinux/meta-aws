@@ -1,0 +1,54 @@
+From 3d9fa328598b38022c638b402d111000ce0d88c7 Mon Sep 17 00:00:00 2001
+From: Jianzhong Xu <xuj@ti.com>
+Date: Tue, 26 Nov 2019 08:53:33 -0500
+Subject: [PATCH] CMakeLists: skip cloning of googletests
+
+Signed-off-by: Jianzhong Xu <xuj@ti.com>
+
+Upstream-status: Inappropriate (OE-specific)
+* googletest should be obtained as a proper dependency
+
+---
+ CMakeLists.txt | 26 +++++++++++++-------------
+ 1 file changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 281fdb7..70a88d7 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -293,19 +293,19 @@ add_custom_target(demo DEPENDS ${DEMO_EXECS})
+ 
+ # Tests
+ if(NOT(ANDROID_BUILD OR AAR_BUILD))
+-  include(cmake/googletest.cmake)
+-  fetch_googletest(
+-    ${PROJECT_SOURCE_DIR}/cmake
+-    ${PROJECT_BINARY_DIR}/googletest
+-    )
+-
+-  enable_testing()
+-
+-  file(GLOB TEST_SRCS tests/cpp/*.cc)
+-  if(WITH_TENSORFLOW_LITE_LIB)
+-    file(GLOB TFLITE_TEST_SRCS tests/cpp/dlr_tflite/*.cc)
+-    list(APPEND TEST_SRCS ${TFLITE_TEST_SRCS})
+-  endif()
++  #include(cmake/googletest.cmake)
++  #fetch_googletest(
++  #  ${PROJECT_SOURCE_DIR}/cmake
++  #  ${PROJECT_BINARY_DIR}/googletest
++  #  )
++  #
++  #enable_testing()
++  #
++  #file(GLOB TEST_SRCS tests/cpp/*.cc)
++  #if(WITH_TENSORFLOW_LITE_LIB)
++  #  file(GLOB TFLITE_TEST_SRCS tests/cpp/dlr_tflite/*.cc)
++  #  list(APPEND TEST_SRCS ${TFLITE_TEST_SRCS})
++  #endif()
+   foreach(__srcpath ${TEST_SRCS})
+     get_filename_component(__srcname ${__srcpath} NAME)
+     string(REPLACE ".cc" "" __execname ${__srcname})
+-- 
+2.17.1
+
