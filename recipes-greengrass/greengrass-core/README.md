@@ -29,16 +29,18 @@ GGV2_THING_NAME  = ""
 GGV2_TES_RALIAS  = ""
 ```
 
-Add certificate, key, and CA to the files/ directory.
+Add certificate, key, and CA to the files/ directory. Overwrite the
+files named:
+
+- demo.pkey.pem : private key in PEM format
+- demo.cert.pem : certificate in PEM format
+- demo.root.pem : root CA certificate in PEM format
 
 A sample configuration looks like the following.
 
 ```bash
 GGV2_DATA_EP     = "audqth88umq6e-ats.iot.us-east-1.amazonaws.com"
 GGV2_CRED_EP     = "c2uxv58888oq7k.credentials.iot.us-east-1.amazonaws.com"
-GGV2_PKEY        = "privKey.key"
-GGV2_CERT        = "thingCert.crt"
-GGV2_CA          = "rootCA.pem"
 GGV2_REGION      = "us-west-2"
 GGV2_THING_NAME  = "workstation"
 GGV2_TES_RALIAS  = "GreengrassV2TokenExchangeRoleAlias"

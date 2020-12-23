@@ -29,9 +29,9 @@ do_install() {
 
     install -m 0640 ${WORKDIR}/greengrassv2-init.yaml ${GG_ROOT}/config/config.yaml
 
-    sed -i -e "s,##private_key##,/${GG_BASENAME}/auth/${GGV2_PKEY},g" ${GG_ROOT}/config/config.yaml
-    sed -i -e "s,##certificate_path##,/${GG_BASENAME}/auth/${GGV2_CERT},g" ${GG_ROOT}/config/config.yaml
-    sed -i -e "s,##root_ca##,/${GG_BASENAME}/auth/${GGV2_CA},g" ${GG_ROOT}/config/config.yaml
+    sed -i -e "s,##private_key##,/${GG_BASENAME}/auth/demo.pkey.pem,g" ${GG_ROOT}/config/config.yaml
+    sed -i -e "s,##certificate_path##,/${GG_BASENAME}/auth/demo.cert.pem,g" ${GG_ROOT}/config/config.yaml
+    sed -i -e "s,##root_ca##,/${GG_BASENAME}/auth/demo.root.pem,g" ${GG_ROOT}/config/config.yaml
     sed -i -e "s,##thing_name##,${GGV2_THING_NAME},g" ${GG_ROOT}/config/config.yaml
     sed -i -e "s,##aws_region##,${GGV2_REGION},g" ${GG_ROOT}/config/config.yaml
     sed -i -e "s,##role_alias##,${GGV2_TES_RALIAS},g" ${GG_ROOT}/config/config.yaml
