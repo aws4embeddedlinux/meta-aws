@@ -3,58 +3,74 @@ DESCRIPTION = "Neo-AI-DLR is a common runtime for machine learning models compil
 HOMEPAGE = "https://aws.amazon.com/sagemaker/neo/"
 LICENSE = "Apache-2.0 & BSD-3-Clause"
 
-LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658 \
-                    file://3rdparty/tvm/LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e \
-                    file://3rdparty/tvm/3rdparty/dmlc-core/LICENSE;md5=0ca7d6e8f4af26868cb42025ad83374b \
-                    file://3rdparty/tvm/3rdparty/dlpack/LICENSE;md5=f62d4e85ba68a1574b74d97ab8dea9ab \
-                    file://3rdparty/tvm/3rdparty/HAlideIR/LICENSE;md5=9910386e68f0616e1ecf1037479fa97e \
-                    file://3rdparty/treelite/LICENSE;md5=34400b68072d710fecd0a2940a0d1658 \
-                    file://3rdparty/treelite/dmlc-core/LICENSE;md5=0ca7d6e8f4af26868cb42025ad83374b \
-                    file://3rdparty/treelite/3rdparty/fmt/LICENSE.rst;md5=c2e38bc8629eac247a73b65c1548b2f0 \
-"
-
-PV = "1.1"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 BRANCH ?= "master"
 
-# Main DLR sources plus submodules (and submodules of submodules).
-SRC_URI = "git://github.com/neo-ai/neo-ai-dlr;protocol=https;branch=${BRANCH};name=neo-ai-dlr \
-           git://github.com/neo-ai/tvm;protocol=https;branch=stable;destsuffix=${S}/3rdparty/tvm;name=neo-ai-tvm \
-           git://github.com/dmlc/dmlc-core;protocol=https;branch=master;destsuffix=${S}/3rdparty/tvm/3rdparty/dmlc-core;name=neo-ai-tvm-dmlc-core \
-           git://github.com/dmlc/dlpack;protocol=https;branch=master;destsuffix=${S}/3rdparty/tvm/3rdparty/dlpack;name=neo-ai-tvm-dlpack \
-           git://github.com/dmlc/HalideIR;protocol=https;branch=master;destsuffix=${S}/3rdparty/tvm/3rdparty/HAlideIR;name=neo-ai-tvm-halideir \
-           git://github.com/neo-ai/treelite;protocol=https;branch=master;destsuffix=${S}/3rdparty/treelite;name=neo-ai-treelite \
-           git://github.com/dmlc/dmlc-core;protocol=https;branch=master;destsuffix=${S}/3rdparty/treelite/dmlc-core;name=neo-ai-treelite-dmlc-core \
-           git://github.com/fmtlib/fmt;protocol=https;nobranch=1;destsuffix=${S}/3rdparty/treelite/3rdparty/fmt;name=neo-ai-treelite-fmt \
-           file://0001-CMakeLists-skip-cloning-of-googletests.patch \
-"
+SRC_URI = "git://github.com/neo-ai/neo-ai-dlr.git;branch=${BRANCH};name=neo-ai-dlr \
+           file://0002-CMakeLists_remove_test_file_downloads.patch \
+           https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/tflite-models/cat224-3.txt;name=cat224-3 \
+           https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/test-data/street_small.npy;name=streetsmall \
+           https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/resnet_v1.5_50-ml_c4.tar.gz;name=resnet;subdir=resnet_v1_5_50 \
+           https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/xgboost_test.tar.gz;name=xgboost;subdir=xgboost_test \
+ https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.5.0/ssd_mobilenet_v1_ppn_shared_box_predictor_300x300_coco14_sync_2018_07_03-LINUX_X86_64.tar.gz;name=mobilenet;subdir=ssd_mobilenet_v1 \
+           https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.5.0/automl-ml_m4.tar.gz;name=automl;subdir=automl \
+           https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/pipeline_model1-LINUX_X86_64.tar.gz;name=model1;subdir=pipeline_model1 \
+           https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.5.0/pipeline_model2-LINUX_X86_64.tar.gz;name=model2;subdir=pipeline_model2 \
+           https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.5.0/inverselabel-ml_m4.tar.gz;name=inverselabel;subdir=inverselabel \
+          "
 
-SRCREV_neo-ai-dlr = "35ed4fa2607056608451d85508fea70f458a14a6"
-SRCREV_neo-ai-tvm = "44779571412930681eef9e8b9d32aa845b8cc5ad"
-SRCREV_neo-ai-tvm-dmlc-core = "4d49691f1a9d944c3b0aa5e63f1db3cad1f941f8"
-SRCREV_neo-ai-tvm-dlpack = "bee4d1dd8dc1ee4a1fd8fa6a96476c2f8b7492a3"
-SRCREV_neo-ai-tvm-halideir = "e4a4c02764d37c9c3db0d64c4996651a3ef9513c"
-SRCREV_neo-ai-treelite = "0972ce97687b4a1fb1262fad56232e7cc61116eb"
-SRCREV_neo-ai-treelite-dmlc-core = "4d49691f1a9d944c3b0aa5e63f1db3cad1f941f8"
-SRCREV_neo-ai-treelite-fmt = "135ab5cf71ed731fc9fa0653051e7d4884a3652f"
+SRCREV_neo-ai-dlr = "d363c087e2d93938beb3d3a836b0b29d0c910451"
+
+SRC_URI[cat224-3.md5sum] = "c871a4f847b70a6913e6aba47e5a1664"
+SRC_URI[cat224-3.sha256sum]    = "2befeb0f99ef581cfed173257a4b9d2b037dc1e3965d4312c93709d542403273"
+SRC_URI[streetsmall.md5sum]    = "1e3f1811f75ba14e66e5181f5e04a72b"
+SRC_URI[streetsmall.sha256sum] = "567c5de59dc8670b2b821487b53b21b82a666f4b13dbfd181fd9d930df667c7e"
+SRC_URI[resnet.md5sum]    = "a81e66fa11f58d57f9d4d081510d0c5a"
+SRC_URI[resnet.sha256sum] = "d47c42d925b7685564ee9f7b0feb62e27b3025fb977cfb50755503b94a8dda3a"
+SRC_URI[xgboost.md5sum]    = "6986728151570115cd8aa1490355ec37"
+SRC_URI[xgboost.sha256sum] = "b8b61cc7805e40cffd124b312b45588c9ef0e0098855260f6c2e7e039c6370ad"
+SRC_URI[mobilenet.md5sum]    = "71712d7140cd294d3c7009b50fed6687"
+SRC_URI[mobilenet.sha256sum] = "6e82a3bdee2d9026ce97fda2909c8f5a54f426c40f4b3d4a86120de94212893c"
+SRC_URI[automl.md5sum]    = "091557786f73802b8b88120415c956bd"
+SRC_URI[automl.sha256sum] = "a5466825b260ee38366f423f94718debb16a8751c6bc410a3f4003556ab0268c"
+SRC_URI[model1.md5sum]    = "d9dd31f8a25343adeb164797fe399df3"
+SRC_URI[model1.sha256sum] = "d6381108bc3505623a5cb66fd0be2209924882d9855c1c73a0c6461e12a61c90"
+SRC_URI[model2.md5sum]    = "995b63040c42f8dbc66a5017d92fb808"
+SRC_URI[model2.sha256sum] = "054963a67bc456e436d4ad2981552447a6cf8b4955099cce6ed540e73f9b9766"
+SRC_URI[inverselabel.md5sum]    = "97e60c6a8040d3b2b15adbc046186b5c"
+SRC_URI[inverselabel.sha256sum] = "1bd13905b526fc0e7ead51a88aa6d9e506befdd2e3a7a144b77df8bf3d5d2db7"
+
 
 S = "${WORKDIR}/git"
 
-inherit setuptools3 cmake python3native
+do_configure_prepend() {
+  cd ${S}
+  git submodule update --init --recursive
+}
 
-# Set B so that DLR Python installation can find the library
+do_configure_append() {
+  cp -f ${WORKDIR}/cat224-3.txt ${S}/build/cat224-3.txt
+  cp -f ${WORKDIR}/street_small.npy ${S}/build/street_small.npy
+  cp -rf ${WORKDIR}/resnet_v1_5_50 ${S}/build/
+  cp -rf ${WORKDIR}/xgboost_test ${S}/build/
+  cp -rf ${WORKDIR}/ssd_mobilenet_v1 ${S}/build/
+  cp -rf ${WORKDIR}/automl ${S}/build/
+  cp -rf ${WORKDIR}/pipeline_model1 ${S}/build/
+  cp -rf ${WORKDIR}/pipeline_model2 ${S}/build/
+  cp -rf ${WORKDIR}/inverselabel ${S}/build/
+}
+
+inherit setuptools3 cmake
+
 B = "${S}/build"
+DISTUTILS_SETUP_PATH = "${S}/python"
 
 do_install() {
-    # This does not do anything
-    #cmake_do_install
-
     install -d ${D}${includedir}/dlr_tflite
     install -m 0644 ${S}/include/*.h ${D}${includedir}
-    install -m 0644 ${S}/include/dlr_tflite/*.h ${D}${includedir}/dlr_tflite
 
     # Install DLR Python binding
-    cd ${S}/python
     distutils3_do_install
 
     # setup.py install some libs under datadir, but we don't need them, so remove.
@@ -72,6 +88,7 @@ do_install() {
 PACKAGES =+ "${PN}-tests"
 FILES_${PN}-tests = "${datadir}/dlr/tests"
 RDEPENDS_${PN}-tests += "${PN}"
+DEPENDS += "googletest python3-setuptools"
 
 # Versioned libs are not produced
 FILES_SOLIBSDEV = ""

@@ -24,7 +24,7 @@ index c7993b9..f422abf 100644
 -    file(GLOB HEXAGON_TEST_SRCS tests/cpp/dlr_hexagon/*.cc)
 -    list(APPEND TEST_SRCS ${HEXAGON_TEST_SRCS})
 -  endif()
-+#  include(cmake/googletest.cmake)
++  include(/worktree/poky/build/tmp/work/core2-64-poky-linux/googletest/1.10.0-r0/sysroot-destdir/usr/lib/cmake/GTest/GTestConfig.cmake)
 +# if (WIN32)
 +#    include_directories(${DLFCN_WIN32}/src)
 +#    add_subdirectory(${DLFCN_WIN32})
