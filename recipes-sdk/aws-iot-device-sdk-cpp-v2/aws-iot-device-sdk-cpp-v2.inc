@@ -11,29 +11,11 @@ do_configure_prepend() {
   git submodule update --init --recursive
 }
 
-do_install_append() {
-#    rm -rf ${D}${libdir}/cmake
-#    rm -rf ${D}${libdir}/aws-c-auth
-#    rm -rf ${D}${libdir}/aws-c-cal
-#    rm -rf ${D}${libdir}/aws-c-common
-#    rm -rf ${D}${libdir}/aws-c-compression
-#    rm -rf ${D}${libdir}/aws-c-http
-#    rm -rf ${D}${libdir}/aws-c-io
-#    rm -rf ${D}${libdir}/aws-c-mqtt
-#    rm -rf ${D}${libdir}/aws-crt-cpp
-#    rm -rf ${D}${libdir}/s2n
-#    rm -rf ${D}${libdir}/Discovery-cpp
-#    rm -rf ${D}${libdir}/IotIdentity-cpp
-#    rm -rf ${D}${libdir}/IotJobs-cpp
-#    rm -rf ${D}${libdir}/IotShadow-cpp
-#    install -d ${D}${libdir}
-}
-
 DEPENDS = "openssl"
 CFLAGS_append = " -Wl,-Bsymbolic"
 
 EXTRA_OECMAKE += "-DBUILD_DEPS=ON"
-EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=1"
+EXTRA_OECMAKE += "-DBUILD_SHARED=ON"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
