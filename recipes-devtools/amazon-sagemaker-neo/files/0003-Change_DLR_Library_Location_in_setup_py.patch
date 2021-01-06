@@ -1,0 +1,22 @@
+diff --git a/python/setup.py b/python/setup.py
+index 926b51c..945ce92 100644
+--- a/python/setup.py
++++ b/python/setup.py
+@@ -11,7 +11,7 @@ if "--universal" in sys.argv:
+ 
+ CURRENT_DIR = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+ 
+-BUILD_DIR = "../build/lib/"
++BUILD_DIR = "build/lib/"
+ 
+ libname = 'libdlr.so'
+ if sys.platform == 'win32':
+@@ -56,7 +56,7 @@ setup(
+ 
+     description = 'Common runtime for machine learning models compiled by \
+         AWS SageMaker Neo, TVM, or TreeLite.',
+-    long_description=io.open(os.path.join(CURRENT_DIR, '../README.md'), encoding='utf-8').read(),
++    long_description=io.open(os.path.join(CURRENT_DIR, 'README.md'), encoding='utf-8').read(),
+     long_description_content_type="text/markdown",
+     author = 'AWS Neo',
+     author_email = 'aws-neo-ai@amazon.com',
