@@ -1,5 +1,15 @@
 ## Amazon Sagemaker Neo DLR
 
+### Dependencies
+The following package is required for Amazon Sagemaker Neo DLR:
+ * python3-distro
+
+This package is not included in meta-python in Zeus or Dunfell. It is distributed with the meta-aws layer for those branches.
+To add it to your project, add the following to `local.conf`:
+
+``IMAGE_INSTALL_append = " python3-distro"``
+
+
 ### Changes to version 1.7.0
 
 The recipe `neo-ai-dlr` composes multiple changes to files with the
