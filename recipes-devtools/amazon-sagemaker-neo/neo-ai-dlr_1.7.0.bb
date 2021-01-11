@@ -91,7 +91,7 @@ do_install() {
 PACKAGES =+ "${PN}-tests"
 FILES_${PN}-tests = "${datadir}/dlr/tests"
 RDEPENDS_${PN}-tests += "${PN}"
-DEPENDS += "googletest python3-setuptools"
+DEPENDS += "googletest python3-setuptools python3-distro"
 
 # Versioned libs are not produced
 FILES_SOLIBSDEV = ""
