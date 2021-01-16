@@ -1,0 +1,44 @@
+From 973767f29391eca1c76292556de03cdd7520c07d Mon Sep 17 00:00:00 2001
+From: Erik Boto <erik.boto@gmail.com>
+Date: Tue, 3 Nov 2020 09:08:56 -0700
+Subject: [PATCH] Allow passing flags via FARCH for mach
+
+Enable passing options via FARCH, so that the flags for setting the
+correct floating point ABI is propagated properly to the fortran
+compiler.
+
+This fixes an issue where the mach lib would otherwise be built as
+soft-float, even though the target arch is hard-float.
+---
+ scipy/integrate/setup.py | 3 +--
+ scipy/special/setup.py   | 3 +--
+ 2 files changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/scipy/integrate/setup.py b/scipy/integrate/setup.py
+index 11ce3d1..8e4a3dc 100755
+--- a/scipy/integrate/setup.py
++++ b/scipy/integrate/setup.py
+@@ -34,8 +34,7 @@ def configuration(parent_package='',top_path=None):
+     quadpack_test_src = [join('tests','_test_multivariate.c')]
+     odeint_banded_test_src = [join('tests', 'banded5x5.f')]
+
+-    config.add_library('mach', sources=mach_src, config_fc={'noopt': (__file__, 1)},
+-                       _pre_build_hook=pre_build_hook)
++    config.add_library('mach', sources=mach_src, _pre_build_hook=pre_build_hook)
+     config.add_library('quadpack', sources=quadpack_src, _pre_build_hook=pre_build_hook)
+     config.add_library('lsoda', sources=lsoda_src, _pre_build_hook=pre_build_hook)
+     config.add_library('vode', sources=vode_src, _pre_build_hook=pre_build_hook)
+diff --git a/scipy/special/setup.py b/scipy/special/setup.py
+index 81eb09f..260cfb3 100755
+--- a/scipy/special/setup.py
++++ b/scipy/special/setup.py
+@@ -46,8 +46,7 @@ def configuration(parent_package='',top_path=None):
+     amos_src = [join('amos','*.f')]
+     cdf_src = [join('cdflib','*.f')]
+     specfun_src = [join('specfun','*.f')]
+-    config.add_library('sc_mach',sources=mach_src,
+-                       config_fc={'noopt':(__file__,1)})
++    config.add_library('sc_mach',sources=mach_src)
+     config.add_library('sc_amos',sources=amos_src)
+     config.add_library('sc_cdf',sources=cdf_src)
+     config.add_library('sc_specfun',sources=specfun_src)

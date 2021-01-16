@@ -1,0 +1,25 @@
+From 9729175ae0ee7b2c8641483b9dfd16051cc4ad23 Mon Sep 17 00:00:00 2001
+From: Greg Anders <greg@gpanders.com>
+Date: Mon, 2 Mar 2020 14:34:04 +0000
+Subject: [PATCH] Disable runtime_lib_dirs for cross compile
+
+---
+ numpy/distutils/system_info.py | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/numpy/distutils/system_info.py b/numpy/distutils/system_info.py
+index 28c7b92..d1a92ab 100644
+--- a/numpy/distutils/system_info.py
++++ b/numpy/distutils/system_info.py
+@@ -669,10 +669,7 @@ class system_info(object):
+         return self.get_paths(self.section, key)
+
+     def get_runtime_lib_dirs(self, key='runtime_library_dirs'):
+-        path = self.get_paths(self.section, key)
+-        if path == ['']:
+-            path = []
+-        return path
++        return []
+
+     def get_include_dirs(self, key='include_dirs'):
+         return self.get_paths(self.section, key)
