@@ -7,9 +7,8 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=3eb31626add6ada64ff9ac772bd3c653"
 
 BRANCH ?= "main"
 
-SRC_URI = "file://001-install-target.patch \
-           git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH}"
-SRCREV = "95a5dccb9acfde5b94f246be083f19f6f0565eb6"
+SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH}"
+SRCREV = "16b73b81da29149581a433cf7b6e69fcdd11176a"
 
 S= "${WORKDIR}/git"
 PACKAGES = "${PN}"
@@ -20,9 +19,10 @@ RDEPENDS_${PN} = "openssl aws-iot-device-sdk-cpp-v2"
 inherit cmake
 
 do_install() {
-  cmake_do_install
+  install -d ${D}/sbin
+  install -m0755 ${B}/aws-iot-device-client ${D}/sbin/aws-iot-device-client
   install -D -p -m0644 ${S}/setup/aws-iot-device-client.service \
-    ${D}${systemd_unitdir}/system/aws-iot-device-client.service
+      ${D}${systemd_unitdir}/system/aws-iot-device-client.service
 }
 
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
