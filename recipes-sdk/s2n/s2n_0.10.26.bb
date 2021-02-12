@@ -15,33 +15,15 @@ SRCREV = "49c46200d6a6b5aee76c5f9adb86c329a737a6ca"
 
 S= "${WORKDIR}/git"
 
-#do_configure_prepend() {
-#  cd ${S}
-#  git submodule update --init --recursive
-#}
-
 DEPENDS = "openssl"
 CFLAGS_append = " -Wl,-Bsymbolic"
 
-#EXTRA_OECMAKE += "-DBUILD_DEPS=ON"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
-
-#FILES_${PN} += "${libdir}/*1.0.0"
-#FILES_${PN} += "${libdir}/libaws-crt-cpp.so"
-#FILES_${PN} += "${libdir}/libDiscovery-cpp.so"
-#FILES_${PN} += "${libdir}/libIotIdentity-cpp.so"
-#FILES_${PN} += "${libdir}/libIotJobs-cpp.so"
-##FILES_${PN} += "${libdir}/libIotShadow-cpp.so"
-#FILES_${PN} += "${libdir}/libIotDeviceCommon-cpp.so"
-#FILES_${PN} += "${libdir}/libIotDeviceDefender-cpp.so"
-#FILES_${PN} += "${libdir}/libIotSecureTunneling-cpp.so"
-#FILES_${PN} += "${libdir}/libs2n.so"
-#FILES_${PN}-dev += "${includedir}/aws/iotidentity/IotIdentityClient.h"
 
 PACKAGES = "${PN}"
 INSANE_SKIP_${PN} += "installed-vs-shipped"
