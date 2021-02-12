@@ -6,24 +6,33 @@ PROVIDES += "aws/aws-iot-device-client"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3eb31626add6ada64ff9ac772bd3c653"
 
 BRANCH ?= "main"
-
 SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH}"
 SRCREV = "16b73b81da29149581a433cf7b6e69fcdd11176a"
 
 S= "${WORKDIR}/git"
 PACKAGES = "${PN}"
-INSANE_SKIP_${PN} += "installed-vs-shipped"
 DEPENDS = "openssl aws-iot-device-sdk-cpp-v2 googletest"
 RDEPENDS_${PN} = "openssl aws-iot-device-sdk-cpp-v2"
 
 inherit cmake
 
-do_install() {
-  install -d ${D}/sbin
-  install -m0755 ${B}/aws-iot-device-client ${D}/sbin/aws-iot-device-client
-  install -D -p -m0644 ${S}/setup/aws-iot-device-client.service \
-      ${D}${systemd_unitdir}/system/aws-iot-device-client.service
+do_configure_append() {
+  cp ${S}/setup/aws-iot-device-client.service ${WORKDIR}
 }
+
+do_install() {
+  install -d ${D}${base_sbindir}
+  install -d ${D}${systemd_unitdir}/system
+  install -m 0755 ${WORKDIR}/build/aws-iot-device-client \
+                  ${D}${base_sbindir}/aws-iot-device-client
+  install -m 0644 ${S}/setup/aws-iot-device-client.service \
+                  ${D}${systemd_system_unitdir}/aws-iot-device-client.service
+}
+
+AWSIOTDC_EXCL_JOBS ?= "OFF"
+AWSIOTDC_EXCL_DD ?= "OFF"
+AWSIOTDC_EXCL_ST ?= "OFF"
+AWSIOTDC_EXCL_FP ?= "OFF"
 
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
@@ -31,13 +40,17 @@ EXTRA_OECMAKE += "-DBUILD_SDK=OFF"
 EXTRA_OECMAKE += "-DBUILD_TEST_DEPS=OFF"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
-EXTRA_OECMAKE += "-DEXCLUDE_JOBS=OFF"
-EXTRA_OECMAKE += "-DEXCLUDE_DD=ON"
-EXTRA_OECMAKE += "-DEXCLUDE_ST=ON"
-EXTRA_OECMAKE += "-DEXCLUDE_FP=ON"
+EXTRA_OECMAKE += "-DCMAKE_VERBOSE_MAKEFILE=ON"
+EXTRA_OECMAKE += "-DCMAKE_CXX_FLAGS_RELEASE=-s"
+EXTRA_OECMAKE += "-DEXCLUDE_JOBS=${AWSIOTDC_EXCL_JOBS}"
+EXTRA_OECMAKE += "-DEXCLUDE_DD=${AWSIOTDC_EXCL_DD}"
+EXTRA_OECMAKE += "-DEXCLUDE_ST=${AWSIOTDC_EXCL_ST}"
+EXTRA_OECMAKE += "-DEXCLUDE_FP=${AWSIOTDC_EXCL_FP}"
 
-FILES_${PN} += "${bindir}/aws-iot-device-client"
-FILES_${PN} += "${systemd_unitdir}/system/aws-iot-device-client.service"
+FILES_${PN} += "${base_sbindir}/sbin/aws-iot-device-client"
+FILES_${PN} += "${systemd_system_unitdir}/aws-iot-device-client.service"
+
+INSANE_SKIP_${PN}_append = "already-stripped"
 
 inherit systemd
 SYSTEMD_AUTO_ENABLE = "enable"
