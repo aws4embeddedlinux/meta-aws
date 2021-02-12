@@ -17,16 +17,22 @@ RDEPENDS_${PN} = "openssl aws-iot-device-sdk-cpp-v2"
 inherit cmake
 
 do_configure_append() {
-  cp ${S}/setup/aws-iot-device-client.service ${WORKDIR}
 }
 
 do_install() {
   install -d ${D}${base_sbindir}
+  install -d ${D}${sysconfdir}
   install -d ${D}${systemd_unitdir}/system
+
   install -m 0755 ${WORKDIR}/build/aws-iot-device-client \
                   ${D}${base_sbindir}/aws-iot-device-client
   install -m 0644 ${S}/setup/aws-iot-device-client.service \
                   ${D}${systemd_system_unitdir}/aws-iot-device-client.service
+  install -m 0644 ${S}/config-template.json \
+                  ${D}${sysconfdir}/aws-iot-device-client.json
+  
+  sed -i -e "s,/sbin/aws-iot-device-client,/sbin/aws-iot-device-client --config /etc/aws-iot-device-client.json,g" \
+    ${D}${systemd_system_unitdir}/aws-iot-device-client.service
 }
 
 AWSIOTDC_EXCL_JOBS ?= "OFF"
@@ -49,6 +55,7 @@ EXTRA_OECMAKE += "-DEXCLUDE_FP=${AWSIOTDC_EXCL_FP}"
 
 FILES_${PN} += "${base_sbindir}/sbin/aws-iot-device-client"
 FILES_${PN} += "${systemd_system_unitdir}/aws-iot-device-client.service"
+FILES_${PN} += "${sysconfdir}/aws-iot-device-client.json"
 
 INSANE_SKIP_${PN}_append = "already-stripped"
 
