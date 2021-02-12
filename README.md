@@ -117,4 +117,4 @@ runqemu qemux86-64 core-image-minimal ext4 qemuparams="-m 2048"
 
 For more information please refer to https://www.yoctoproject.org/docs/1.8/dev-manual/dev-manual.html
 
-© 2019, Amazon Web Services, Inc. or its affiliates. All rights reserved.
+© 2019-2021, Amazon Web Services, Inc. or its affiliates. All rights reserved.
