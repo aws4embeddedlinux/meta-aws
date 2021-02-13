@@ -3,7 +3,7 @@ DESCRIPTION = "AWS Crypto Abstraction Layer: Cross-Platform, C99 wrapper for cry
 
 HOMEPAGE = "https://github.com/awslabs/aws-c-cal"
 LICENSE = "Apache-2.0"
-PROVIDES += "aws-c-cal"
+PROVIDES += "aws/crt-c-cal"
 
 inherit cmake
 

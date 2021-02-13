@@ -2,7 +2,7 @@ SUMMARY = "s2n"
 DESCRIPTION = "s2n is a C99 implementation of the TLS/SSL protocols that is designed to be simple, small, fast, and with security as a priority."
 HOMEPAGE = "https://github.com/awslabs/s2n"
 LICENSE = "Apache-2.0"
-PROVIDES += "s2n"
+PROVIDES += "aws/s2n"
 
 inherit cmake
 
@@ -19,7 +19,7 @@ DEPENDS = "openssl"
 CFLAGS_append = " -Wl,-Bsymbolic"
 
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
-EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
+#EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"

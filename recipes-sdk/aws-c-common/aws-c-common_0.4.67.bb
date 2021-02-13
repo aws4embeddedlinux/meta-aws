@@ -3,7 +3,7 @@ DESCRIPTION = "Core c99 package for AWS SDK for C. Includes cross-platform primi
 
 HOMEPAGE = "https://github.com/awslabs/aws-c-common"
 LICENSE = "Apache-2.0"
-PROVIDES += "aws-c-common"
+PROVIDES += "aws/crt-c-common"
 
 inherit cmake
 
