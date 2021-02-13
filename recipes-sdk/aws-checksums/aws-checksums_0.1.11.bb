@@ -3,7 +3,7 @@ DESCRIPTION = "Cross-Platform HW accelerated CRC32c and CRC32 with fallback to e
 
 HOMEPAGE = "https://github.com/awslabs/aws-checksums"
 LICENSE = "Apache-2.0"
-PROVIDES += "aws/crt-c-http"
+PROVIDES += "aws/checksums"
 
 inherit cmake
 
