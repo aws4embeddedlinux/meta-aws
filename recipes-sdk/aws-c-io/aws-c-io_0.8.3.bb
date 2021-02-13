@@ -3,7 +3,7 @@ DESCRIPTION = "aws-c-io is an event driven framework for implementing applicatio
 
 HOMEPAGE = "https://github.com/awslabs/aws-c-io"
 LICENSE = "Apache-2.0"
-PROVIDES += "aws-c-io"
+PROVIDES += "aws/crt-c-io"
 
 inherit cmake
 
