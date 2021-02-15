@@ -12,6 +12,10 @@ S = "${WORKDIR}/git"
 
 inherit setuptools3
 
+do_configure_append() {
+  sed --in-place -E "s/version=\".+\"/version=\"${PV}\"/" ${S}/setup.py
+}
+
 AWS_C_INSTALL = "${D}/usr/lib;${S}/source"
 DEPENDS += "cmake-native ${PYTHON_PN}-setuptools-native s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checksums aws-c-event-stream aws-c-s3"
 RDEPENDS_${PN} = "python3 s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checksums aws-c-event-stream"

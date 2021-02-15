@@ -5,6 +5,7 @@ LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
 
 
+
 inherit setuptools3
 BRANCH ?= "main"
 
@@ -12,5 +13,9 @@ SRC_URI = "git://github.com/aws/aws-iot-device-sdk-python-v2.git;branch=${BRANCH
 SRCREV = "a7739a6f980292ae146e064b18f3f2723019261e"
 
 S = "${WORKDIR}/git"
+
+do_configure_append() {
+  sed --in-place -E "s/version='.+'/version='${PV}'/" ${S}/setup.py
+}
 
 RDEPENDS_${PN} += "python3 aws-crt-python"
