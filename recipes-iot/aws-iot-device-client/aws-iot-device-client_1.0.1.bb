@@ -6,7 +6,7 @@ PROVIDES += "aws/aws-iot-device-client"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3eb31626add6ada64ff9ac772bd3c653"
 
 BRANCH ?= "main"
-SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH}"
+SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH};protocol=https"
 SRCREV = "16b73b81da29149581a433cf7b6e69fcdd11176a"
 
 S= "${WORKDIR}/git"
