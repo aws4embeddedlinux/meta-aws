@@ -15,7 +15,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658 \
 
 PV = "1.1"
 
-BRANCH ?= "master"
+BRANCH ?= "main"
 
 # Main DLR sources plus submodules (and submodules of submodules).
 SRC_URI = "git://github.com/neo-ai/neo-ai-dlr;protocol=https;branch=${BRANCH};name=neo-ai-dlr \
