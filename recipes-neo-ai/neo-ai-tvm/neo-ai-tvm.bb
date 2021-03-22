@@ -13,7 +13,7 @@ RDEPENDS_${PN} = " python3-decorator \
 
 PV = "0.5"
 
-BRANCH = "master"
+BRANCH = "main"
 
 # Main TVM sources plus submodules.
 SRC_URI = "git://github.com/dmlc/tvm;protocol=https;branch=${BRANCH};name=tvm \
