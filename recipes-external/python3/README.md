@@ -1,5 +1,5 @@
 # recipes-external
-## meta-scikit-learn
+## python3-scikit-learn
 
 #### Note:
 This layer is compatible with `dunfell` release and tested on an `armv8` board.
