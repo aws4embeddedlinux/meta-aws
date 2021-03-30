@@ -8,4 +8,6 @@ S = "${WORKDIR}/git"
 
 inherit setuptools3
 
-RDEPENDS_${PN} += "python3-jmespath python3-botocore python3-s3transfer"
+# python3 needs to be included since there are core dependencies such
+# as getpass.
+RDEPENDS_${PN} += "python3 python3-jmespath python3-botocore python3-s3transfer"
