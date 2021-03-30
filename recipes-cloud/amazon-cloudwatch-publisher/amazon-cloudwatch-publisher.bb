@@ -22,9 +22,7 @@ FILES_${PN} += " \
 	/opt/aws/${PN}/logs/.gitkeep \
 "
 
-SRC_URI += " \
-	git://github.com/awslabs/${PN};protocol=http;rev=8714318477f2d627e5eea5a7b8c354dabaf6a4e1 \
-"
+SRC_URI += "git://github.com/awslabs/${PN};protocol=https;tag=1.2.2"
 
 do_install() {
 	install -d ${D}${systemd_system_unitdir}
