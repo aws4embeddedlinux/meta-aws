@@ -6,10 +6,15 @@ This layer is compatible with `dunfell` release and tested on an `armv8` board.
 
 ### Install gfortran on the build host.
 > `gfortran` library needs to be installed on the build host for successful compilation of `scikit-learn` python package.
->> The dependency `HOSTTOOLS += "gfortran"` is added in the `conf/layer.conf` file. 
->>> If you do not need to install the `scikit-learn` package, you can remove `HOSTTOOLS += "gfortran"` from `conf/layer.conf` file.
 ```shell script
 sudo apt-get install gfortran
+```
+### Update `conf/layer.conf` file.
+```
+->> Add a line with `HOSTTOOLS += "gfortran"` 
+->> Update the line with `LAYERDEPENDS_meta-aws = "core"`  with `"openembedded-layer core meta-python"`
+->> Add a line with `FORTRAN_forcevariable = ",fortran"`
+->> Add a line with `RUNTIMETARGET_append_pn-gcc-runtime = " libquadmath"`
 ```
 ### Bitbake commands
 ```shell script
