@@ -4,117 +4,21 @@ The **meta-aws** project provides *recipes* for building in AWS edge software ca
 
 Please check out [our sister project meta-aws-demos](https://github.com/aws-samples/meta-aws-demos)!  Over time, we will continuously be adding MACHINE specific demonstrations for AWS software on Embedded Linux built by the Yocto Project build framework with the meta-aws Metadata Layer.
 
-**IMPORTANT NOTE**: Automotive Grade Linux: This distribution uses a specific static ID process. When adding AWS IoT Greengrass, you will need to define users in the passwd and group files manually. Please see https://github.com/aws/meta-aws/issues/75 for more information.
+These are the currently supported services, software, and SDKs you can use to build AWS solutions with many types of devices when building your distribution with the Yocto Project.
 
-# Getting Started
+<center>Service, Software, or SDK</center> | <center>Details</center>
+---|---
+<center>![Image of Amazon CloudWatch Icon](images/Arch_Amazon-CloudWatch_64.png)<br/>Amazon CloudWatch Publisher</center>|Installs and configures the [Amazon CloudWatch Publisher](https://github.com/awslabs/amazon-cloudwatch-publisher).<br/>Amazon CloudWatch provides a wealth of tools for monitoring resources and applications in real-time. However, out-of-the-box support is limited to AWS-native resources (e.g. EC2 instances) or systems compatible with the CloudWatch Agent.
+<center>![Image of Javaman](images/corretto.png)<br/>Amazon Corretto</center>|Amazon Corretto is a no-cost, multiplatform, production-ready distribution of the Open Java Development Kit (OpenJDK). Corretto comes with long-term support that will include performance enhancements and security fixes. Amazon runs Corretto internally on thousands of production services and Corretto is certified as compatible with the Java SE standard.
+<center>![Image of AWS IoT Device Client Icon](images/Arch_AWS-Tools-and-SDKs_64.png)</br>AWS IoT Device Client</center>|The AWS IoT Device Client is free, open-source, modular software written in C++ that you can compile and install on your Embedded Linux based IoT devices to access AWS IoT Core, AWS IoT Device Management, and AWS IoT Device Defender features by default.
+<center>![Image of AWS IoT Greengrass Icon](images/Arch_AWS-IoT-Greengrass_64.png)<br/>AWS IoT Greengrass</center>|AWS IoT Greengrass is an Internet of Things (IoT) open source edge runtime and cloud service that helps you build, deploy, and manage device software. Customers use AWS IoT Greengrass for their IoT applications on millions of devices in homes, factories, vehicles, and businesses. You can program your devices to act locally on the data they generate, execute predictions based on machine learning models, filter and aggregate device data, and only transmit necessary information to the cloud.<br/>Recipe README
+<center>![Image of SDK Icon](images/Arch_AWS-Tools-and-SDKs_64.png)</br>AWS SDK for Python</center>|The AWS SDK for Python provides the python libraries you can use to interact with AWS Cloud. Botocore and Boto3 are available.
 
-The following tutorial is useful to start building your own Yocto project. The development machine should be running Ubuntu 16.04 and above.
 
-More information on how to get started can be found in the original Yocto documentation: https://www.yoctoproject.org/docs/2.4/yocto-project-qs/yocto-project-qs.html#yp-resources
 
-## Install System Dependencies
 
-```bash
-$ sudo apt-get update && sudo apt-get upgrade
-$ sudo apt-get install gawk wget git-core diffstat unzip texinfo gcc-multilib \
-       build-essential chrpath socat cpio python python3 python3-pip python3-pexpect \
-       xz-utils debianutils iputils-ping python3-git python3-jinja2 libegl1-mesa \
-       libsdl1.2-dev pylint3 xterm
-```
 
-Additional packages might be needed depending on the intended image build
 
-## Get sources
-
-In this section, you will checkout the Poky reference implementation, meta-aws, and dependent source trees.  When you build for specific `MACHINE` targets, you will need to checkout additional sources.
-
-In this case, we will be checking out sources for the **zeus** release.
-
-```bash
-git clone -b zeus git://git.yoctoproject.org/poky ~/poky-zeus
-cd ~/poky-zeus
-```
-
-Next, check out the `openembedded` distribution for the **zeus**
-release.  **NOTE** This will be updated to dunfell soon.
-
-```bash
-git clone -b zeus git://git.openembedded.org/meta-openembedded
-git clone -b zeus git://git.yoctoproject.org/meta-virtualization
-git clone -b zeus git://git.yoctoproject.org/meta-java
-git clone -b zeus git://github.com/aws/meta-aws
-```
-
-## Configure build
-
-Initialize the build environment. This will create a build directory named **zeus**.
-
-```bash
-source oe-init-build-env
-```
-
-Next, modify conf/bblayers.conf to resemble the following.  The reason
-for manual editing is the bitbake-layers command gets broken by a
-couple of the layers.
-
-```text
-# POKY_BBLAYERS_CONF_VERSION is increased each time build/conf/bblayers.conf
-# changes incompatibly
-POKY_BBLAYERS_CONF_VERSION = "2"
-
-BBPATH = "${TOPDIR}"
-BBFILES ?= ""
-
-BBLAYERS ?= " \
-  /src/poky-zeus/meta \
-  /src/poky-zeus/meta-poky \
-  /src/poky-zeus/meta-yocto-bsp \
-  /src/poky-zeus/meta-openembedded/meta-oe \
-  /src/poky-zeus/meta-openembedded/meta-python \
-  /src/poky-zeus/meta-openembedded/meta-filesystems \
-  /src/poky-zeus/meta-openembedded/meta-networking \
-  /src/poky-zeus/meta-virtualization \
-  /src/poky-zeus/meta-aws \
-  "
-```
-
-Now you are ready to build.
-
-## Adding Recipes to Your Image
-
-Once the setup is done the recipes provided in the `meta-aws` will be available and can be added to the target image by adding the following to the end of the `local.conf`.  Ensure that a leading space is there.
-
-```cfg
-IMAGE_INSTALL_append = " <name-of-the-bb-recipe>"
-```
-
-For example:
-
-```cfg
-IMAGE_INSTALL_append = " greengrass"
-```
-
-after which the image can be built with the command:
-
-```bash
-bitbake <image-name>
-```
-
-for example
-
-```bash
-MACHINE=qemux86-64 bitbake core-image-minimal
-```
-
-If you want to add support for IoT Greengrass Connectors and/or Stream
-Manager, you will need to add Docker and JDK respectively to the build.
-
-You can then test with QEMU.  For example, if you want to run the image with ext4 and 2GB memory:
-
-```bash
-runqemu qemux86-64 core-image-minimal ext4 qemuparams="-m 2048"
-```
-
-For more information please refer to https://www.yoctoproject.org/docs/1.8/dev-manual/dev-manual.html
+**IMPORTANT NOTE**: Automotive Grade Linux: The AGL distribution uses a specific static ID process. When adding AWS IoT Greengrass, you will need to define users in the passwd and group files manually. Please see https://github.com/aws/meta-aws/issues/75 for more information.
 
 © 2019-2021, Amazon Web Services, Inc. or its affiliates. All rights reserved.
