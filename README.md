@@ -1,5 +1,11 @@
 # the meta-aws project
-<table border="0" rules="none"><tr border="0"><td width="150" height="150"><img alt="Yocto Project Platinum Member" src="images/lf_yp_plat.png"></td></tr>
+<table border="0" rules="none">
+<tr border="0">
+<td width="150" height="150"><img alt="Yocto Project Platinum Member"
+src="images/lf_yp_plat.png"></td>
+<td width="150" height="150"><img alt="Automotive Grade Linux Platinum Member"
+src="images/agl-member-plat.png"></td>
+</tr>
 </table>
 
 The **meta-aws project** provides *recipes* for building in AWS edge software capabilities to [Embedded Linux](https://elinux.org) built with [OpenEmbedded](https://www.openembedded.org) and [Yocto Project](https://www.yoctoproject.org/) build frameworks.
@@ -12,7 +18,7 @@ We are supporting customers building solutions on AWS with meta-aws for the foll
 
 * hardknott
 * gatesgarth
-* dunfell  
+* dunfell
 * zeus
 * thud
 * warrior (breakfix only)
