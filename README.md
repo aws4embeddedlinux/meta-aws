@@ -1,4 +1,5 @@
-<table border="0" rules="none"><tr border="0"><td width="150" height="150"><img alt="Yocto Project Platinum Member" src="images/lf_yp_plat.png"></td><td><font size="24">the meta-aws project</font></td></tr>
+# the meta-aws project
+<table border="0" rules="none"><tr border="0"><td width="150" height="150"><img alt="Yocto Project Platinum Member" src="images/lf_yp_plat.png"></td></tr>
 </table>
 
 The **meta-aws project** provides *recipes* for building in AWS edge software capabilities to [Embedded Linux](https://elinux.org) built with [OpenEmbedded](https://www.openembedded.org) and [Yocto Project](https://www.yoctoproject.org/) build frameworks.
