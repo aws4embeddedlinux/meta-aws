@@ -36,8 +36,8 @@ do_install() {
     sed -i -e "s,##aws_region##,${GGV2_REGION},g" ${GG_ROOT}/config/config.yaml
     sed -i -e "s,##role_alias##,${GGV2_TES_RALIAS},g" ${GG_ROOT}/config/config.yaml
     sed -i -e "s,##posixUser##,ggc_user:ggc_group,g" ${GG_ROOT}/config/config.yaml
-    sed -i -e "s,##iot_cred_endpoint##,${GGV2_DATA_EP},g" ${GG_ROOT}/config/config.yaml
-    sed -i -e "s,##iot_data_endpoint##,${GGV2_CRED_EP},g" ${GG_ROOT}/config/config.yaml
+    sed -i -e "s,##iot_cred_endpoint##,${GGV2_CRED_EP},g" ${GG_ROOT}/config/config.yaml
+    sed -i -e "s,##iot_data_endpoint##,${GGV2_DATA_EP},g" ${GG_ROOT}/config/config.yaml
 }
 
 FILES = ""
