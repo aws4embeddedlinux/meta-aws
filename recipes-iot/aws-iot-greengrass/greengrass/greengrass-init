@@ -1,0 +1,13 @@
+#!/bin/sh
+
+GG_LAUNCHER="$(find ##GG_INSTALL_DIR## -type f -name greengrassd)"
+
+case "${1}" in
+	start | stop | restart)
+		${GG_LAUNCHER} ${1}
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart}"
+		exit 1
+		;;
+esac
