@@ -6,7 +6,22 @@ The **meta-aws project** provides *recipes* for building in AWS edge software ca
 
 Please check out [our sister project meta-aws-demos](https://github.com/aws-samples/meta-aws-demos)!  Over time, we will continuously be adding MACHINE specific demonstrations for AWS software on Embedded Linux built by the Yocto Project build framework with the meta-aws Metadata Layer.
 
+
+### Dependencies
+
+**meta-aws** supports a wide variety of device software.  This layer defines a minimum dependency set that covers many of the recipes.  Sometimes, the recipe will require additional layers either to support optional features or programming languages not supported by OpenEmbedded. When those requirements surface, they are documented in recipe specific README files.
+
+Base dependencies:
+
+* core
+* openembedded-layer (meta-oe)
+* networking-layer (meta-networking)
+* meta-python
+
+### Supported recipes for services, software, and SDKs
+
 These are the currently supported services, software, and SDKs you can use to build AWS solutions with many types of devices when building your distribution with the Yocto Project.
+
 
 |Service, Software, or SDK |Details |
 |:------------------------:|:-------|
