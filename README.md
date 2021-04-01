@@ -6,6 +6,19 @@ The **meta-aws project** provides *recipes* for building in AWS edge software ca
 
 Please check out [our sister project meta-aws-demos](https://github.com/aws-samples/meta-aws-demos)!  Over time, we will continuously be adding MACHINE specific demonstrations for AWS software on Embedded Linux built by the Yocto Project build framework with the meta-aws Metadata Layer.
 
+### Supported Yocto Project Releases
+
+We are supporting customers building solutions on AWS with meta-aws for the following Yocto Project releases.  Let us know if you need AWS device software for a specific Yocto Project release and we will work with you through Github Issues to resolve the challenge you might be facing.  We also encourage **contributions** by the community.
+
+* hardknott
+* gatesgarth
+* dunfell  
+* zeus
+* thud
+* warrior (breakfix only)
+* sumo (breakfix only)
+
+All prior releases will be handled on a case by case basis.  Again, please let us know if you're in a crunch on earlier releases and we'll help you the best we can!
 
 ### Dependencies
 
