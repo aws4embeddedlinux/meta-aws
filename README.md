@@ -21,10 +21,10 @@ We are supporting customers building solutions on AWS with meta-aws for the foll
 <tr><td>hardknott (master)</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiejUzUWRtRTVtWnF2MUxkRjJmMDRZQW5yUlBXZVQxT3R6bUNyeVhQZE9tMUJEWVpzVnRBajM3WXY0L2pTSlpKMDArdWIxY2svcjlrMnoralB4aHB2WjMwPSIsIml2UGFyYW1ldGVyU3BlYyI6ImhkTFBreWVsTk9FK3p5WnUiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master"/></td></tr>
 <tr><td>gatesgarth</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiS29vRHRFVlROeEZGamo4QVN5b2dyZGhieVVNWlVFSnlldFpjR3VIVmNZYzVMYldDZU9CbXQ3Z0JZUC9pRDgxWDdVVldmU1lZQ3hiUTZwRHhOMHFSREE4PSIsIml2UGFyYW1ldGVyU3BlYyI6IkFhaWhzSldnTTlranMxQ20iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=gatesgarth"/></td></tr>
 <tr><td>dunfell</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiYXV1RzJYQ1prU0l1TThHYmZiMXVIS3UwYUhBZ3Urd0RJT241SDBnNEgrWFVnNExLaUI1a3IzcnY5UUNwamY4d045RVl1d3lMbUFTZndNa2J0Sks2YmRNPSIsIml2UGFyYW1ldGVyU3BlYyI6IlE3cEl5Q292enpTczVVSEQiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=dunfell"/></td></tr>
-<tr><td>zeus</td><td><img src=""/></td></tr>
-<tr><td>thud</td><td><img src=""/></td></tr>
-<tr><td>warrior (breakfix only)</td><td><img src=""/></td></tr>
-<tr><td>sumo (breakfix only)</td><td><img src=""/></td></tr>
+<tr><td>zeus</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiYXZDSnIwdXVNSFRjMW13MmxVOVZYZVJhVktKTkVScG1UQURqTDdpMHlrYXFKS2x0VHdXV1ZzeUVxR0Q1cVU4RTBtUkkzWnVOMjRPdVZhKzRhSTBqQkI4PSIsIml2UGFyYW1ldGVyU3BlYyI6IlNwZXFGbXJ3U0ZwM1dLQVciLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=zeus"/></td></tr>
+<tr><td>thud</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiK0IwWDFuaTZFZFd4NVY3N2UwdGdGcWtsMGtDc2dRVEgzMHdxV2V6TU5ZRmpOU01MaUtreVowSlJid204VHEwelIzdGoxQnJ4RnViNWI0bjQ3cEgxN1k4PSIsIml2UGFyYW1ldGVyU3BlYyI6IjA3ZndZRHFjeVlKMGUvQ2IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=thud"/></td></tr>
+<tr><td>warrior (breakfix only)</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiamU0QTRsUHJXRWFPcTZYMVVvNVozSkdIeitqWkNiUFZwcno3UkNOcDZyZWVTZjRoVmFsK3R3WWFSeDQ4RlRpbGJwNzR3SjlUeng2NWFodSs0dzBBZWhjPSIsIml2UGFyYW1ldGVyU3BlYyI6IloxMFNMVlg0T0NMdUgydEIiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=warrior"/></td></tr>
+<tr><td>sumo (breakfix only)</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiQjAzZlBBN2VwalV1QU9WVUY0YlVNODBnZm5FejlQNXZKWU5OM3QzVVVnNXpvaEhib3I3SW9ESGxnU1hFdGpQb2hlOTBiN2s4YlZteERsRWhJeEVzbHVJPSIsIml2UGFyYW1ldGVyU3BlYyI6Ikp6R1pBVGZGeG1UNmh5TUYiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=sumo"/></td></tr>
 </table>
 
 All prior releases will be handled on a case by case basis.  Again, please let us know if you're in a crunch on earlier releases and we'll help you the best we can!
