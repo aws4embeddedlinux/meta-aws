@@ -17,14 +17,14 @@ Please check out [our sister project meta-aws-demos](https://github.com/aws-samp
 We are supporting customers building solutions on AWS with meta-aws for the following Yocto Project releases.  Let us know if you need AWS device software for a specific Yocto Project release and we will work with you through Github Issues to resolve the challenge you might be facing.  We also encourage **contributions** by the community.
 
 <table>
-<tr><td>Release branch</td><td>Layer integrity check</td></tr>
+<tr><th>Release branch <a href="https://wiki.yoctoproject.org/wiki/Releases" target="none" title="What is this?">(?)</a></th><th>Layer integrity check <a href="https://www.yoctoproject.org/docs/2.5/dev-manual/dev-manual.html#making-sure-your-layer-is-compatible-with-yocto-project" target="none" title="What is this?">(?)</a></th></tr>
 <tr><td>hardknott (master)</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiejUzUWRtRTVtWnF2MUxkRjJmMDRZQW5yUlBXZVQxT3R6bUNyeVhQZE9tMUJEWVpzVnRBajM3WXY0L2pTSlpKMDArdWIxY2svcjlrMnoralB4aHB2WjMwPSIsIml2UGFyYW1ldGVyU3BlYyI6ImhkTFBreWVsTk9FK3p5WnUiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master"/></td></tr>
-<tr><td>gatesgarth</td><td></td></tr>
-<tr><td>dunfell</td><td></td></tr>
-<tr><td>zeus</td><td></td></tr>
-<tr><td>thud</td><td></td></tr>
-<tr><td>warrior (breakfix only)</td><td></td></tr>
-<tr><td>sumo (breakfix only)</td><td></td></tr>
+<tr><td>gatesgarth</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiS29vRHRFVlROeEZGamo4QVN5b2dyZGhieVVNWlVFSnlldFpjR3VIVmNZYzVMYldDZU9CbXQ3Z0JZUC9pRDgxWDdVVldmU1lZQ3hiUTZwRHhOMHFSREE4PSIsIml2UGFyYW1ldGVyU3BlYyI6IkFhaWhzSldnTTlranMxQ20iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master"/></td></tr>
+<tr><td>dunfell</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiYXV1RzJYQ1prU0l1TThHYmZiMXVIS3UwYUhBZ3Urd0RJT241SDBnNEgrWFVnNExLaUI1a3IzcnY5UUNwamY4d045RVl1d3lMbUFTZndNa2J0Sks2YmRNPSIsIml2UGFyYW1ldGVyU3BlYyI6IlE3cEl5Q292enpTczVVSEQiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master"/></td></tr>
+<tr><td>zeus</td><td><img src=""/></td></tr>
+<tr><td>thud</td><td><img src=""/></td></tr>
+<tr><td>warrior (breakfix only)</td><td><img src=""/></td></tr>
+<tr><td>sumo (breakfix only)</td><td><img src=""/></td></tr>
 </table>
 
 All prior releases will be handled on a case by case basis.  Again, please let us know if you're in a crunch on earlier releases and we'll help you the best we can!
