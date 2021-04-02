@@ -16,13 +16,16 @@ Please check out [our sister project meta-aws-demos](https://github.com/aws-samp
 
 We are supporting customers building solutions on AWS with meta-aws for the following Yocto Project releases.  Let us know if you need AWS device software for a specific Yocto Project release and we will work with you through Github Issues to resolve the challenge you might be facing.  We also encourage **contributions** by the community.
 
-* hardknott
-* gatesgarth
-* dunfell
-* zeus
-* thud
-* warrior (breakfix only)
-* sumo (breakfix only)
+<table>
+<tr><td>Release branch</td><td>Layer integrity check</td></tr>
+<tr><td>hardknott (master)</td><td>https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiejUzUWRtRTVtWnF2MUxkRjJmMDRZQW5yUlBXZVQxT3R6bUNyeVhQZE9tMUJEWVpzVnRBajM3WXY0L2pTSlpKMDArdWIxY2svcjlrMnoralB4aHB2WjMwPSIsIml2UGFyYW1ldGVyU3BlYyI6ImhkTFBreWVsTk9FK3p5WnUiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master</td></tr>
+<tr><td>gatesgarth</td><td></td></tr>
+<tr><td>dunfell</td><td></td></tr>
+<tr><td>zeus</td><td></td></tr>
+<tr><td>thud</td><td></td></tr>
+<tr><td>warrior (breakfix only)</td><td></td></tr>
+<tr><td>sumo (breakfix only)</td><td></td></tr>
+</table>
 
 All prior releases will be handled on a case by case basis.  Again, please let us know if you're in a crunch on earlier releases and we'll help you the best we can!
 
