@@ -18,7 +18,7 @@ We are supporting customers building solutions on AWS with meta-aws for the foll
 
 <table>
 <tr><td>Release branch</td><td>Layer integrity check</td></tr>
-<tr><td>hardknott (master)</td><td>https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiejUzUWRtRTVtWnF2MUxkRjJmMDRZQW5yUlBXZVQxT3R6bUNyeVhQZE9tMUJEWVpzVnRBajM3WXY0L2pTSlpKMDArdWIxY2svcjlrMnoralB4aHB2WjMwPSIsIml2UGFyYW1ldGVyU3BlYyI6ImhkTFBreWVsTk9FK3p5WnUiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master</td></tr>
+<tr><td>hardknott (master)</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiejUzUWRtRTVtWnF2MUxkRjJmMDRZQW5yUlBXZVQxT3R6bUNyeVhQZE9tMUJEWVpzVnRBajM3WXY0L2pTSlpKMDArdWIxY2svcjlrMnoralB4aHB2WjMwPSIsIml2UGFyYW1ldGVyU3BlYyI6ImhkTFBreWVsTk9FK3p5WnUiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master"/></td></tr>
 <tr><td>gatesgarth</td><td></td></tr>
 <tr><td>dunfell</td><td></td></tr>
 <tr><td>zeus</td><td></td></tr>
