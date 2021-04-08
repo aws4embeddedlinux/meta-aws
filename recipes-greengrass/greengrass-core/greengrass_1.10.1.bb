@@ -18,18 +18,17 @@ SRC_URI_x86-64 = " \
     file://greengrass-init \
 "
 
-SRC_URI[arm.md5sum]        = "e54bb57929bc278ea89737c4abcd89e8"
-SRC_URI[arm.sha256sum]     = "91f3d92dca977ea504921c7dbae96a926adce441c8f9ec1896e4c8cf085d6d2e"
+SRC_URI[arm.md5sum]        = "f9b1181efe9b0c65dd490b01e9193b61"
+SRC_URI[arm.sha256sum]     = "9e77cc841558a15326b6145ddab2b145db8dc735a3710cb4dd0feb023d16ae2f"
 
-SRC_URI[aarch64.md5sum]    = "1bdde4df4c461cd5502f7adbb79b2903"
-SRC_URI[aarch64.sha256sum] = "912ecbe10398382894045f9b9dafd16eac7fabce0fc04fc9ee83c8ec8f67ca5a"
+SRC_URI[aarch64.md5sum]    = "4de5bd70bcc024634cd6cebe44d3e3f1"
+SRC_URI[aarch64.sha256sum] = "b79449eadfdbe64d8c6700ac4fe8cd167495e53359c08eb2fc6071559da2cdd3"
 
-SRC_URI[x86-64.md5sum]     = "cd363d38e22a1918ca0bc6ea8d07a931"
-SRC_URI[x86-64.sha256sum]  = "589d91ab2a358d028cd0c458efdcc1a80d19a1fb8d41c358f928d6a98c333f42"
+SRC_URI[x86-64.md5sum]     = "e01f095bc1d43e62d1bfadb95f6a8d53"
+SRC_URI[x86-64.sha256sum]  = "8fded584f9291510ee91fe98cfd8bc69e01d1b8e4147f24fa1366e0eb9172b28"
 
 # Release specific configuration
 
-DEPENDS += "patchelf-native"
 RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3"
 
 do_install_append_x86-64() {
@@ -41,3 +40,4 @@ do_install_append_x86-64() {
 
 FILES_${PN} += " /lib64"
 INSANE_SKIP_${PN} += " libdir"
+
