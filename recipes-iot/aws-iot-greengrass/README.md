@@ -1,6 +1,12 @@
-# Greengrass V2 Configuration
+# AWS IoT Greengrass
 
-## Add systemd
+All new designs should be using AWS IoT Greengrass V2.
+
+See the AWS IoT Greengrass V1 section if you still require V1.
+
+## AWS IoT Greengrass V2 Configuration
+
+### Add systemd
 
 Greengrass v2 runs more elegantly using systemd.  Add this to your
 local.conf or distribution to add support.
@@ -12,7 +18,7 @@ VIRTUAL-RUNTIME_init_manager = "systemd"
 VIRTUAL-RUNTIME_initscripts = ""
 ```
 
-## Configure for demo mode (greengrass-bin-demo)
+### Configure for demo mode (greengrass-bin-demo)
 
 1. Put this in local.conf and configure
 
@@ -47,3 +53,29 @@ GGV2_TES_RALIAS  = "GreengrassV2TokenExchangeRoleAlias"
 ```
 
 More docs will come later on how to get each of these values.
+
+
+## AWS IoT Greengrass V1
+
+### Enabling the V1 version.
+
+AWS IoT Greengrass v2 will be used by default. to use AWS IoT
+Greengrass v1, you must override the version number. Configure
+local.conf or your distribution file with the preferred version.
+
+```text
+PREFERRED_VERSION_greengrass = "1.11.0"
+```
+
+### Kernel Dependencies
+
+Greengrass v1 requires specific kernel features which must be opt-in
+according the Yocto Project best practices and achieving layer
+compatibility.
+
+In your local.conf or distribution configuration, set the following
+variable:
+
+```text
+GG_KERNEL_MOD = 1
+```
