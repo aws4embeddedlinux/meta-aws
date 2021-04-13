@@ -4,7 +4,7 @@ All new designs should be using AWS IoT Greengrass V2.
 
 See the AWS IoT Greengrass V1 section if you still require V1.
 
-## AWS IoT Greengrass V2 Configuration
+## AWS IoT Greengrass V2
 
 ### Add systemd
 
