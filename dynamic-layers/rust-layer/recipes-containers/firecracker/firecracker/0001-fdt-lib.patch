@@ -1,0 +1,22 @@
+From 03a86c789943e01c6dbcc960abb5366d58c339c9 Mon Sep 17 00:00:00 2001
+From: Joel Winarske <joel.winarske@linux.com>
+Date: Sun, 23 May 2021 00:08:08 +0000
+Subject: [PATCH] fdt lib
+
+---
+ build.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/build.rs b/build.rs
+index fa34197..e14b474 100644
+--- a/build.rs
++++ b/build.rs
+@@ -24,4 +24,5 @@ fn main() {
+         "cargo:rustc-env=FIRECRACKER_VERSION={}",
+         firecracker_version
+     );
++    println!("cargo:rustc-link-lib=fdt");
+ }
+-- 
+2.7.4
+
