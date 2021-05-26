@@ -8,7 +8,7 @@ BASE_aarch64    = "amazon-corretto-${PV}-linux-aarch64"
 SRC_URI_aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
 
 BASE_arm        = "amazon-corretto-${PV}-linux-armv7"
-SRC_URI_arm     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-.tar.gz;name=arm"
+SRC_URI_arm     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-armv7.tar.gz;name=arm"
 
 BASE_x86-64     = "amazon-corretto-${PV}-linux-x64"
 SRC_URI_x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
