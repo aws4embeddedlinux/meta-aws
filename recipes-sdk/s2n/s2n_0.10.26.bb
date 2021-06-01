@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "s2n"
 DESCRIPTION = "s2n is a C99 implementation of the TLS/SSL protocols that is designed to be simple, small, fast, and with security as a priority."
 HOMEPAGE = "https://github.com/awslabs/s2n"
