@@ -6,30 +6,30 @@ PROVIDES += "aws/aws-iot-device-sdk-cpp-v2"
 
 inherit cmake
 
-LIC_FILES_CHKSUM = "file://LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
+LIC_FILES_CHKSUM = "file://aws-iot-device-sdk-cpp-v2/LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/aws/aws-iot-device-sdk-cpp-v2.git;branch=${BRANCH};name=aws-iot-device-sdk-cpp-v2"
-SRCREV = "4b16a0236be89d77375c43c9ffb8be5b929e6227"
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix=${S}/aws-c-common;tag=v0.5.3 \
+           git://github.com/aws/aws-iot-device-sdk-cpp-v2.git;branch=${BRANCH};destsuffix=${S}/aws-iot-device-sdk-cpp-v2;tag=v1.10.5 \
+           file://001-move-c-iot-include.patch \
+"
 
 S= "${WORKDIR}/git"
 
-do_configure_prepend() {
-  cd ${S}
-  git submodule update --init --recursive
-}
-
-DEPENDS = "openssl"
+DEPENDS = "openssl aws-crt-cpp aws-c-iot"
+RDEPENDS_${PN} = "aws-crt-cpp aws-c-iot"
 CFLAGS_append = " -Wl,-Bsymbolic"
 
-EXTRA_OECMAKE += "-DBUILD_DEPS=ON"
+OECMAKE_BUILDPATH += "${WORKDIR}/build"
+OECMAKE_SOURCEPATH += "${S}/aws-iot-device-sdk-cpp-v2"
+
+EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
+EXTRA_OECMAKE += "-DBUILD_DEPS=OFF"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
-OECMAKE_SOURCEPATH += "${S}"
 
 FILES_${PN} += "${libdir}/*1.0.0"
 FILES_${PN} += "${libdir}/libaws-crt-cpp.so"
