@@ -14,6 +14,7 @@ S= "${WORKDIR}/git"
 PACKAGES = "${PN}"
 DEPENDS = "openssl aws-iot-device-sdk-cpp-v2 googletest"
 RDEPENDS_${PN} = "openssl aws-iot-device-sdk-cpp-v2"
+HOSTTOOLS = "git"
 
 inherit cmake
 
@@ -54,6 +55,7 @@ EXTRA_OECMAKE += "-DEXCLUDE_JOBS=${AWSIOTDC_EXCL_JOBS}"
 EXTRA_OECMAKE += "-DEXCLUDE_DD=${AWSIOTDC_EXCL_DD}"
 EXTRA_OECMAKE += "-DEXCLUDE_ST=${AWSIOTDC_EXCL_ST}"
 EXTRA_OECMAKE += "-DEXCLUDE_FP=${AWSIOTDC_EXCL_FP}"
+EXTRA_OECMAKE += "-DGIT_EXECUTABLE=${TMPDIR}/hosttools/git"
 
 FILES_${PN} += "${base_sbindir}/sbin/aws-iot-device-client"
 FILES_${PN} += "${systemd_system_unitdir}/aws-iot-device-client.service"
