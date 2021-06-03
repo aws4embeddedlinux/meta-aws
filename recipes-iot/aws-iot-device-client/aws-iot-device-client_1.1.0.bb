@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS IoT Device Client"
 DESCRIPTION = "The AWS IoT Device Client is free, open-source, modular software written in C++ that you can compile and install on your Embedded Linux based IoT devices to access AWS IoT Core, AWS IoT Device Management, and AWS IoT Device Defender features by default."
 HOMEPAGE = "https://github.com/awslabs/aws-iot-device-client"
@@ -7,13 +8,14 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=3eb31626add6ada64ff9ac772bd3c653"
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH};tag=v1.1"
+SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH};tag=v1.1 \
+           file://01-missing-thread-includes.patch \
+"
 
 S= "${WORKDIR}/git"
 PACKAGES = "${PN}"
 DEPENDS = "openssl aws-iot-device-sdk-cpp-v2 googletest"
 RDEPENDS_${PN} = "openssl aws-iot-device-sdk-cpp-v2"
-PREFERRED_VERSION_aws-iot-device-sdk-cpp-v2 = "1.10.5"
 
 inherit cmake
 
@@ -36,10 +38,6 @@ do_install() {
     ${D}${systemd_system_unitdir}/aws-iot-device-client.service
 
 }
-
-#do_install_append() {
-#  rm -rf ${D}/sbin/.debug
-#}
 
 AWSIOTDC_EXCL_JOBS ?= "OFF"
 AWSIOTDC_EXCL_DD ?= "OFF"

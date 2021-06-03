@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS C HTTP"
 DESCRIPTION = "C99 implementation of the HTTP/1.1 and HTTP/2 specifications"
 
@@ -13,6 +14,7 @@ BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
            git://github.com/awslabs/aws-c-http.git;branch=${BRANCH};destsuffix=${S}/aws-c-http;name=http \
+           file://01-aws-c-common-strict-flags-bypass.patch \
 "
 
 SRCREV_common = "00c91eeb186970d50690ebbdceefdeae5c31fb4c"
@@ -31,6 +33,7 @@ EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
 EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
+EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
