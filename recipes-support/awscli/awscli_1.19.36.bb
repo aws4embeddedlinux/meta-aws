@@ -20,4 +20,5 @@ RDEPENDS_${PN} += "python3-botocore \
                    python3-prompt-toolkit \
                    python3-sqlite3 \
                    python3-misc \
-                   python3-rsa"
+                   python3-rsa \
+                   groff"

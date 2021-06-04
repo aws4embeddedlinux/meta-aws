@@ -1,0 +1,22 @@
+diff --git a/cmake/AwsCFlags.cmake b/cmake/AwsCFlags.cmake
+index 82c16daf..d6e5cb6b 100644
+--- a/aws-c-common/cmake/AwsCFlags.cmake
++++ b/aws-c-common/cmake/AwsCFlags.cmake
+@@ -53,6 +53,8 @@ function(aws_set_common_properties target)
+         list(APPEND AWS_C_FLAGS "${_FLAGS}")
+ 
+     else()
++	if (CMAKE_BUILD_TYPE STREQUAL "" OR CMAKE_BUILD_TYPE MATCHES Debug)
++
+         list(APPEND AWS_C_FLAGS -Wall -Werror -Wstrict-prototypes -fno-omit-frame-pointer)
+ 
+         if(NOT SET_PROPERTIES_NO_WEXTRA)
+@@ -62,7 +64,7 @@ function(aws_set_common_properties target)
+         if(NOT SET_PROPERTIES_NO_PEDANTIC)
+             list(APPEND AWS_C_FLAGS -pedantic)
+         endif()
+-
++        endif()
+         # Warning disables always go last to avoid future flags re-enabling them
+         list(APPEND AWS_C_FLAGS -Wno-long-long)
+ 

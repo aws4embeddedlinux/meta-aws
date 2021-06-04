@@ -1,0 +1,12 @@
+diff --git a/include/aws/crt/StringView.h b/include/aws/crt/StringView.h
+index 5262cd6..a9cb6b2 100644
+--- a/aws-crt-cpp/include/aws/crt/StringView.h
++++ b/aws-crt-cpp/include/aws/crt/StringView.h
+@@ -13,6 +13,7 @@
+ #include <iterator>
+ #include <stddef.h>
+ #include <type_traits>
++#include <limits>
+ 
+ #if __cplusplus >= 201703L || (defined(_MSC_LANG) && _MSC_LANG >= 201703L)
+ #    include <string_view>
