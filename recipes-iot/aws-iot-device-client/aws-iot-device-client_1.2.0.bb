@@ -9,7 +9,6 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=3eb31626add6ada64ff9ac772bd3c653"
 BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH};tag=v1.2 \
-           file://01-missing-thread-includes.patch \
 "
 
 S= "${WORKDIR}/git"
