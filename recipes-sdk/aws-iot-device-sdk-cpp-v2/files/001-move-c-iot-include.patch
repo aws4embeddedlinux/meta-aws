@@ -1,0 +1,134 @@
+diff --git a/devicedefender/CMakeLists.txt b/devicedefender/CMakeLists.txt
+index d9dab0f..9dc3c60 100644
+--- a/aws-iot-device-sdk-cpp-v2/devicedefender/CMakeLists.txt
++++ b/aws-iot-device-sdk-cpp-v2/devicedefender/CMakeLists.txt
+@@ -90,12 +90,13 @@ target_include_directories(IotDeviceDefender-cpp PUBLIC
+         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include>)
+ 
+-if (NOT IS_SUBDIRECTORY_INCLUDE)
++if (BUILD_DEPS)
++  if (NOT IS_SUBDIRECTORY_INCLUDE)
+     aws_use_package(aws-crt-cpp)
++  endif()
++  aws_use_package(aws-c-iot)
+ endif()
+ 
+-aws_use_package(aws-c-iot)
+-
+ if (BUILD_TESTING)
+     aws_use_package(IotDeviceCommon-cpp)
+ endif()
+diff --git a/discovery/CMakeLists.txt b/discovery/CMakeLists.txt
+index e2a02b3..050955b 100644
+--- a/aws-iot-device-sdk-cpp-v2/discovery/CMakeLists.txt
++++ b/aws-iot-device-sdk-cpp-v2/discovery/CMakeLists.txt
+@@ -90,8 +90,10 @@ target_include_directories(Discovery-cpp PUBLIC
+         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include>)
+ 
+-if (NOT IS_SUBDIRECTORY_INCLUDE)
++if (BUILD_DEPS)
++  if (NOT IS_SUBDIRECTORY_INCLUDE)
+     aws_use_package(aws-crt-cpp)
++  endif()
+ endif()
+ 
+ target_link_libraries(Discovery-cpp ${DEP_AWS_LIBS})
+diff --git a/identity/CMakeLists.txt b/identity/CMakeLists.txt
+index a84ffbc..0c795db 100644
+--- a/aws-iot-device-sdk-cpp-v2/identity/CMakeLists.txt
++++ b/aws-iot-device-sdk-cpp-v2/identity/CMakeLists.txt
+@@ -90,8 +90,10 @@ target_include_directories(IotIdentity-cpp PUBLIC
+         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include>)
+ 
+-if (NOT IS_SUBDIRECTORY_INCLUDE)
++if (BUILD_DEPS)
++  if (NOT IS_SUBDIRECTORY_INCLUDE)
+     aws_use_package(aws-crt-cpp)
++  endif()
+ endif()
+ 
+ target_link_libraries(IotIdentity-cpp ${DEP_AWS_LIBS})
+diff --git a/iotdevicecommon/CMakeLists.txt b/iotdevicecommon/CMakeLists.txt
+index 5fd2986..be659ad 100644
+--- a/aws-iot-device-sdk-cpp-v2/iotdevicecommon/CMakeLists.txt
++++ b/aws-iot-device-sdk-cpp-v2/iotdevicecommon/CMakeLists.txt
+@@ -90,12 +90,13 @@ target_include_directories(IotDeviceCommon-cpp PUBLIC
+         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include>)
+ 
+-if (NOT IS_SUBDIRECTORY_INCLUDE)
++if (BUILD_DEPS)
++  if (NOT IS_SUBDIRECTORY_INCLUDE)
+     aws_use_package(aws-crt-cpp)
++  endif()
++  aws_use_package(aws-c-iot)
+ endif()
+ 
+-aws_use_package(aws-c-iot)
+-
+ target_link_libraries(IotDeviceCommon-cpp ${DEP_AWS_LIBS})
+ 
+ install(FILES ${AWS_IOTDEVICECOMMON_HEADERS} DESTINATION "include/aws/iotdevicecommon/" COMPONENT Development)
+@@ -117,4 +118,4 @@ configure_file("cmake/iotdevicecommon-cpp-config.cmake"
+ 
+ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/iotdevicecommon-cpp-config.cmake"
+         DESTINATION "lib/IotDeviceCommon-cpp/cmake/"
+-        COMPONENT Development)
+\ No newline at end of file
++        COMPONENT Development)
+diff --git a/jobs/CMakeLists.txt b/jobs/CMakeLists.txt
+index a32dc29..583c89a 100644
+--- a/aws-iot-device-sdk-cpp-v2/jobs/CMakeLists.txt
++++ b/aws-iot-device-sdk-cpp-v2/jobs/CMakeLists.txt
+@@ -90,8 +90,10 @@ target_include_directories(IotJobs-cpp PUBLIC
+         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include>)
+ 
+-if (NOT IS_SUBDIRECTORY_INCLUDE)
++if (BUILD_DEPS)
++  if (NOT IS_SUBDIRECTORY_INCLUDE)
+     aws_use_package(aws-crt-cpp)
++  endif()
+ endif()
+ 
+ target_link_libraries(IotJobs-cpp ${DEP_AWS_LIBS})
+diff --git a/secure_tunneling/CMakeLists.txt b/secure_tunneling/CMakeLists.txt
+index a3937a3..0b03b63 100644
+--- a/aws-iot-device-sdk-cpp-v2/secure_tunneling/CMakeLists.txt
++++ b/aws-iot-device-sdk-cpp-v2/secure_tunneling/CMakeLists.txt
+@@ -90,12 +90,13 @@ target_include_directories(IotSecureTunneling-cpp PUBLIC
+         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include>)
+ 
+-if (NOT IS_SUBDIRECTORY_INCLUDE)
++if (BUILD_DEPS)
++  if (NOT IS_SUBDIRECTORY_INCLUDE)
+     aws_use_package(aws-crt-cpp)
++  endif()
++  aws_use_package(aws-c-iot)
+ endif()
+ 
+-aws_use_package(aws-c-iot)
+-
+ if (BUILD_TESTING)
+     aws_use_package(IotDeviceCommon-cpp)
+ endif()
+diff --git a/shadow/CMakeLists.txt b/shadow/CMakeLists.txt
+index 2496ff0..7589d73 100644
+--- a/aws-iot-device-sdk-cpp-v2/shadow/CMakeLists.txt
++++ b/aws-iot-device-sdk-cpp-v2/shadow/CMakeLists.txt
+@@ -90,8 +90,10 @@ target_include_directories(IotShadow-cpp PUBLIC
+         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include>)
+ 
+-if (NOT IS_SUBDIRECTORY_INCLUDE)
++if (BUILD_DEPS)
++  if (NOT IS_SUBDIRECTORY_INCLUDE)
+     aws_use_package(aws-crt-cpp)
++  endif()
+ endif()
+ 
+ target_link_libraries(IotShadow-cpp ${DEP_AWS_LIBS})
