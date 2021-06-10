@@ -1,6 +1,6 @@
 #!/bin/sh
 
-GG_LAUNCHER="$(find ##GG_INSTALL_DIR## -type f -name greengrassd)"
+GG_LAUNCHER="$(find -L ##GG_INSTALL_DIR## -type f -name greengrassd)"
 
 case "${1}" in
 	start | stop | restart)
