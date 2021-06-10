@@ -9,18 +9,21 @@ SRC_URI_arm = " \
     https://d1onfpft10uf5o.cloudfront.net/greengrass-core/downloads/${PV}/greengrass-linux-armv7l-${PV}.tar.gz;name=arm \
     file://greengrass.service \
     file://greengrass-init \
+    file://greengrass.conf \
 "
 
 SRC_URI_aarch64 = " \
     https://d1onfpft10uf5o.cloudfront.net/greengrass-core/downloads/${PV}/greengrass-linux-aarch64-${PV}.tar.gz;name=aarch64 \
     file://greengrass.service \
     file://greengrass-init \
+    file://greengrass.conf \
 "
 
 SRC_URI_x86-64 = " \
     https://d1onfpft10uf5o.cloudfront.net/greengrass-core/downloads/${PV}/greengrass-linux-x86-64-${PV}.tar.gz;name=x86-64 \
     file://greengrass.service \
     file://greengrass-init \
+    file://greengrass.conf \
 "
 
 SRC_URI[arm.md5sum]        = "f9b1181efe9b0c65dd490b01e9193b61"

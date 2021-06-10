@@ -9,6 +9,7 @@ DESCRIPTION = "AWS IoT Greengrass seamlessly extends AWS to edge devices so \
                securely – even when not connected to the Internet."
 
 S = "${WORKDIR}/${BPN}"
+FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
 
 inherit update-rc.d useradd systemd
 
@@ -33,45 +34,33 @@ do_install() {
     install -d ${D}${systemd_unitdir}/system/
     install -m 0644 ${WORKDIR}/greengrass.service ${D}${systemd_unitdir}/system/greengrass.service
 
+    # Install sysctl file - #103
+    install -d ${D}/etc/sysctl.d
+    install -m 0400 ${WORKDIR}/greengrass.conf ${D}/etc/sysctl.d
+
     # Configure whether to use systemd or not
     sed -i -e "/useSystemd/{s,\[yes|no],${GG_USESYSTEMD},g}" ${D}/${BPN}/config/config.json
 }
 
-pkg_postinst_ontarget_${PN}() {
-    # Enable protection for hardlinks and symlinks
-    if ! grep -qs 'protected_.*links' $D${sysconfdir}/sysctl.conf | grep -v '^#'; then
-    cat >> $D${sysconfdir}/sysctl.conf <<-_EOF_
-# Greengrass: protect hardlinks/symlinks
-fs.protected_hardlinks = 1
-fs.protected_symlinks = 1
-_EOF_
-    fi
-
-    # Customize '/etc/fstab'
-    if [ -f "$D${sysconfdir}/fstab" ]; then
-        # Disable TMPFS /var/volatile
-        sed -i -e '\#^tmpfs[[:blank:]]\+/var/volatile#s,^,#,g' $D${sysconfdir}/fstab
-
-		# Mount a cgroup hierarchy with all available subsystems
-		if ! grep -qs '^cgroup' $D${sysconfdir}/fstab; then
-			cat >> $D${sysconfdir}/fstab <<-_EOF_
-				# Greengrass: mount cgroups
-				cgroup    /sys/fs/cgroup    cgroup    defaults    0  0
-			_EOF_
-		fi
-	fi
-
-	# Disable '/etc/resolv.conf' symlink
-	if [ -f "$D${sysconfdir}/default/volatiles/00_core" ]; then
-		sed -i -e '/resolv.conf/d' $D${sysconfdir}/default/volatiles/00_core
-		cat >> $D${sysconfdir}/default/volatiles/00_core <<-_EOF_
-			# Greengrass: create a real (no symlink) resolv.conf
-			f root root 0644 /etc/resolv.conf none
-		_EOF_
-	fi
+do_install_append_base-files() {
+  cat >> $D${sysconfdir}/fstab <<-_EOF_
+    # Greengrass: mount cgroups
+    cgroup    /sys/fs/cgroup    cgroup    defaults    0  0
+  _EOF_
 }
 
-FILES_${PN} = "/${BPN} ${sysconfdir} ${systemd_unitdir}"
+do_install_append_resolvconf() {
+  # Disable '/etc/resolv.conf' symlink
+  if [ -f "$D${sysconfdir}/default/volatiles/00_core" ]; then
+    sed -i -e '/resolv.conf/d' $D${sysconfdir}/default/volatiles/00_core
+    cat >> $D${sysconfdir}/default/volatiles/00_core <<-_EOF_
+      # Greengrass: create a real (no symlink) resolv.conf
+      f root root 0644 /etc/resolv.conf none
+    _EOF_
+  fi
+}
+
+FILES_${PN} = "/${BPN} ${sysconfdir} ${systemd_unitdir} /etc/sysctl.d/greengrass.conf"
 
 CONFFILES_${PN} += "/${BPN}/config/config.json"
 
