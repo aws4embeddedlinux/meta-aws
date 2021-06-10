@@ -56,7 +56,15 @@ These are the currently supported services, software, and SDKs you can use to bu
 |<center>![Image of SDK Icon](images/Arch_AWS-Tools-and-SDKs_64.png)</br>AWS SDK for Python</center>|The AWS SDK for Python provides the python libraries you can use to interact with AWS Cloud. Botocore and Boto3 are available.|
 |<center>![Image of AWS IoT Device SDK Icon](images/Arch_AWS-Tools-and-SDKs_64.png)</br>AWS IoT Device SDK for C++ v2|The AWS IoT C++ Device SDK allows developers to build connected applications using AWS and the AWS IoT APIs. Specifically, this SDK was designed for devices that are not resource constrained and require advanced features such as message queuing, multi-threading support, and the latest language features.|
 |<center>![Image of AWS IoT Device SDK Icon](images/Arch_AWS-Tools-and-SDKs_64.png)</br>AWS IoT Device SDK for Python v2|The AWS IoT Device SDK for Python makes it possible for developers to write Python scripts to use their devices to access the AWS IoT platform through MQTT or MQTT over the WebSocket protocol. By connecting their devices to AWS IoT, users can securely work with the message broker, rules, and shadows provided by AWS IoT and with other AWS services like AWS Lambda, Kinesis, and Amazon S3, and more.|
+|<center>![Image of AWS Firecracker Icon](images/Arch_AWS-Firecracker.png)</br>AWS Firecracker|AWS Firecracker Firecracker enables you to deploy workloads in lightweight virtual machines, called microVMs, which provide enhanced security and workload isolation over traditional VMs, while enabling the speed and resource efficiency of containers.|
 
-**IMPORTANT NOTE**: Automotive Grade Linux: The AGL distribution uses a specific static ID process. When adding AWS IoT Greengrass, you will need to define users in the passwd and group files manually. Please see https://github.com/aws/meta-aws/issues/75 for more information.
+**IMPORTANT NOTES**: 
+
+* Automotive Grade Linux: The AGL distribution uses a specific static ID process. When adding AWS IoT Greengrass, you will need to define users in the passwd and group files manually. Please see https://github.com/aws/meta-aws/issues/75 for more information.
+
+* Firecracker `panic_abort` resolution options:
+    * Append `RUST_PANIC_STRATEGY = "abort"` to your local.conf, as the default strategy is [unwind](https://github.com/meta-rust/meta-rust/blob/920db7b045c1f721efcc2e1d891516b515b7e7a8/classes/rust-common.bbclass#L12).
+    * Patch related Cargo.toml files to remove references to `abort`; not recommended.
+    * Leave `RUST_PANIC_STRATEGY` as default, and implement custom abort handler.
 
 © 2019-2021, Amazon Web Services, Inc. or its affiliates. All rights reserved.
