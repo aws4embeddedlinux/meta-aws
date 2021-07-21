@@ -17,7 +17,7 @@ SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5
 
 GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
 RDEPENDS_${PN} += "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'ntp-systemd', '', d)}"
-RDEPENDS_${PN} += "corretto-11-bin ca-certificates python3 python3-json python3-numbers"
+RDEPENDS_${PN} += "corretto-11-bin ca-certificates python3 python3-json python3-numbers sudo"
 
 do_configure[noexec] = "1"
 do_compile[noexec]   = "1"
