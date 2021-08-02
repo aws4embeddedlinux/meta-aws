@@ -33,7 +33,6 @@ EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-PACKAGES = "${PN}"
 INSANE_SKIP_${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
 
