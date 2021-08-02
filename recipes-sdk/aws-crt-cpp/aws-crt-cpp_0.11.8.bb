@@ -45,7 +45,6 @@ EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-PACKAGES = "${PN}"
 INSANE_SKIP_${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
 
