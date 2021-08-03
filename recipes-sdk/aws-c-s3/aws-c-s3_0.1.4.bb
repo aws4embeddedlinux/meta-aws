@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS C S3"
 DESCRIPTION = "C99 library implementation for communicating with the S3 service, designed for maximizing throughput on high bandwidth EC2 instances."
 
@@ -23,7 +24,7 @@ S= "${WORKDIR}/git"
 DEPENDS = "openssl aws-c-auth"
 RDEPENDS_${PN} = "aws-c-auth"
 
-CFLAGS_append = " -Wl,-Bsymbolic"
+CFLAGS:append = " -Wl,-Bsymbolic"
 
 OECMAKE_SOURCEPATH = "${S}/aws-c-s3"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
@@ -33,6 +34,5 @@ EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-PACKAGES = "${PN}"
-INSANE_SKIP_${PN} += "installed-vs-shipped"
+INSANE_SKIP:${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"

@@ -18,7 +18,7 @@ SRC_URI = "git://github.com/awslabs/s2n.git;branch=${BRANCH};tag=v0.10.26 \
 S= "${WORKDIR}/git"
 
 DEPENDS = "openssl"
-CFLAGS_append = " -Wl,-Bsymbolic"
+CFLAGS:append = " -Wl,-Bsymbolic"
 
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
@@ -26,6 +26,5 @@ EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-PACKAGES = "${PN}"
-INSANE_SKIP_${PN} += "installed-vs-shipped"
+INSANE_SKIP:${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"

@@ -12,6 +12,6 @@ do_install() {
     chown -R ggc_user:ggc_group ${D}/home/ggc_user
 }
 
-FILES_${PN} = " \
+FILES:${PN} = " \
     /home \
 "

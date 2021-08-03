@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS C Compression"
 DESCRIPTION = "This is a cross-platform C99 implementation of compression algorithms such as gzip, and huffman encoding/decoding. Currently only huffman is implemented."
 
@@ -21,18 +22,17 @@ SRCREV_compression = "f2be13afe410611fcac07b6519b96ce1ad4e4831"
 S = "${WORKDIR}/git"
 
 DEPENDS = "openssl s2n aws-c-common aws-c-cal aws-c-io"
-RDEPENDS_${PN} = "s2n aws-c-common aws-c-cal aws-c-io"
+RDEPENDS:${PN} = "s2n aws-c-common aws-c-cal aws-c-io"
 
 AWS_C_INSTALL = "$D/usr"
 OECMAKE_SOURCEPATH = "${S}/aws-c-compression"
-CFLAGS_append = " -Wl,-Bsymbolic"
+CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
 EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-PACKAGES = "${PN}"
-INSANE_SKIP_${PN} += "installed-vs-shipped"
+INSANE_SKIP:${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
 

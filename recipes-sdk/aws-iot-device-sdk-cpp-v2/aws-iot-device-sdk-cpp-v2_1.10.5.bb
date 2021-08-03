@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS IoT Device SDK for C++ v2"
 DESCRIPTION = "The AWS IoT Device SDK for C++ v2 provides MQTT APIs for C++ applications"
 HOMEPAGE = "https://github.com/aws/aws-iot-device-sdk-cpp-v2"
@@ -15,11 +16,11 @@ SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix
            file://001-move-c-iot-include.patch \
 "
 
-S= "${WORKDIR}/git"
+S = "${WORKDIR}/git"
 
 DEPENDS = "openssl aws-crt-cpp aws-c-iot"
-RDEPENDS_${PN} = "aws-crt-cpp aws-c-iot"
-CFLAGS_append = " -Wl,-Bsymbolic"
+RDEPENDS:${PN} = "aws-crt-cpp aws-c-iot"
+CFLAGS:append = " -Wl,-Bsymbolic"
 
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}/aws-iot-device-sdk-cpp-v2"
@@ -31,18 +32,17 @@ EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 
-FILES_${PN} += "${libdir}/*1.0.0"
-FILES_${PN} += "${libdir}/libaws-crt-cpp.so"
-FILES_${PN} += "${libdir}/libDiscovery-cpp.so"
-FILES_${PN} += "${libdir}/libIotIdentity-cpp.so"
-FILES_${PN} += "${libdir}/libIotJobs-cpp.so"
-FILES_${PN} += "${libdir}/libIotShadow-cpp.so"
-FILES_${PN} += "${libdir}/libIotDeviceCommon-cpp.so"
-FILES_${PN} += "${libdir}/libIotDeviceDefender-cpp.so"
-FILES_${PN} += "${libdir}/libIotSecureTunneling-cpp.so"
-FILES_${PN} += "${libdir}/libs2n.so"
-FILES_${PN}-dev += "${includedir}/aws/iotidentity/IotIdentityClient.h"
+FILES:${PN} += "${libdir}/*.so"
+FILES:${PN}-dev += "${includedir}"
 
-PACKAGES = "${PN}"
-INSANE_SKIP_${PN} += "installed-vs-shipped"
+INSANE_SKIP:${PN} += "installed-vs-shipped"
+INSANE_SKIP:${PN}-dev += "installed-vs-shipped"
+
+# Notify that libraries are not versioned
+FILES_SOLIBSDEV = ""
+
+# BUG BUG this SDK needs to ship versioned libraries and then create
+# symlinks to remove binary dependency
+#INSANE_SKIP:${PN}-dev += "dev-elf"
+
 BBCLASSEXTEND = "native nativesdk"

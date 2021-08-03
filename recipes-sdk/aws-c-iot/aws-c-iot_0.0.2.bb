@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS C IoT"
 DESCRIPTION = "C99 implementation of AWS IoT cloud services integration with devices"
 
@@ -21,13 +22,12 @@ DEPENDS = "openssl s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-h
 RDEPENDS_${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http aws-c-mqtt"
 
 OECMAKE_SOURCEPATH = "${S}/aws-c-iot"
-CFLAGS_append = " -Wl,-Bsymbolic"
+CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
 EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 
-PACKAGES = "${PN}"
-INSANE_SKIP_${PN} += "installed-vs-shipped"
+INSANE_SKIP:${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
 

@@ -22,7 +22,7 @@ S = "${WORKDIR}/git"
 DEPENDS = "openssl s2n aws-c-common"
 RDEPENDS_${PN} = "s2n aws-c-common"
 
-CFLAGS_append = " -Wl,-Bsymbolic"
+CFLAGS:append = " -Wl,-Bsymbolic"
 OECMAKE_SOURCEPATH = "${S}/aws-c-cal"
 OECMAKE_BUILDPATH = "${WORKDIR}/build"
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
@@ -30,7 +30,6 @@ EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 
-PACKAGES = "${PN}"
-INSANE_SKIP_${PN} += "installed-vs-shipped"
+INSANE_SKIP:${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
 

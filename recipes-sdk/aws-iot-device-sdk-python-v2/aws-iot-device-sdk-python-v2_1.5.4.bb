@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS IoT Device SDK v2 for Python"
 DESCRIPTION = "AWS IoT devices can use the AWS IoT Device SDK for Python to communicate with AWS IoT and AWS IoT Greengrass core devices (using the Python programming language)."
 HOMEPAGE = "https://github.com/aws/aws-iot-device-sdk-python-v2"

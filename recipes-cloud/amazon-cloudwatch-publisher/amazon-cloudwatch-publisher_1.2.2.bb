@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 DESCRIPTION = "Push metrics and logs to CloudWatch from any system that can run Python"
 HOMEPAGE = "https://github.com/awslabs/amazon-cloudwatch-publisher"
 LICENSE = "Apache-2.0"
@@ -22,7 +23,10 @@ FILES_${PN} += " \
 	/opt/aws/${BPN}/logs/.gitkeep \
 "
 
-SRC_URI += "git://github.com/awslabs/${BPN};protocol=https;tag=1.2.2"
+BRANCH ?= "main"
+
+SRC_URI += "git://github.com/awslabs/${BPN};branch=${BRANCH};protocol=https;tag=1.2.2"
+INSANE_SKIP:${PN} += "installed-vs-shipped"
 
 do_install() {
 	install -d ${D}${systemd_system_unitdir}

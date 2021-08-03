@@ -7,12 +7,12 @@ S                          = "${WORKDIR}"
 GG_BASENAME                = "greengrass/v2"
 GG_ROOT                    = "${D}/${GG_BASENAME}"
 LIC_FILES_CHKSUM           = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
-SRC_URI                    = "https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-2.0.3.zip;name=payload; \
+SRC_URI                    = "https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-2.2.0.zip;name=payload; \
                               https://raw.githubusercontent.com/aws-greengrass/aws-greengrass-nucleus/main/LICENSE;name=license; \
                               file://greengrassv2-init.yaml \
                               "
-SRC_URI[payload.md5sum]    = "ac7044434cbd22d336f0722ab5564f3b"
-SRC_URI[payload.sha256sum] = "f548aab67e3c9a383936d612679833e18ce7f5b34d674ce0663703640a2e709e"
+SRC_URI[payload.md5sum]    = "51d11a951a86d4f5aed36d178b16e894"
+SRC_URI[payload.sha256sum] = "740b632750928b969c02ff4f28fd8ce6298be8fadbd854f211d713a80129c7cd"
 SRC_URI[license.md5sum]    = "34400b68072d710fecd0a2940a0d1658"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 
@@ -36,7 +36,7 @@ do_install() {
     install -m 0640 ${WORKDIR}/greengrassv2-init.yaml          ${GG_ROOT}/config/config.yaml.clean
     install -m 0640 ${WORKDIR}/bin/greengrass.service.template ${GG_ROOT}/alts/init/distro/bin/greengrass.service.template
     install -m 0640 ${WORKDIR}/bin/loader                      ${GG_ROOT}/alts/init/distro/bin/loader
-    install -m 0640 ${WORKDIR}/conf/nucleus-build.properties   ${GG_ROOT}/alts/init/distro/conf/nucleus-build.properties
+    install -m 0640 ${WORKDIR}/conf/recipe.yaml                ${GG_ROOT}/alts/init/distro/conf/recipe.yaml
     install -m 0740 ${WORKDIR}/lib/Greengrass.jar              ${GG_ROOT}/alts/init/distro/lib/Greengrass.jar
 
     cd ${GG_ROOT}/alts

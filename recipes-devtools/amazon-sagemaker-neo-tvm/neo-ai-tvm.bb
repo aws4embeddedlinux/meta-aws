@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "Open Deep Learning Compiler Stack"
 HOMEPAGE = "https://tvm.ai/"
 LICENSE = "Apache-2.0 & BSD-3-Clause"

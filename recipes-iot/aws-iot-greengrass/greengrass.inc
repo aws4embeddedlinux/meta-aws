@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS IoT Greengrass Core Recipe"
 DESCRIPTION = "AWS IoT Greengrass seamlessly extends AWS to edge devices so \
                they can act locally on the data they generate, while \
@@ -9,7 +10,7 @@ DESCRIPTION = "AWS IoT Greengrass seamlessly extends AWS to edge devices so \
                securely – even when not connected to the Internet."
 
 S = "${WORKDIR}/${BPN}"
-FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 inherit update-rc.d useradd systemd
 
@@ -42,14 +43,14 @@ do_install() {
     sed -i -e "/useSystemd/{s,\[yes|no],${GG_USESYSTEMD},g}" ${D}/${BPN}/config/config.json
 }
 
-do_install_append_base-files() {
+do_install:append:base-files() {
   cat >> $D${sysconfdir}/fstab <<-_EOF_
     # Greengrass: mount cgroups
     cgroup    /sys/fs/cgroup    cgroup    defaults    0  0
   _EOF_
 }
 
-do_install_append_resolvconf() {
+do_install:append:resolvconf() {
   # Disable '/etc/resolv.conf' symlink
   if [ -f "$D${sysconfdir}/default/volatiles/00_core" ]; then
     sed -i -e '/resolv.conf/d' $D${sysconfdir}/default/volatiles/00_core
@@ -60,9 +61,9 @@ do_install_append_resolvconf() {
   fi
 }
 
-FILES_${PN} = "/${BPN} ${sysconfdir} ${systemd_unitdir} /etc/sysctl.d/greengrass.conf"
+FILES:${PN} = "/${BPN} ${sysconfdir} ${systemd_unitdir} /etc/sysctl.d/greengrass.conf"
 
-CONFFILES_${PN} += "/${BPN}/config/config.json"
+CONFFILES:${PN} += "/${BPN}/config/config.json"
 
 INITSCRIPT_NAME = "greengrass"
 INITSCRIPT_PARAMS = "defaults 80 20"
@@ -70,8 +71,8 @@ INITSCRIPT_PARAMS = "defaults 80 20"
 SYSTEMD_SERVICE_${PN} = "greengrass.service"
 
 USERADD_PACKAGES = "${PN}"
-GROUPADD_PARAM_${PN} = "-r ggc_group"
-USERADD_PARAM_${PN} = "-r -M -N -g ggc_group -s /bin/false ggc_user"
+GROUPADD_PARAM:${PN} = "-r ggc_group"
+USERADD_PARAM:${PN} = "-r -M -N -g ggc_group -s /bin/false ggc_user"
 
 #
 # Disable failing QA checks:
@@ -79,6 +80,6 @@ USERADD_PARAM_${PN} = "-r -M -N -g ggc_group -s /bin/false ggc_user"
 #   Binary was already stripped
 #   No GNU_HASH in the elf binary
 #
-INSANE_SKIP_${PN} += "already-stripped ldflags file-rdeps"
+INSANE_SKIP:${PN} += "already-stripped ldflags file-rdeps"
 
-RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3"
+RDEPENDS:${PN} += "ca-certificates python3-json python3-numbers sqlite3"

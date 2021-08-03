@@ -5,21 +5,21 @@ LIC_FILES_CHKSUM = " \
     file://ggc/core/THIRD-PARTY-LICENSES;md5=1f0ad815f019455e3a0efe55e888a69a \
 "
 
-SRC_URI_arm = " \
+SRC_URI:arm = " \
     https://d1onfpft10uf5o.cloudfront.net/greengrass-core/downloads/${PV}/greengrass-linux-armv7l-${PV}.tar.gz;name=arm \
     file://greengrass.service \
     file://greengrass-init \
     file://greengrass.conf \
 "
 
-SRC_URI_aarch64 = " \
+SRC_URI:aarch64 = " \
     https://d1onfpft10uf5o.cloudfront.net/greengrass-core/downloads/${PV}/greengrass-linux-aarch64-${PV}.tar.gz;name=aarch64 \
     file://greengrass.service \
     file://greengrass-init \
     file://greengrass.conf \
 "
 
-SRC_URI_x86-64 = " \
+SRC_URI:x86-64 = " \
     https://d1onfpft10uf5o.cloudfront.net/greengrass-core/downloads/${PV}/greengrass-linux-x86-64-${PV}.tar.gz;name=x86-64 \
     file://greengrass.service \
     file://greengrass-init \
@@ -38,8 +38,8 @@ SRC_URI[x86-64.sha256sum]  = "589d91ab2a358d028cd0c458efdcc1a80d19a1fb8d41c358f9
 # Release specific configuration
 
 DEPENDS += "patchelf-native"
-RDEPENDS_${PN} += "ca-certificates python3-json python3-numbers sqlite3 docker python3-docker-compose openjdk-8"
+RDEPENDS:${PN} += "ca-certificates python3-json python3-numbers sqlite3 docker python3-docker-compose openjdk-8"
 
-do_install_append_x86-64() {
+do_install:append:x86-64() {
     patchelf --set-interpreter /lib/ld-linux-x86-64.so.2 ${D}/greengrass/ggc/core/bin/daemon
 }

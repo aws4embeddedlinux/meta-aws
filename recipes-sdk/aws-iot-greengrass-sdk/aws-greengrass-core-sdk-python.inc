@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS Greengrass Core Python SDK"
 DESCRIPTION =  "The AWS IoT Greengrass Core SDK is meant to be used by AWS Lambda functions \
                 running on an AWS IoT Greengrass Core. It will enable Lambda functions to \
@@ -15,7 +16,7 @@ S = "${WORKDIR}/git"
 RDEPENDS_${PN} = "${PYTHON_PN}"
 
 # Copy examples into rootfs
-do_install_append() {
+do_install:append() {
     install -d ${D}${datadir}/${BPN}/
     cp --preserve=mode,timestamps -r ${S}/greengrasssdk/ ${D}${datadir}/${BPN}
     cp --preserve=mode,timestamps -r ${S}/examples/ ${D}${datadir}/${BPN}
