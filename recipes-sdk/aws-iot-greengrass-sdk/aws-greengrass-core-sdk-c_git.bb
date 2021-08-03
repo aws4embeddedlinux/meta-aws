@@ -24,7 +24,9 @@ FILES:${PN} += "${includedir}/greengrasssdk.h"
 
 # BUG BUG this SDK needs to ship versioned libraries and then create
 # symlinks to remove binary dependency
-INSANE_SKIP:${PN}-dev += "dev-elf"
+#INSANE_SKIP:${PN}-dev += "dev-elf"
+# Notify that libraries are not versioned
+FILES_SOLIBSDEV = ""
 
 # just ignore produced debug files by cmake build system
 INSANE_SKIP:${PN} += "installed-vs-shipped"

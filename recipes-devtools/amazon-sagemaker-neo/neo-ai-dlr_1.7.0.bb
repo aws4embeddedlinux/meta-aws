@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "NEO-AI Deep Learning Runtime"
 DESCRIPTION = "Neo-AI-DLR is a common runtime for machine learning models compiled by AWS SageMaker Neo, TVM, or TreeLite."
 HOMEPAGE = "https://aws.amazon.com/sagemaker/neo/"
@@ -43,27 +44,30 @@ SRC_URI[inverselabel.sha256sum] = "1bd13905b526fc0e7ead51a88aa6d9e506befdd2e3a7a
 
 
 S = "${WORKDIR}/git"
+B = "${WORKDIR}/build"
 
-do_configure_prepend() {
+do_configure:prepend() {
   cd ${S}
   git submodule update --init --recursive
+  cd ${B}
 }
 
-do_configure_append() {
-  cp -f ${WORKDIR}/cat224-3.txt ${S}/build/cat224-3.txt
-  cp -f ${WORKDIR}/street_small.npy ${S}/build/street_small.npy
-  cp -rf ${WORKDIR}/resnet_v1_5_50 ${S}/build/
-  cp -rf ${WORKDIR}/xgboost_test ${S}/build/
-  cp -rf ${WORKDIR}/ssd_mobilenet_v1 ${S}/build/
-  cp -rf ${WORKDIR}/automl ${S}/build/
-  cp -rf ${WORKDIR}/pipeline_model1 ${S}/build/
-  cp -rf ${WORKDIR}/pipeline_model2 ${S}/build/
-  cp -rf ${WORKDIR}/inverselabel ${S}/build/
+do_configure:append() {
+  cp -f ${WORKDIR}/cat224-3.txt      ${B}/cat224-3.txt
+  cp -f ${WORKDIR}/street_small.npy  ${B}/street_small.npy
+  cp -rf ${WORKDIR}/resnet_v1_5_50   ${B}/
+  cp -rf ${WORKDIR}/xgboost_test     ${B}/
+  cp -rf ${WORKDIR}/ssd_mobilenet_v1 ${B}/
+  cp -rf ${WORKDIR}/automl           ${B}/
+  cp -rf ${WORKDIR}/pipeline_model1  ${B}/
+  cp -rf ${WORKDIR}/pipeline_model2  ${B}/
+  cp -rf ${WORKDIR}/inverselabel     ${B}/
 }
 
 inherit setuptools3 cmake
 
-B = "${S}/build"
+OECMAKE_BUILDPATH = "${B}"
+OECMAKE_SOURCEPATH = "${S}"
 DISTUTILS_SETUP_PATH = "${S}/python"
 
 do_install() {
@@ -73,11 +77,8 @@ do_install() {
     # Install DLR Python binding
     distutils3_do_install
 
-    # setup.py install some libs under datadir, but we don't need them, so remove.
-    rm ${D}${datadir}/dlr/*.so
-
     # Install DLR library to Python import search path
-    install -m 0644 ${S}/build/lib/libdlr.so ${D}${PYTHON_SITEPACKAGES_DIR}/dlr
+    install -m 0644 ${B}/lib/libdlr.so ${D}${PYTHON_SITEPACKAGES_DIR}/dlr
 
     # Now install python test scripts
     install -d ${D}${datadir}/dlr/tests/python/integration
@@ -86,8 +87,8 @@ do_install() {
 }
 
 PACKAGES =+ "${PN}-tests"
-FILES_${PN}-tests = "${datadir}/dlr/tests"
-RDEPENDS_${PN}-tests += "${PN}"
+FILES:${PN}-tests = "${datadir}/dlr/tests"
+RDEPENDS:${PN}-tests += "${PN}"
 DEPENDS += "googletest python3-setuptools"
 
 # Versioned libs are not produced

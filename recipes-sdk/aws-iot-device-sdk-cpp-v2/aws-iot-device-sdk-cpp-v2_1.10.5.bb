@@ -38,8 +38,11 @@ FILES:${PN}-dev += "${includedir}"
 INSANE_SKIP:${PN} += "installed-vs-shipped"
 INSANE_SKIP:${PN}-dev += "installed-vs-shipped"
 
+# Notify that libraries are not versioned
+FILES_SOLIBSDEV = ""
+
 # BUG BUG this SDK needs to ship versioned libraries and then create
 # symlinks to remove binary dependency
-INSANE_SKIP:${PN}-dev += "dev-elf"
+#INSANE_SKIP:${PN}-dev += "dev-elf"
 
 BBCLASSEXTEND = "native nativesdk"

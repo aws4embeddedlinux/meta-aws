@@ -10,5 +10,5 @@ SRC_URI = "git://github.com/sankalpjonn/timeloop.git;tag=v1.0.2"
 
 S = "${WORKDIR}/git"
 
-RDEPENDS_${PN} += "python3"
+RDEPENDS:${PN} += "python3"
 

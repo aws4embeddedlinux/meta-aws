@@ -17,12 +17,12 @@ SRCREV = "16b73b81da29149581a433cf7b6e69fcdd11176a"
 S= "${WORKDIR}/git"
 PACKAGES = "${PN}"
 DEPENDS = "openssl aws-iot-device-sdk-cpp-v2 googletest"
-RDEPENDS_${PN} = "openssl aws-iot-device-sdk-cpp-v2"
+RDEPENDS:${PN} = "openssl aws-iot-device-sdk-cpp-v2"
 PREFERRED_VERSION_aws-iot-device-sdk-cpp-v2 = "1.10.5"
 
 inherit cmake
 
-do_configure_append() {
+do_configure:append() {
 }
 
 do_install() {
@@ -42,10 +42,6 @@ do_install() {
 
 }
 
-#do_install_append() {
-#  rm -rf ${D}/sbin/.debug
-#}
-
 AWSIOTDC_EXCL_JOBS ?= "OFF"
 AWSIOTDC_EXCL_DD ?= "OFF"
 AWSIOTDC_EXCL_ST ?= "OFF"
@@ -64,14 +60,14 @@ EXTRA_OECMAKE += "-DEXCLUDE_DD=${AWSIOTDC_EXCL_DD}"
 EXTRA_OECMAKE += "-DEXCLUDE_ST=${AWSIOTDC_EXCL_ST}"
 EXTRA_OECMAKE += "-DEXCLUDE_FP=${AWSIOTDC_EXCL_FP}"
 
-FILES_${PN} += "${base_sbindir}/sbin/aws-iot-device-client"
-FILES_${PN} += "${systemd_system_unitdir}/aws-iot-device-client.service"
-FILES_${PN} += "${sysconfdir}/aws-iot-device-client.json"
+FILES:${PN} += "${base_sbindir}/sbin/aws-iot-device-client"
+FILES:${PN} += "${systemd_system_unitdir}/aws-iot-device-client.service"
+FILES:${PN} += "${sysconfdir}/aws-iot-device-client.json"
 
-INSANE_SKIP_${PN}_append = "already-stripped"
+INSANE_SKIP:${PN}:append = "already-stripped"
 
 inherit systemd
 SYSTEMD_AUTO_ENABLE = "enable"
-SYSTEMD_SERVICE_${PN} = "aws-iot-device-client.service"
+SYSTEMD_SERVICE:${PN} = "aws-iot-device-client.service"
 
 
