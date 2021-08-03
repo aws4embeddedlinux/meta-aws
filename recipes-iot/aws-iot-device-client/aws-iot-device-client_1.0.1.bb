@@ -15,7 +15,6 @@ SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH};b
 SRCREV = "16b73b81da29149581a433cf7b6e69fcdd11176a"
 
 S= "${WORKDIR}/git"
-PACKAGES = "${PN}"
 DEPENDS = "openssl aws-iot-device-sdk-cpp-v2 googletest"
 RDEPENDS:${PN} = "openssl aws-iot-device-sdk-cpp-v2"
 PREFERRED_VERSION_aws-iot-device-sdk-cpp-v2 = "1.10.5"
