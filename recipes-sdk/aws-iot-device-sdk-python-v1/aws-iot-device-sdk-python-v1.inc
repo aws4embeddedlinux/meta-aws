@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS IoT Device SDK Python v1"
 DESCRIPTION = "AWS IoT SDK based on the AWS Common Runtime"
 HOMEPAGE = "https://github.com/aws/aws-iot-device-sdk-python.git"

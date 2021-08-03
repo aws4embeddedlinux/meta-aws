@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS CRT Python"
 DESCRIPTION = "Python bindings for the AWS Common Runtime"
 HOMEPAGE = "https://github.com/awslabs/aws-crt-python"
@@ -15,7 +16,7 @@ inherit setuptools3
 AWS_C_INSTALL = "${D}/usr/lib;${S}/source"
 DEPENDS += "cmake-native ${PYTHON_PN}-setuptools-native s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checksums aws-c-event-stream aws-c-s3"
 RDEPENDS_${PN} = "python3 s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checksums aws-c-event-stream"
-CFLAGS_append = " -Wl,-Bsymbolic"
+CFLAGS:append = " -Wl,-Bsymbolic"
 
 
 

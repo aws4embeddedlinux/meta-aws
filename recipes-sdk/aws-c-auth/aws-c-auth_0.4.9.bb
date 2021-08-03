@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS C Auth"
 DESCRIPTION = "C99 library implementation of AWS client-side authentication: standard credentials providers and signing."
 
@@ -21,9 +22,9 @@ SRCREV_auth = "f58e2028d183e0e889728249a5aa5097d58a5e5c"
 S= "${WORKDIR}/git"
 
 DEPENDS = "openssl s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http"
-RDEPENDS_${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http"
+RDEPENDS:${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http"
 
-CFLAGS_append = " -Wl,-Bsymbolic"
+CFLAGS:append = " -Wl,-Bsymbolic"
 
 OECMAKE_SOURCEPATH = "${S}/aws-c-auth"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
@@ -33,6 +34,5 @@ EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-PACKAGES = "${PN}"
-INSANE_SKIP_${PN} += "installed-vs-shipped"
+INSANE_SKIP:${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"

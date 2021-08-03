@@ -1,9 +1,10 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS C Common"
 DESCRIPTION = "Core c99 package for AWS SDK for C. Includes cross-platform primitives, configuration, data structures, and error handling."
 
 HOMEPAGE = "https://github.com/awslabs/aws-c-common"
 LICENSE = "Apache-2.0"
-PROVIDES += "aws/crt-c-common"
+PROVIDES = "aws/crt-c-common"
 
 inherit cmake
 
@@ -14,13 +15,12 @@ BRANCH ?= "main"
 SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH}"
 SRCREV = "00c91eeb186970d50690ebbdceefdeae5c31fb4c"
 
-S= "${WORKDIR}/git"
+S = "${WORKDIR}/git"
 
-CFLAGS_append = " -Wl,-Bsymbolic"
-EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
-OECMAKE_SOURCEPATH += "${S}"
+CFLAGS:append = " -Wl,-Bsymbolic"
+EXTRA_OECMAKE:append = " -DCMAKE_INSTALL_PREFIX=$D/usr"
+OECMAKE_BUILDPATH = "${WORKDIR}/build"
+OECMAKE_SOURCEPATH = "${S}"
 
-PACKAGES = "${PN}"
-INSANE_SKIP_${PN} += "installed-vs-shipped"
+INSANE_SKIP:${PN} = "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"

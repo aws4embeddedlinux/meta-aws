@@ -27,7 +27,7 @@ RDEPENDS_${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression"
 
 AWS_C_INSTALL = "$D/usr"
 OECMAKE_SOURCEPATH = "${S}/aws-c-http"
-CFLAGS_append = " -Wl,-Bsymbolic"
+CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "-DBUILD_TEST_DEPS=OFF"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
@@ -37,7 +37,6 @@ EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-PACKAGES = "${PN}"
-INSANE_SKIP_${PN} += "installed-vs-shipped"
+INSANE_SKIP:${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
 

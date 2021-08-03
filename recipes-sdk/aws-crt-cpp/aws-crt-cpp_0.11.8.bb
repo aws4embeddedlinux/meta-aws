@@ -34,10 +34,10 @@ PREFERRED_VERSION_aws-c-event-stream = "0.2.6"
 PREFERRED_VERSION_s2n = "0.10.26"
 
 DEPENDS = "openssl s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checksums aws-c-event-stream"
-RDEPENDS_${PN} = "s2n aws-c-common"
+RDEPENDS:${PN} = "s2n aws-c-common"
 
 OECMAKE_SOURCEPATH = "${S}/aws-crt-cpp"
-CFLAGS_append = " -Wl,-Bsymbolic"
+CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
 EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
@@ -45,7 +45,6 @@ EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-PACKAGES = "${PN}"
-INSANE_SKIP_${PN} += "installed-vs-shipped"
+INSANE_SKIP:${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
 
