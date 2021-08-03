@@ -13,7 +13,6 @@ SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH};t
 "
 
 S= "${WORKDIR}/git"
-PACKAGES = "${PN}"
 DEPENDS = "openssl aws-iot-device-sdk-cpp-v2 googletest"
 RDEPENDS:${PN} = "openssl aws-iot-device-sdk-cpp-v2"
 

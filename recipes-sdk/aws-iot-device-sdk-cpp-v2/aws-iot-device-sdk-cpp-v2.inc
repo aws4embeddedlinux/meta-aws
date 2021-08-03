@@ -31,6 +31,6 @@ FILES_${PN} += "${libdir}/libIotJobs-cpp.so"
 FILES_${PN} += "${libdir}/libIotShadow-cpp.so"
 FILES_${PN} += "${libdir}/libs2n.so"
 
-PACKAGES = "${PN}"
 INSANE_SKIP_${PN} += "installed-vs-shipped"
+FILES_SOLIBSDEV = ""
 BBCLASSEXTEND = "native nativesdk"
