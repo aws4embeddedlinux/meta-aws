@@ -42,6 +42,7 @@ FILES_${PN} += "${libdir}/libIotDeviceDefender-cpp.so"
 FILES_${PN} += "${libdir}/libIotSecureTunneling-cpp.so"
 FILES_${PN} += "${libdir}/libs2n.so"
 FILES_${PN}-dev += "${includedir}/aws/iotidentity/IotIdentityClient.h"
+FILES_SOLIBSDEV = ""
 
 INSANE_SKIP_${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"

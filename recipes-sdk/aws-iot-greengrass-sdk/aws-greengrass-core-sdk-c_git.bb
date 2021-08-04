@@ -19,6 +19,7 @@ do_install_append() {
 }
 FILES_${PN} += "${libdir}/libaws-greengrass-core-sdk-c.so"
 FILES_${PN} += "${includedir}/greengrasssdk.h"
+FILES_SOLIBSDEV = ""
 
 # just ignore produced debug files by cmake build system
 INSANE_SKIP_${PN} += "installed-vs-shipped"

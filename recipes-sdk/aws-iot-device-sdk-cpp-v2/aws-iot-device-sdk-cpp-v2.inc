@@ -29,6 +29,7 @@ FILES_${PN} += "${libdir}/libIotIdentity-cpp.so"
 FILES_${PN} += "${libdir}/libIotJobs-cpp.so"
 FILES_${PN} += "${libdir}/libIotShadow-cpp.so"
 FILES_${PN} += "${libdir}/libs2n.so"
+FILES_SOLIBSDEV = ""
 
 INSANE_SKIP_${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
