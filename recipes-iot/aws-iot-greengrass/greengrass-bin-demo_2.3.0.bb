@@ -41,7 +41,6 @@ do_install() {
     sed -i -e "s,##iot_data_endpoint##,${GGV2_DATA_EP},g" ${GG_ROOT}/config/config.yaml
 }
 
-FILES = ""
 FILES_${PN} = "/${GG_BASENAME}"
 
 INSANE_SKIP_${PN} += "already-stripped ldflags file-rdeps"
