@@ -17,8 +17,8 @@ SRC_URI[license.md5sum]    = "34400b68072d710fecd0a2940a0d1658"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 
 GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
-RDEPENDS:${PN} += "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'ntp-systemd', '', d)}"
-RDEPENDS:${PN} += "corretto-11-bin ca-certificates python3 python3-json python3-numbers sudo"
+RDEPENDS_${PN} += "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'ntp-systemd', '', d)}"
+RDEPENDS_${PN} += "corretto-11-bin ca-certificates python3 python3-json python3-numbers sudo"
 
 do_configure[noexec] = "1"
 do_compile[noexec]   = "1"
@@ -49,22 +49,22 @@ do_install() {
     sed -i -e "s,REPLACE_WITH_GG_LOADER_PID_FILE,/var/run/greengrass.pid,g" ${D}${systemd_unitdir}/system/greengrass.service
 }
 
-FILES:${PN} = "/${GG_BASENAME} \
+FILES_${PN} = "/${GG_BASENAME} \
                ${sysconfdir} \
                ${systemd_unitdir}"
 
-CONFFILES:${PN} += "/${GG_BASENAME}/config/config.yaml.clean"
+CONFFILES_${PN} += "/${GG_BASENAME}/config/config.yaml.clean"
 
 inherit systemd
 SYSTEMD_AUTO_ENABLE = "enable"
-SYSTEMD_SERVICE:${PN} = "greengrass.service"
+SYSTEMD_SERVICE_${PN} = "greengrass.service"
 
 inherit useradd
 
 USERADD_PACKAGES = "${PN}"
-GROUPADD_PARAM:${PN} = "-r ggc_group"
-USERADD_PARAM:${PN} = "-r -M -N -g ggc_group -s /bin/false ggc_user"
-GROUP_MEMS_PARAM:${PN} = ""
+GROUPADD_PARAM_${PN} = "-r ggc_group"
+USERADD_PARAM_${PN} = "-r -M -N -g ggc_group -s /bin/false ggc_user"
+GROUP_MEMS_PARAM_${PN} = ""
 
 #
 # Disable failing QA checks:
@@ -72,5 +72,5 @@ GROUP_MEMS_PARAM:${PN} = ""
 #   Binary was already stripped
 #   No GNU_HASH in the elf binary
 #
-INSANE_SKIP:${PN} += "already-stripped ldflags file-rdeps"
+INSANE_SKIP_${PN} += "already-stripped ldflags file-rdeps"
 

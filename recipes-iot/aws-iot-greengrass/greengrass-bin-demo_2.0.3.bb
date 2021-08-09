@@ -15,7 +15,7 @@ SRC_URI                    = "https://raw.githubusercontent.com/aws-greengrass/a
 SRC_URI[license.md5sum]    = "34400b68072d710fecd0a2940a0d1658"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 
-RDEPENDS:${PN} += "greengrass-bin"
+RDEPENDS_${PN} += "greengrass-bin"
 
 do_configure[noexec] = "1"
 do_compile[noexec]   = "1"
@@ -40,6 +40,6 @@ do_install() {
     sed -i -e "s,##iot_data_endpoint##,${GGV2_DATA_EP},g" ${GG_ROOT}/config/config.yaml
 }
 
-FILES:${PN} = "/${GG_BASENAME}"
+FILES_${PN} = "/${GG_BASENAME}"
 
-INSANE_SKIP:${PN} += "already-stripped ldflags file-rdeps"
+INSANE_SKIP_${PN} += "already-stripped ldflags file-rdeps"
