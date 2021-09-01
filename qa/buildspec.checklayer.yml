@@ -24,8 +24,8 @@ phases:
       - $HOME/repo init -u https://github.com/aws/meta-aws -m qa/repo.checklayer.${YP_RELEASE}.xml
       - $HOME/repo sync
       - export PATH=$HOME/dist/poky/scripts:$HOME/dist/poky/bitbake/bin:$PATH
-      - export BUILDDIR=$HOME/dist/meta-aws/qa/checklayer
-      - export BBPATH=$HOME/dist/meta-aws/qa/checklayer
+      - export BUILDDIR=$CODEBUILD_SRC_DIR/qa/checklayer
+      - export BBPATH=$CODEBUILD_SRC_DIR/qa/checklayer
       - export BB_ENV_EXTRAWHITE=ALL_PROXY BBPATH_EXTRA BB_LOGCONFIG BB_NO_NETWORK BB_NUMBER_THREADS BB_SETSCENE_ENFORCE BB_SRCREV_POLICY DISTRO FTPS_PROXY FTP_PROXY GIT_PROXY_COMMAND HTTPS_PROXY HTTP_PROXY MACHINE NO_PROXY PARALLEL_MAKE SCREENDIR SDKMACHINE SOCKS5_PASSWD SOCKS5_USER SSH_AGENT_PID SSH_AUTH_SOCK STAMPS_DIR TCLIBC TCMODE all_proxy ftp_proxy ftps_proxy http_proxy https_proxy no_proxy
-      - sed -i -e "s,DIST,$HOME/dist," -e "s,CODEBUILD_SRC_DIR,${CODEBUILD_SRC_DIR}," $HOME/dist/meta-aws/qa/checklayer/conf/bblayers.conf
-      - yocto-check-layer -d -o ycl-check.log --dependency $HOME/dist/meta-openembedded/meta-oe $HOME/dist/meta-openembedded/meta-networking $HOME/dist/meta-openembedded/meta-python -d $HOME/dist/meta-aws
+      - sed -i -e "s,DIST,$HOME/dist," -e "s,CODEBUILD_SRC_DIR,${CODEBUILD_SRC_DIR}," $CODEBUILD_SRC_DIR/qa/checklayer/conf/bblayers.conf
+      - yocto-check-layer -d -o ycl-check.log --additional-layers meta-python --dependency $HOME/dist/meta-openembedded/meta-oe $HOME/dist/meta-openembedded/meta-networking $HOME/dist/meta-openembedded/meta-python -d $CODEBUILD_SRC_DIR/
