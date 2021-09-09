@@ -22,10 +22,6 @@ SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};tag=${TAG_
 # tag doesn't work.  So, we pick a hash that's "close enough".
 SRCREV_crtcpp = "626047e24d966badd8253c56f728c9ad0065722a"
 
-#           file://01-aws-c-common-strict-flags-bypass.patch
-#           file://02-aws-crt-cpp-strict-flags-bypass.patch
-#           file://03-crt-0.11.8-missing-include-StringView.h.patch
-
 S = "${WORKDIR}/git"
 
 PREFERRED_VERSION_aws-c-common = "0.6.8"
@@ -37,7 +33,7 @@ PREFERRED_VERSION_aws-checksums = "0.1.11"
 PREFERRED_VERSION_aws-c-event-stream = "0.2.7"
 PREFERRED_VERSION_s2n = "1.0.13"
 
-DEPENDS = "openssl s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checksums aws-c-event-stream aws-c-s3"
+DEPENDS = "s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checksums aws-c-event-stream aws-c-s3 aws-lc"
 RDEPENDS:${PN} = "s2n aws-c-common"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
@@ -46,8 +42,12 @@ EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 EXTRA_OECMAKE += "-DBUILD_DEPS=OFF"
+EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}/aws-crt-cpp"
+
+# Notify that libraries are not versioned
+FILES_SOLIBSDEV = ""
 
 INSANE_SKIP:${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
