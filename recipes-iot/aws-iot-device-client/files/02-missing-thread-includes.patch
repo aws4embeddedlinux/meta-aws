@@ -1,0 +1,19 @@
+diff --git a/source/shadow/SampleShadowFeature.cpp b/source/shadow/SampleShadowFeature.cpp
+index a37ceec..383c225 100644
+--- a/source/shadow/SampleShadowFeature.cpp
++++ b/source/shadow/SampleShadowFeature.cpp
+@@ -12,6 +12,7 @@
+ #include <sys/stat.h>
+ #include <unistd.h>
+ #include <utility>
++#include <thread>
+ 
+ #include <aws/iotshadow/ErrorResponse.h>
+ #include <aws/iotshadow/IotShadowClient.h>
+@@ -485,4 +486,4 @@ int SampleShadowFeature::stop()
+     needStop.store(true);
+     baseNotifier->onEvent((Feature *)this, ClientBaseEventNotification::FEATURE_STOPPED);
+     return AWS_OP_SUCCESS;
+-}
+\ No newline at end of file
++}
