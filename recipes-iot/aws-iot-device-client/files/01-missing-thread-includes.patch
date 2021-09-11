@@ -1,0 +1,24 @@
+diff --git a/source/util/Retry.h b/source/util/Retry.h
+index 930f664..aa51cea 100644
+--- a/source/util/Retry.h
++++ b/source/util/Retry.h
+@@ -7,6 +7,7 @@
+ #include <atomic>
+ #include <functional>
+ #include <future>
++#include <thread>
+ 
+ namespace Aws
+ {
+diff --git a/test/jobs/TestEphemeralPromise.cpp b/test/jobs/TestEphemeralPromise.cpp
+index 66a9de4..9fca06f 100644
+--- a/test/jobs/TestEphemeralPromise.cpp
++++ b/test/jobs/TestEphemeralPromise.cpp
+@@ -3,6 +3,7 @@
+ 
+ #include "../../source/jobs/EphemeralPromise.h"
+ #include "gtest/gtest.h"
++#include <thread>
+ 
+ using namespace std;
+ using namespace Aws::Iot::DeviceClient::Jobs;
