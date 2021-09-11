@@ -33,9 +33,7 @@ OECMAKE_SOURCEPATH += "${S}"
 FILES:${PN}     = "${libdir}/aws-lc/lib/libssl.so \
                    ${libdir}/aws-lc/lib/libcrypto.so \
                    ${libdir}/aws-lc/lib/libdecrepit.so"
-FILES:${PN}-dev = "${libdir}/aws-lc/include/openssl/* \
-                   ${libdir}/lib${PN}.so \
-                   ${libdir}/lib${PN}.so.0unstable"
+FILES:${PN}-dev = "${libdir}/aws-lc/include/openssl/*"
 FILES:${PN}-dbg = "/usr/src/debug/aws-lc/* \
                    ${libdir}/aws-lc/lib/ssl/* \
                    ${libdir}/aws-lc/lib/AWSLC/* \
