@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "AWS Checksums"
 DESCRIPTION = "Cross-Platform HW accelerated CRC32c and CRC32 with fallback to efficient SW implementations. C interface with language bindings for each of our SDKs"
 
@@ -25,16 +26,23 @@ RDEPENDS_${PN} = "s2n aws-c-common"
 
 AWS_C_INSTALL = "$D/usr"
 OECMAKE_SOURCEPATH = "${S}/aws-checksums"
-CFLAGS_append = " -Wl,-Bsymbolic"
+CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "-DBUILD_TEST_DEPS=OFF"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
 EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
+EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
+EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-PACKAGES = "${PN}"
-INSANE_SKIP_${PN} += "installed-vs-shipped"
+FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
+FILES:${PN}-dev = "${includedir}/aws/checksums/* \
+                   ${libdir}/lib${PN}.so"
+FILES:${PN}-dbg = "/usr/src/debug/aws-checksums/* \
+                   ${libdir}/aws-checksums/* \
+                   ${libdir}/.debug/lib${PN}.so.1.0.0"
+
 BBCLASSEXTEND = "native nativesdk"
 
