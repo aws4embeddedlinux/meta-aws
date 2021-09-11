@@ -32,7 +32,8 @@ EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 
-FILES:${PN}     = "${libdir}/*.so"
+FILES:${PN}     = "${libdir}/*.so \
+                   ${libdir}/lib${PN}.so.0unstable"
 FILES:${PN}-dev = "${includedir}/aws/* \
                    ${libdir}/GreengrassIpc-cpp/* \
                    ${libdir}/IotDeviceDefender-cpp/* \
@@ -44,8 +45,7 @@ FILES:${PN}-dev = "${includedir}/aws/* \
                    ${libdir}/IotSecureTunneling-cpp/* \
                    ${libdir}/EventstreamRpc-cpp/* \
                    ${libdir}/IotJobs-cpp/* \
-                   ${libdir}/lib${PN}.so \
-                   ${libdir}/lib${PN}.so.0unstable"
+                   ${libdir}/lib${PN}.so"
 FILES:${PN}-dbg = "/usr/src/debug/aws-iot-device-sdk-cpp-v2/* \
                    ${libdir}/.debug/lib*"
 

@@ -31,10 +31,10 @@ EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 
-FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
-FILES:${PN}-dev = "${includedir}/aws/iotdevice/* \
-                   ${libdir}/lib${PN}.so \
+FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
                    ${libdir}/lib${PN}.so.0unstable"
+FILES:${PN}-dev = "${includedir}/aws/iotdevice/* \
+                   ${libdir}/lib${PN}.so"
 FILES:${PN}-dbg = "/usr/src/debug/aws-c-iot/* \
                    ${libdir}/aws-c-iot/* \
                    ${libdir}/.debug/lib${PN}.so.1.0.0"
