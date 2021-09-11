@@ -24,11 +24,22 @@ EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DDISABLE_PERL=ON"
 EXTRA_OECMAKE += "-DDISABLE_GO=ON"
 
-EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr/local/aws-lc"
-EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr/local/aws-lc"
+EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr/lib/aws-lc"
+EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr/lib/aws-lc"
+EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-INSANE_SKIP:${PN} += "installed-vs-shipped"
+FILES:${PN}     = "${libdir}/aws-lc/lib/libssl.so \
+                   ${libdir}/aws-lc/lib/libcrypto.so \
+                   ${libdir}/aws-lc/lib/libdecrepit.so"
+FILES:${PN}-dev = "${libdir}/aws-lc/include/openssl/* \
+                   ${libdir}/lib${PN}.so \
+                   ${libdir}/lib${PN}.so.0unstable"
+FILES:${PN}-dbg = "/usr/src/debug/aws-lc/* \
+                   ${libdir}/aws-lc/lib/ssl/* \
+                   ${libdir}/aws-lc/lib/AWSLC/* \
+                   ${libdir}/aws-lc/lib/crypto/*"
+
 BBCLASSEXTEND = "native nativesdk"
 

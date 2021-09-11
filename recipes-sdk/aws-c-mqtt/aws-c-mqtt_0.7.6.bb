@@ -34,6 +34,13 @@ EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
+FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
+FILES:${PN}-dev = "${includedir}/aws/mqtt/* \
+                   ${libdir}/lib${PN}.so"
+FILES:${PN}-dbg = "/usr/src/debug/aws-c-mqtt/* \
+                   ${libdir}/aws-c-mqtt/* \
+                   ${libdir}/.debug/lib${PN}.so.1.0.0"
+
 INSANE_SKIP:${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
 

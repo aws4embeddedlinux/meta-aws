@@ -30,8 +30,17 @@ EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
 EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
+EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
+
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-INSANE_SKIP:${PN} += "installed-vs-shipped"
+FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
+FILES:${PN}-dev = "${includedir}/aws/auth/* \
+                   ${libdir}/aws-c-auth/* \
+                   ${libdir}/lib${PN}.so"
+FILES:${PN}-dbg = "/usr/src/debug/aws-c-auth/* \
+                   ${libdir}/aws-c-auth/* \
+                   ${libdir}/.debug/lib${PN}.so.1.0.0"
+
 BBCLASSEXTEND = "native nativesdk"

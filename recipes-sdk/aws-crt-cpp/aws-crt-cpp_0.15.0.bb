@@ -46,9 +46,15 @@ EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}/aws-crt-cpp"
 
+FILES:${PN} += "${libdir}/libaws-crt-cpp.so"
+FILES:${PN}-dev = "${includedir}/aws/crt/* \
+                   ${includedir}/aws/iot/*"
+FILES:${PN}-dbg = "/usr/src/debug/aws-crt-cpp/* \
+                   ${libdir}/aws-crt-cpp/* \
+                   ${libdir}/.debug/lib${PN}.so.1.0.0"
+
 # Notify that libraries are not versioned
 FILES_SOLIBSDEV = ""
 
-INSANE_SKIP:${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
 

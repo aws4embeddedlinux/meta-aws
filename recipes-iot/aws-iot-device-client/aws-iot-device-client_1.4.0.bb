@@ -3,7 +3,10 @@ SUMMARY = "AWS IoT Device Client"
 DESCRIPTION = "The AWS IoT Device Client is free, open-source, modular software written in C++ that you can compile and install on your Embedded Linux based IoT devices to access AWS IoT Core, AWS IoT Device Management, and AWS IoT Device Defender features by default."
 HOMEPAGE = "https://github.com/awslabs/aws-iot-device-client"
 LICENSE = "Apache-2.0"
-PROVIDES += "aws/aws-iot-device-client"
+PROVIDES = "aws/aws-iot-device-client"
+PACKAGES:${PN} += "aws-crt-cpp"
+PREFERRED_RPROVIDER:${PN} += "aws/crt-cpp"
+
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3eb31626add6ada64ff9ac772bd3c653"
 
 BRANCH ?= "main"

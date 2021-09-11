@@ -24,11 +24,24 @@ EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
+# Fix "doesn't have GNU_HASH (didn't pass LDFLAGS?)" issue
+TARGET_CC_ARCH += "${LDFLAGS}"
 
 # Assume that warnings from upstream have already been evaluated
 EXTRA_OECMAKE += "-DUNSAFE_TREAT_WARNINGS_AS_ERRORS=OFF"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-INSANE_SKIP:${PN} += "installed-vs-shipped"
+FILES:${PN} += "${libdir}/libs2n.so"
+
+
+FILES:${PN}     = "${libdir}/libs2n.so"
+FILES:${PN}-dev = "${includedir}/s2n.h"
+FILES:${PN}-dbg = "/usr/src/debug/s2n/* \
+                   ${libdir}/s2n/* \
+                   ${libdir}/.debug/libs2n.so"
+
+# Notify that libraries are not versioned
+FILES_SOLIBSDEV = ""
+
 BBCLASSEXTEND = "native nativesdk"

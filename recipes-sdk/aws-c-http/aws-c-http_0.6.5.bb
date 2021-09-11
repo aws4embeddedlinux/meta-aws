@@ -36,6 +36,12 @@ EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-INSANE_SKIP:${PN} += "installed-vs-shipped"
+FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
+FILES:${PN}-dev = "${includedir}/aws/http/* \
+                   ${libdir}/lib${PN}.so"
+FILES:${PN}-dbg = "/usr/src/debug/aws-c-http/* \
+                   ${libdir}/aws-c-http/* \
+                   ${libdir}/.debug/lib${PN}.so.1.0.0"
+
 BBCLASSEXTEND = "native nativesdk"
 

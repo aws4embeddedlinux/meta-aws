@@ -18,9 +18,20 @@ S = "${WORKDIR}/git"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE:append = " -DCMAKE_INSTALL_PREFIX=$D/usr"
+EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
+EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 OECMAKE_BUILDPATH = "${WORKDIR}/build"
 OECMAKE_SOURCEPATH = "${S}"
 
-INSANE_SKIP:${PN} = "installed-vs-shipped"
+FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
+                   ${libdir}/lib${PN}.so.1"
+FILES:${PN}-dev = "${includedir}/aws/common/* \
+                   ${includedir}/aws/testing/* \
+                   ${libdir}/cmake/* \
+                   ${libdir}/lib${PN}.so"
+FILES:${PN}-dbg = "/usr/src/debug/aws-c-common/* \
+                   ${libdir}/aws-c-common/* \
+                   ${libdir}/.debug/lib${PN}.so.1.0.0"
+
 BBCLASSEXTEND = "native nativesdk"
