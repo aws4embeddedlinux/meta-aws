@@ -1,0 +1,13 @@
+diff --git a/setup.py b/setup.py
+index eef396b..d9997b8 100644
+--- a/setup.py
++++ b/setup.py
+@@ -254,7 +254,7 @@ def awscrt_ext():
+     else:  # unix
+         # linker will prefer shared libraries over static if it can find both.
+         # force linker to choose static variant by using using "-l:libcrypto.a" syntax instead of just "-lcrypto".
+-        libraries = [':lib{}.a'.format(x) for x in libraries]
++        libraries = [':lib{}.so'.format(x) for x in libraries]
+         libraries += ['rt']
+ 
+     if distutils.ccompiler.get_default_compiler() != 'msvc':
