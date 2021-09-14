@@ -21,7 +21,7 @@ SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix
 S = "${WORKDIR}/git"
 
 DEPENDS = "aws-crt-cpp"
-RDEPENDS_${PN} = "aws-crt-cpp"
+RDEPENDS:${PN} = "aws-crt-cpp"
 
 OECMAKE_SOURCEPATH = "${S}/aws-c-iot"
 CFLAGS:append = " -Wl,-Bsymbolic"
@@ -34,9 +34,9 @@ OECMAKE_BUILDPATH += "${WORKDIR}/build"
 FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
                    ${libdir}/lib${PN}.so.0unstable"
 FILES:${PN}-dev = "${includedir}/aws/iotdevice/* \
+                   ${libdir}/aws-c-iot/* \
                    ${libdir}/lib${PN}.so"
 FILES:${PN}-dbg = "/usr/src/debug/aws-c-iot/* \
-                   ${libdir}/aws-c-iot/* \
                    ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"
