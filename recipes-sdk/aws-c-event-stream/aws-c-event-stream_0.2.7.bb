@@ -21,7 +21,7 @@ SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};tag=${TAG_
 S = "${WORKDIR}/git"
 
 DEPENDS = "openssl s2n aws-c-common aws-checksums aws-c-io"
-RDEPENDS_${PN} = "s2n aws-c-common aws-checksums aws-c-io"
+RDEPENDS:${PN} = "s2n aws-c-common aws-checksums aws-c-io"
 
 AWS_C_INSTALL = "$D/usr"
 OECMAKE_SOURCEPATH = "${S}/aws-c-event-stream"
@@ -37,9 +37,9 @@ OECMAKE_SOURCEPATH += "${S}"
 
 FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
 FILES:${PN}-dev = "${includedir}/aws/event-stream/* \
+                   ${libdir}/aws-c-event-stream/* \
                    ${libdir}/lib${PN}.so"
 FILES:${PN}-dbg = "/usr/src/debug/aws-c-event-stream/* \
-                   ${libdir}/aws-c-event-stream/* \
                    ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"
