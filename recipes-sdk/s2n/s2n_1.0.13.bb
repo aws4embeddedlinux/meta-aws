@@ -36,9 +36,9 @@ FILES:${PN} += "${libdir}/libs2n.so"
 
 
 FILES:${PN}     = "${libdir}/libs2n.so"
-FILES:${PN}-dev = "${includedir}/s2n.h"
+FILES:${PN}-dev = "${includedir}/s2n.h \
+                   ${libdir}/s2n/*"
 FILES:${PN}-dbg = "/usr/src/debug/s2n/* \
-                   ${libdir}/s2n/* \
                    ${libdir}/.debug/libs2n.so"
 
 # Notify that libraries are not versioned
