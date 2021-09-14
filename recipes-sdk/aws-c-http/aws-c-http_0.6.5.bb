@@ -21,7 +21,7 @@ SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};tag=${TAG_
 S = "${WORKDIR}/git"
 
 DEPENDS = "openssl s2n aws-c-common aws-c-cal aws-c-io aws-c-compression"
-RDEPENDS_${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression"
+RDEPENDS:${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression"
 
 AWS_C_INSTALL = "$D/usr"
 OECMAKE_SOURCEPATH = "${S}/aws-c-http"
@@ -38,9 +38,9 @@ OECMAKE_SOURCEPATH += "${S}"
 
 FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
 FILES:${PN}-dev = "${includedir}/aws/http/* \
+                   ${libdir}/aws-c-http/* \
                    ${libdir}/lib${PN}.so"
 FILES:${PN}-dbg = "/usr/src/debug/aws-c-http/* \
-                   ${libdir}/aws-c-http/* \
                    ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"

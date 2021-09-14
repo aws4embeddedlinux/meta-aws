@@ -29,9 +29,9 @@ FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
 FILES:${PN}-dev = "${includedir}/aws/common/* \
                    ${includedir}/aws/testing/* \
                    ${libdir}/cmake/* \
+                   ${libdir}/aws-c-common/* \
                    ${libdir}/lib${PN}.so"
 FILES:${PN}-dbg = "/usr/src/debug/aws-c-common/* \
-                   ${libdir}/aws-c-common/* \
                    ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"

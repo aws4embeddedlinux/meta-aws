@@ -48,9 +48,9 @@ OECMAKE_SOURCEPATH += "${S}/aws-crt-cpp"
 
 FILES:${PN} += "${libdir}/libaws-crt-cpp.so"
 FILES:${PN}-dev = "${includedir}/aws/crt/* \
+                   ${libdir}/aws-crt-cpp/* \
                    ${includedir}/aws/iot/*"
 FILES:${PN}-dbg = "/usr/src/debug/aws-crt-cpp/* \
-                   ${libdir}/aws-crt-cpp/* \
                    ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 # Notify that libraries are not versioned
