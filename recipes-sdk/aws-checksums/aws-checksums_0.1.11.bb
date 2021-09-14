@@ -22,7 +22,7 @@ SRCREV_checksums = "99bb0ad4b89d335d638536694352c45e0d2188f5"
 S = "${WORKDIR}/git"
 
 DEPENDS = "openssl s2n aws-c-common"
-RDEPENDS_${PN} = "s2n aws-c-common"
+RDEPENDS:${PN} = "s2n aws-c-common"
 
 AWS_C_INSTALL = "$D/usr"
 OECMAKE_SOURCEPATH = "${S}/aws-checksums"
@@ -39,9 +39,9 @@ OECMAKE_SOURCEPATH += "${S}"
 
 FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
 FILES:${PN}-dev = "${includedir}/aws/checksums/* \
+                   ${libdir}/aws-checksums/* \
                    ${libdir}/lib${PN}.so"
 FILES:${PN}-dbg = "/usr/src/debug/aws-checksums/* \
-                   ${libdir}/aws-checksums/* \
                    ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"

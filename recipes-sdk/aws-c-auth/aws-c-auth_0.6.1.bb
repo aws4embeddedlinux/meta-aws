@@ -40,7 +40,6 @@ FILES:${PN}-dev = "${includedir}/aws/auth/* \
                    ${libdir}/aws-c-auth/* \
                    ${libdir}/lib${PN}.so"
 FILES:${PN}-dbg = "/usr/src/debug/aws-c-auth/* \
-                   ${libdir}/aws-c-auth/* \
                    ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"
