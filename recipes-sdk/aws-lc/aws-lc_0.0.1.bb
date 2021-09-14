@@ -33,11 +33,11 @@ OECMAKE_SOURCEPATH += "${S}"
 FILES:${PN}     = "${libdir}/aws-lc/lib/libssl.so \
                    ${libdir}/aws-lc/lib/libcrypto.so \
                    ${libdir}/aws-lc/lib/libdecrepit.so"
-FILES:${PN}-dev = "${libdir}/aws-lc/include/openssl/*"
-FILES:${PN}-dbg = "/usr/src/debug/aws-lc/* \
+FILES:${PN}-dev = "${libdir}/aws-lc/include/openssl/* \
                    ${libdir}/aws-lc/lib/ssl/* \
                    ${libdir}/aws-lc/lib/AWSLC/* \
                    ${libdir}/aws-lc/lib/crypto/*"
+FILES:${PN}-dbg = "/usr/src/debug/aws-lc/*"
 
 BBCLASSEXTEND = "native nativesdk"
 

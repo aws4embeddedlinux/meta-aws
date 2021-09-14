@@ -21,7 +21,7 @@ SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};tag=${TAG_
 S= "${WORKDIR}/git"
 
 DEPENDS = "openssl aws-c-auth aws-c-http"
-RDEPENDS_${PN} = "aws-c-auth aws-c-http"
+RDEPENDS:${PN} = "aws-c-auth aws-c-http"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
@@ -38,9 +38,9 @@ OECMAKE_SOURCEPATH += "${S}"
 FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
                    ${libdir}/lib${PN}.so.0unstable"
 FILES:${PN}-dev = "${includedir}/aws/s3/* \
+                   ${libdir}/aws-c-s3/* \
                    ${libdir}/lib${PN}.so"
 FILES:${PN}-dbg = "/usr/src/debug/aws-c-s3/* \
-                   ${libdir}/aws-c-s3/* \
                    ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"
