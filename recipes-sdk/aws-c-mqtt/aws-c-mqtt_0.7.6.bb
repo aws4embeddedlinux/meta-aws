@@ -23,6 +23,8 @@ S = "${WORKDIR}/git"
 DEPENDS = "openssl s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http"
 RDEPENDS:${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http"
 
+BUILD_SHARED_LIBS = "ON"
+
 OECMAKE_SOURCEPATH = "${S}/aws-c-mqtt"
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "-DBUILD_TEST_DEPS=OFF"
@@ -30,9 +32,13 @@ EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
 EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
-EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
+EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
+
+do_install:append() {
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/${BPN}/cmake/${BPN}-config.cmake
+}
 
 FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
 FILES:${PN}-dev = "${includedir}/aws/mqtt/* \

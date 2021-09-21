@@ -24,11 +24,19 @@ EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DDISABLE_PERL=ON"
 EXTRA_OECMAKE += "-DDISABLE_GO=ON"
 
+BUILD_SHARED_LIBS = "ON"
+
 EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr/lib/aws-lc"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr/lib/aws-lc"
-EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
+EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
+
+do_install:append() {
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/${BPN}/lib/ssl/cmake/ssl-config.cmake
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/${BPN}/lib/AWSLC/cmake/awslc-config.cmake
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/${BPN}/lib/crypto/cmake/crypto-config.cmake
+}
 
 FILES:${PN}     = "${libdir}/aws-lc/lib/libssl.so \
                    ${libdir}/aws-lc/lib/libcrypto.so \

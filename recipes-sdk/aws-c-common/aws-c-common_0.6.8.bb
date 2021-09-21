@@ -16,13 +16,19 @@ SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};tag=${TAG}
 
 S = "${WORKDIR}/git"
 
+BUILD_SHARED_LIBS = "ON"
+
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE:append = " -DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
-EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
+EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 OECMAKE_BUILDPATH = "${WORKDIR}/build"
 OECMAKE_SOURCEPATH = "${S}"
+
+do_install:append() {
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/${BPN}/cmake/${BPN}-config.cmake
+}
 
 FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
                    ${libdir}/lib${PN}.so.1"

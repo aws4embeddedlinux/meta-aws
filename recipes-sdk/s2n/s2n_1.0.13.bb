@@ -20,10 +20,12 @@ S= "${WORKDIR}/git"
 DEPENDS = "openssl"
 CFLAGS:append = " -Wl,-Bsymbolic"
 
+BUILD_SHARED_LIBS = "ON"
+
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
-EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
+EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}"
 # Fix "doesn't have GNU_HASH (didn't pass LDFLAGS?)" issue
 TARGET_CC_ARCH += "${LDFLAGS}"
 
@@ -31,6 +33,10 @@ TARGET_CC_ARCH += "${LDFLAGS}"
 EXTRA_OECMAKE += "-DUNSAFE_TREAT_WARNINGS_AS_ERRORS=OFF"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
+
+do_install:append() {
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/${BPN}/cmake/${BPN}-config.cmake
+}
 
 FILES:${PN} += "${libdir}/libs2n.so"
 

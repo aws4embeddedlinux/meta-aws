@@ -25,12 +25,26 @@ CFLAGS:append = " -Wl,-Bsymbolic"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}/aws-iot-device-sdk-cpp-v2"
 
+BUILD_SHARED_LIBS = "ON"
+
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
 EXTRA_OECMAKE += "-DBUILD_DEPS=OFF"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
-EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
+EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
+
+do_install:append() {
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/GreengrassIpc-cpp/cmake/greengrassipc-cpp-config.cmake
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/IotDeviceDefender-cpp/cmake/iotdevicedefender-cpp-config.cmake
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/IotShadow-cpp/cmake/iotshadow-cpp-config.cmake
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/Discovery-cpp/cmake/discovery-cpp-config.cmake
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/IotDeviceCommon-cpp/cmake/iotdevicecommon-cpp-config.cmake
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/IotIdentity-cpp/cmake/iotidentity-cpp-config.cmake
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/IotSecureTunneling-cpp/cmake/iotsecuretunneling-cpp-config.cmake
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/EventstreamRpc-cpp/cmake/eventstreamrpc-cpp-config.cmake
+	sed -i "s/BUILD_SHARED_LIBS/${BUILD_SHARED_LIBS}/" ${D}${libdir}/IotJobs-cpp/cmake/iotjobs-cpp-config.cmake
+}
 
 FILES:${PN}     = "${libdir}/*.so \
                    ${libdir}/lib${PN}.so.0unstable"
