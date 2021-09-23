@@ -4,7 +4,6 @@
   
   <remote name="oe"  fetch="git://git.openembedded.org" />
   <remote name="yp"  fetch="git://git.yoctoproject.org" />
-  <remote name="aws" fetch="git://github.com/aws" />
 
   <project remote="oe"
 	   revision="hardknott"
@@ -14,9 +13,5 @@
            revision="hardknott"
            name="poky"
            path="poky" />
-  <project remote="aws"
-           revision="hardknott"
-           name="meta-aws"
-           path="meta-aws" />
 </manifest>
 
