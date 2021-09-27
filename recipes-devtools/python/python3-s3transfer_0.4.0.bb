@@ -9,7 +9,7 @@ S = "${WORKDIR}/git"
 
 inherit setuptools3
 
-RDEPENDS_${PN} += "python3-botocore \
+RDEPENDS:${PN} += "python3-botocore \
                    python3-asyncio \
                    python3-urllib3 \
                    python3-multiprocessing"
