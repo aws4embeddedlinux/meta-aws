@@ -9,4 +9,4 @@ S = "${WORKDIR}/git"
 
 inherit setuptools3
 
-RDEPENDS_${PN} += "python3-jmespath python3-dateutil python3-logging"
+RDEPENDS:${PN} += "python3-jmespath python3-dateutil python3-logging"
