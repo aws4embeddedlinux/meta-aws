@@ -22,6 +22,16 @@ FILES_${PN} = "/usr/lib/${SHR} /usr/bin"
 do_package_qa[noexec] = "1"
 EXCLUDE_FROM_SHLIBS = "1"
 
+RDEPENDS_${PN} += " \
+    libgl \
+    libxi \
+    libxtst \
+    libasound \
+    cairo \
+    pango \
+    gtk+ \
+"
+
 do_install() {
     install -d ${D}/usr/bin
     install -d ${D}/usr/lib/${SHR}
