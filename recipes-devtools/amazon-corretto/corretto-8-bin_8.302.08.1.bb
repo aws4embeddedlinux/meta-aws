@@ -10,11 +10,11 @@ SRC_URI_aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corrett
 BASE_x86-64     = "amazon-corretto-${PV}-linux-x64"
 SRC_URI_x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
-SRC_URI[aarch64.md5sum]    = "3f1d7af28270165396046afe346a6397"
-SRC_URI[aarch64.sha256sum] = "7b86c40410c75de44c311fe127bb1dd02c43040312d66b1363737ab3e7d77011"
+SRC_URI[aarch64.md5sum]    = "10243aca398feccd1a66a90b93f6f21f"
+SRC_URI[aarch64.sha256sum] = "1def4d9550c83d152d720c353c02dd42588b60d734e3c1776d271a874aceb3f8"
 
-SRC_URI[x86-64.md5sum]     = "6dc1ccea65e1112a3a8673e776c932d1"
-SRC_URI[x86-64.sha256sum]  = "25415701c864ec301975097f207e909d065eb7c452a501c0e4b4487e77fbdc7a"
+SRC_URI[x86-64.md5sum]     = "edd5eae17f75a0f043accab5635096e3"
+SRC_URI[x86-64.sha256sum]  = "03c2bffadff35825a6f9e9db453dae29302c82deb824a285e7d030eb13144a84"
 
 FILES = ""
 FILES_${PN} = "/usr/lib/${SHR} /usr/bin"
