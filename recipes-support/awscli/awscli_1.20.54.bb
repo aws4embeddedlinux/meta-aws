@@ -4,7 +4,7 @@ LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=7970352423db76abb33cbe303884afbf"
 
 SRC_URI = "git://github.com/aws/aws-cli.git;protocol=https"
-SRCREV = "079f03758d0db7f430cc5f9787e5982a0586375a"
+SRCREV = "bf9bb5b60cd24b97d642646c7f7d6c17e320c576"
 S = "${WORKDIR}/git"
 
 inherit setuptools3
