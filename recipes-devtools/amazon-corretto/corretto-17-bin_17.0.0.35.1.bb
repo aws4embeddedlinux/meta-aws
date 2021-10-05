@@ -11,14 +11,27 @@ SRC_URI:aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corrett
 BASE:x86-64     = "amazon-corretto-${PV}-linux-x64"
 SRC_URI:x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
-SRC_URI[aarch64.md5sum]    = "7a5bbd3a5be41d86a20b38806f74b343"
-SRC_URI[aarch64.sha256sum] = "54e006a27909655bb77e201bc018148377e4f2dca892cd5838984f7f22a05700"
+SRC_URI[aarch64.md5sum]    = "10243aca398feccd1a66a90b93f6f21f"
+SRC_URI[aarch64.sha256sum] = "1def4d9550c83d152d720c353c02dd42588b60d734e3c1776d271a874aceb3f8"
 
-SRC_URI[x86-64.md5sum]     = "e658fcede95579a2ffb1fa429c56d69c"
-SRC_URI[x86-64.sha256sum]  = "4005f04eaeb0be6460f5f5b13904f8a2619540aa2ce7632fd86fa302bcae6077"
+SRC_URI[x86-64.md5sum]     = "edd5eae17f75a0f043accab5635096e3"
+SRC_URI[x86-64.sha256sum]  = "03c2bffadff35825a6f9e9db453dae29302c82deb824a285e7d030eb13144a84"
 
 FILES = ""
 FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
+
+do_package_qa[noexec] = "1"
+EXCLUDE_FROM_SHLIBS = "1"
+
+RDEPENDS:${PN} += " \
+    libgl \
+    libxi \
+    libxtst \
+    libasound \
+    cairo \
+    pango \
+    gtk+ \
+"
 
 do_install() {
     install -d ${D}/usr/bin
