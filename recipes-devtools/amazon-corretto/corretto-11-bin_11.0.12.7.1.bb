@@ -71,7 +71,7 @@ do_install() {
     ln -s ../lib/${SHR}/bin/serialver
 }
 
-do_install_append_x86-64() {
+do_install:append:x86-64() {
     # create symbolic link /lib64/ld-linux-x86-64.so.2 to enable
     # loading the binary When maintainers build binaries on ubuntu,
     # this is the library they are linking to, and if we don't set it
