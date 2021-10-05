@@ -22,5 +22,8 @@ RDEPENDS:${PN} += " \
     python3-sqlite3 \
     python3-misc \
     python3-rsa \
+    python3-dateutil \
+    python3-urllib3 \
+    python3-jmespath \
     groff \
 "
