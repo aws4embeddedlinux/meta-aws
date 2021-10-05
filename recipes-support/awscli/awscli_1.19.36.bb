@@ -9,16 +9,18 @@ S = "${WORKDIR}/git"
 
 inherit setuptools3
 
-RDEPENDS:${PN} += "python3-botocore \
-                   python3-docutils \
-                   python3-s3transfer \
-                   python3-pyyaml \
-                   python3-colorama \
-                   python3-distro \
-                   python3-unixadmin \
-                   python3-ruamel-yaml \
-                   python3-prompt-toolkit \
-                   python3-sqlite3 \
-                   python3-misc \
-                   python3-rsa \
-                   groff"
+RDEPENDS:${PN} += " \
+    python3-botocore \
+    python3-docutils \
+    python3-s3transfer \
+    python3-pyyaml \
+    python3-colorama \
+    python3-distro \
+    python3-unixadmin \
+    python3-ruamel-yaml \
+    python3-prompt-toolkit \
+    python3-sqlite3 \
+    python3-misc \
+    python3-rsa \
+    groff \
+"
