@@ -4,17 +4,17 @@ LICENSE = "GPL-2"
 
 LIC_FILES_CHKSUM = "file://../${BASE}/LICENSE;md5=3e0b59f8fac05c3c03d4a26bbda13f8f"
 SHR             = "amazon-corretto-${PV}"
-BASE_aarch64    = "amazon-corretto-${PV}-linux-aarch64"
-SRC_URI_aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
+BASE:aarch64    = "amazon-corretto-${PV}-linux-aarch64"
+SRC_URI:aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
 
-BASE_arm        = "amazon-corretto-${PV}-linux-armv7"
-SRC_URI_arm     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-armv7.tar.gz;name=arm"
+BASE:arm        = "amazon-corretto-${PV}-linux-armv7"
+SRC_URI:arm     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-armv7.tar.gz;name=arm"
 
-BASE_x86-64     = "amazon-corretto-${PV}-linux-x64"
-SRC_URI_x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
+BASE:x86-64     = "amazon-corretto-${PV}-linux-x64"
+SRC_URI:x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
-BASE_x86        = "amazon-corretto-${PV}-linux-x86"
-SRC_URI_x86     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x86.tar.gz;name=x86"
+BASE:x86        = "amazon-corretto-${PV}-linux-x86"
+SRC_URI:x86     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x86.tar.gz;name=x86"
 
 SRC_URI[aarch64.md5sum]    = "bee1464959cd48f811390b8164bd4788"
 SRC_URI[aarch64.sha256sum] = "e25669eb74d6c270af303bc0d1d859dd9ff16a0288f00a9d0ba4105467fc9695"
@@ -29,7 +29,7 @@ SRC_URI[x86.md5sum]        = "36d7e48c3b8b45f104e1e600e606a103"
 SRC_URI[x86.sha256sum]     = "0374ce02ab4fc7adc2bbd2ceafe4d922bc05d7010952cc4e18e9119c59c10ad9"
 
 FILES = ""
-FILES_${PN} = "/usr/lib/${SHR} /usr/bin"
+FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
 
 do_install() {
     install -d ${D}/usr/bin
@@ -81,5 +81,5 @@ do_install_append_x86-64() {
     ln -s ../lib/ld-linux-x86-64.so.2 ld-linux-x86-64.so.2
 }
 
-FILES_${PN} += " /lib64"
-INSANE_SKIP_${PN} += " libdir"
+FILES:${PN} += " /lib64"
+INSANE_SKIP:${PN} += " libdir"
