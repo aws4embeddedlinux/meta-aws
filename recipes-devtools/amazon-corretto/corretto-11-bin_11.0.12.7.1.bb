@@ -4,17 +4,17 @@ LICENSE = "GPL-2"
 
 LIC_FILES_CHKSUM = "file://../${BASE}/LICENSE;md5=3e0b59f8fac05c3c03d4a26bbda13f8f"
 SHR             = "amazon-corretto-${PV}"
-BASE_aarch64    = "amazon-corretto-${PV}-linux-aarch64"
-SRC_URI_aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
+BASE:aarch64    = "amazon-corretto-${PV}-linux-aarch64"
+SRC_URI:aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
 
-BASE_arm        = "amazon-corretto-${PV}-linux-armv7"
-SRC_URI_arm     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-armv7.tar.gz;name=arm"
+BASE:arm        = "amazon-corretto-${PV}-linux-armv7"
+SRC_URI:arm     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-armv7.tar.gz;name=arm"
 
-BASE_x86-64     = "amazon-corretto-${PV}-linux-x64"
-SRC_URI_x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
+BASE:x86-64     = "amazon-corretto-${PV}-linux-x64"
+SRC_URI:x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
-BASE_x86        = "amazon-corretto-${PV}-linux-x86"
-SRC_URI_x86     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x86.tar.gz;name=x86"
+BASE:x86        = "amazon-corretto-${PV}-linux-x86"
+SRC_URI:x86     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x86.tar.gz;name=x86"
 
 SRC_URI[aarch64.md5sum]    = "bee1464959cd48f811390b8164bd4788"
 SRC_URI[aarch64.sha256sum] = "e25669eb74d6c270af303bc0d1d859dd9ff16a0288f00a9d0ba4105467fc9695"
@@ -22,14 +22,14 @@ SRC_URI[aarch64.sha256sum] = "e25669eb74d6c270af303bc0d1d859dd9ff16a0288f00a9d0b
 SRC_URI[arm.md5sum]        = "67cb4d9d4a313c4f001d81717f2b7cd4"
 SRC_URI[arm.sha256sum]     = "4648ea4419ddc20bdb6f2378355d289cbaadd588b41e112c03d03d06eaa075e2"
 
-SRC_URI[x86-64.md5sum]     = "8929d09963d1f6b847cf955c6340133b"
-SRC_URI[x86-64.sha256sum]  = "448494766be37bb8a4ecd983a09742d28b1fa426684417b0dec2f3b03c44f3a3"
+SRC_URI[x86-64.md5sum]     = "55e5ca4565737598ff24c6d927253275"
+SRC_URI[x86-64.sha256sum]  = "9c451d1aec267e6be26a96b59e9f8ab8cf9253b9e0cd469fa2a62391c0dfe0c6"
 
 SRC_URI[x86.md5sum]        = "36d7e48c3b8b45f104e1e600e606a103"
 SRC_URI[x86.sha256sum]     = "0374ce02ab4fc7adc2bbd2ceafe4d922bc05d7010952cc4e18e9119c59c10ad9"
 
 FILES = ""
-FILES_${PN} = "/usr/lib/${SHR} /usr/bin"
+FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
 
 do_install() {
     install -d ${D}/usr/bin
@@ -71,7 +71,7 @@ do_install() {
     ln -s ../lib/${SHR}/bin/serialver
 }
 
-do_install_append_x86-64() {
+do_install:append:x86-64() {
     # create symbolic link /lib64/ld-linux-x86-64.so.2 to enable
     # loading the binary When maintainers build binaries on ubuntu,
     # this is the library they are linking to, and if we don't set it
@@ -81,5 +81,5 @@ do_install_append_x86-64() {
     ln -s ../lib/ld-linux-x86-64.so.2 ld-linux-x86-64.so.2
 }
 
-FILES_${PN} += " /lib64"
-INSANE_SKIP_${PN} += " libdir"
+FILES:${PN} += " /lib64"
+INSANE_SKIP:${PN} += " libdir"
