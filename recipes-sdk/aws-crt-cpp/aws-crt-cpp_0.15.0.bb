@@ -33,7 +33,7 @@ PREFERRED_VERSION_aws-checksums = "0.1.11"
 PREFERRED_VERSION_aws-c-event-stream = "0.2.7"
 PREFERRED_VERSION_s2n = "1.0.13"
 
-DEPENDS = "s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checksums aws-c-event-stream aws-c-s3 aws-lc"
+DEPENDS = "s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checksums aws-c-event-stream aws-c-s3"
 RDEPENDS:${PN} = "s2n aws-c-common"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
