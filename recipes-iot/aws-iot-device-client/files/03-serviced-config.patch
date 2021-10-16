@@ -1,0 +1,16 @@
+diff --git a/setup/aws-iot-device-client.service b/setup/aws-iot-device-client.service
+index 88254c5..5ee86e8 100644
+--- a/setup/aws-iot-device-client.service
++++ b/setup/aws-iot-device-client.service
+@@ -4,7 +4,8 @@ Wants=network-online.target
+ After=network.target network-online.target
+ 
+ [Service]
+-ExecStart=/sbin/aws-iot-device-client
++ExecStart=/sbin/aws-iot-device-client --config-file /etc/aws-iot-device-client/aws-iot-device-client.conf --enable-sdk-logging
+ 
+ [Install]
+-WantedBy=multi-user.target
+\ No newline at end of file
++WantedBy=multi-user.target
++
