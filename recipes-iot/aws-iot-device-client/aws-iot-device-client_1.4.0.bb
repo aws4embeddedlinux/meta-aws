@@ -14,6 +14,7 @@ BRANCH ?= "main"
 SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH};tag=v1.4 \
            file://01-missing-thread-includes.patch \
            file://02-missing-thread-includes.patch \
+           file://03-serviced-config.patch \
 "
 
 S= "${WORKDIR}/git"
@@ -22,24 +23,16 @@ RDEPENDS:${PN} = "openssl aws-iot-device-sdk-cpp-v2"
 
 inherit cmake
 
-do_configure:append() {
-}
-
 do_install() {
   install -d ${D}${base_sbindir}
   install -d ${D}${sysconfdir}
+  install -d ${D}${sysconfdir}/aws-iot-device-client
   install -d ${D}${systemd_unitdir}/system
 
   install -m 0755 ${WORKDIR}/build/aws-iot-device-client \
                   ${D}${base_sbindir}/aws-iot-device-client
   install -m 0644 ${S}/setup/aws-iot-device-client.service \
                   ${D}${systemd_system_unitdir}/aws-iot-device-client.service
-  install -m 0644 ${S}/config-template.json \
-                  ${D}${sysconfdir}/aws-iot-device-client.json
-  
-  sed -i -e "s,/sbin/aws-iot-device-client,/sbin/aws-iot-device-client --config /etc/aws-iot-device-client.json,g" \
-    ${D}${systemd_system_unitdir}/aws-iot-device-client.service
-
 }
 
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
