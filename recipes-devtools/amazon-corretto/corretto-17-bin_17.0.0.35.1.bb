@@ -1,28 +1,24 @@
 # -*- mode: Conf; -*-
-SUMMARY     = "Amazon Corretto 8"
+SUMMARY     = "Amazon Corretto 17"
 DESCRIPTION = ""
 LICENSE = "GPL-2"
 
 LIC_FILES_CHKSUM = "file://../${BASE}/LICENSE;md5=3e0b59f8fac05c3c03d4a26bbda13f8f"
 SHR             = "amazon-corretto-${PV}"
-
 BASE:aarch64    = "amazon-corretto-${PV}-linux-aarch64"
 SRC_URI:aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
 
 BASE:x86-64     = "amazon-corretto-${PV}-linux-x64"
 SRC_URI:x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
-SRC_URI[aarch64.md5sum]    = "3f1d7af28270165396046afe346a6397"
-SRC_URI[aarch64.sha256sum] = "7b86c40410c75de44c311fe127bb1dd02c43040312d66b1363737ab3e7d77011"
+SRC_URI[aarch64.md5sum]    = "7a5bbd3a5be41d86a20b38806f74b343"
+SRC_URI[aarch64.sha256sum] = "54e006a27909655bb77e201bc018148377e4f2dca892cd5838984f7f22a05700"
 
-SRC_URI[x86-64.md5sum]     = "6dc1ccea65e1112a3a8673e776c932d1"
-SRC_URI[x86-64.sha256sum]  = "25415701c864ec301975097f207e909d065eb7c452a501c0e4b4487e77fbdc7a"
+SRC_URI[x86-64.md5sum]     = "e658fcede95579a2ffb1fa429c56d69c"
+SRC_URI[x86-64.sha256sum]  = "4005f04eaeb0be6460f5f5b13904f8a2619540aa2ce7632fd86fa302bcae6077"
 
 FILES = ""
 FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
-
-do_package_qa[noexec] = "1"
-EXCLUDE_FROM_SHLIBS = "1"
 
 do_install() {
     install -d ${D}/usr/bin
