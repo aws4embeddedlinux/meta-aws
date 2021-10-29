@@ -14,6 +14,7 @@ BRANCH ?= "main"
 SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH};tag=v1.4 \
            file://01-missing-thread-includes.patch \
            file://02-missing-thread-includes.patch \
+           file://03-serviced-config.patch \
 "
 
 S= "${WORKDIR}/git"
@@ -22,30 +23,17 @@ RDEPENDS:${PN} = "openssl aws-iot-device-sdk-cpp-v2"
 
 inherit cmake
 
-do_configure:append() {
-}
-
 do_install() {
   install -d ${D}${base_sbindir}
   install -d ${D}${sysconfdir}
+  install -d ${D}${sysconfdir}/aws-iot-device-client
   install -d ${D}${systemd_unitdir}/system
 
   install -m 0755 ${WORKDIR}/build/aws-iot-device-client \
                   ${D}${base_sbindir}/aws-iot-device-client
   install -m 0644 ${S}/setup/aws-iot-device-client.service \
                   ${D}${systemd_system_unitdir}/aws-iot-device-client.service
-  install -m 0644 ${S}/config-template.json \
-                  ${D}${sysconfdir}/aws-iot-device-client.json
-  
-  sed -i -e "s,/sbin/aws-iot-device-client,/sbin/aws-iot-device-client --config /etc/aws-iot-device-client.json,g" \
-    ${D}${systemd_system_unitdir}/aws-iot-device-client.service
-
 }
-
-AWSIOTDC_EXCL_JOBS ?= "OFF"
-AWSIOTDC_EXCL_DD ?= "OFF"
-AWSIOTDC_EXCL_ST ?= "OFF"
-AWSIOTDC_EXCL_FP ?= "OFF"
 
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
@@ -55,10 +43,16 @@ EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 EXTRA_OECMAKE += "-DCMAKE_VERBOSE_MAKEFILE=ON"
 EXTRA_OECMAKE += "-DCMAKE_CXX_FLAGS_RELEASE=-s"
-EXTRA_OECMAKE += "-DEXCLUDE_JOBS=${AWSIOTDC_EXCL_JOBS}"
-EXTRA_OECMAKE += "-DEXCLUDE_DD=${AWSIOTDC_EXCL_DD}"
-EXTRA_OECMAKE += "-DEXCLUDE_ST=${AWSIOTDC_EXCL_ST}"
-EXTRA_OECMAKE += "-DEXCLUDE_FP=${AWSIOTDC_EXCL_FP}"
+
+PACKAGECONFIG[samples] = "-DEXCLUDE_SAMPLES=OFF,-DEXCLUDE_SAMPLES=ON,,"
+PACKAGECONFIG[pubsub]  = "-DEXCLUDE_PUBSUB=OFF,-DEXCLUDE_PUBSUB=ON,,"
+PACKAGECONFIG[jobs]    = "-DEXCLUDE_JOBS=OFF,-DEXCLUDE_JOBS=ON,,"
+PACKAGECONFIG[dd]      = "-DEXCLUDE_DD=OFF,-DEXCLUDE_DD=ON,,"
+PACKAGECONFIG[st]      = "-DEXCLUDE_ST=OFF,-DEXCLUDE_DD=ON,,"
+PACKAGECONFIG[fp]      = "-DEXCLUDE_FP=OFF,-DEXCLUDE_FP=ON,,"
+PACKAGECONFIG[ds]      = "-DEXCLUDE_SHADOW=OFF,-DEXCLUDE_SHADOW=ON,,"
+PACKAGECONFIG[dsc]     = "-DEXCLUDE_CONFIG_SHADOW=OFF,-DEXCLUDE_CONFIG_SHADOW=ON,,"
+PACKAGECONFIG[dsn]     = "-DEXCLUDE_SAMPLE_SHADOW=OFF,-DEXCLUDE_SAMPLE_SHADOW=ON,,"
 
 FILES:${PN} += "${base_sbindir}/sbin/aws-iot-device-client"
 FILES:${PN} += "${systemd_system_unitdir}/aws-iot-device-client.service"
