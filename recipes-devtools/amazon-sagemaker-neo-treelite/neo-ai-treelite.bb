@@ -21,10 +21,10 @@ TL_PB_URI    = "git://github.com/google/protobuf.git"
 TL_PB_PATH   = "git/3rdparty/protobuf/"
 TL_PB_SR     = "106ffc04be1abf3ff3399f54ccf149815b287dd9"
 
-SRC_URI = "${TL_URI};rev=${TL_SR};destsuffix=${TL_PATH};nobranch=1 \
-           ${TL_DMLC_URI};rev=${TL_DMLC_SR};destsuffix=${TL_DMLC_PATH} \
-           ${TL_FMT_URI};rev=${TL_FMT_SR};nobranch=1;destsuffix=${TL_FMT_PATH} \
-           ${TL_PB_URI};rev=${TL_PB_SR};destsuffix=${TL_PB_PATH}"
+SRC_URI = "${TL_URI};protocol=https;rev=${TL_SR};destsuffix=${TL_PATH};nobranch=0 \
+           ${TL_DMLC_URI};protocol=https;rev=${TL_DMLC_SR};destsuffix=${TL_DMLC_PATH} \
+           ${TL_FMT_URI};protocol=https;rev=${TL_FMT_SR};nobranch=1;destsuffix=${TL_FMT_PATH} \
+           ${TL_PB_URI};protocol=https;rev=${TL_PB_SR};destsuffix=${TL_PB_PATH}"
 
 
 S = "${WORKDIR}/git"
