@@ -13,8 +13,8 @@ LIC_FILES_CHKSUM = "file://aws-c-auth/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd
 BRANCH ?= "main"
 TAG ?= "v${PV}"
 TAG_COMMON ?= "v0.6.8"
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};tag=${TAG_COMMON};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/awslabs/aws-c-auth.git;branch=${BRANCH};tag=${TAG};destsuffix=${S}/aws-c-auth;name=auth \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};tag=${TAG_COMMON};destsuffix=${S}/aws-c-common;name=common \
+           git://github.com/awslabs/aws-c-auth.git;protocol=https;branch=${BRANCH};tag=${TAG};destsuffix=${S}/aws-c-auth;name=auth \
 "
 
 S= "${WORKDIR}/git"

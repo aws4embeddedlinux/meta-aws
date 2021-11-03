@@ -14,8 +14,8 @@ BRANCH ?= "main"
 TAG ?= "v${PV}"
 TAG_COMMON ?= "v0.6.8"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};tag=${TAG_COMMON};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/awslabs/aws-crt-cpp.git;branch=${BRANCH};destsuffix=${S}/aws-crt-cpp;name=crtcpp \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};tag=${TAG_COMMON};destsuffix=${S}/aws-c-common;name=common \
+           git://github.com/awslabs/aws-crt-cpp.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-crt-cpp;name=crtcpp \
 "
 
 # For this module, the tag doesn't work and the commit hash for the
