@@ -11,7 +11,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=26d85861cd0c0d05ab56ebff38882975"
 
 BRANCH ?= "main"
 TAG ?= "v${PV}"
-SRC_URI = "git://github.com/aws/s2n-tls.git;branch=${BRANCH};tag=${TAG} \
+SRC_URI = "git://github.com/aws/s2n-tls.git;protocol=https;branch=${BRANCH};tag=${TAG} \
            file://0002-cmakelists-remove-warn.patch \
 "
 

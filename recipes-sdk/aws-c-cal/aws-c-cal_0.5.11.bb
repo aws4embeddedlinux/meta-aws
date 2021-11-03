@@ -12,8 +12,8 @@ LIC_FILES_CHKSUM = "file://aws-c-cal/LICENSE;md5=34400b68072d710fecd0a2940a0d165
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix=${S}/aws-c-common;tag=v0.6.8 \
-           git://github.com/awslabs/aws-c-cal.git;branch=${BRANCH};destsuffix=${S}/aws-c-cal;tag=v${PV} \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;tag=v0.6.8 \
+           git://github.com/awslabs/aws-c-cal.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-cal;tag=v${PV} \
 "
 
 S = "${WORKDIR}/git"
