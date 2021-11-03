@@ -12,8 +12,8 @@ LIC_FILES_CHKSUM = "file://aws-crt-cpp/LICENSE;md5=3b83ef96387f14655fc854ddc3c6b
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/awslabs/aws-crt-cpp.git;branch=${BRANCH};destsuffix=${S}/aws-crt-cpp;name=crtcpp \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
+           git://github.com/awslabs/aws-crt-cpp.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-crt-cpp;name=crtcpp \
            file://01-aws-c-common-strict-flags-bypass.patch \
            file://02-aws-crt-cpp-strict-flags-bypass.patch \
            file://03-crt-0.11.8-missing-include-StringView.h.patch \
