@@ -12,8 +12,8 @@ LIC_FILES_CHKSUM = "file://aws-c-cal/LICENSE;md5=34400b68072d710fecd0a2940a0d165
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix=${S}/aws-c-common;tag=v0.4.67 \
-           git://github.com/awslabs/aws-c-cal.git;branch=${BRANCH};destsuffix=${S}/aws-c-cal;tag=v0.4.5 \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;tag=v0.4.67 \
+           git://github.com/awslabs/aws-c-cal.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-cal;tag=v0.4.5 \
            file://01-aws-c-common-strict-flags-bypass.patch \
 "
 
