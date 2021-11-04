@@ -14,8 +14,8 @@ BRANCH ?= "main"
 TAG ?= "v${PV}"
 TAG_COMMON ?= "v0.6.8"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common;tag=${TAG_COMMON} \
-           git://github.com/awslabs/aws-c-iot.git;branch=${BRANCH};destsuffix=${S}/aws-c-iot;name=iot;tag=${TAG} \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common;tag=${TAG_COMMON} \
+           git://github.com/awslabs/aws-c-iot.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-iot;name=iot;tag=${TAG} \
 "
 
 S = "${WORKDIR}/git"
