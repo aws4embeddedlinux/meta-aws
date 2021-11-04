@@ -10,7 +10,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=26d85861cd0c0d05ab56ebff38882975"
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/s2n.git;branch=${BRANCH}"
+SRC_URI = "git://github.com/awslabs/s2n.git;protocol=https;branch=${BRANCH}"
 SRCREV = "49c46200d6a6b5aee76c5f9adb86c329a737a6ca"
 
 S= "${WORKDIR}/git"
