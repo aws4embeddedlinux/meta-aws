@@ -1,4 +1,4 @@
-SUMMARY     = "Amazon Corretto 11"
+SUMMARY     = "Amazon Corretto 8"
 DESCRIPTION = ""
 LICENSE = "GPL-2"
 
@@ -7,29 +7,30 @@ SHR             = "amazon-corretto-${PV}"
 BASE_aarch64    = "amazon-corretto-${PV}-linux-aarch64"
 SRC_URI_aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
 
-BASE_arm        = "amazon-corretto-${PV}-linux-armv7"
-SRC_URI_arm     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-armv7.tar.gz;name=arm"
-
 BASE_x86-64     = "amazon-corretto-${PV}-linux-x64"
 SRC_URI_x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
-BASE_x86        = "amazon-corretto-${PV}-linux-x86"
-SRC_URI_x86     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x86.tar.gz;name=x86"
+SRC_URI[aarch64.md5sum]    = "10243aca398feccd1a66a90b93f6f21f"
+SRC_URI[aarch64.sha256sum] = "1def4d9550c83d152d720c353c02dd42588b60d734e3c1776d271a874aceb3f8"
 
-SRC_URI[aarch64.md5sum]    = "bee1464959cd48f811390b8164bd4788"
-SRC_URI[aarch64.sha256sum] = "e25669eb74d6c270af303bc0d1d859dd9ff16a0288f00a9d0ba4105467fc9695"
-
-SRC_URI[arm.md5sum]        = "67cb4d9d4a313c4f001d81717f2b7cd4"
-SRC_URI[arm.sha256sum]     = "4648ea4419ddc20bdb6f2378355d289cbaadd588b41e112c03d03d06eaa075e2"
-
-SRC_URI[x86-64.md5sum]     = "8929d09963d1f6b847cf955c6340133b"
-SRC_URI[x86-64.sha256sum]  = "448494766be37bb8a4ecd983a09742d28b1fa426684417b0dec2f3b03c44f3a3"
-
-SRC_URI[x86.md5sum]        = "36d7e48c3b8b45f104e1e600e606a103"
-SRC_URI[x86.sha256sum]     = "0374ce02ab4fc7adc2bbd2ceafe4d922bc05d7010952cc4e18e9119c59c10ad9"
+SRC_URI[x86-64.md5sum]     = "edd5eae17f75a0f043accab5635096e3"
+SRC_URI[x86-64.sha256sum]  = "03c2bffadff35825a6f9e9db453dae29302c82deb824a285e7d030eb13144a84"
 
 FILES = ""
 FILES_${PN} = "/usr/lib/${SHR} /usr/bin"
+
+do_package_qa[noexec] = "1"
+EXCLUDE_FROM_SHLIBS = "1"
+
+RDEPENDS_${PN} += " \
+    libgl \
+    libxi \
+    libxtst \
+    libasound \
+    cairo \
+    pango \
+    gtk+ \
+"
 
 do_install() {
     install -d ${D}/usr/bin
