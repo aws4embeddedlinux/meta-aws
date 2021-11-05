@@ -31,6 +31,15 @@ SRC_URI[x86.sha256sum]     = "0374ce02ab4fc7adc2bbd2ceafe4d922bc05d7010952cc4e18
 FILES = ""
 FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
 
+RDEPENDS:${PN} += " \
+    libx11 \
+    libxrender \
+    libxext \
+    libxi \
+    libxtst \
+    alsa-lib \
+"
+
 do_install() {
     install -d ${D}/usr/bin
     install -d ${D}/usr/lib/${SHR}
