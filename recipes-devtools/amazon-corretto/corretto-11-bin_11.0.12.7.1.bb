@@ -16,17 +16,17 @@ SRC_URI:x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corrett
 BASE:x86        = "amazon-corretto-${PV}-linux-x86"
 SRC_URI:x86     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x86.tar.gz;name=x86"
 
-SRC_URI[aarch64.md5sum]    = "bee1464959cd48f811390b8164bd4788"
-SRC_URI[aarch64.sha256sum] = "e25669eb74d6c270af303bc0d1d859dd9ff16a0288f00a9d0ba4105467fc9695"
+SRC_URI[aarch64.md5sum]    = "facff11c6ae8e5b9dc54cbbbddaf3dc0"
+SRC_URI[aarch64.sha256sum] = "3de81a85e8ddbc03045e25b2025b00c8965d9c9be44bf0eefef10773dcc33e7f"
 
-SRC_URI[arm.md5sum]        = "67cb4d9d4a313c4f001d81717f2b7cd4"
-SRC_URI[arm.sha256sum]     = "4648ea4419ddc20bdb6f2378355d289cbaadd588b41e112c03d03d06eaa075e2"
+SRC_URI[arm.md5sum]        = "b7d9f46eabd604c0bf89227bc64644ed"
+SRC_URI[arm.sha256sum]     = "63c05e86606d53df6a33472bb570fa9318de8125644dd928566d6205a1ecb024"
 
 SRC_URI[x86-64.md5sum]     = "55e5ca4565737598ff24c6d927253275"
 SRC_URI[x86-64.sha256sum]  = "9c451d1aec267e6be26a96b59e9f8ab8cf9253b9e0cd469fa2a62391c0dfe0c6"
 
-SRC_URI[x86.md5sum]        = "36d7e48c3b8b45f104e1e600e606a103"
-SRC_URI[x86.sha256sum]     = "0374ce02ab4fc7adc2bbd2ceafe4d922bc05d7010952cc4e18e9119c59c10ad9"
+SRC_URI[x86.md5sum]        = "cee889af2f2ba7b6a2277959ccd93c66"
+SRC_URI[x86.sha256sum]     = "f2d428803d6881d8abcd706ea98897d08ef61970ec6dceecb19106d15116eb0a"
 
 FILES = ""
 FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
