@@ -4,7 +4,7 @@ HOMEPAGE = "https://github.com/awslabs/amazon-cloudwatch-publisher"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://${WORKDIR}/git/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-RDEPENDS_${PN} += " \
+RDEPENDS:${PN} += " \
 	python3-boto3 \
 	python3-psutil \
 	python3-requests \

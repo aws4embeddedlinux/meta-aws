@@ -22,7 +22,7 @@ SRCREV_io = "b629abed273cdc33e30e17c6a80edccc2a8daa67"
 S = "${WORKDIR}/git"
 
 DEPENDS = "openssl s2n aws-c-common aws-c-cal"
-RDEPENDS_${PN} = "s2n aws-c-common aws-c-cal"
+RDEPENDS:${PN} = "s2n aws-c-common aws-c-cal"
 
 AWS_C_INSTALL = "$D/usr"
 OECMAKE_SOURCEPATH = "${S}/aws-c-io"
