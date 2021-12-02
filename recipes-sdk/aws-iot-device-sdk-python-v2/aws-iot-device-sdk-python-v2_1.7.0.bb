@@ -13,4 +13,4 @@ SRC_URI = "git://github.com/aws/aws-iot-device-sdk-python-v2.git;protocol=https;
 
 S = "${WORKDIR}/git"
 
-RDEPENDS_${PN} += "python3 aws-crt-python"
+RDEPENDS:${PN} += "python3 aws-crt-python"
