@@ -28,19 +28,21 @@ CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "-DBUILD_TEST_DEPS=OFF"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
-EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
-EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
+EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D${prefix}"
+EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D${prefix}"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
+FILES:${PN} = " \
+    ${libdir}/*.so.1.0.0 \
+    ${libdir}/*.so \
+"
 FILES:${PN}-dev = "${includedir}/aws/mqtt/* \
                    ${libdir}/aws-c-mqtt/* \
                    ${libdir}/lib${PN}.so"
-FILES:${PN}-dbg = "/usr/src/debug/aws-c-mqtt/* \
+FILES:${PN}-dbg = "${prefix}/src/debug/aws-c-mqtt/* \
                    ${libdir}/.debug/lib${PN}.so.1.0.0"
 
-INSANE_SKIP:${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
 
