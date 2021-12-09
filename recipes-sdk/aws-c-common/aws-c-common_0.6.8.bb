@@ -17,21 +17,21 @@ SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRA
 S = "${WORKDIR}/git"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
-EXTRA_OECMAKE:append = " -DCMAKE_INSTALL_PREFIX=$D/usr"
+EXTRA_OECMAKE:append = " -DCMAKE_INSTALL_PREFIX=$D${prefix}"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 OECMAKE_BUILDPATH = "${WORKDIR}/build"
 OECMAKE_SOURCEPATH = "${S}"
 
-FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
-                   ${libdir}/lib${PN}.so.1"
+FILES:${PN}     = "${libdir}/lib${BPN}.so.1.0.0 \
+                   ${libdir}/lib${BPN}.so.1"
 FILES:${PN}-dev = "${includedir}/aws/common/* \
                    ${includedir}/aws/testing/* \
                    ${libdir}/cmake/* \
                    ${libdir}/aws-c-common/* \
-                   ${libdir}/lib${PN}.so"
-FILES:${PN}-dbg = "/usr/src/debug/aws-c-common/* \
-                   ${libdir}/.debug/lib${PN}.so.1.0.0"
+                   ${libdir}/lib${BPN}.so"
+FILES:${PN}-dbg = "${prefix}/src/debug/aws-c-common/* \
+                   ${libdir}/.debug/lib${BPN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"
