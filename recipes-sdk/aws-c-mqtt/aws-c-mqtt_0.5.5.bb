@@ -22,7 +22,7 @@ SRCREV_mqtt = "8984c51bc834598e3cb1e73ae5d7d614b445ce48"
 S = "${WORKDIR}/git"
 
 DEPENDS = "openssl s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http"
-RDEPENDS_${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http"
+RDEPENDS:${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http"
 
 OECMAKE_SOURCEPATH = "${S}/aws-c-mqtt"
 CFLAGS:append = " -Wl,-Bsymbolic"

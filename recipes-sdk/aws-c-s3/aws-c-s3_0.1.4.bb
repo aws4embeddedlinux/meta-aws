@@ -22,7 +22,7 @@ SRCREV_s3 = "f732c85e72666efba93833ead87786e455cf26ee"
 S= "${WORKDIR}/git"
 
 DEPENDS = "openssl aws-c-auth"
-RDEPENDS_${PN} = "aws-c-auth"
+RDEPENDS:${PN} = "aws-c-auth"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 

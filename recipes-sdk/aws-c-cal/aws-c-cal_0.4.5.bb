@@ -20,7 +20,7 @@ SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRA
 S = "${WORKDIR}/git"
 
 DEPENDS = "openssl s2n aws-c-common"
-RDEPENDS_${PN} = "s2n aws-c-common"
+RDEPENDS:${PN} = "s2n aws-c-common"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 OECMAKE_SOURCEPATH = "${S}/aws-c-cal"

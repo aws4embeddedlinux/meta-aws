@@ -9,7 +9,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e \
                     file://3rdparty/HalideIR/LICENSE;md5=9910386e68f0616e1ecf1037479fa97e \
 "
 
-RDEPENDS_${PN} = " python3-decorator \
+RDEPENDS:${PN} = " python3-decorator \
 "
 
 PV = "0.5"
@@ -56,8 +56,8 @@ do_install() {
 }
 
 PACKAGES =+ "${PN}-tests"
-FILES_${PN}-tests = "${datadir}/tvm/cpptest"
-RDEPENDS_${PN}-tests += "${PN} "
+FILES:${PN}-tests = "${datadir}/tvm/cpptest"
+RDEPENDS:${PN}-tests += "${PN} "
 
 # Versioned libs are not produced
 FILES_SOLIBSDEV = ""

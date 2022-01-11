@@ -38,7 +38,7 @@ inherit cmake
 #EXTRA_OECMAKE = ""
 
 # Later, override installation to contain only required libraries?
-#do_install_append() {
+#do_install:append() {
 #    install -d ${D}${libdir}
 #    install -m 0755 lib/libtreelite.so ${D}${libdir}
 #    install -m 0755 runtime/native/lib/libtreelite_runtime_static.a ${D}${libdir}

@@ -19,7 +19,7 @@ SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRA
 S = "${WORKDIR}/git"
 
 DEPENDS = "openssl s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http aws-c-mqtt"
-RDEPENDS_${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http aws-c-mqtt"
+RDEPENDS:${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http aws-c-mqtt"
 
 OECMAKE_SOURCEPATH = "${S}/aws-c-iot"
 CFLAGS:append = " -Wl,-Bsymbolic"

@@ -68,7 +68,7 @@ CONFFILES:${PN} += "/${BPN}/config/config.json"
 INITSCRIPT_NAME = "greengrass"
 INITSCRIPT_PARAMS = "defaults 80 20"
 
-SYSTEMD_SERVICE_${PN} = "greengrass.service"
+SYSTEMD_SERVICE:${PN} = "greengrass.service"
 
 USERADD_PACKAGES = "${PN}"
 GROUPADD_PARAM:${PN} = "-r ggc_group"
