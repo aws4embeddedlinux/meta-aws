@@ -57,7 +57,7 @@ CONFFILES:${PN} += "/${GG_BASENAME}/config/config.yaml.clean"
 
 inherit systemd
 SYSTEMD_AUTO_ENABLE = "enable"
-SYSTEMD_SERVICE_${PN} = "greengrass.service"
+SYSTEMD_SERVICE:${PN} = "greengrass.service"
 
 inherit useradd
 

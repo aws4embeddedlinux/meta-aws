@@ -7,7 +7,7 @@ PACKAGES = "\
     packagegroup-firecracker \
     "
 
-RDEPENDS_packagegroup-firecracker = "\
+RDEPENDS:packagegroup-firecracker = "\
     firecracker \
     jailer \
     "

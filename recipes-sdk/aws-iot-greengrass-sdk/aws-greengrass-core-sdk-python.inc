@@ -13,7 +13,7 @@ SRC_URI = "git://github.com/aws/aws-greengrass-core-sdk-python.git;protocol=http
 
 S = "${WORKDIR}/git"
 
-RDEPENDS_${PN} = "${PYTHON_PN}"
+RDEPENDS:${PN} = "${PYTHON_PN}"
 
 # Copy examples into rootfs
 do_install:append() {
@@ -24,4 +24,4 @@ do_install:append() {
 }
 
 # Associate generated files with package
-FILES_${PN} += "${datadir}/${BPN}/*"
+FILES:${PN} += "${datadir}/${BPN}/*"
