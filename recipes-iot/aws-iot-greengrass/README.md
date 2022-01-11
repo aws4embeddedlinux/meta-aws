@@ -29,7 +29,7 @@ VIRTUAL-RUNTIME_initscripts = ""
 1. Put this in local.conf and configure
 
 ```bash
-IMAGE_INSTALL_append = " greengrass-bin-demo"
+IMAGE_INSTALL:append = " greengrass-bin-demo"
 
 GGV2_DATA_EP     = ""
 GGV2_CRED_EP     = ""
