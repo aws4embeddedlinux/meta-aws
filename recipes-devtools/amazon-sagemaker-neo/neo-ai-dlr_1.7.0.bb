@@ -9,7 +9,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 BRANCH ?= "main"
 
 SRC_URI = "git://github.com/neo-ai/neo-ai-dlr.git;branch=${BRANCH};protocol=https;name=neo-ai-dlr \
-           file://0002-CMakeLists_remove_test_file_downloads.patch \
+           file://0002-CMakeLists:remove_test_file_downloads.patch \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/tflite-models/cat224-3.txt;name=cat224-3 \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/test-data/street_small.npy;name=streetsmall \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/resnet_v1.5_50-ml_c4.tar.gz;name=resnet;subdir=resnet_v1_5_50 \

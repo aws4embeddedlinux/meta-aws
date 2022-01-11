@@ -22,7 +22,7 @@ SRCREV_es = "5bcc8b09b7dd07205b919558becf662ea188578b"
 S = "${WORKDIR}/git"
 
 DEPENDS = "openssl s2n aws-c-common aws-checksums aws-c-io"
-RDEPENDS_${PN} = "s2n aws-c-common aws-checksums aws-c-io"
+RDEPENDS:${PN} = "s2n aws-c-common aws-checksums aws-c-io"
 
 AWS_C_INSTALL = "$D/usr"
 OECMAKE_SOURCEPATH = "${S}/aws-c-event-stream"
