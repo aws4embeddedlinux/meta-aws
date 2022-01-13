@@ -212,7 +212,6 @@ index 356ac26..680babb 100644
 -  endif() # WITH_HEXAGON
  endif()
  # Group sources
- #auto_source_group("${SOURCES}")
 -- 
 2.17.1
 

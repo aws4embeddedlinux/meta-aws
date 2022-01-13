@@ -79,7 +79,6 @@ do_install() {
     distutils3_do_install
 
     # setup.py install some libs under datadir, but we don't need them, so remove.
-   # rm ${D}${datadir}/dlr/*.so
 
     # Install DLR library to Python import search path
     install -m 0644 ${B}/lib/libdlr.so ${D}${PYTHON_SITEPACKAGES_DIR}/dlr
