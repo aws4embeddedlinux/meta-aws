@@ -8,8 +8,6 @@ PROVIDES += "aws/amazon-kvs-producer-sdk-cpp"
 inherit cmake
 inherit pkgconfig
 
-#do_install[noexec] = "1"
-
 BRANCH ?= "master"
 TAG ?= "v${PV}"
 SDIR ?= "amazon-kvs-producer-sdk-cpp"
@@ -47,7 +45,6 @@ EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 
 do_install() {
     install -d ${D}/usr/lib
-    #install -d ${D}/usr/lib/pkgconfig
     install -d ${D}/usr/include/com
     install -d ${D}/usr/include/com/amazonaws
     install -d ${D}/usr/include/com/amazonaws/kinesis
