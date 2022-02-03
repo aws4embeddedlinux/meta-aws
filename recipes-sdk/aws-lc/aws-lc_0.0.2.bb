@@ -11,9 +11,9 @@ inherit cmake
 LIC_FILES_CHKSUM = "file://LICENSE;md5=c1afc79d796415ed8191ba3258b73e3a"
 
 BRANCH ?= "main"
-TAG ?= "v${PV}"
 
-SRC_URI = "git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH};tag=${TAG}"
+SRC_URI = "git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH}"
+SRCREV = "7e7f06cae8df1c8d7d9b6c9452d17935097343de"
 
 S = "${WORKDIR}/git"
 

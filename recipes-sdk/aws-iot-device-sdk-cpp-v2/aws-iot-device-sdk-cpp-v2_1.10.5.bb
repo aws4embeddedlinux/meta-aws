@@ -10,10 +10,13 @@ LIC_FILES_CHKSUM = "file://aws-iot-device-sdk-cpp-v2/LICENSE;md5=f91e61641e7a968
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;tag=v0.5.3 \
-           git://github.com/aws/aws-iot-device-sdk-cpp-v2.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-iot-device-sdk-cpp-v2;tag=v1.10.5 \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
+           git://github.com/aws/aws-iot-device-sdk-cpp-v2.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-iot-device-sdk-cpp-v2;name=sdk \
            file://001-move-c-iot-include.patch \
 "
+SRCREV_FORMAT = "sdk"
+SRCREV_sdk = "4b16a0236be89d77375c43c9ffb8be5b929e6227"
+SRCREV_common = "5464be487028fbdca71f80d0a4a83656a018c470"
 
 S= "${WORKDIR}/git"
 

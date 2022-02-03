@@ -11,11 +11,13 @@ inherit cmake
 LIC_FILES_CHKSUM = "file://aws-c-auth/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 BRANCH ?= "main"
-TAG ?= "v${PV}"
-TAG_COMMON ?= "v0.6.8"
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};tag=${TAG_COMMON};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/awslabs/aws-c-auth.git;protocol=https;branch=${BRANCH};tag=${TAG};destsuffix=${S}/aws-c-auth;name=auth \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
+           git://github.com/awslabs/aws-c-auth.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-auth;name=auth \
 "
+
+SRCREV_FORMAT="auth"
+SRCREV_auth = "cc3d80c962787457258745fb8f5bb56bb2c4442d"
+SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
 
 S= "${WORKDIR}/git"
 

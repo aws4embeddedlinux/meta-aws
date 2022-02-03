@@ -11,12 +11,13 @@ inherit cmake
 LIC_FILES_CHKSUM = "file://aws-c-s3/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 BRANCH ?= "main"
-TAG ?= "v${PV}"
-TAG_COMMON ?= "v0.6.8"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};tag=${TAG_COMMON};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/awslabs/aws-c-s3.git;protocol=https;branch=${BRANCH};tag=${TAG};destsuffix=${S}/aws-c-s3;name=s3 \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
+           git://github.com/awslabs/aws-c-s3.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-s3;name=s3 \
 "
+SRCREV_FORMAT = "s3"
+SRCREV_s3 = "dca8df1acb75d61db1b309f961ff20994d42c14f"
+SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
 
 S= "${WORKDIR}/git"
 
