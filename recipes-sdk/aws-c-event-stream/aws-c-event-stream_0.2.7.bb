@@ -11,12 +11,14 @@ inherit cmake
 LIC_FILES_CHKSUM = "file://aws-c-event-stream/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 BRANCH ?= "main"
-TAG ?= "v${PV}"
-TAG_COMMON ?= "v0.6.8"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};tag=${TAG_COMMON};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/awslabs/aws-c-event-stream.git;protocol=https;branch=${BRANCH};tag=${TAG};destsuffix=${S}/aws-c-event-stream;name=es \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
+           git://github.com/awslabs/aws-c-event-stream.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-event-stream;name=es \
 "
+
+SRCREV_FORMAT = "es"
+SRCREV_es = "e87537be561d753ec82e783bc0929b1979c585f8"
+SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
 
 S = "${WORKDIR}/git"
 
