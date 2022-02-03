@@ -11,11 +11,13 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=3eb31626add6ada64ff9ac772bd3c653"
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;protocol=https;branch=${BRANCH};tag=v1.4 \
+SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;protocol=https;branch=${BRANCH} \
            file://01-missing-thread-includes.patch \
            file://02-missing-thread-includes.patch \
            file://03-serviced-config.patch \
 "
+
+SRCREV = "40be127ac8467ab16686d8e9bd5c240a521a5a24"
 
 S= "${WORKDIR}/git"
 DEPENDS = "openssl aws-iot-device-sdk-cpp-v2 googletest"
