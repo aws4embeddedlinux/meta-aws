@@ -9,14 +9,14 @@ inherit cmake
 inherit pkgconfig
 
 BRANCH ?= "master"
-TAG ?= "v${PV}"
 SDIR ?= "amazon-kvs-producer-sdk-c"
 
 LIC_FILES_CHKSUM = "file://${SDIR}/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-c.git;protocol=https;branch=${BRANCH};destsuffix=${S}/${SDIR};tag=${TAG} \
+SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-c.git;protocol=https;branch=${BRANCH};destsuffix=${S}/${SDIR} \
            file://amazon-kvs-producer-sdk-c-deps.patch"
 
+SRCREV = "99c1a8cd8cec88f99c9c4ce3944b53ae341d1491"
 S = "${WORKDIR}/git"
 
 DEPENDS = "openssl curl gtest jsmn amazon-kvs-producer-pic mbedtls libwebsockets"
