@@ -11,13 +11,15 @@ inherit cmake
 LIC_FILES_CHKSUM = "file://aws-c-mqtt/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 BRANCH ?= "main"
-TAG ?= "v${PV}"
-TAG_COMMON ?= "v0.6.8"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};tag=${TAG_COMMON};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/awslabs/aws-c-mqtt.git;protocol=https;branch=${BRANCH};tag=${TAG};destsuffix=${S}/aws-c-mqtt;name=mqtt \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
+           git://github.com/awslabs/aws-c-mqtt.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-mqtt;name=mqtt \
            file://fix-missing-macro.patch;patchdir=${S}/aws-c-mqtt/ \
 "
+
+SRCREV_FORMAT = "mqtt"
+SRCREV_mqtt = "0a70bf814845e487b7e4862af7ad9e4a1199b5f4"
+SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
 
 S = "${WORKDIR}/git"
 

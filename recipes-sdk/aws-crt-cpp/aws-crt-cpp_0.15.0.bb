@@ -11,16 +11,14 @@ inherit cmake
 LIC_FILES_CHKSUM = "file://aws-crt-cpp/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 BRANCH ?= "main"
-TAG ?= "v${PV}"
-TAG_COMMON ?= "v0.6.8"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};tag=${TAG_COMMON};destsuffix=${S}/aws-c-common;name=common \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
            git://github.com/awslabs/aws-crt-cpp.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-crt-cpp;name=crtcpp \
 "
 
-# For this module, the tag doesn't work and the commit hash for the
-# tag doesn't work.  So, we pick a hash that's "close enough".
+SRCREV_FORMAT = "crtcpp"
 SRCREV_crtcpp = "626047e24d966badd8253c56f728c9ad0065722a"
+SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
 
 S = "${WORKDIR}/git"
 

@@ -10,12 +10,14 @@ inherit cmake
 LIC_FILES_CHKSUM = "file://aws-c-http/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 BRANCH ?= "main"
-TAG ?= "v${PV}"
-TAG_COMMON ?= "v0.6.8"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};tag=${TAG_COMMON};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/awslabs/aws-c-http.git;protocol=https;branch=${BRANCH};tag=${TAG};destsuffix=${S}/aws-c-http;name=http \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
+           git://github.com/awslabs/aws-c-http.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-http;name=http \
 "
+
+SRCREV_FORMAT = "http"
+SRCREV_http = "6ff61d621c374ab763f94584d26b1d29baa81c2e"
+SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
 
 S = "${WORKDIR}/git"
 
