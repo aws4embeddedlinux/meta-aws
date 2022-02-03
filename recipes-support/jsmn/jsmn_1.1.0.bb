@@ -6,12 +6,12 @@ LICENSE = "MIT-0"
 PROVIDES += "jsmn"
 
 BRANCH ?= "master"
-TAG ?= "v${PV}"
 SDIR ?= "amazon-kvs-producer-sdk-c"
 
 LIC_FILES_CHKSUM = "file://${SDIR}/LICENSE;md5=5adc94605a1f7a797a9a834adbe335e3"
 
-SRC_URI = "git://github.com/zserge/jsmn.git;protocol=https;branch=${BRANCH};destsuffix=${S}/${SDIR};tag=${TAG}"
+SRC_URI = "git://github.com/zserge/jsmn.git;protocol=https;branch=${BRANCH};destsuffix=${S}/${SDIR}"
+SRCREV = "fdcef3ebf886fa210d14956d3c068a653e76a24e"
 
 S = "${WORKDIR}/git"
 
