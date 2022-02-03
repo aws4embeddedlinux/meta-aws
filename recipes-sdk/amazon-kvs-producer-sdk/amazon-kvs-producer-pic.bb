@@ -8,7 +8,6 @@ PROVIDES += "aws/amazon-kvs-producer-pic"
 inherit cmake
 
 BRANCH ?= "master"
-TAG ?= "v${PV}"
 SDIR ?= "amazon-kvs-producer-pic"
 
 LIC_FILES_CHKSUM = "file://${SDIR}/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
