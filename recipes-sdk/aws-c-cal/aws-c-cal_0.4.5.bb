@@ -13,23 +13,26 @@ BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
            git://github.com/awslabs/aws-c-cal.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-cal;name=cal \
+           file://01-aws-c-common-strict-flags-bypass.patch \
 "
 
-SRCREV_common = "00c91eeb186970d50690ebbdceefdeae5c31fb4c"
+SRCREV_FORMAT = "cal"
 SRCREV_cal = "61d66740b1469a0caef09932621e3e92ee3967e2"
+SRCREV_common = "00c91eeb186970d50690ebbdceefdeae5c31fb4c"
 
 S = "${WORKDIR}/git"
 
 DEPENDS = "openssl s2n aws-c-common"
 RDEPENDS_${PN} = "s2n aws-c-common"
 
-OECMAKE_SOURCEPATH = "${S}/aws-c-cal"
+
 CFLAGS_append = " -Wl,-Bsymbolic"
+OECMAKE_SOURCEPATH = "${S}/aws-c-cal"
+OECMAKE_BUILDPATH = "${WORKDIR}/build"
+EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
 EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
-OECMAKE_SOURCEPATH += "${S}"
 
 INSANE_SKIP_${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
