@@ -10,12 +10,13 @@ inherit cmake
 LIC_FILES_CHKSUM = "file://aws-iot-device-sdk-cpp-v2/LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
 
 BRANCH ?= "main"
-TAG ?= "v${PV}"
-TAG_COMMON ?= "v0.6.8"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;tag=${TAG_COMMON} \
-           git://github.com/aws/aws-iot-device-sdk-cpp-v2.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-iot-device-sdk-cpp-v2;tag=${TAG} \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
+           git://github.com/aws/aws-iot-device-sdk-cpp-v2.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-iot-device-sdk-cpp-v2;name=sdk \
 "
+SRCREV_FORMAT = "sdk"
+SRCREV_sdk = "a73593d1003e2b231c6db53710aa6c75d8196b1f"
+SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
 
 S = "${WORKDIR}/git"
 
