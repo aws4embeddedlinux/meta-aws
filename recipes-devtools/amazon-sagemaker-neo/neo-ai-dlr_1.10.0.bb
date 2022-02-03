@@ -7,7 +7,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 BRANCH ?= "release-1.10.0"
 
-SRC_URI = "git://github.com/neo-ai/neo-ai-dlr.git;branch=${BRANCH};tag=v1.10.0 \
+SRC_URI = "git://github.com/neo-ai/neo-ai-dlr.git;protocol=https;branch=${BRANCH};name=neo-ai-dlr \
            file://0002-CMakeLists_remove_test_file_downloads.patch \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/tflite-models/cat224-3.txt;name=cat224-3 \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/test-data/street_small.npy;name=streetsmall \
@@ -22,7 +22,7 @@ SRC_URI = "git://github.com/neo-ai/neo-ai-dlr.git;branch=${BRANCH};tag=v1.10.0 \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.9.0/input_order-ml_m4.tar.gz;name=input-order;subdir=input_order \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.9.0/inverselabel_static-ml_m4.tar.gz;name=inverselabel-static;subdir=inverselabel_static \           
           "
-
+SRCREV_FORMAT = "neo-ai-dlr"
 SRCREV_neo-ai-dlr = "87125a9ce39c83a002f1908d5b3beed3b3a7d2c0"
 
 SRC_URI[cat224-3.md5sum] = "c871a4f847b70a6913e6aba47e5a1664"
@@ -58,6 +58,8 @@ do_configure:prepend() {
   git submodule update --init --recursive
   cd ${B}
 }
+
+do_configure[network] = "true"
 
 do_configure:append() {
   cp -f ${WORKDIR}/cat224-3.txt ${B}/cat224-3.txt
