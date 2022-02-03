@@ -7,7 +7,6 @@ PROVIDES += "aws/aws-iot-device-client"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3eb31626add6ada64ff9ac772bd3c653"
 
 BRANCH ?= "main"
-#SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;protocol=https;branch=${BRANCH};tag=v1.0"
 
 # NOTE: This is v1.0 PLUS a fix for stripping the output binary.  it is why there is no
 #       tag reference.
