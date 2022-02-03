@@ -11,12 +11,14 @@ inherit cmake
 LIC_FILES_CHKSUM = "file://aws-c-iot/LICENSE;md5=2ee41112a44fe7014dce33e26468ba93"
 
 BRANCH ?= "main"
-TAG ?= "v${PV}"
-TAG_COMMON ?= "v0.6.8"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common;tag=${TAG_COMMON} \
-           git://github.com/awslabs/aws-c-iot.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-iot;name=iot;tag=${TAG} \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
+           git://github.com/awslabs/aws-c-iot.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-iot;name=iot \
 "
+
+SRCREV_FORMAT = "iot"
+SRCREV_iot = "118c5bf39712f31918cae8bf77aee766443c3b96"
+SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
 
 S = "${WORKDIR}/git"
 

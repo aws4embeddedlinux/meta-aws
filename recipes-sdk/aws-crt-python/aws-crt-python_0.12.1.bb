@@ -6,9 +6,11 @@ LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 BRANCH ?= "main"
-SRC_URI = "git://github.com/awslabs/aws-crt-python.git;protocol=https;branch=${BRANCH};tag=v0.12.1 \
+SRC_URI = "git://github.com/awslabs/aws-crt-python.git;protocol=https;branch=${BRANCH} \
            file://fix-library-suffix.patch \
 "
+
+SRCREV = "e7e8046195d062ebc34e0addc9d6c1b9c17833de"
 
 S = "${WORKDIR}/git"
 
