@@ -22,6 +22,14 @@ DEPENDS = " \
 "
 
 PACKAGES =+ " \
+    ${PN}-access-management \
+    ${PN}-cloudfront \
+    ${PN}-cognito-identity \
+    ${PN}-cognito-idp \
+    ${PN}-iam \
+    ${PN}-iot \
+    ${PN}-kinesis \
+    ${PN}-lambda \
     ${PN}-s3 \
     ${PN}-sts \
 "
@@ -29,12 +37,32 @@ PACKAGES =+ " \
 PROVIDES += "${PACKAGES}"
 
 FILES:${PN} += "${libdir}/libaws-cpp-sdk-core.so"
+FILES:${PN}-access-management = "${libdir}/libaws-cpp-sdk-access-management.so"
+FILES:${PN}-cloudfront = "${libdir}/libaws-cpp-sdk-cloudfront.so"
+FILES:${PN}-cognito-identity = "${libdir}/libaws-cpp-sdk-cognito-identity.so"
+FILES:${PN}-cognito-idp = "${libdir}/libaws-cpp-sdk-cognito-idp.so"
+FILES:${PN}-iam = "${libdir}/libaws-cpp-sdk-iam.so"
+FILES:${PN}-iot = "${libdir}/libaws-cpp-sdk-iot.so"
+FILES:${PN}-kinesis = "${libdir}/libaws-cpp-sdk-kinesis.so"
+FILES:${PN}-lambda = "${libdir}/libaws-cpp-sdk-lambda.so"
 FILES:${PN}-s3 = "${libdir}/libaws-cpp-sdk-s3.so"
 FILES:${PN}-sts = "${libdir}/libaws-cpp-sdk-sts.so"
 
 FILES_SOLIBSDEV = ""
 
-EXTRA_OECMAKE += "-DBUILD_ONLY='s3;sts'"
+# We can't have spaces in -DBUILD_ONLY, hence the strange formatting
+EXTRA_OECMAKE += "-DBUILD_ONLY='\
+access-management;\
+cloudfront;\
+cognito-identity;\
+cognito-idp;\
+iam;\
+iot;\
+kinesis;\
+lambda;\
+s3;\
+sts;\
+'"
 EXTRA_OECMAKE += "-DBUILD_DEPS=OFF"
 EXTRA_OECMAKE += "-DENABLE_TESTING=OFF"
 EXTRA_OECMAKE += "-DAUTORUN_UNIT_TESTS=OFF"
