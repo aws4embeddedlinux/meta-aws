@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY     = "AWS IoT Greengrass Nucleus - Binary Distribution"
 DESCRIPTION = ""
 LICENSE     = "Apache-2"
@@ -6,18 +7,18 @@ S                          = "${WORKDIR}"
 GG_BASENAME                = "greengrass/v2"
 GG_ROOT                    = "${D}/${GG_BASENAME}"
 LIC_FILES_CHKSUM           = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
-SRC_URI                    = "https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-2.0.3.zip;name=payload; \
+SRC_URI                    = "https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-2.1.0.zip;name=payload; \
                               https://raw.githubusercontent.com/aws-greengrass/aws-greengrass-nucleus/main/LICENSE;name=license; \
                               file://greengrassv2-init.yaml \
                               "
-SRC_URI[payload.md5sum]    = "ac7044434cbd22d336f0722ab5564f3b"
-SRC_URI[payload.sha256sum] = "f548aab67e3c9a383936d612679833e18ce7f5b34d674ce0663703640a2e709e"
+SRC_URI[payload.md5sum]    = "b2452d2ef6d7dec1706244d5766c6821"
+SRC_URI[payload.sha256sum] = "aef0d0d6e2f1f37dd5de106f980d02ef041fdae2cc89f7d478cf7f17e64bb830"
 SRC_URI[license.md5sum]    = "34400b68072d710fecd0a2940a0d1658"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 
 GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
 RDEPENDS_${PN} += "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'ntp-systemd', '', d)}"
-RDEPENDS_${PN} += "corretto-11-bin ca-certificates python3 python3-json python3-numbers"
+RDEPENDS_${PN} += "corretto-11-bin ca-certificates python3 python3-json python3-numbers sudo"
 
 do_configure[noexec] = "1"
 do_compile[noexec]   = "1"
@@ -35,7 +36,7 @@ do_install() {
     install -m 0640 ${WORKDIR}/greengrassv2-init.yaml          ${GG_ROOT}/config/config.yaml.clean
     install -m 0640 ${WORKDIR}/bin/greengrass.service.template ${GG_ROOT}/alts/init/distro/bin/greengrass.service.template
     install -m 0640 ${WORKDIR}/bin/loader                      ${GG_ROOT}/alts/init/distro/bin/loader
-    install -m 0640 ${WORKDIR}/conf/nucleus-build.properties   ${GG_ROOT}/alts/init/distro/conf/nucleus-build.properties
+    install -m 0640 ${WORKDIR}/conf/recipe.yaml                ${GG_ROOT}/alts/init/distro/conf/recipe.yaml
     install -m 0740 ${WORKDIR}/lib/Greengrass.jar              ${GG_ROOT}/alts/init/distro/lib/Greengrass.jar
 
     cd ${GG_ROOT}/alts
@@ -71,4 +72,3 @@ USERADD_PARAM_${PN} = "-r -M -N -g ggc_group -s /bin/false ggc_user"
 #   No GNU_HASH in the elf binary
 #
 INSANE_SKIP_${PN} += "already-stripped ldflags file-rdeps"
-
