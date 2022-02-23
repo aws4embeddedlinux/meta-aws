@@ -28,8 +28,6 @@ BRANCH ?= "main"
 SRC_URI += "git://github.com/awslabs/${BPN};branch=${BRANCH};protocol=https"
 SRCREV = "05ecc4ce7853324f88ac82c31eed63a135868269"
 
-INSANE_SKIP:${PN} += "installed-vs-shipped"
-
 do_install() {
 	install -d ${D}${systemd_system_unitdir}
 	install -d ${D}/opt/aws/${BPN}/etc
