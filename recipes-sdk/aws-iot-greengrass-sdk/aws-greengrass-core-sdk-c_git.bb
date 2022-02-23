@@ -28,5 +28,3 @@ FILES:${PN} += "${includedir}/greengrasssdk.h"
 # Notify that libraries are not versioned
 FILES_SOLIBSDEV = ""
 
-# just ignore produced debug files by cmake build system
-INSANE_SKIP:${PN} += "installed-vs-shipped"
