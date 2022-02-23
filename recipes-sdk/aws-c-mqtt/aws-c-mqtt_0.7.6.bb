@@ -44,6 +44,5 @@ FILES:${PN}-dev = "${includedir}/aws/mqtt/* \
 FILES:${PN}-dbg = "/usr/src/debug/aws-c-mqtt/* \
                    ${libdir}/.debug/lib${PN}.so.1.0.0"
 
-INSANE_SKIP:${PN} += "installed-vs-shipped"
 BBCLASSEXTEND = "native nativesdk"
 
