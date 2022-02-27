@@ -9,6 +9,7 @@ SRCREV = "f92f55ec4a77aa0905fbac4b54d83b3651358862"
 S = "${WORKDIR}/git"
 
 inherit setuptools3
+PIP_INSTALL_PACKAGE = "boto3"
 
 # python3 needs to be included since there are core dependencies such
 # as getpass.
