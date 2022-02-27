@@ -15,6 +15,10 @@ SRCREV = "e7e8046195d062ebc34e0addc9d6c1b9c17833de"
 S = "${WORKDIR}/git"
 
 inherit setuptools3
+PIP_INSTALL_PACKAGE = "awscrt"
+# PV needs to match version in setup.py
+PV = "1.0.0.dev0"
+PKGV = "0.12.1"
 
 AWS_C_INSTALL = "${D}/usr/lib;${S}/source"
 DEPENDS += "cmake-native ${PYTHON_PN}-setuptools-native s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checksums aws-c-event-stream aws-c-s3"
