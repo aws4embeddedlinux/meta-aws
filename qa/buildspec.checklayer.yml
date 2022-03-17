@@ -34,4 +34,5 @@ phases:
         --output-log ycl-check.log \
         --debug \
         --no-auto \
+        --without-software-layer-signature-check \
         $CODEBUILD_SRC_DIR/
