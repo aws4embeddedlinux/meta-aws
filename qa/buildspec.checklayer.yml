@@ -21,7 +21,7 @@ phases:
       - chmod +x $HOME/repo
       - mkdir $HOME/dist
       - cd $HOME/dist
-      - $HOME/repo init -u https://github.com/aws/meta-aws -m qa/repo.checklayer.${YP_RELEASE}.xml
+      - $HOME/repo init -u https://github.com/aws4embeddedlinux/meta-aws -m qa/repo.checklayer.${YP_RELEASE}.xml
       - $HOME/repo sync
       - export PATH=$HOME/dist/poky/scripts:$HOME/dist/poky/bitbake/bin:$PATH
       - export BUILDDIR=$CODEBUILD_SRC_DIR/qa/checklayer
