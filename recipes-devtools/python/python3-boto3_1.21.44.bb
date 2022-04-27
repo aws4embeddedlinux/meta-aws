@@ -4,11 +4,13 @@ HOMEPAGE = "https://github.com/boto/boto3"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=2ee41112a44fe7014dce33e26468ba93"
 
-SRC_URI = "git://github.com/boto/boto3.git;protocol=https;tag=1.18.48"
+SRC_URI = "git://github.com/boto/boto3.git;protocol=https;branch=master"
+SRCREV = "5f6ba70f29c46e2c3e605162a4dd1f8678ea76b9"
 S = "${WORKDIR}/git"
 
 inherit setuptools3
+PIP_INSTALL_PACKAGE = "boto3"
 
 # python3 needs to be included since there are core dependencies such
 # as getpass.
-RDEPENDS_${PN} += "python3 python3-jmespath python3-botocore python3-s3transfer"
+RDEPENDS:${PN} += " python3 python3-jmespath python3-botocore python3-s3transfer python3-logging"
