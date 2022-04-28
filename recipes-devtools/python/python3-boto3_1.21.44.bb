@@ -13,4 +13,4 @@ PIP_INSTALL_PACKAGE = "boto3"
 
 # python3 needs to be included since there are core dependencies such
 # as getpass.
-RDEPENDS:${PN} += " python3 python3-jmespath python3-botocore python3-s3transfer python3-logging"
+RDEPENDS:${PN} += " python3-core python3-jmespath python3-botocore python3-s3transfer python3-logging"
