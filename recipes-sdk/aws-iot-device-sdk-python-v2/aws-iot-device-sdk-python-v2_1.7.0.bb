@@ -17,4 +17,4 @@ SRCREV = "5aef82573202309063eb540b72cee0e565f85a2d"
 
 S = "${WORKDIR}/git"
 
-RDEPENDS:${PN} += "python3 aws-crt-python"
+RDEPENDS:${PN} += "python3-core aws-crt-python"

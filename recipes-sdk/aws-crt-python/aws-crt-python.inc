@@ -12,5 +12,5 @@ do_configure:prepend() {
 }
 
 DEPENDS += "cmake-native ${PYTHON_PN}-setuptools-native"
-RDEPENDS:${PN} = "python3"
+RDEPENDS:${PN} = "python3-core"
 CFLAGS:append = " -Wl,-Bsymbolic"
