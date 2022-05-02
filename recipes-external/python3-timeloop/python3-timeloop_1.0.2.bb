@@ -11,5 +11,5 @@ SRCREV = "36ec5cbb133a6dcfb5316f59b5e11765c14e62c2"
 
 S = "${WORKDIR}/git"
 
-RDEPENDS:${PN} += "python3"
+RDEPENDS:${PN} += "python3-core"
 
