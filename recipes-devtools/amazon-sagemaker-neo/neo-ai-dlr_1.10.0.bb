@@ -107,7 +107,7 @@ PACKAGES =+ "${PN}-tests"
 FILES:${PN}-tests = "${datadir}/dlr/tests"
 RDEPENDS:${PN}-tests += "${PN}"
 DEPENDS += "googletest python3-setuptools"
-RDEPENDS:${PN} += "python3 python3-shell python3-requests python3-distro python3-numpy"
+RDEPENDS:${PN} += "python3-core python3-shell python3-requests python3-distro python3-numpy"
 
 # Versioned libs are not produced
 FILES_SOLIBSDEV = ""

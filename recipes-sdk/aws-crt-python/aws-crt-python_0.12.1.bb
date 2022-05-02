@@ -22,5 +22,5 @@ PKGV = "0.12.1"
 
 AWS_C_INSTALL = "${D}/usr/lib;${S}/source"
 DEPENDS += "cmake-native ${PYTHON_PN}-setuptools-native s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checksums aws-c-event-stream aws-c-s3"
-RDEPENDS:${PN} = "python3 s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checksums aws-c-event-stream"
+RDEPENDS:${PN} = "python3-core s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checksums aws-c-event-stream"
 CFLAGS:append = " -Wl,-Bsymbolic"
