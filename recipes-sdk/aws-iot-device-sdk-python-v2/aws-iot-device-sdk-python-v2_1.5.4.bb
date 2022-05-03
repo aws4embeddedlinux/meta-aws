@@ -18,4 +18,4 @@ do_configure_append() {
   sed --in-place -E "s/version='.+'/version='${PV}'/" ${S}/setup.py
 }
 
-RDEPENDS_${PN} += "python3 aws-crt-python"
+RDEPENDS_${PN} += "python3-core aws-crt-python"
