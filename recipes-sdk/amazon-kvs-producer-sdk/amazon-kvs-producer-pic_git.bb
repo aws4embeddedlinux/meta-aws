@@ -1,7 +1,7 @@
 # -*- mode: Conf; -*-
 SUMMARY = "Amazon Kinesis Video Streams PIC"
 DESCRIPTION = "Platform independent code layer for KVS Producer SDK"
-HOMEPAGE = ""
+HOMEPAGE = "https://github.com/awslabs/amazon-kinesis-video-streams-pic"
 LICENSE = "Apache-2.0"
 PROVIDES += "aws/amazon-kvs-producer-pic"
 
@@ -10,10 +10,13 @@ inherit cmake
 BRANCH ?= "master"
 SDIR ?= "amazon-kvs-producer-pic"
 
-LIC_FILES_CHKSUM = "file://${SDIR}/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-pic.git;protocol=https;branch=${BRANCH};destsuffix=${S}/${SDIR}"
-SRCREV = "89a999684658da4e75e465dd601b4d56f4d91025"
+SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-pic.git;protocol=https;branch=${BRANCH}"
+
+# this project do not use version tags, use latest commit
+UPSTREAM_CHECK_COMMITS = "1"
+SRCREV = "c8325887faa3a4a296c4367b281c778be69875b6"
 
 S = "${WORKDIR}/git"
 
@@ -21,7 +24,6 @@ DEPENDS = "gtest "
 RDEPENDS:${PN} = ""
 CFLAGS:append = " -Wl,-Bsymbolic"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
-OECMAKE_SOURCEPATH += "${S}/${SDIR}"
 
 EXTRA_OECMAKE += "-DBUILD_DEPENDENCIES=OFF"
 EXTRA_OECMAKE += "-DBUILD_TEST=FALSE"
