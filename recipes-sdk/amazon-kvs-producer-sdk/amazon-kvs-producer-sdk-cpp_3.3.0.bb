@@ -15,6 +15,7 @@ LIC_FILES_CHKSUM = "file://${SDIR}/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git;protocol=https;branch=${BRANCH};destsuffix=${S}/${SDIR} \
            file://amazon-kvs-producer-sdk-cpp-deps.patch"
+
 SRCREV = "00ba9cfc3f1835adad1a626f2c86ec082b8bfbac"
 
 S = "${WORKDIR}/git"

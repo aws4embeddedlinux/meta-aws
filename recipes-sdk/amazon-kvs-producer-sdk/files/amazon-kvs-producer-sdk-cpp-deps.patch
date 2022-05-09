@@ -1,7 +1,7 @@
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 1836e61..6177aa0 100644
---- a/amazon-kvs-producer-sdk-cpp/CMakeLists.txt
-+++ b/amazon-kvs-producer-sdk-cpp/CMakeLists.txt
+Index: git/amazon-kvs-producer-sdk-cpp/CMakeLists.txt
+===================================================================
+--- git.orig/amazon-kvs-producer-sdk-cpp/CMakeLists.txt
++++ git/amazon-kvs-producer-sdk-cpp/CMakeLists.txt
 @@ -84,13 +84,15 @@ set(BUILD_COMMON_LWS
  set(BUILD_COMMON_CURL
      TRUE
