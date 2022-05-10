@@ -5,15 +5,12 @@ HOMEPAGE = "https://github.com/aws/aws-iot-device-sdk-python-v2"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
 
-
 inherit setuptools3
-PIP_INSTALL_PACKAGE = "awsiotsdk"
-PKGV = "1.5.4"
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/aws/aws-iot-device-sdk-python-v2.git;protocol=https;branch=${BRANCH};name=aws-iot-device-sdk-python-v2"
-SRCREV = "a7739a6f980292ae146e064b18f3f2723019261e"
+SRC_URI = "git://github.com/aws/aws-iot-device-sdk-python-v2.git;protocol=https;branch=${BRANCH}"
+SRCREV = "53a75c3ffa008e093c0904e88b8e3cbfd4c90f00"
 
 S = "${WORKDIR}/git"
 
