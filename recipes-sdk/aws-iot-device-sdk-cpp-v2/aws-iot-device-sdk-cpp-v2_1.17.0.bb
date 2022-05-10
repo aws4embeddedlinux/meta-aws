@@ -7,26 +7,21 @@ PROVIDES += "aws/aws-iot-device-sdk-cpp-v2"
 
 inherit cmake
 
-LIC_FILES_CHKSUM = "file://aws-iot-device-sdk-cpp-v2/LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/aws/aws-iot-device-sdk-cpp-v2.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-iot-device-sdk-cpp-v2;name=sdk \
-"
-SRCREV_FORMAT = "sdk"
-SRCREV_sdk = "a73593d1003e2b231c6db53710aa6c75d8196b1f"
-SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
+SRC_URI = "git://github.com/aws/aws-iot-device-sdk-cpp-v2.git;protocol=https;branch=${BRANCH}"
+SRCREV = "3f5712629da0eef4bf58d389674666bf56f78e70"
 
 S = "${WORKDIR}/git"
 
-DEPENDS = "openssl aws-crt-cpp aws-c-iot aws-c-http"
+DEPENDS = "aws-crt-cpp aws-c-iot aws-c-http aws-c-common"
 RDEPENDS:${PN} = "aws-crt-cpp aws-c-iot"
 CFLAGS:append = " -Wl,-Bsymbolic"
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
-OECMAKE_SOURCEPATH += "${S}/aws-iot-device-sdk-cpp-v2"
 
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
+EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake"
 EXTRA_OECMAKE += "-DBUILD_DEPS=OFF"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"

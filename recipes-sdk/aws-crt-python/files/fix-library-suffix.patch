@@ -1,8 +1,17 @@
+From 4d5c07fc10f5fbecb50cce1b95872ffca4090fd4 Mon Sep 17 00:00:00 2001
+From: rpcme <rich@richelberger.com>
+Date: Mon, 13 Sep 2021 16:27:00 -0400
+Subject: [PATCH] upgrade support for CRT Python and Device SDK Python v2
+
+---
+ setup.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
 diff --git a/setup.py b/setup.py
-index eef396b..d9997b8 100644
+index 1e7ce97..46fa4ba 100644
 --- a/setup.py
 +++ b/setup.py
-@@ -254,7 +254,7 @@ def awscrt_ext():
+@@ -289,7 +289,7 @@ def awscrt_ext():
      else:  # unix
          # linker will prefer shared libraries over static if it can find both.
          # force linker to choose static variant by using using "-l:libcrypto.a" syntax instead of just "-lcrypto".
@@ -10,4 +19,4 @@ index eef396b..d9997b8 100644
 +        libraries = [':lib{}.so'.format(x) for x in libraries]
          libraries += ['rt']
  
-     if distutils.ccompiler.get_default_compiler() != 'msvc':
+         # python usually adds -pthread automatically, but we've observed

@@ -8,33 +8,26 @@ PROVIDES += "aws/crt-c-s3"
 
 inherit cmake
 
-LIC_FILES_CHKSUM = "file://aws-c-s3/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/awslabs/aws-c-s3.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-s3;name=s3 \
-"
-SRCREV_FORMAT = "s3"
-SRCREV_s3 = "dca8df1acb75d61db1b309f961ff20994d42c14f"
-SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
+SRC_URI = "git://github.com/awslabs/aws-c-s3.git;protocol=https;branch=${BRANCH}"
+
+SRCREV = "1bd822250c4b51050ad7e6d5da3421fac3e00fd9"
 
 S= "${WORKDIR}/git"
 
-DEPENDS = "openssl aws-c-auth aws-c-http"
-RDEPENDS:${PN} = "aws-c-auth aws-c-http"
+DEPENDS = "openssl aws-c-auth aws-c-http aws-checksums"
+RDEPENDS:${PN} = "aws-c-auth aws-c-http aws-checksums"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
-OECMAKE_SOURCEPATH = "${S}/aws-c-s3"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
-EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
-EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D${prefix}"
-EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D${prefix}"
+EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake"
+EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
+EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
-OECMAKE_SOURCEPATH += "${S}"
-
 
 FILES:${PN} = " \
     ${libdir}/*.so.1.0.0 \

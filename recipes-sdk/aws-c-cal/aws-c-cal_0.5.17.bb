@@ -8,17 +8,13 @@ PROVIDES += "aws/crt-c-cal"
 
 inherit cmake
 
-LIC_FILES_CHKSUM = "file://aws-c-cal/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/awslabs/aws-c-cal.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-cal;name=cal \
-"
+SRC_URI = "git://github.com/awslabs/aws-c-cal.git;protocol=https;branch=${BRANCH};"
 
-SRCREV_FORMAT = "cal"
-SRCREV_cal = "aa89aa4950074babe84762413f39bd364ecaf944"
-SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
+SRCREV = "7eb1d7360ea205ff275d2acc6cce2682063b643f"
 
 
 S = "${WORKDIR}/git"
@@ -27,12 +23,10 @@ DEPENDS = "openssl s2n aws-c-common"
 RDEPENDS:${PN} = "s2n aws-c-common"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
-OECMAKE_SOURCEPATH = "${S}/aws-c-cal"
-OECMAKE_BUILDPATH = "${WORKDIR}/build"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
-EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
-EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D${prefix}"
-EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D${prefix}"
+EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake"
+EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
+EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 
 FILES:${PN} = " \

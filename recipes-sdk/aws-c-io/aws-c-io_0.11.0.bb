@@ -8,32 +8,26 @@ PROVIDES += "aws/crt-c-io"
 
 inherit cmake
 
-LIC_FILES_CHKSUM = "file://aws-c-io/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/awslabs/aws-c-io.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-io;name=io \
-"
+SRC_URI = "git://github.com/awslabs/aws-c-io.git;protocol=https;branch=${BRANCH}"
 
-SRCREV_FORMAT="io"
-SRCREV_io = "57b00febac48e78f8bf8cff4c82a249e6648842a"
-SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
+SRCREV = "8f4508f5ec7d2949d5545e2b1ddcd1beb47a76a8"
 
 S = "${WORKDIR}/git"
 
 DEPENDS = "openssl s2n aws-c-common aws-c-cal"
 RDEPENDS:${PN} = "s2n aws-c-common aws-c-cal"
 
-AWS_C_INSTALL = "$D${prefix}"
-OECMAKE_SOURCEPATH = "${S}/aws-c-io"
+AWS_C_INSTALL = "$D/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
-EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
-EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D${prefix}"
-EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D${prefix}"
+EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake"
+EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
+EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
-OECMAKE_SOURCEPATH += "${S}"
+
 
 FILES:${PN}     = " \
     ${libdir}/*.so.1.0.0 \

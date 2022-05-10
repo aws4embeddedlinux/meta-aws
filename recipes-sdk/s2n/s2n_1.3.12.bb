@@ -11,9 +11,10 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=26d85861cd0c0d05ab56ebff38882975"
 
 BRANCH ?= "main"
 SRC_URI = "git://github.com/aws/s2n-tls.git;protocol=https;branch=${BRANCH} \
-           file://0002-cmakelists-remove-warn.patch \
-"
-SRCREV = "6de5de43f4def520c6e06d8a50681d01837cc640"
+           file://0001-cmakelists-remove-warn.patch"
+
+SRCREV = "8314a96de0c33a426ae877856a8a1a431d354e0d"
+UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S= "${WORKDIR}/git"
 
@@ -29,8 +30,6 @@ TARGET_CC_ARCH += "${LDFLAGS}"
 
 # Assume that warnings from upstream have already been evaluated
 EXTRA_OECMAKE += "-DUNSAFE_TREAT_WARNINGS_AS_ERRORS=OFF"
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
-OECMAKE_SOURCEPATH += "${S}"
 
 FILES:${PN} += "${libdir}/libs2n.so"
 
