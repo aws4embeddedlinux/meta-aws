@@ -8,34 +8,26 @@ PROVIDES += "aws/crt-c-mqtt"
 
 inherit cmake
 
-LIC_FILES_CHKSUM = "file://aws-c-mqtt/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/awslabs/aws-c-mqtt.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-mqtt;name=mqtt \
-           file://fix-missing-macro.patch;patchdir=${S}/aws-c-mqtt/ \
-"
+SRC_URI = "git://github.com/awslabs/aws-c-mqtt.git;protocol=https;branch=${BRANCH}"
 
-SRCREV_FORMAT = "mqtt"
-SRCREV_mqtt = "0a70bf814845e487b7e4862af7ad9e4a1199b5f4"
-SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
+SRCREV = "6168e32bf9f745dec40df633b78baa03420b7f83"
 
 S = "${WORKDIR}/git"
 
-DEPENDS = "openssl s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http"
+DEPENDS = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http"
 RDEPENDS:${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http"
 
-OECMAKE_SOURCEPATH = "${S}/aws-c-mqtt"
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "-DBUILD_TEST_DEPS=OFF"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
-EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
+EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake"
 EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
-OECMAKE_SOURCEPATH += "${S}"
 
 FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
 FILES:${PN}-dev = "${includedir}/aws/mqtt/* \

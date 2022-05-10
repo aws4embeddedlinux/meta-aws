@@ -8,30 +8,24 @@ PROVIDES += "aws/aws-c-iot"
 
 inherit cmake
 
-LIC_FILES_CHKSUM = "file://aws-c-iot/LICENSE;md5=2ee41112a44fe7014dce33e26468ba93"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=2ee41112a44fe7014dce33e26468ba93"
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
-           git://github.com/awslabs/aws-c-iot.git;protocol=https;branch=${BRANCH};destsuffix=${S}/aws-c-iot;name=iot \
-"
+SRC_URI = "git://github.com/awslabs/aws-c-iot.git;protocol=https;branch=${BRANCH}"
 
-SRCREV_FORMAT = "iot"
-SRCREV_iot = "118c5bf39712f31918cae8bf77aee766443c3b96"
-SRCREV_common = "2a28532d6f13435907ae200a5aea449c01e79149"
+SRCREV = "9a5d6a85484d06024dc18c4778ba733266a634ee"
 
 S = "${WORKDIR}/git"
 
-DEPENDS = "aws-crt-cpp"
-RDEPENDS:${PN} = "aws-crt-cpp"
+DEPENDS = "aws-crt-cpp aws-c-common"
+RDEPENDS:${PN} = "aws-crt-cpp aws-c-common"
 
-OECMAKE_SOURCEPATH = "${S}/aws-c-iot"
 CFLAGS:append = " -Wl,-Bsymbolic"
-EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
+EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake"
 EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
 
 FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
                    ${libdir}/lib${PN}.so.0unstable"
