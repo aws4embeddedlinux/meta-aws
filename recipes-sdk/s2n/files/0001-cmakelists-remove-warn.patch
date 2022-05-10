@@ -1,21 +1,23 @@
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index a93d51f5..dbead898 100755
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -171,13 +171,21 @@ file(GLOB S2N_SRC
+Index: git/CMakeLists.txt
+===================================================================
+--- git.orig/CMakeLists.txt
++++ git/CMakeLists.txt
+@@ -336,14 +336,22 @@ file(GLOB S2N_SRC
  )
  
  add_library(${PROJECT_NAME} ${S2N_HEADERS} ${S2N_SRC})
 -set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE C)
  
 -set(CMAKE_C_FLAGS_DEBUGOPT "")
+ 
+-target_compile_options(${PROJECT_NAME} PRIVATE -pedantic -std=gnu99 -Wall -Wimplicit -Wunused -Wcomment -Wchar-subscripts
+-        -Wuninitialized -Wshadow -Wcast-align -Wwrite-strings -Wno-deprecated-declarations -Wno-unknown-pragmas -Wformat-security
+-        -Wno-missing-braces -Wa,--noexecstack
+-)
 +set_target_properties(${PROJECT_NAME}
 +                      PROPERTIES LINKER_LANGUAGE C
 +                                 C_STANDARD 99 )
- 
--target_compile_options(${PROJECT_NAME} PRIVATE -pedantic -std=gnu99 -Wall -Werror -Wimplicit -Wunused -Wcomment -Wchar-subscripts
--        -Wuninitialized -Wshadow -Wcast-qual -Wcast-align -Wwrite-strings -Wno-deprecated-declarations -Wno-unknown-pragmas -Wformat-security
--        -Wno-missing-braces -fvisibility=hidden -DS2N_EXPORTS)
++
 +target_compile_options(${PROJECT_NAME} PRIVATE -Wa,--noexecstack -DS2N_EXPORTS)
 +
 +#set extra warning flags for debug build
@@ -27,5 +29,5 @@ index a93d51f5..dbead898 100755
 +    target_compile_options(${PROJECT_NAME} PRIVATE -Wformat-security -Wno-missing-braces )
 +endif ()
  
- if(S2N_NO_PQ)
-     target_compile_options(${PROJECT_NAME} PUBLIC -DS2N_NO_PQ)
+ if (UNSAFE_TREAT_WARNINGS_AS_ERRORS)
+     target_compile_options(${PROJECT_NAME} PRIVATE -Werror )
