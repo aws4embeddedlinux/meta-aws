@@ -6,10 +6,10 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e"
 
 SRC_URI = " \
     git://github.com/aws/aws-sdk-cpp.git;protocol=https;branch=main \
-    file://0001-build-don-t-use-Werror.patch \
-    file://0002-build-fix-building-without-external-dependencies.patch \
-"
-SRCREV = "b52ce4809f9f0c352f282f981483d1879bc5ed3f"
+    file://0002-build-fix-building-without-external-dependencies.patch"
+ 
+
+SRCREV = "4c4079462e9afdb9950b40a46e40c834702e2c8b"
 
 S = "${WORKDIR}/git"
 
@@ -66,3 +66,6 @@ sts;\
 EXTRA_OECMAKE += "-DBUILD_DEPS=OFF"
 EXTRA_OECMAKE += "-DENABLE_TESTING=OFF"
 EXTRA_OECMAKE += "-DAUTORUN_UNIT_TESTS=OFF"
+
+# -Werror will cause deprecation warnings to fail the build e.g. OpenSSL cause one, so disable these warnings
+OECMAKE_CXX_FLAGS += "-Wno-deprecated-declarations"
