@@ -1,16 +1,15 @@
-From 344983948f3d20bee0c6649560802e4701b62a5f Mon Sep 17 00:00:00 2001
+From 6214703425d8369b09d8a6417ea77ccdd45b4e3a Mon Sep 17 00:00:00 2001
 From: Bartosz Golaszewski <brgl@bgdev.pl>
 Date: Mon, 7 Feb 2022 12:23:10 +0100
-Subject: [PATCH 2/2] build: fix building without external dependencies
+Subject: [PATCH] build: fix building without external dependencies
 
 Configuration fails with -DBUILD_DEPS=OFF because the AwsFindPackage()
 cmake file is located in one of the external repos. Pull it into the
 main git repo to fix it.
 
 Signed-off-by: Bartosz Golaszewski <brgl@bgdev.pl>
----
-Upstream-Status: submitted
 
+---
  cmake/AwsFindPackage.cmake | 22 ++++++++++++++++++++++
  1 file changed, 22 insertions(+)
  create mode 100644 cmake/AwsFindPackage.cmake
@@ -43,6 +42,3 @@ index 0000000000..f7abd14e14
 +        set(DEP_AWS_LIBS ${DEP_AWS_LIBS} AWS::${package_name} PARENT_SCOPE)
 +    endif()
 +endfunction()
--- 
-2.30.1
-
