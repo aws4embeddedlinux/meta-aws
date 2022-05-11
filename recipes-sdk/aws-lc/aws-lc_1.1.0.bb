@@ -39,3 +39,5 @@ FILES:${PN}-dbg = "$D{$prefix}/src/debug/aws-lc/*"
 
 BBCLASSEXTEND = "native nativesdk"
 
+# -Werror will cause https://github.com/awslabs/aws-lc/issues/487
+OECMAKE_C_FLAGS += "-Wno-array-bounds -Wno-stringop-overflow"
