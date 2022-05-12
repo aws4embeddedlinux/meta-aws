@@ -10,7 +10,6 @@ SRCREV = "dea830bc3215b12ab1b5cb64f442c67576c1ecfb"
 S = "${WORKDIR}/git"
 
 inherit setuptools3
-PIP_INSTALL_PACKAGE = "s3transfer"
 
 RDEPENDS:${PN} += "python3-botocore \
                    python3-asyncio \

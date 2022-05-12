@@ -9,6 +9,5 @@ SRCREV = "90e1cd867ec99df99b93a75dc1098d6f8638002f"
 S = "${WORKDIR}/git"
 
 inherit setuptools3
-PIP_INSTALL_PACKAGE = "botocore"
 
 RDEPENDS:${PN} += "python3-jmespath python3-dateutil python3-logging"
