@@ -15,7 +15,7 @@ UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
 
-inherit setuptools3
+inherit setuptools3_legacy
 
 
 AWS_C_INSTALL = "${D}/usr/lib;${S}/source"

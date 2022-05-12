@@ -17,7 +17,7 @@ S = "${WORKDIR}/git"
 
 RDEPENDS:${PN} = "${PYTHON_PN}"
 
-inherit setuptools3
+inherit setuptools3_legacy
 
 # Copy examples into rootfs
 do_install:append() {

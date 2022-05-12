@@ -8,8 +8,7 @@ SRC_URI = "git://github.com/boto/boto3.git;protocol=https;branch=master"
 SRCREV = "5f6ba70f29c46e2c3e605162a4dd1f8678ea76b9"
 S = "${WORKDIR}/git"
 
-inherit setuptools3
-PIP_INSTALL_PACKAGE = "boto3"
+inherit setuptools3_legacy
 
 # python3 needs to be included since there are core dependencies such
 # as getpass.

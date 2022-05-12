@@ -7,7 +7,7 @@ SRC_URI = "git://github.com/aws/aws-cli.git;protocol=https"
 SRCREV = "bf9bb5b60cd24b97d642646c7f7d6c17e320c576"
 S = "${WORKDIR}/git"
 
-inherit setuptools3
+inherit setuptools3_legacy
 
 RDEPENDS:${PN} += " \
     python3-botocore \
