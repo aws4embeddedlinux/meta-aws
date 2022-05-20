@@ -105,7 +105,7 @@ SRC_URI += " \
 "
 
 SRCREV_FORMAT .= "_kvm-bindings"
-SRCREV_kvm-bindings = "v0.3.0-3"
+SRCREV_kvm-bindings = "640ea4fd7c9fa3bb6317ce73a68f5792c9f1feef"
 EXTRA_OECARGO_PATHS += "${WORKDIR}/kvm-bindings"
 
 LIC_FILES_CHKSUM = " \
