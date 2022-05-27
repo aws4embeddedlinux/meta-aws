@@ -1,0 +1,28 @@
+From 96ab5ffcbfab68038aff994eff0a36c4d2a8785a Mon Sep 17 00:00:00 2001
+From: nateglims <glimsdal@amazon.com>
+Date: Fri, 27 May 2022 17:52:02 +0000
+Subject: [PATCH] Remove abort panic from the workspace
+
+---
+ Cargo.toml | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/Cargo.toml b/Cargo.toml
+index ac01558f..2fbed68d 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -2,11 +2,7 @@
+ members = ["src/firecracker", "src/jailer"]
+ default-members = ["src/firecracker"]
+ 
+-[profile.dev]
+-panic = "abort"
+-
+ [profile.release]
+-panic = "abort"
+ lto = true
+ 
+ [patch.crates-io]
+-- 
+2.25.1
+
