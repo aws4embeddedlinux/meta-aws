@@ -1,5 +1,14 @@
+From 61b7dbd74102f2a8c2d9f1ed466e4d9c886d7363 Mon Sep 17 00:00:00 2001
+From: Richard Elberger <elberger@amazon.com>
+Date: Thu, 28 Oct 2021 21:12:54 -0400
+Subject: [PATCH] Merge Master-next into Master (#228)
+
+---
+ setup/aws-iot-device-client.service | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
 diff --git a/setup/aws-iot-device-client.service b/setup/aws-iot-device-client.service
-index 88254c5..5ee86e8 100644
+index 88254c5..e3b338f 100644
 --- a/setup/aws-iot-device-client.service
 +++ b/setup/aws-iot-device-client.service
 @@ -4,7 +4,8 @@ Wants=network-online.target

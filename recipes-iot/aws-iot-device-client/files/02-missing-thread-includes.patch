@@ -1,3 +1,12 @@
+From e8550df593cf65a55f9d9ed26444e1c21b89e40b Mon Sep 17 00:00:00 2001
+From: rpcme <rich@richelberger.com>
+Date: Thu, 9 Sep 2021 17:37:54 -0400
+Subject: [PATCH] new version support for aws iot device client
+
+---
+ source/shadow/SampleShadowFeature.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
 diff --git a/source/shadow/SampleShadowFeature.cpp b/source/shadow/SampleShadowFeature.cpp
 index a37ceec..383c225 100644
 --- a/source/shadow/SampleShadowFeature.cpp
