@@ -17,7 +17,7 @@ SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;protocol=https;bra
            file://03-serviced-config.patch \
 "
 
-SRCREV = "40be127ac8467ab16686d8e9bd5c240a521a5a24"
+SRCREV = "a2583a491d95cdc2e8ba3d6a1007d07d98a8c93e"
 
 S= "${WORKDIR}/git"
 DEPENDS = "openssl aws-iot-device-sdk-cpp-v2 googletest"
@@ -28,7 +28,7 @@ inherit cmake
 do_install() {
   install -d ${D}${base_sbindir}
   install -d ${D}${sysconfdir}
-  install -d ${D}${sysconfdir}/aws-iot-device-client
+  install -d -m 0700 ${D}${sysconfdir}/aws-iot-device-client
   install -d ${D}${systemd_unitdir}/system
 
   install -m 0755 ${WORKDIR}/build/aws-iot-device-client \
@@ -42,7 +42,7 @@ OECMAKE_SOURCEPATH += "${S}"
 EXTRA_OECMAKE += "-DBUILD_SDK=OFF"
 EXTRA_OECMAKE += "-DBUILD_TEST_DEPS=OFF"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
-EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
+EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
 EXTRA_OECMAKE += "-DCMAKE_VERBOSE_MAKEFILE=ON"
 EXTRA_OECMAKE += "-DCMAKE_CXX_FLAGS_RELEASE=-s"
 
@@ -59,8 +59,6 @@ PACKAGECONFIG[dsn]     = "-DEXCLUDE_SAMPLE_SHADOW=OFF,-DEXCLUDE_SAMPLE_SHADOW=ON
 FILES:${PN} += "${base_sbindir}/sbin/aws-iot-device-client"
 FILES:${PN} += "${systemd_system_unitdir}/aws-iot-device-client.service"
 FILES:${PN} += "${sysconfdir}/aws-iot-device-client.json"
-
-INSANE_SKIP:${PN}:append = "already-stripped"
 
 inherit systemd
 SYSTEMD_AUTO_ENABLE = "enable"
