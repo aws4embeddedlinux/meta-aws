@@ -1,0 +1,67 @@
+# note: this software build its depending libraries such as aws-lc in do_compile step, but finally links to the libs specified by DEPENDS!
+# the 0002-disable-building-of-depending-libs.patch disable this behaviour, therefore it's not necessary to checkout the submodules (git:// instead of gitsm://)
+
+---
+ setup.py | 35 +----------------------------------
+ 1 file changed, 1 insertion(+), 34 deletions(-)
+
+diff --git a/setup.py b/setup.py
+index 46fa4ba..b4d41fc 100644
+--- a/setup.py
++++ b/setup.py
+@@ -111,33 +111,6 @@ class AwsLib:
+         self.libname = libname if libname else name
+ 
+ 
+-# The extension depends on these libs.
+-# They're built along with the extension, in the order listed.
+-AWS_LIBS = []
+-if sys.platform != 'darwin' and sys.platform != 'win32':
+-    AWS_LIBS.append(AwsLib(name='aws-lc',
+-                           libname='crypto',  # We link against libcrypto.a
+-                           extra_cmake_args=[
+-                               # We don't need libssl.a
+-                               '-DBUILD_LIBSSL=OFF',
+-                               # Disable running codegen on user's machine.
+-                               # Up-to-date generated code is already in repo.
+-                               '-DDISABLE_PERL=ON', '-DDISABLE_GO=ON',
+-                           ]))
+-    AWS_LIBS.append(AwsLib(name='s2n', extra_cmake_args=['-DUNSAFE_TREAT_WARNINGS_AS_ERRORS=OFF']))
+-AWS_LIBS.append(AwsLib('aws-c-common'))
+-AWS_LIBS.append(AwsLib('aws-c-sdkutils'))
+-AWS_LIBS.append(AwsLib('aws-c-cal'))
+-AWS_LIBS.append(AwsLib('aws-c-io'))
+-AWS_LIBS.append(AwsLib('aws-checksums'))
+-AWS_LIBS.append(AwsLib('aws-c-compression'))
+-AWS_LIBS.append(AwsLib('aws-c-event-stream'))
+-AWS_LIBS.append(AwsLib('aws-c-http'))
+-AWS_LIBS.append(AwsLib('aws-c-auth'))
+-AWS_LIBS.append(AwsLib('aws-c-mqtt'))
+-AWS_LIBS.append(AwsLib('aws-c-s3'))
+-
+-
+ PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
+ 
+ VERSION_RE = re.compile(r""".*__version__ = ["'](.*?)['"]""", re.S)
+@@ -245,8 +218,6 @@ class awscrt_build_ext(setuptools.command.build_ext.build_ext):
+         # build dependencies
+         dep_build_dir = os.path.join(self.build_temp, 'deps')
+         dep_install_path = os.path.join(self.build_temp, 'deps', 'install')
+-        for lib in AWS_LIBS:
+-            self._build_dependency(lib, dep_build_dir, dep_install_path)
+ 
+         # update paths so awscrt_ext can access dependencies
+         self.include_dirs.append(os.path.join(dep_install_path, 'include'))
+@@ -269,11 +240,7 @@ def awscrt_ext():
+     extra_compile_args = os.environ.get('CFLAGS', '').split()
+     extra_link_args = os.environ.get('LDFLAGS', '').split()
+     extra_objects = []
+-
+-    libraries = [x.libname for x in AWS_LIBS]
+-
+-    # libraries must be passed to the linker with upstream dependencies listed last.
+-    libraries.reverse()
++    libraries = []
+ 
+     if sys.platform == 'win32':
+         # the windows apis being used under the hood. Since we're static linking we have to follow the entire chain down
