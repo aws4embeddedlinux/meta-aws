@@ -16,8 +16,6 @@ S = "${WORKDIR}/git"
 
 inherit setuptools3
 PIP_INSTALL_PACKAGE = "awscrt"
-# PV needs to match version in setup.py
-PV = "1.0.0.dev0"
 PKGV = "0.12.1"
 
 AWS_C_INSTALL = "${D}/usr/lib;${S}/source"
