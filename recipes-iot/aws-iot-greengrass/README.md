@@ -58,7 +58,7 @@ GGV2_THING_NAME  = "workstation"
 GGV2_TES_RALIAS  = "GreengrassV2TokenExchangeRoleAlias"
 ```
 
-More docs will come later on how to get each of these values.
+In order to get the information above you can follow the instructions provided here: https://docs.aws.amazon.com/greengrass/v2/developerguide/manual-installation.html
 
 
 ## AWS IoT Greengrass V1
