@@ -6,7 +6,7 @@ HOMEPAGE = "https://github.com/aws/aws-iot-device-sdk-python.git"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=9ac49901b833e769c7d6f21e8dbd7b30"
 
-inherit setuptools3
+inherit setuptools3_legacy
 
 BRANCH ?= "master"
 
