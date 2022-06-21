@@ -1,24 +1,34 @@
-# -*- mode: Conf; -*-
-SUMMARY     = "Amazon Corretto 17"
+SUMMARY     = "Amazon Corretto 8"
 DESCRIPTION = ""
 LICENSE = "GPL-2"
 
 LIC_FILES_CHKSUM = "file://../${BASE}/LICENSE;md5=3e0b59f8fac05c3c03d4a26bbda13f8f"
 SHR             = "amazon-corretto-${PV}"
-BASE:aarch64    = "amazon-corretto-${PV}-linux-aarch64"
-SRC_URI:aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
+BASE_aarch64    = "amazon-corretto-${PV}-linux-aarch64"
+SRC_URI_aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
 
-BASE:x86-64     = "amazon-corretto-${PV}-linux-x64"
-SRC_URI:x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
+BASE_x86-64     = "amazon-corretto-${PV}-linux-x64"
+SRC_URI_x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
-SRC_URI[aarch64.md5sum]    = "7a5bbd3a5be41d86a20b38806f74b343"
-SRC_URI[aarch64.sha256sum] = "54e006a27909655bb77e201bc018148377e4f2dca892cd5838984f7f22a05700"
+SRC_URI[aarch64.sha256sum] = "cd3ea7604cca20b7d03e84fe6d8f90e0de5c8fc2d057c2d78d4114e82ac8ead5"
 
-SRC_URI[x86-64.md5sum]     = "e658fcede95579a2ffb1fa429c56d69c"
-SRC_URI[x86-64.sha256sum]  = "4005f04eaeb0be6460f5f5b13904f8a2619540aa2ce7632fd86fa302bcae6077"
+SRC_URI[x86-64.sha256sum]  = "364105ae5825cda8b7426fd819916b78526a279fbfd352bfada490358c3c0888"
 
 FILES = ""
-FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
+FILES_${PN} = "/usr/lib/${SHR} /usr/bin"
+
+do_package_qa[noexec] = "1"
+EXCLUDE_FROM_SHLIBS = "1"
+
+RDEPENDS_${PN} += " \
+    libgl \
+    libxi \
+    libxtst \
+    libasound \
+    cairo \
+    pango \
+    gtk+ \
+"
 
 do_install() {
     install -d ${D}/usr/bin
@@ -60,7 +70,7 @@ do_install() {
     ln -s ../lib/${SHR}/bin/serialver
 }
 
-do_install:append:x86-64() {
+do_install_append_x86-64() {
     # create symbolic link /lib64/ld-linux-x86-64.so.2 to enable
     # loading the binary When maintainers build binaries on ubuntu,
     # this is the library they are linking to, and if we don't set it
@@ -70,5 +80,5 @@ do_install:append:x86-64() {
     ln -s ../lib/ld-linux-x86-64.so.2 ld-linux-x86-64.so.2
 }
 
-FILES:${PN} += " /lib64"
-INSANE_SKIP:${PN} += " libdir"
+FILES_${PN} += " /lib64"
+INSANE_SKIP_${PN} += " libdir"

@@ -1,35 +1,38 @@
-SUMMARY     = "Amazon Corretto 8"
+SUMMARY     = "Amazon Corretto 11"
 DESCRIPTION = ""
 LICENSE = "GPL-2"
 
 LIC_FILES_CHKSUM = "file://../${BASE}/LICENSE;md5=3e0b59f8fac05c3c03d4a26bbda13f8f"
 SHR             = "amazon-corretto-${PV}"
-BASE_aarch64    = "amazon-corretto-${PV}-linux-aarch64"
-SRC_URI_aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
+BASE:aarch64    = "amazon-corretto-${PV}-linux-aarch64"
+SRC_URI:aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
 
-BASE_x86-64     = "amazon-corretto-${PV}-linux-x64"
-SRC_URI_x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
+BASE:arm        = "amazon-corretto-${PV}-linux-armv7"
+SRC_URI:arm     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-armv7.tar.gz;name=arm"
 
-SRC_URI[aarch64.md5sum]    = "10243aca398feccd1a66a90b93f6f21f"
-SRC_URI[aarch64.sha256sum] = "1def4d9550c83d152d720c353c02dd42588b60d734e3c1776d271a874aceb3f8"
+BASE:x86-64     = "amazon-corretto-${PV}-linux-x64"
+SRC_URI:x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
-SRC_URI[x86-64.md5sum]     = "edd5eae17f75a0f043accab5635096e3"
-SRC_URI[x86-64.sha256sum]  = "03c2bffadff35825a6f9e9db453dae29302c82deb824a285e7d030eb13144a84"
+BASE:x86        = "amazon-corretto-${PV}-linux-x86"
+SRC_URI:x86     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x86.tar.gz;name=x86"
+
+SRC_URI[aarch64.sha256sum] = "d3968138f266661cdc9d0d8a6830fea1d0c697113d6496027b4eb1139bed5f68"
+
+SRC_URI[arm.sha256sum]     = "0db58483018d7c1a0daa222c8e1c7d77ba0bf6949c28d91fd27c1cd8a6ab09f7"
+
+SRC_URI[x86-64.sha256sum] = "1878cfcb1ed374d5c8d3e11f230ec702ad3a6779107b640ddb5a0cf9e313bb61"
+
+SRC_URI[x86.sha256sum]     = "cfd956be63c33217093161022cb37176e48953e4e9f4d2b7a79de0277ac8c933"
 
 FILES = ""
-FILES_${PN} = "/usr/lib/${SHR} /usr/bin"
+FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
 
-do_package_qa[noexec] = "1"
-EXCLUDE_FROM_SHLIBS = "1"
-
-RDEPENDS_${PN} += " \
-    libgl \
+RDEPENDS:${PN} += " \
+    libxrender \
+    libxext \
     libxi \
     libxtst \
-    libasound \
-    cairo \
-    pango \
-    gtk+ \
+    alsa-lib \
 "
 
 do_install() {
@@ -72,7 +75,7 @@ do_install() {
     ln -s ../lib/${SHR}/bin/serialver
 }
 
-do_install_append_x86-64() {
+do_install:append:x86-64() {
     # create symbolic link /lib64/ld-linux-x86-64.so.2 to enable
     # loading the binary When maintainers build binaries on ubuntu,
     # this is the library they are linking to, and if we don't set it
@@ -82,5 +85,7 @@ do_install_append_x86-64() {
     ln -s ../lib/ld-linux-x86-64.so.2 ld-linux-x86-64.so.2
 }
 
-FILES_${PN} += " /lib64"
-INSANE_SKIP_${PN} += " libdir"
+FILES:${PN} += " /lib64"
+
+
+INSANE_SKIP:${PN} = "libdir file-rdeps ldflags"
