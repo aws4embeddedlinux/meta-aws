@@ -1,5 +1,4 @@
-# -*- mode: Conf; -*-
-SUMMARY     = "Amazon Corretto 17"
+SUMMARY     = "Amazon Corretto 11"
 DESCRIPTION = ""
 LICENSE = "GPL-2"
 
@@ -8,20 +7,27 @@ SHR             = "amazon-corretto-${PV}"
 BASE:aarch64    = "amazon-corretto-${PV}-linux-aarch64"
 SRC_URI:aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
 
+BASE:arm        = "amazon-corretto-${PV}-linux-armv7"
+SRC_URI:arm     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-armv7.tar.gz;name=arm"
+
 BASE:x86-64     = "amazon-corretto-${PV}-linux-x64"
 SRC_URI:x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
-SRC_URI[aarch64.md5sum]    = "7a5bbd3a5be41d86a20b38806f74b343"
-SRC_URI[aarch64.sha256sum] = "54e006a27909655bb77e201bc018148377e4f2dca892cd5838984f7f22a05700"
+BASE:x86        = "amazon-corretto-${PV}-linux-x86"
+SRC_URI:x86     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x86.tar.gz;name=x86"
 
-SRC_URI[x86-64.md5sum]     = "e658fcede95579a2ffb1fa429c56d69c"
-SRC_URI[x86-64.sha256sum]  = "4005f04eaeb0be6460f5f5b13904f8a2619540aa2ce7632fd86fa302bcae6077"
+SRC_URI[aarch64.sha256sum] = "d3968138f266661cdc9d0d8a6830fea1d0c697113d6496027b4eb1139bed5f68"
+
+SRC_URI[arm.sha256sum]     = "0db58483018d7c1a0daa222c8e1c7d77ba0bf6949c28d91fd27c1cd8a6ab09f7"
+
+SRC_URI[x86-64.sha256sum] = "1878cfcb1ed374d5c8d3e11f230ec702ad3a6779107b640ddb5a0cf9e313bb61"
+
+SRC_URI[x86.sha256sum]     = "cfd956be63c33217093161022cb37176e48953e4e9f4d2b7a79de0277ac8c933"
 
 FILES = ""
 FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
 
 RDEPENDS:${PN} += " \
-    libx11 \
     libxrender \
     libxext \
     libxi \
@@ -80,4 +86,6 @@ do_install:append:x86-64() {
 }
 
 FILES:${PN} += " /lib64"
-INSANE_SKIP:${PN} += " libdir"
+
+
+INSANE_SKIP:${PN} = "libdir file-rdeps ldflags"
