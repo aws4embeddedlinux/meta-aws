@@ -12,7 +12,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=c91257e3cc0bd6026b93fb15aecf6f1c"
 BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH}"
-SRCREV = "038628d24feab1c4fce75c9b6a47bfa99b7c5edc"
+SRCREV = "01ae5067a5ad942ed451a836164b2a98ebfca2ee"
 
 S = "${WORKDIR}/git"
 
@@ -38,6 +38,3 @@ FILES:${PN}-dev = "${libdir}/aws-lc/include/openssl/* \
 FILES:${PN}-dbg = "$D{$prefix}/src/debug/aws-lc/*"
 
 BBCLASSEXTEND = "native nativesdk"
-
-# -Werror will cause https://github.com/awslabs/aws-lc/issues/487
-OECMAKE_C_FLAGS += "-Wno-array-parameter"
