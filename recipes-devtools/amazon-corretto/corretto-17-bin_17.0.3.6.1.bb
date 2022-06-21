@@ -1,4 +1,5 @@
-SUMMARY     = "Amazon Corretto 11"
+# -*- mode: Conf; -*-
+SUMMARY     = "Amazon Corretto 17"
 DESCRIPTION = ""
 LICENSE = "GPL-2"
 
@@ -7,32 +8,17 @@ SHR             = "amazon-corretto-${PV}"
 BASE:aarch64    = "amazon-corretto-${PV}-linux-aarch64"
 SRC_URI:aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
 
-BASE:arm        = "amazon-corretto-${PV}-linux-armv7"
-SRC_URI:arm     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-armv7.tar.gz;name=arm"
-
 BASE:x86-64     = "amazon-corretto-${PV}-linux-x64"
 SRC_URI:x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
-BASE:x86        = "amazon-corretto-${PV}-linux-x86"
-SRC_URI:x86     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x86.tar.gz;name=x86"
+SRC_URI[aarch64.sha256sum] = "6f3c47ebbe3aded7a9c77276c7165596dd0d0606bf5dddd1eb01164262c55fa1"
 
-SRC_URI[aarch64.md5sum]    = "facff11c6ae8e5b9dc54cbbbddaf3dc0"
-SRC_URI[aarch64.sha256sum] = "3de81a85e8ddbc03045e25b2025b00c8965d9c9be44bf0eefef10773dcc33e7f"
-
-SRC_URI[arm.md5sum]        = "b7d9f46eabd604c0bf89227bc64644ed" 
-SRC_URI[arm.sha256sum]     = "63c05e86606d53df6a33472bb570fa9318de8125644dd928566d6205a1ecb024"
-
-SRC_URI[x86-64.md5sum]     = "55e5ca4565737598ff24c6d927253275"
-SRC_URI[x86-64.sha256sum]  = "9c451d1aec267e6be26a96b59e9f8ab8cf9253b9e0cd469fa2a62391c0dfe0c6"
-
-SRC_URI[x86.md5sum]        = "cee889af2f2ba7b6a2277959ccd93c66" 
-SRC_URI[x86.sha256sum]     = "f2d428803d6881d8abcd706ea98897d08ef61970ec6dceecb19106d15116eb0a"
+SRC_URI[x86-64.sha256sum]  = "e102e77edebb826fe22f5b6e2666d01586a87344618cdbeaed8a593787f4ff8a"
 
 FILES = ""
 FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
 
 RDEPENDS:${PN} += " \
-    libx11 \
     libxrender \
     libxext \
     libxi \
@@ -91,4 +77,4 @@ do_install:append:x86-64() {
 }
 
 FILES:${PN} += " /lib64"
-INSANE_SKIP:${PN} += " libdir"
+INSANE_SKIP:${PN} += " libdir file-rdeps"
