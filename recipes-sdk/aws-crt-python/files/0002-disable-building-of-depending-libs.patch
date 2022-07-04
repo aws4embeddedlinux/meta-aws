@@ -1,3 +1,8 @@
+From 6608f010fc5016fe9b33c675847a25007e68906e Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.com>
+Date: Tue, 31 May 2022 15:41:57 +0200
+Subject: [PATCH] aws-crt-python, aws-lc: fix for arch arm
+
 # note: this software build its depending libraries such as aws-lc in do_compile step, but finally links to the libs specified by DEPENDS!
 # the 0002-disable-building-of-depending-libs.patch disable this behaviour, therefore it's not necessary to checkout the submodules (git:// instead of gitsm://)
 
@@ -6,10 +11,10 @@
  1 file changed, 1 insertion(+), 34 deletions(-)
 
 diff --git a/setup.py b/setup.py
-index 46fa4ba..b4d41fc 100644
+index 2352c1f..49c4e92 100644
 --- a/setup.py
 +++ b/setup.py
-@@ -111,33 +111,6 @@ class AwsLib:
+@@ -120,33 +120,6 @@ class AwsLib:
          self.libname = libname if libname else name
  
  
@@ -43,7 +48,7 @@ index 46fa4ba..b4d41fc 100644
  PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
  
  VERSION_RE = re.compile(r""".*__version__ = ["'](.*?)['"]""", re.S)
-@@ -245,8 +218,6 @@ class awscrt_build_ext(setuptools.command.build_ext.build_ext):
+@@ -262,8 +235,6 @@ class awscrt_build_ext(setuptools.command.build_ext.build_ext):
          # build dependencies
          dep_build_dir = os.path.join(self.build_temp, 'deps')
          dep_install_path = os.path.join(self.build_temp, 'deps', 'install')
@@ -52,7 +57,7 @@ index 46fa4ba..b4d41fc 100644
  
          # update paths so awscrt_ext can access dependencies
          self.include_dirs.append(os.path.join(dep_install_path, 'include'))
-@@ -269,11 +240,7 @@ def awscrt_ext():
+@@ -286,11 +257,7 @@ def awscrt_ext():
      extra_compile_args = os.environ.get('CFLAGS', '').split()
      extra_link_args = os.environ.get('LDFLAGS', '').split()
      extra_objects = []
