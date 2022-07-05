@@ -26,7 +26,8 @@ FILES:${PN} += " \
 BRANCH ?= "main"
 
 SRC_URI += "git://github.com/awslabs/${BPN};branch=${BRANCH};protocol=https"
-SRCREV = "05ecc4ce7853324f88ac82c31eed63a135868269"
+SRCREV = "903fd61901cd1428b53d945e2dc14d2aa3a002e8"
+S = "${WORKDIR}/git"
 
 do_install() {
 	install -d ${D}${systemd_system_unitdir}
@@ -34,7 +35,7 @@ do_install() {
 	touch ${D}/opt/aws/${BPN}/etc/.gitkeep
 	install -d ${D}/opt/aws/${BPN}/logs
 	touch ${D}/opt/aws/${BPN}/logs/.gitkeep
-	install -m 744 ${WORKDIR}/git/${BPN} ${D}/opt/aws/${BPN}/
+	install -m 744 ${BPN} ${D}/opt/aws/${BPN}/
 
 	# TODO: user and group should be cwpublisher/wheel
 	cat <<-EOF > ${D}${systemd_system_unitdir}/${BPN}.service
