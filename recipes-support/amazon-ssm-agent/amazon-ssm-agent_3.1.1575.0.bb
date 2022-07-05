@@ -6,8 +6,7 @@ LIC_FILES_CHKSUM = " \
 GO_IMPORT = "github.com/aws/amazon-ssm-agent"
 SRC_URI = "git://${GO_IMPORT};branch=mainline;protocol=https"
 
-PV = "3.1.0.0+git${SRCPV}"
-SRCREV = "232b1d9a483b0404530798bf412409d23aecf630"
+SRCREV = "c4414a04a161ed90e141050fb1a8cc7f43835e70"
 
 S = "${WORKDIR}/git"
 
