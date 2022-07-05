@@ -5,7 +5,7 @@ LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 SRC_URI = "git://github.com/boto/s3transfer.git;protocol=https;branch=master"
-SRCREV = "dea830bc3215b12ab1b5cb64f442c67576c1ecfb"
+SRCREV = "f7b9bde247a09f0938249fc94c8c4f74752969d8"
 
 S = "${WORKDIR}/git"
 
