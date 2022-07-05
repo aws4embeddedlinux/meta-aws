@@ -1,8 +1,17 @@
-Index: git/CMakeLists.txt
-===================================================================
---- git.orig/CMakeLists.txt
-+++ git/CMakeLists.txt
-@@ -336,14 +336,22 @@ file(GLOB S2N_SRC
+From 717bc35b5bff60a6cbc6ec5d9f7e1def81b89f4a Mon Sep 17 00:00:00 2001
+From: rpcme <rich@richelberger.com>
+Date: Wed, 2 Jun 2021 18:46:28 -0400
+Subject: [PATCH] overcome build break due to GCC 11.1 add that exposed
+
+---
+ CMakeLists.txt | 20 ++++++++++++++------
+ 1 file changed, 14 insertions(+), 6 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3a0d3ea1..12d1c6b6 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -347,14 +347,22 @@ file(GLOB S2N_SRC
  )
  
  add_library(${PROJECT_NAME} ${S2N_HEADERS} ${S2N_SRC})
