@@ -7,20 +7,21 @@ PROVIDES += "aws/aws-iot-device-sdk-cpp-v2"
 
 inherit cmake
 
-LIC_FILES_CHKSUM = "file://LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
+LIC_FILES_CHKSUM = "file://documents/LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
 
 BRANCH ?= "main"
 
 SRC_URI = "git://github.com/aws/aws-iot-device-sdk-cpp-v2.git;protocol=https;branch=${BRANCH}"
-SRCREV = "3f5712629da0eef4bf58d389674666bf56f78e70"
+SRCREV = "b90ff7d9d324508f789bbce855e12787aec3ff6b"
+
+UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
 
-DEPENDS = "aws-crt-cpp aws-c-iot aws-c-http aws-c-common"
-RDEPENDS:${PN} = "aws-crt-cpp aws-c-iot"
+DEPENDS = "aws-c-iot"
+RDEPENDS:${PN} = "aws-c-iot"
 CFLAGS:append = " -Wl,-Bsymbolic"
 
-EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${S}/aws-c-common/cmake"
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake"
 EXTRA_OECMAKE += "-DBUILD_DEPS=OFF"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
