@@ -18,7 +18,7 @@ SRCREV = "70f74f14cf27b09f71dc1889f36eb6e04cdd90a8"
 
 S = "${WORKDIR}/git"
 
-DEPENDS = "openssl amazon-kvs-producer-sdk-c gtest jsmn log4cplus"
+DEPENDS = "openssl amazon-kvs-producer-sdk-c gtest log4cplus"
 RDEPENDS:${PN} = ""
 CFLAGS:append = " -Wl,-Bsymbolic"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
