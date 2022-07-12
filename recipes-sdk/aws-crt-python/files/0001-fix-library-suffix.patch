@@ -1,4 +1,4 @@
-From 28e6fc6c29f77d627b897a0218f63809c4ac5a55 Mon Sep 17 00:00:00 2001
+From dc4b5dfbb803f8348a7400f788717fb3579fd410 Mon Sep 17 00:00:00 2001
 From: rpcme <rich@richelberger.com>
 Date: Mon, 13 Sep 2021 16:27:00 -0400
 Subject: [PATCH] upgrade support for CRT Python and Device SDK Python v2
