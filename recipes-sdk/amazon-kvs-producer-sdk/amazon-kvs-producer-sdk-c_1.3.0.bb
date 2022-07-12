@@ -18,7 +18,7 @@ SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-c.git;
 SRCREV = "79da5b6d6ad67560cc08530f967e9187a6d1c594"
 S = "${WORKDIR}/git"
 
-DEPENDS = "openssl curl gtest jsmn amazon-kvs-producer-pic mbedtls libwebsockets"
+DEPENDS = "openssl curl gtest amazon-kvs-producer-pic mbedtls libwebsockets"
 RDEPENDS:${PN} = ""
 CFLAGS:append = " -Wl,-Bsymbolic"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
