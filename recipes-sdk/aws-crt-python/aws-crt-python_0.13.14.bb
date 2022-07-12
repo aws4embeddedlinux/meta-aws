@@ -13,7 +13,7 @@ SRC_URI = "git://github.com/awslabs/aws-crt-python.git;protocol=https;branch=${B
            file://0001-fix-library-suffix.patch \
            file://0002-disable-building-of-depending-libs.patch \
            "
-SRCREV = "e07efb497ea76df105aba0b2ef2d02b6adf51ef5"
+SRCREV = "fcb1b2d526127c46cb0621671d91732432941ba8"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
