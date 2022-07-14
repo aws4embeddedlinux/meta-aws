@@ -28,11 +28,8 @@ FILES = ""
 FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
 
 RDEPENDS:${PN} += " \
-    libxrender \
-    libxext \
-    libxi \
-    libxtst \
-    alsa-lib \
+    ${@bb.utils.contains('DISTRO_FEATURES', 'alsa', 'alsa-lib', '', d)} \
+    ${@bb.utils.contains('DISTRO_FEATURES', 'x11', 'libxrender libxext libxi libxtst libx11', '', d)} \
 "
 
 do_install() {
@@ -85,7 +82,21 @@ do_install:append:x86-64() {
     ln -s ../lib/ld-linux-x86-64.so.2 ld-linux-x86-64.so.2
 }
 
+do_install:append() {
+    if ${@bb.utils.contains('DISTRO_FEATURES','x11','false','true',d)}; then
+        rm ${D}/usr/lib/${SHR}/lib/libawt_xawt.so
+        rm ${D}/usr/lib/${SHR}/lib/libjawt.so
+        rm ${D}/usr/lib/${SHR}/lib/libsplashscreen.so
+    fi
+}
+
+do_install:append() {
+    if ${@bb.utils.contains('DISTRO_FEATURES','alsa','false','true',d)}; then
+        rm ${D}/usr/lib/${SHR}/lib/libjsound.so
+    fi
+}
+
 FILES:${PN} += " /lib64"
 
 
-INSANE_SKIP:${PN} = "libdir file-rdeps ldflags"
+INSANE_SKIP:${PN} = "libdir"
