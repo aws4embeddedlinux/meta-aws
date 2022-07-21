@@ -13,7 +13,7 @@ BRANCH ?= "main"
 SRC_URI = "git://github.com/aws/s2n-tls.git;protocol=https;branch=${BRANCH} \
            file://0001-cmakelists-remove-warn.patch"
 
-SRCREV = "aa8f7fbb5e8afb649230f70917dd6bbe31702019"
+SRCREV = "51a1414405f038c1646be032104ab329e591880a"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S= "${WORKDIR}/git"
