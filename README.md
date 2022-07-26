@@ -16,13 +16,15 @@ Please check out [our sister project meta-aws-demos](https://github.com/aws-samp
 
 ### Supported Yocto Project Releases
 
-We are supporting customers building solutions on AWS with meta-aws for the following Yocto Project releases.  Let us know if you need AWS device software for a specific Yocto Project release and we will work with you through Github Issues to resolve the challenge you might be facing.  We also encourage **contributions** by the community.
+We are supporting customers building solutions on AWS with meta-aws for the following Yocto Project releases.  Let us know if you need AWS device software for a specific Yocto Project release and we will work with you through Github Issues to resolve the challenge you might be facing.  We also encourage [**contributions**](CONTRIBUTING.md) by the community.
 
 <table>
 <tr><th>Release branch <a href="https://wiki.yoctoproject.org/wiki/Releases" target="none" title="What is this?">(?)</a></th><th>Layer integrity check <a href="https://www.yoctoproject.org/docs/2.5/dev-manual/dev-manual.html#making-sure-your-layer-is-compatible-with-yocto-project" target="none" title="What is this?">(?)</a></th></tr>
-<tr><td>honister (master)</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiejUzUWRtRTVtWnF2MUxkRjJmMDRZQW5yUlBXZVQxT3R6bUNyeVhQZE9tMUJEWVpzVnRBajM3WXY0L2pTSlpKMDArdWIxY2svcjlrMnoralB4aHB2WjMwPSIsIml2UGFyYW1ldGVyU3BlYyI6ImhkTFBreWVsTk9FK3p5WnUiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master"/></td></tr>
+<tr><td>master</td><td><img src="https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiY3BGQUhBYW82TXBXbEpPdFU3TXpMWVVPbWJhNlhsYXlFT2FmQ0Q2WnN4UENRRUpJd25QRnFUQytoWXhOdHdjbHVQa28wNXVQaDlxUGFpdVJLMXVFSXFjPSIsIml2UGFyYW1ldGVyU3BlYyI6IkI0YWdQRzA0UktSYU1HOGIiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master"/></td></tr>
+<tr><td>kirkstone</td><td><img src="https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoia1oyTHRUZ2hhMjE3K0IyVnBWRG44M0tDa2tLRmIyaFRXUkE0eUp6cVlpc3dveHo5eDVYUVRNaFpGYXZpeGVUdUVlaTI1bThrcTRreFdvbzMrcnQrcVQ0PSIsIml2UGFyYW1ldGVyU3BlYyI6ImF0eFZDVUJJamR5NzlCd0EiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=kirkstone"/></td></tr>
+<tr><td>honister</td><td><img src="https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiNXBWRkNseXZadmtnOVpIalByZkxhZi8yaUh6dlFrejBmQUYva2FZQ2hONDZiOGtJcElycDF3a0x1Sm9VUTZVMEpjKzdOWmNQbUtpQkVTcldLSG16djUwPSIsIml2UGFyYW1ldGVyU3BlYyI6IjZFY2Rqd0NNWlJLejlwblQiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=honister"/></td></tr>
 <tr><td>hardknott</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoidGZsVk5GWDNReVJZcVF2RXlGQktObGUrbWhsRnJLSmw4R1hncGFlMDExMTI4UnV5bGJ6YTdpNENXaDFrMUk4bnVRV1hWUng2Lyt6UldYaDlEOHRhMlFrPSIsIml2UGFyYW1ldGVyU3BlYyI6Inh1Y1NhLzRzNlJDK3l3SWoiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=hardknott"/></td></tr>
-<tr><td>gatesgarth</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiS29vRHRFVlROeEZGamo4QVN5b2dyZGhieVVNWlVFSnlldFpjR3VIVmNZYzVMYldDZU9CbXQ3Z0JZUC9pRDgxWDdVVldmU1lZQ3hiUTZwRHhOMHFSREE4PSIsIml2UGFyYW1ldGVyU3BlYyI6IkFhaWhzSldnTTlranMxQ20iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=gatesgarth"/></td></tr>
+<tr><td>gatesgarth </td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiS29vRHRFVlROeEZGamo4QVN5b2dyZGhieVVNWlVFSnlldFpjR3VIVmNZYzVMYldDZU9CbXQ3Z0JZUC9pRDgxWDdVVldmU1lZQ3hiUTZwRHhOMHFSREE4PSIsIml2UGFyYW1ldGVyU3BlYyI6IkFhaWhzSldnTTlranMxQ20iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=gatesgarth"/></td></tr>
 <tr><td>dunfell</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiYXV1RzJYQ1prU0l1TThHYmZiMXVIS3UwYUhBZ3Urd0RJT241SDBnNEgrWFVnNExLaUI1a3IzcnY5UUNwamY4d045RVl1d3lMbUFTZndNa2J0Sks2YmRNPSIsIml2UGFyYW1ldGVyU3BlYyI6IlE3cEl5Q292enpTczVVSEQiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=dunfell"/></td></tr>
 <tr><td>zeus (breakfix only)</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiYXZDSnIwdXVNSFRjMW13MmxVOVZYZVJhVktKTkVScG1UQURqTDdpMHlrYXFKS2x0VHdXV1ZzeUVxR0Q1cVU4RTBtUkkzWnVOMjRPdVZhKzRhSTBqQkI4PSIsIml2UGFyYW1ldGVyU3BlYyI6IlNwZXFGbXJ3U0ZwM1dLQVciLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=zeus"/></td></tr>
 <tr><td>thud (breakfix only)</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiK0IwWDFuaTZFZFd4NVY3N2UwdGdGcWtsMGtDc2dRVEgzMHdxV2V6TU5ZRmpOU01MaUtreVowSlJid204VHEwelIzdGoxQnJ4RnViNWI0bjQ3cEgxN1k4PSIsIml2UGFyYW1ldGVyU3BlYyI6IjA3ZndZRHFjeVlKMGUvQ2IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=thud"/></td></tr>
@@ -65,9 +67,4 @@ These are the currently supported services, software, and SDKs you can use to bu
 
 * Automotive Grade Linux: The AGL distribution uses a specific static ID process. When adding AWS IoT Greengrass, you will need to define users in the passwd and group files manually. Please see https://github.com/aws/meta-aws/issues/75 for more information.
 
-* Firecracker `panic_abort` resolution options:
-    * Append `RUST_PANIC_STRATEGY = "abort"` to your local.conf, as the default strategy is [unwind](https://github.com/meta-rust/meta-rust/blob/920db7b045c1f721efcc2e1d891516b515b7e7a8/classes/rust-common.bbclass#L12).
-    * Patch related Cargo.toml files to remove references to `abort`; not recommended.
-    * Leave `RUST_PANIC_STRATEGY` as default, and implement custom abort handler.
-
-© 2019-2021, Amazon Web Services, Inc. or its affiliates. All rights reserved.
+© 2019-2022, Amazon Web Services, Inc. or its affiliates. All rights reserved.
