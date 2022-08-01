@@ -5,23 +5,25 @@ LICENSE = "Apache-2.0 & BSD-3-Clause"
 
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-BRANCH ?= "main"
+BRANCH ?= "release-1.10.0"
 
-SRC_URI = "git://github.com/neo-ai/neo-ai-dlr.git;branch=${BRANCH};protocol=https;name=neo-ai-dlr \
+SRC_URI = "git://github.com/neo-ai/neo-ai-dlr.git;protocol=https;branch=${BRANCH};name=neo-ai-dlr \
            file://0002-CMakeLists_remove_test_file_downloads.patch \
-           file://0003-Change_DLR_Library_Location_in_setup_py.patch \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/tflite-models/cat224-3.txt;name=cat224-3 \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/test-data/street_small.npy;name=streetsmall \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/resnet_v1.5_50-ml_c4.tar.gz;name=resnet;subdir=resnet_v1_5_50 \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/xgboost_test.tar.gz;name=xgboost;subdir=xgboost_test \
- https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.5.0/ssd_mobilenet_v1_ppn_shared_box_predictor_300x300_coco14_sync_2018_07_03-LINUX_X86_64.tar.gz;name=mobilenet;subdir=ssd_mobilenet_v1 \
+           https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.5.0/ssd_mobilenet_v1_ppn_shared_box_predictor_300x300_coco14_sync_2018_07_03-LINUX_X86_64.tar.gz;name=mobilenet;subdir=ssd_mobilenet_v1 \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.5.0/automl-ml_m4.tar.gz;name=automl;subdir=automl \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/pipeline_model1-LINUX_X86_64.tar.gz;name=model1;subdir=pipeline_model1 \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.5.0/pipeline_model2-LINUX_X86_64.tar.gz;name=model2;subdir=pipeline_model2 \
            https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.5.0/inverselabel-ml_m4.tar.gz;name=inverselabel;subdir=inverselabel \
+           https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.9.0/automl_static-ml_m4.tar.gz;name=automl-static;subdir=automl_static \
+           https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.9.0/input_order-ml_m4.tar.gz;name=input-order;subdir=input_order \
+           https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.9.0/inverselabel_static-ml_m4.tar.gz;name=inverselabel-static;subdir=inverselabel_static \           
           "
-
-SRCREV_neo-ai-dlr = "d363c087e2d93938beb3d3a836b0b29d0c910451"
+SRCREV_FORMAT = "neo-ai-dlr"
+SRCREV_neo-ai-dlr = "87125a9ce39c83a002f1908d5b3beed3b3a7d2c0"
 
 SRC_URI[cat224-3.md5sum] = "c871a4f847b70a6913e6aba47e5a1664"
 SRC_URI[cat224-3.sha256sum]    = "2befeb0f99ef581cfed173257a4b9d2b037dc1e3965d4312c93709d542403273"
@@ -41,50 +43,60 @@ SRC_URI[model2.md5sum]    = "995b63040c42f8dbc66a5017d92fb808"
 SRC_URI[model2.sha256sum] = "054963a67bc456e436d4ad2981552447a6cf8b4955099cce6ed540e73f9b9766"
 SRC_URI[inverselabel.md5sum]    = "97e60c6a8040d3b2b15adbc046186b5c"
 SRC_URI[inverselabel.sha256sum] = "1bd13905b526fc0e7ead51a88aa6d9e506befdd2e3a7a144b77df8bf3d5d2db7"
-
+SRC_URI[automl-static.md5sum] = "aa72b0c4e1b32e0dc983a5f86ee289d4"
+SRC_URI[automl-static.sha256sum] = "afe8b20ffce1dc8d3eb59cbf13aa72d96e0e2258be7b789f0909f91e1f67580c"
+SRC_URI[input-order.md5sum] = "68fa420d8f293ec42e41b7119a42f09d"
+SRC_URI[input-order.sha256sum] = "a34e6c576e5c29c8b7a9cc4c47b836e8375f198a6131502b98f26607228494b8"
+SRC_URI[inverselabel-static.md5sum] = "191a5ea03439040c789fe5fb0cf8eb10"
+SRC_URI[inverselabel-static.sha256sum] = "aebd1e2457bc6ecb7af783ee37c7531289c2ec8761199520cf41b7ec1b3f31fe"
 
 S = "${WORKDIR}/git"
+B = "${WORKDIR}/build"
 
-do_configure_prepend() {
+do_configure:prepend() {
   cd ${S}
   git submodule update --init --recursive
-  # hack to get the python bindings to install proper - distutils3 on dunfell
-  # enforces setup.py is in ${S}
-  mv ${S}/python/* ${S}/
+  cd ${B}
 }
 
-do_configure_append() {
-  cp -f ${WORKDIR}/cat224-3.txt ${S}/build/cat224-3.txt
-  cp -f ${WORKDIR}/street_small.npy ${S}/build/street_small.npy
-  cp -rf ${WORKDIR}/resnet_v1_5_50 ${S}/build/
-  cp -rf ${WORKDIR}/xgboost_test ${S}/build/
-  cp -rf ${WORKDIR}/ssd_mobilenet_v1 ${S}/build/
-  cp -rf ${WORKDIR}/automl ${S}/build/
-  cp -rf ${WORKDIR}/pipeline_model1 ${S}/build/
-  cp -rf ${WORKDIR}/pipeline_model2 ${S}/build/
-  cp -rf ${WORKDIR}/inverselabel ${S}/build/
+do_configure[network] = "true"
+
+do_configure:append() {
+  cp -f ${WORKDIR}/cat224-3.txt ${B}/cat224-3.txt
+  cp -f ${WORKDIR}/street_small.npy ${B}/street_small.npy
+  cp -rf ${WORKDIR}/resnet_v1_5_50 ${B}/
+  cp -rf ${WORKDIR}/xgboost_test ${B}/
+  cp -rf ${WORKDIR}/ssd_mobilenet_v1 ${B}/
+  cp -rf ${WORKDIR}/automl ${B}/
+  cp -rf ${WORKDIR}/pipeline_model1 ${B}/
+  cp -rf ${WORKDIR}/pipeline_model2 ${B}/
+  cp -rf ${WORKDIR}/inverselabel ${B}/
+  cp -rf ${WORKDIR}/automl_static ${B}/
+  cp -rf ${WORKDIR}/input_order ${B}/
+  cp -rf ${WORKDIR}/inverselabel_static ${B}/
 }
 
-inherit setuptools3 cmake
+inherit distutils3 cmake
 
-B = "${S}/build"
+OECMAKE_GENERATOR = "Unix Makefiles"
+
+OECMAKE_BUILDPATH = "${B}"
+OECMAKE_SOURCEPATH = "${S}"
+DISTUTILS_SETUP_PATH = "${S}/python"
+
 
 do_install() {
     install -d ${D}${includedir}/dlr_tflite
     install -m 0644 ${S}/include/*.h ${D}${includedir}
 
     # Install DLR Python binding
-    # Need to change to physical directory where setup.py lives
-    # This is fixed in gatesgarth with:
-    #DISTUTILS_SETUP_PATH = "${S}/python"
-    #cd ${S}/python
     distutils3_do_install
 
     # setup.py install some libs under datadir, but we don't need them, so remove.
-    rm ${D}${datadir}/dlr/*.so
+   # rm ${D}${datadir}/dlr/*.so
 
     # Install DLR library to Python import search path
-    install -m 0644 ${S}/build/lib/libdlr.so ${D}${PYTHON_SITEPACKAGES_DIR}/dlr
+    install -m 0644 ${B}/lib/libdlr.so ${D}${PYTHON_SITEPACKAGES_DIR}/dlr
 
     # Now install python test scripts
     install -d ${D}${datadir}/dlr/tests/python/integration
@@ -95,7 +107,7 @@ do_install() {
 PACKAGES =+ "${PN}-tests"
 FILES:${PN}-tests = "${datadir}/dlr/tests"
 RDEPENDS:${PN}-tests += "${PN}"
-DEPENDS += "googletest python3-setuptools"
+DEPENDS += "googletest ${PYTHON_PN}-setuptools-native"
 RDEPENDS:${PN} += "python3-core python3-shell python3-requests python3-distro python3-numpy"
 
 # Versioned libs are not produced

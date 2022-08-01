@@ -1,8 +1,17 @@
+From 6e160134cb0c6b5f747a78ca50445195448f5819 Mon Sep 17 00:00:00 2001
+From: Ubuntu <ubuntu@ip-172-31-40-243.us-east-2.compute.internal>
+Date: Fri, 7 Jan 2022 06:10:51 +0000
+Subject: [PATCH] Remove Test file downloads
+
+---
+ CMakeLists.txt | 195 -------------------------------------------------
+ 1 file changed, 195 deletions(-)
+
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index c7993b9..87fd6a1 100644
+index 356ac26..680babb 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -324,153 +324,6 @@ if(NOT(AAR_BUILD))
+@@ -415,201 +415,6 @@ if(DLR_BUILD_TESTS AND NOT(AAR_BUILD))
      add_test(NAME ${__execname} COMMAND ${__execname})
      message(STATUS "Added dlsym Test: " ${__execname})
    endforeach()
@@ -16,7 +25,7 @@ index c7993b9..87fd6a1 100644
 -    e35e82f3371bed37caa7ecece417f50876414077
 -  )
 -  endif()
--  
+-
 -  set(STREET_IMAGE ${CMAKE_CURRENT_BINARY_DIR}/street_small.npy)
 -  if(NOT EXISTS ${STREET_IMAGE})
 -  download_file(
@@ -26,7 +35,7 @@ index c7993b9..87fd6a1 100644
 -    206d1a12646a5fe43d0877d38bd137c70a5adc3b
 -  )
 -  endif()
--  
+-
 -  # Download compiled model for unit tests
 -  set(RESNET_MODEL ${CMAKE_CURRENT_BINARY_DIR}/resnet_v1_5_50)
 -  if(NOT IS_DIRECTORY ${RESNET_MODEL})
@@ -90,6 +99,22 @@ index c7993b9..87fd6a1 100644
 -    file(REMOVE /tmp/${AUTOML_MODEL})
 -  endif()
 -
+-  set(AUTOML_STATIC_MODEL automl_static-ml_m4.tar.gz)
+-  set(AUTOML_STATIC_MODEL_DIR ${CMAKE_CURRENT_BINARY_DIR}/automl_static)
+-  if(NOT IS_DIRECTORY ${AUTOML_STATIC_MODEL_DIR})
+-    file(MAKE_DIRECTORY ${AUTOML_STATIC_MODEL_DIR})
+-    download_file(
+-      https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.9.0/${AUTOML_STATIC_MODEL}
+-      /tmp/${AUTOML_STATIC_MODEL}
+-      SHA1
+-      d776a30bcaeceff99844958fc88085972f5aec24
+-    )
+-    # this is OS-agnostic
+-    execute_process(COMMAND ${CMAKE_COMMAND} -E tar -xf /tmp/${AUTOML_STATIC_MODEL}
+-                    WORKING_DIRECTORY ${AUTOML_STATIC_MODEL_DIR})
+-    file(REMOVE /tmp/${AUTOML_STATIC_MODEL})
+-  endif()
+-
 -  set(PIPELINE_MODEL1 ${CMAKE_CURRENT_BINARY_DIR}/pipeline_model1)
 -  if(NOT IS_DIRECTORY ${PIPELINE_MODEL1})
 -    file(MAKE_DIRECTORY ${PIPELINE_MODEL1})
@@ -136,6 +161,38 @@ index c7993b9..87fd6a1 100644
 -    file(REMOVE /tmp/${INVERSELABEL_MODEL})
 -  endif()
 -
+-  set(INPUTORDER_MODEL input_order-ml_m4.tar.gz)
+-  set(INPUTORDER_MODEL_DIR ${CMAKE_CURRENT_BINARY_DIR}/input_order)
+-  if(NOT IS_DIRECTORY ${INPUTORDER_MODEL_DIR})
+-    file(MAKE_DIRECTORY ${INPUTORDER_MODEL_DIR})
+-    download_file(
+-      https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.9.0/${INPUTORDER_MODEL}
+-      /tmp/${INPUTORDER_MODEL}
+-      SHA1
+-      e677130d4e47f0a5298f0280aa36a28ae9bb5ef1
+-    )
+-    # this is OS-agnostic
+-    execute_process(COMMAND ${CMAKE_COMMAND} -E tar -xf /tmp/${INPUTORDER_MODEL}
+-                    WORKING_DIRECTORY ${INPUTORDER_MODEL_DIR})
+-    file(REMOVE /tmp/${INPUTORDER_MODEL})
+-  endif()
+-
+-  set(INVERSELABEL_STATIC_MODEL inverselabel_static-ml_m4.tar.gz)
+-  set(INVERSELABEL_STATIC_MODEL_DIR ${CMAKE_CURRENT_BINARY_DIR}/inverselabel_static)
+-  if(NOT IS_DIRECTORY ${INVERSELABEL_STATIC_MODEL_DIR})
+-    file(MAKE_DIRECTORY ${INVERSELABEL_STATIC_MODEL_DIR})
+-    download_file(
+-      https://neo-ai-dlr-test-artifacts.s3-us-west-2.amazonaws.com/compiled-models/release-1.9.0/${INVERSELABEL_STATIC_MODEL}
+-      /tmp/${INVERSELABEL_STATIC_MODEL}
+-      SHA1
+-      bc4b0d958a18579362c4255741fdb4b86ab92aad
+-    )
+-    # this is OS-agnostic
+-    execute_process(COMMAND ${CMAKE_COMMAND} -E tar -xf /tmp/${INVERSELABEL_STATIC_MODEL}
+-                    WORKING_DIRECTORY ${INVERSELABEL_STATIC_MODEL_DIR})
+-    file(REMOVE /tmp/${INVERSELABEL_STATIC_MODEL})
+-  endif()
+-
 -  if(WITH_HEXAGON)
 -      # Download Test Hexagon model for Android 64 aarch64
 -      file(MAKE_DIRECTORY dlr_hexagon_model)
@@ -156,3 +213,6 @@ index c7993b9..87fd6a1 100644
  endif()
  # Group sources
  #auto_source_group("${SOURCES}")
+-- 
+2.17.1
+
