@@ -1,3 +1,4 @@
+# -*- mode: Conf; -*-
 SUMMARY = "Open Deep Learning Compiler Stack"
 HOMEPAGE = "https://tvm.ai/"
 LICENSE = "Apache-2.0 & BSD-3-Clause"
@@ -8,7 +9,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e \
                     file://3rdparty/HalideIR/LICENSE;md5=9910386e68f0616e1ecf1037479fa97e \
 "
 
-RDEPENDS_${PN} = " python3-decorator \
+RDEPENDS:${PN} = " python3-decorator \
 "
 
 PV = "0.5"
@@ -32,13 +33,11 @@ SRCREV_rang = "cabe04d6d6b05356fa8f9741704924788f0dd762"
 
 S = "${WORKDIR}/git"
 
-inherit setuptools3 cmake python3native
+DISTUTILS_SETUP_PATH = "${S}/python"
 
-DEPENDS += "zlib llvm llvm-native googletest"
+inherit distutils3 cmake python3native
 
-# Point to llvm-config
-LLVM_RELEASE = "6.0"
-EXTRA_OECMAKE += "-DUSE_LLVM=llvm-config${LLVM_RELEASE}"
+DEPENDS += "zlib llvm-native googletest python3-setuptools-native"
 
 # This is how we enable the unittests
 export GTEST_LIB = "${STAGING_LIBDIR}"
@@ -55,8 +54,8 @@ do_install() {
 }
 
 PACKAGES =+ "${PN}-tests"
-FILES_${PN}-tests = "${datadir}/tvm/cpptest"
-RDEPENDS_${PN}-tests += "${PN} "
+FILES:${PN}-tests = "${datadir}/tvm/cpptest"
+RDEPENDS:${PN}-tests += "${PN} "
 
 # Versioned libs are not produced
 FILES_SOLIBSDEV = ""
