@@ -10,7 +10,9 @@ DEPENDS += "boost catch2 openssl protobuf protobuf-native zlib"
 
 BRANCH ?= "master"
 
-SRC_URI = "git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https"
+SRC_URI = "git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https \
+           file://0001-patch-dependency-versions.patch"
+
 SRCREV = "48451ea206941f422eafbe2fadb72a63f565cf76"
 
 UPSTREAM_CHECK_COMMITS = "1"
@@ -19,6 +21,12 @@ S = "${WORKDIR}/git"
 
 inherit cmake
 
+do_configure:prepend() {
+    sed -i "s/Protobuf_LITE_STATIC_LIBRARY/Protobuf_LITE_LIBRARY/g" ${S}/CMakeLists.txt
+    sed -i "s/string.*Protobuf_LITE_LIBRARY.*/#&/g" ${S}/CMakeLists.txt
+    sed -i "s/set_property.*PROTOBUF_USE_STATIC_LIBS.*/#&/g" ${S}/CMakeLists.txt
+}
+
 do_install () {
   install -d ${D}${bindir}
   install -m 0755 ${B}/bin/localproxy ${D}${bindir}/localproxy
@@ -26,6 +34,6 @@ do_install () {
 }
 
 PACKAGES =+ "${PN}-tests"
-FILES_${PN} = "${bindir}/localproxy"
-FILES_${PN}-tests = "${bindir}/localproxytest"
-RDEPENDS_${PN}-tests += "${PN}"
+FILES:${PN} = "${bindir}/localproxy"
+FILES:${PN}-tests = "${bindir}/localproxytest"
+RDEPENDS:${PN}-tests += "${PN}"
