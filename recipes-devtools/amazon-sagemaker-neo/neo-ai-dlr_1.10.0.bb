@@ -50,6 +50,8 @@ SRC_URI[input-order.sha256sum] = "a34e6c576e5c29c8b7a9cc4c47b836e8375f198a613150
 SRC_URI[inverselabel-static.md5sum] = "191a5ea03439040c789fe5fb0cf8eb10"
 SRC_URI[inverselabel-static.sha256sum] = "aebd1e2457bc6ecb7af783ee37c7531289c2ec8761199520cf41b7ec1b3f31fe"
 
+UPSTREAM_VERSION_UNKNOWN = "1"
+
 S = "${WORKDIR}/git"
 B = "${WORKDIR}/build"
 

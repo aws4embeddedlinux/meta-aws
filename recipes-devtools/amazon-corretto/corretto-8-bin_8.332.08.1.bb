@@ -16,8 +16,14 @@ SRC_URI[aarch64.sha256sum] = "cd3ea7604cca20b7d03e84fe6d8f90e0de5c8fc2d057c2d78d
 
 SRC_URI[x86-64.sha256sum]  = "364105ae5825cda8b7426fd819916b78526a279fbfd352bfada490358c3c0888"
 
+COMPATIBLE_MACHINE = "(^$)"
+COMPATIBLE_MACHINE:aarch64 = "(.*)"
+COMPATIBLE_MACHINE:x86-64 = "(.*)"
+
 FILES = ""
 FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
+
+UPSTREAM_VERSION_UNKNOWN = "1"
 
 do_package_qa[noexec] = "1"
 EXCLUDE_FROM_SHLIBS = "1"
