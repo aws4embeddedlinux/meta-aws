@@ -21,6 +21,8 @@ COMPATIBLE_MACHINE:x86-64 = "(.*)"
 FILES = ""
 FILES_${PN} = "/usr/lib/${SHR} /usr/bin"
 
+UPSTREAM_VERSION_UNKNOWN = "1"
+
 do_package_qa[noexec] = "1"
 EXCLUDE_FROM_SHLIBS = "1"
 
