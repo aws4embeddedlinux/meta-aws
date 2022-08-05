@@ -15,6 +15,8 @@ SRC_URI[payload.sha256sum] = "39744a21cfb6dfa768d4da78692125bc4acccf493c98dd2b49
 
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 
+UPSTREAM_VERSION_UNKNOWN = "1"
+
 GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
 RDEPENDS:${PN} += "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'ntp-systemd', '', d)}"
 RDEPENDS:${PN} += "corretto-11-bin ca-certificates python3-core python3-json python3-numbers sudo"
