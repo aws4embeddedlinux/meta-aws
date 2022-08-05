@@ -26,6 +26,7 @@ SRC_URI = "${TL_URI};protocol=https;rev=${TL_SR};destsuffix=${TL_PATH};nobranch=
            ${TL_FMT_URI};protocol=https;rev=${TL_FMT_SR};nobranch=1;destsuffix=${TL_FMT_PATH} \
            ${TL_PB_URI};protocol=https;rev=${TL_PB_SR};destsuffix=${TL_PB_PATH}"
 
+UPSTREAM_VERSION_UNKNOWN = "1"
 
 S = "${WORKDIR}/git"
 B = "${WORKDIR}/build"

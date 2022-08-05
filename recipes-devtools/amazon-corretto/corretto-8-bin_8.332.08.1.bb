@@ -19,6 +19,8 @@ SRC_URI[x86-64.sha256sum]  = "364105ae5825cda8b7426fd819916b78526a279fbfd352bfad
 FILES = ""
 FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
 
+UPSTREAM_VERSION_UNKNOWN = "1"
+
 do_package_qa[noexec] = "1"
 EXCLUDE_FROM_SHLIBS = "1"
 
