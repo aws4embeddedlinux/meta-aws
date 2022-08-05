@@ -37,6 +37,8 @@ COMPATIBLE_MACHINE:armv7a = "(.*)"
 COMPATIBLE_MACHINE:aarch64 = "(.*)"
 COMPATIBLE_MACHINE:x86-64 = "(.*)"
 
+UPSTREAM_VERSION_UNKNOWN = "1"
+
 # Release specific configuration
 
 RDEPENDS:${PN} += "ca-certificates python3-json python3-numbers sqlite3"
