@@ -31,6 +31,8 @@ SRCREV_halideir = "b257a9221ee1e5180d994b3488ddcc259b0ac157"
 SRCREV_dlpack = "5c792cef3aee54ad8b7000111c9dc1797f327b59"
 SRCREV_rang = "cabe04d6d6b05356fa8f9741704924788f0dd762"
 
+UPSTREAM_VERSION_UNKNOWN = "1"
+
 S = "${WORKDIR}/git"
 
 inherit setuptools3 cmake python3native

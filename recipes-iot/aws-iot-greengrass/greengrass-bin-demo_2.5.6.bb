@@ -15,6 +15,8 @@ SRC_URI                    = "https://raw.githubusercontent.com/aws-greengrass/a
 SRC_URI[license.md5sum]    = "34400b68072d710fecd0a2940a0d1658"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 
+UPSTREAM_VERSION_UNKNOWN = "1"
+
 RDEPENDS:${PN} += "greengrass-bin"
 
 do_configure[noexec] = "1"

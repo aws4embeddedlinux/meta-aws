@@ -19,6 +19,8 @@ COMPATIBLE_MACHINE = "(^$)"
 COMPATIBLE_MACHINE:aarch64 = "(.*)"
 COMPATIBLE_MACHINE:x86-64 = "(.*)"
 
+UPSTREAM_VERSION_UNKNOWN = "1"
+
 FILES = ""
 FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
 

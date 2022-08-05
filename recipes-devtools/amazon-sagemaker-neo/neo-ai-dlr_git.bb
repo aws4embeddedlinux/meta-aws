@@ -49,6 +49,8 @@ SRC_URI[inverselabel-static.sha256sum] = "aebd1e2457bc6ecb7af783ee37c7531289c2ec
 SRC_URI[imagenet.sha256sum] = "e0af280379adb4a5a2e80b35581e379b094f1619e0996e3393fc34bda059547c"
 
 
+UPSTREAM_VERSION_UNKNOWN = "1"
+
 S = "${WORKDIR}/git"
 
 do_configure:prepend() {
