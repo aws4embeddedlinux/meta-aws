@@ -32,6 +32,11 @@ SRC_URI[aarch64.sha256sum] = "92dc496efd787fd70701059271986f596086e6d569a539527b
 
 SRC_URI[x86-64.sha256sum]  = "08449a148d311a1bf3f9680f3bb96471f8d11bc36b145cd9bf42e468e871e7a2"
 
+COMPATIBLE_MACHINE = "(^$)"
+COMPATIBLE_MACHINE:armv7a = "(.*)"
+COMPATIBLE_MACHINE:aarch64 = "(.*)"
+COMPATIBLE_MACHINE:x86-64 = "(.*)"
+
 # Release specific configuration
 
 RDEPENDS:${PN} += "ca-certificates python3-json python3-numbers sqlite3"
