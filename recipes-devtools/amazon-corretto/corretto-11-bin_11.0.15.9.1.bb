@@ -24,6 +24,12 @@ SRC_URI[x86-64.sha256sum] = "1878cfcb1ed374d5c8d3e11f230ec702ad3a6779107b640ddb5
 
 SRC_URI[x86.sha256sum]     = "cfd956be63c33217093161022cb37176e48953e4e9f4d2b7a79de0277ac8c933"
 
+COMPATIBLE_MACHINE = "(^$)"
+COMPATIBLE_MACHINE:armv7a = "(.*)"
+COMPATIBLE_MACHINE:aarch64 = "(.*)"
+COMPATIBLE_MACHINE:x86 = "(.*)"
+COMPATIBLE_MACHINE:x86-64 = "(.*)"
+
 FILES = ""
 FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
 
