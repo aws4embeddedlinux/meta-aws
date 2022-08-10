@@ -10,10 +10,9 @@ inherit cmake
 LIC_FILES_CHKSUM = "file://LICENSE;md5=26d85861cd0c0d05ab56ebff38882975"
 
 BRANCH ?= "main"
-SRC_URI = "git://github.com/aws/s2n-tls.git;protocol=https;branch=${BRANCH} \
-           file://0001-cmakelists-remove-warn.patch"
+SRC_URI = "git://github.com/aws/s2n-tls.git;protocol=https;branch=${BRANCH}"
 
-SRCREV = "9b0078adb44650f1618df1a087e24d3f031b8194"
+SRCREV = "660091ff73029fc91c6578cdb450b85992ff9ef5"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S= "${WORKDIR}/git"
@@ -31,12 +30,11 @@ TARGET_CC_ARCH += "${LDFLAGS}"
 # Assume that warnings from upstream have already been evaluated
 EXTRA_OECMAKE += "-DUNSAFE_TREAT_WARNINGS_AS_ERRORS=OFF"
 
-FILES:${PN} += "${libdir}/libs2n.so"
-
-
-FILES:${PN}     = "${libdir}/libs2n.so"
+FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
+                   ${libdir}/lib${PN}.so.1"
 FILES:${PN}-dev = "${includedir}/s2n.h \
-                   ${libdir}/s2n/*"
+                   ${libdir}/s2n/* \
+                   ${libdir}/lib${PN}.so"
 FILES:${PN}-dbg = "/usr/src/debug/s2n/* \
                    ${libdir}/.debug/libs2n.so"
 
