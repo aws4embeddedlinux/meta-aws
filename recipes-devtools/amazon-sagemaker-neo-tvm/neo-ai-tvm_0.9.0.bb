@@ -5,14 +5,14 @@ LICENSE = "Apache-2.0 & BSD-3-Clause"
 
 LIC_FILES_CHKSUM = "file://LICENSE;md5=f30f7a1bcf7728eb568504d96cee7b09"
 
-BRANCH = "main"
+BRANCH = "v0.9.0"
 
-# Main TVM sources plus submodules.
-SRC_URI = "\
-           gitsm://github.com/apache/tvm;protocol=https;branch=${BRANCH} \
-          "
+SRC_URI = "gitsm://github.com/apache/tvm;protocol=https;branch=${BRANCH}"
 
-SRCREV = "9b860095532d2a01525a449fac2bdfc0813bf4cc"
+SRCREV = "d361585965b95acfb35563b92a2011fe8059876c"
+
+# exclude .dev releases
+UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>\d+\.\d+.\d+)(?<!dev)$"
 
 S = "${WORKDIR}/git"
 
