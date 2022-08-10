@@ -13,11 +13,9 @@ BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;protocol=https;branch=${BRANCH} \
            file://01-missing-thread-includes.patch \
-           file://02-missing-thread-includes.patch \
-           file://03-serviced-config.patch \
 "
 
-SRCREV = "a2583a491d95cdc2e8ba3d6a1007d07d98a8c93e"
+SRCREV = "745e6a85588b8f1d0768e77a6798254b0872fbd6"
 
 S= "${WORKDIR}/git"
 DEPENDS = "openssl aws-iot-device-sdk-cpp-v2 googletest"
