@@ -12,7 +12,7 @@ LIC_FILES_CHKSUM = "file://documents/LICENSE;md5=f91e61641e7a96835dea6926a65f470
 BRANCH ?= "main"
 
 SRC_URI = "git://github.com/aws/aws-iot-device-sdk-cpp-v2.git;protocol=https;branch=${BRANCH}"
-SRCREV = "07adffcb3a1a0184849232315744edc9aef3ab93"
+SRCREV = "74b4bd5b74788379644fc4122c8e53772f02eb83"
 
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
