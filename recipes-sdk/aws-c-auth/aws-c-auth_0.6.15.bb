@@ -13,7 +13,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 BRANCH ?= "main"
 SRC_URI = "git://github.com/awslabs/aws-c-auth.git;protocol=https;branch=${BRANCH}"
 
-SRCREV = "59556cd46e684e5bfa27aa074caa77795ce3869f"
+SRCREV = "831fa583b83574db29cbae139b42e0d7a1d1ebb8"
 S= "${WORKDIR}/git"
 
 DEPENDS = "openssl s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http aws-c-sdkutils"
