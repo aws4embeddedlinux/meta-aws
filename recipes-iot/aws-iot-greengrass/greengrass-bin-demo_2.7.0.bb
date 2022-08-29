@@ -1,6 +1,6 @@
 SUMMARY     = "AWS IoT Greengrass Nucleus - Binary Distribution - demo mode"
 DESCRIPTION = ""
-LICENSE     = "Apache-2"
+LICENSE     = "Apache-2.0"
 
 S                          = "${WORKDIR}"
 GG_BASENAME                = "greengrass/v2"
