@@ -5,7 +5,7 @@ LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=2ee41112a44fe7014dce33e26468ba93"
 
 SRC_URI = "git://github.com/boto/boto3.git;protocol=https;branch=master"
-SRCREV = "c1f87f6e73d5348a734efcb8d384d5283ceba6c1"
+SRCREV = "10caaecda4d3eda5670f8ac6b06437d310dc1c45"
 S = "${WORKDIR}/git"
 
 inherit setuptools3
