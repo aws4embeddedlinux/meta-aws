@@ -11,7 +11,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 SRC_URI = "git://github.com/awslabs/aws-c-sdkutils.git;protocol=https;branch=main"
 
-SRCREV = "e3c23f4aca31d9e66df25827645f72cbcbfb657a"
+SRCREV = "2d9ef421f88ab9599f1a128fd4567c2ada64a6b8"
 
 S = "${WORKDIR}/git"
 
