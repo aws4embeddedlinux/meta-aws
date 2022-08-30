@@ -1,4 +1,4 @@
-From fb70e116d0e94e4b2827eb27b4d71916a52b5837 Mon Sep 17 00:00:00 2001
+From 49e9a62a3611b80263fbd678fb1847d07ca3e7e0 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.com>
 Date: Tue, 31 May 2022 15:41:57 +0200
 Subject: [PATCH] aws-crt-python, aws-lc: fix for arch arm
@@ -11,7 +11,7 @@ Subject: [PATCH] aws-crt-python, aws-lc: fix for arch arm
  1 file changed, 2 deletions(-)
 
 diff --git a/setup.py b/setup.py
-index 3896449..128f815 100644
+index 6f2a97d..3bbe1de 100644
 --- a/setup.py
 +++ b/setup.py
 @@ -262,8 +262,6 @@ class awscrt_build_ext(setuptools.command.build_ext.build_ext):
