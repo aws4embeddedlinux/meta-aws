@@ -21,11 +21,14 @@ inherit setuptools3_legacy cmake python3native
 DEPENDS += "zlib llvm llvm-native googletest"
 
 # Point to llvm-config
-LLVM_RELEASE = "14.0.6"
+LLVM_RELEASE = "13.0.1"
 EXTRA_OECMAKE += "-DUSE_LLVM=llvm-config${LLVM_RELEASE}"
 
 # libbacktrace has cross build problems
 EXTRA_OECMAKE += "-DUSE_LIBBACKTRACE=0"
+
+# fix package neo-ai-tvm contains bad RPATH
+EXTRA_OECMAKE += "-DCMAKE_SKIP_RPATH=1"
 
 # This is how we enable the unittests
 export GTEST_LIB = "${STAGING_LIBDIR}"
@@ -59,4 +62,3 @@ export YOCTO_ALTERNATE_MULTILIB_NAME = "/${BASELIB}"
 export YOCTO_ALTERNATE_EXE_PATH = "${STAGING_LIBDIR}/llvm${LLVM_RELEASE}/llvm-config"
 
 BBCLASSEXTEND = "nativesdk"
-
