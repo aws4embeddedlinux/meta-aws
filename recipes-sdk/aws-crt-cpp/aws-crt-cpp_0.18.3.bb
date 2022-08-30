@@ -14,7 +14,7 @@ BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-crt-cpp.git;protocol=https;branch=${BRANCH}"
 
-SRCREV = "813e8649c9138ce8c9f2556482eb381b167da05a"
+SRCREV = "40c414890612d8c9910086fa705b18f9665c6c28"
 
 S = "${WORKDIR}/git"
 
