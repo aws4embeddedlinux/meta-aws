@@ -12,7 +12,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=c91257e3cc0bd6026b93fb15aecf6f1c"
 BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH}"
-SRCREV = "01ae5067a5ad942ed451a836164b2a98ebfca2ee"
+SRCREV = "b93f52e9076d58f7cf802ff087247257fbee7ca4"
 
 S = "${WORKDIR}/git"
 
@@ -28,13 +28,13 @@ EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=${libdir}/aws-lc"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 
 
-FILES:${PN}     = "${libdir}/aws-lc/lib/libssl.so \
+FILES:${PN}     += "${libdir}/aws-lc/lib/libssl.so \
                    ${libdir}/aws-lc/lib/libcrypto.so \
                    ${libdir}/aws-lc/lib/libdecrepit.so"
-FILES:${PN}-dev = "${libdir}/aws-lc/include/openssl/* \
+FILES:${PN}-dev += "${libdir}/aws-lc/include/openssl/* \
                    ${libdir}/aws-lc/lib/ssl/* \
                    ${libdir}/aws-lc/lib/AWSLC/* \
                    ${libdir}/aws-lc/lib/crypto/*"
-FILES:${PN}-dbg = "$D{$prefix}/src/debug/aws-lc/*"
+FILES:${PN}-dbg += "/usr/src/debug/aws-lc/*"
 
 BBCLASSEXTEND = "native nativesdk"
