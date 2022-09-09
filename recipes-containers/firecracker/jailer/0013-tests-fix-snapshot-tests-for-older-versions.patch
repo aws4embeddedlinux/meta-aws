@@ -1,0 +1,215 @@
+From 4cf23b7f000819015d622bfb39a2610214bbd760 Mon Sep 17 00:00:00 2001
+From: alindima <alindima@amazon.com>
+Date: Mon, 18 Jan 2021 10:19:43 +0200
+Subject: [PATCH] tests: fix snapshot tests for older versions
+
+Previously, the snapshot tests that were supposed to retrieve
+the older Firecracker binaries from S3 were not filtering the artifacts
+by version number.
+
+This results in test failures for patch releases, where the test
+will use both older and newer binaries.
+
+Added support in the testing framework for this and fixed the
+respective tests.
+
+Signed-off-by: alindima <alindima@amazon.com>
+---
+ tests/framework/artifacts.py                  | 27 ++++++++++---
+ tests/framework/utils.py                      | 38 +++++++++++++++++++
+ .../functional/test_snapshot_advanced.py      |  7 +++-
+ .../performance/test_snapshot_perf.py         | 14 ++++---
+ 4 files changed, 73 insertions(+), 13 deletions(-)
+
+diff --git a/tests/framework/artifacts.py b/tests/framework/artifacts.py
+index 682144a5..cbe3a710 100644
+--- a/tests/framework/artifacts.py
++++ b/tests/framework/artifacts.py
+@@ -12,6 +12,7 @@ from shutil import copyfile
+ import boto3
+ import botocore.client
+ from host_tools.snapshot_helper import merge_memory_bitmaps
++from framework.utils import compare_versions
+ 
+ 
+ ARTIFACTS_LOCAL_ROOT = "/tmp/ci-artifacts"
+@@ -269,6 +270,12 @@ class FirecrackerArtifact(Artifact):
+                         jailer_path,
+                         artifact_type=ArtifactType.JAILER)
+ 
++    @property
++    def version(self):
++        """Return the artifact's version: `X.Y.Z`."""
++        # Get the filename, remove the extension and trim the leading 'v'.
++        return os.path.splitext(os.path.basename(self.key))[0][1:]
++
+ 
+ class ArtifactCollection:
+     """Provides easy access to different artifact types."""
+@@ -348,7 +355,7 @@ class ArtifactCollection:
+             # Filter out the snapshot artifacts root folder.
+             # Select only files with specified keyword.
+             if (key[-1] == "/" and key != prefix and
+-               (keyword is None or keyword in snapshot_dir.key)):
++                    (keyword is None or keyword in snapshot_dir.key)):
+                 artifact_type = ArtifactType.SNAPSHOT
+                 artifacts.append(SnapshotArtifact(self.bucket,
+                                                   key,
+@@ -366,9 +373,9 @@ class ArtifactCollection:
+             keyword=keyword
+         )
+ 
+-    def firecrackers(self, keyword=None):
++    def firecrackers(self, keyword=None, older_than=None):
+         """Return fc/jailer artifacts for the current arch."""
+-        return self._fetch_artifacts(
++        firecrackers = self._fetch_artifacts(
+             ArtifactCollection.ARTIFACTS_BINARIES,
+             ArtifactCollection.FC_EXTENSION,
+             ArtifactType.FC,
+@@ -376,9 +383,19 @@ class ArtifactCollection:
+             keyword=keyword
+         )
+ 
+-    def firecracker_versions(self):
++        # Filter out binaries with versions newer than the `older_than` arg.
++        if older_than is not None:
++            return list(filter(
++                lambda fc: compare_versions(fc.version, older_than) <= 0,
++                firecrackers
++            ))
++
++        return firecrackers
++
++    def firecracker_versions(self, older_than=None):
+         """Return fc/jailer artifacts' versions for the current arch."""
+-        return [fc.base_name()[1:] for fc in self.firecrackers()]
++        return [fc.base_name()[1:]
++                for fc in self.firecrackers(older_than=older_than)]
+ 
+     def kernels(self, keyword=None):
+         """Return kernel artifacts for the current arch."""
+diff --git a/tests/framework/utils.py b/tests/framework/utils.py
+index 82ff8782..06c7fbb0 100644
+--- a/tests/framework/utils.py
++++ b/tests/framework/utils.py
+@@ -476,3 +476,41 @@ def wait_process_termination(p_pid):
+     except ChildProcessError:
+         return
+     raise Exception("{} process is still alive: ".format(stdout.strip()))
++
++
++def get_firecracker_version_from_toml():
++    """
++    Return the version of the firecracker crate, from Cargo.toml.
++
++    Usually different from the output of `./firecracker --version`, if
++    the code has not been released.
++    """
++    cmd = "cd ../src/firecracker && cargo pkgid | cut -d# -f2 | cut -d: -f2"
++
++    rc, stdout, _ = run_cmd(cmd)
++    assert rc == 0
++
++    return stdout
++
++
++def compare_versions(first, second):
++    """
++    Compare two versions with format `X.Y.Z`.
++
++    :param first: first version string
++    :param second: second version string
++    :returns: 0 if equal, <0 if first < second, >0 if second < first
++    """
++    first = list(map(int, first.split('.')))
++    second = list(map(int, second.split('.')))
++
++    if first[0] == second[0]:
++        if first[1] == second[1]:
++            if first[2] == second[2]:
++                return 0
++
++            return first[2] - second[2]
++
++        return first[1] - second[1]
++
++    return first[0] - second[0]
+diff --git a/tests/integration_tests/functional/test_snapshot_advanced.py b/tests/integration_tests/functional/test_snapshot_advanced.py
+index df5fad8f..c7b749b0 100644
+--- a/tests/integration_tests/functional/test_snapshot_advanced.py
++++ b/tests/integration_tests/functional/test_snapshot_advanced.py
+@@ -11,6 +11,7 @@ from conftest import _test_images_s3_bucket
+ from framework.artifacts import ArtifactCollection, NetIfaceConfig
+ from framework.builder import MicrovmBuilder, SnapshotBuilder, SnapshotType
+ from framework.microvms import VMNano
++from framework.utils import get_firecracker_version_from_toml
+ import host_tools.network as net_tools  # pylint: disable=import-error
+ import host_tools.drive as drive_tools
+ 
+@@ -46,7 +47,8 @@ def test_restore_old_snapshot_all_devices(bin_cloner_path):
+     # Fetch all firecracker binaries.
+     # With each binary create a snapshot and try to restore in current
+     # version.
+-    firecracker_artifacts = artifacts.firecrackers()
++    firecracker_artifacts = artifacts.firecrackers(
++        older_than=get_firecracker_version_from_toml())
+     for firecracker in firecracker_artifacts:
+         firecracker.download()
+         jailer = firecracker.jailer()
+@@ -96,7 +98,8 @@ def test_restore_old_version_all_devices(bin_cloner_path):
+     # Fetch all firecracker binaries.
+     # Create a snapshot with current build and restore with each FC binary
+     # artifact.
+-    firecracker_artifacts = artifacts.firecrackers()
++    firecracker_artifacts = artifacts.firecrackers(
++        older_than=get_firecracker_version_from_toml())
+     for firecracker in firecracker_artifacts:
+         firecracker.download()
+         jailer = firecracker.jailer()
+diff --git a/tests/integration_tests/performance/test_snapshot_perf.py b/tests/integration_tests/performance/test_snapshot_perf.py
+index 812c9345..6162a421 100644
+--- a/tests/integration_tests/performance/test_snapshot_perf.py
++++ b/tests/integration_tests/performance/test_snapshot_perf.py
+@@ -11,7 +11,7 @@ from framework.artifacts import ArtifactCollection, ArtifactSet
+ from framework.matrix import TestMatrix, TestContext
+ from framework.microvms import VMMicro
+ from framework.builder import MicrovmBuilder, SnapshotBuilder, SnapshotType
+-from framework.utils import CpuMap
++from framework.utils import CpuMap, get_firecracker_version_from_toml
+ import host_tools.network as net_tools  # pylint: disable=import-error
+ import host_tools.logging as log_tools
+ 
+@@ -78,7 +78,8 @@ def _test_snapshot_create_latency(context):
+     logger.info("Fetching firecracker/jailer versions from {}."
+                 .format(DEFAULT_TEST_IMAGES_S3_BUCKET))
+     artifacts = ArtifactCollection(_test_images_s3_bucket())
+-    firecracker_versions = artifacts.firecracker_versions()
++    firecracker_versions = artifacts.firecracker_versions(
++        older_than=get_firecracker_version_from_toml())
+     assert len(firecracker_versions) > 0
+ 
+     # Test snapshot creation for every supported target version.
+@@ -193,9 +194,9 @@ kernel {}, disk {} """.format(snapshot_type,
+ 
+     for i in range(SAMPLE_COUNT):
+         microvm, metrics_fifo = vm_builder.build_from_snapshot(
+-                                                snapshot,
+-                                                True,
+-                                                enable_diff_snapshots)
++            snapshot,
++            True,
++            enable_diff_snapshots)
+ 
+         # Attempt to connect to resumed microvm.
+         ssh_connection = net_tools.SSHConnection(microvm.ssh_config)
+@@ -336,7 +337,8 @@ def test_older_snapshot_resume_latency(bin_cloner_path):
+     # Fetch all firecracker binaries.
+     # With each binary create a snapshot and try to restore in current
+     # version.
+-    firecracker_artifacts = artifacts.firecrackers()
++    firecracker_artifacts = artifacts.firecrackers(
++        older_than=get_firecracker_version_from_toml())
+     assert len(firecracker_artifacts) > 0
+ 
+     for firecracker in firecracker_artifacts:

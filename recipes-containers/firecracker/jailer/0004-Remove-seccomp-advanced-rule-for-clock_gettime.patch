@@ -1,0 +1,40 @@
+From 2896480ce9d7918b4ffac0477c3d2c4f297b26c4 Mon Sep 17 00:00:00 2001
+From: alindima <alindima@amazon.com>
+Date: Mon, 11 Jan 2021 15:17:59 +0200
+Subject: [PATCH] Remove seccomp advanced rule for clock_gettime
+
+VDSO overrides this syscall in userspace,
+on most platforms, esentially bypassing seccomp.
+To keep Firecracker working on targets that don't provide
+this function in vdso, we need to allow it via seccomp.
+
+Signed-off-by: alindima <alindima@amazon.com>
+---
+ src/vmm/src/default_syscalls/filters.rs | 14 ++++----------
+ 1 file changed, 4 insertions(+), 10 deletions(-)
+
+diff --git a/src/vmm/src/default_syscalls/filters.rs b/src/vmm/src/default_syscalls/filters.rs
+index 431d3ec0..2928ebbf 100644
+--- a/src/vmm/src/default_syscalls/filters.rs
++++ b/src/vmm/src/default_syscalls/filters.rs
+@@ -33,16 +33,10 @@ pub fn default_filter() -> Result<SeccompFilter, Error> {
+             ),
+             // Called for expanding the heap
+             allow_syscall(libc::SYS_brk),
+-            // Used for metrics, via the helpers in utils/src/time.rs
+-            allow_syscall_if(
+-                libc::SYS_clock_gettime,
+-                or![and![Cond::new(
+-                    0,
+-                    ArgLen::DWORD,
+-                    Eq,
+-                    libc::CLOCK_PROCESS_CPUTIME_ID as u64
+-                )?],],
+-            ),
++            // Used for metrics and logging, via the helpers in utils/src/time.rs
++            // It's not called on some platforms, because of vdso optimisations. In those cases,
++            // musl falls back to the regular syscall.
++            allow_syscall(libc::SYS_clock_gettime),
+             allow_syscall(libc::SYS_close),
+             // Needed for vsock
+             allow_syscall(libc::SYS_connect),

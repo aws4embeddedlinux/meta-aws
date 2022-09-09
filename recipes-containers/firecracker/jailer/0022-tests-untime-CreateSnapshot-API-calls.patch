@@ -1,0 +1,64 @@
+From 37b69c23f59f67579d8106fc4e5cb7d6b08d6b7b Mon Sep 17 00:00:00 2001
+From: Adrian Catangiu <acatan@amazon.com>
+Date: Tue, 4 May 2021 17:58:27 +0300
+Subject: [PATCH] tests: untime CreateSnapshot API calls
+
+Signed-off-by: Adrian Catangiu <acatan@amazon.com>
+---
+ tests/framework/builder.py                                  | 4 ----
+ tests/framework/microvm.py                                  | 1 +
+ tests/framework/resources.py                                | 1 +
+ tests/integration_tests/functional/test_snapshot_version.py | 1 +
+ 4 files changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/tests/framework/builder.py b/tests/framework/builder.py
+index e57b06f4..1a7afd51 100644
+--- a/tests/framework/builder.py
++++ b/tests/framework/builder.py
+@@ -232,10 +232,6 @@ class SnapshotBuilder:  # pylint: disable=too-few-public-methods
+             mem_full_path = os.path.join(snaps_dir, mem_file_name)
+             vmstate_full_path = os.path.join(snaps_dir, snapshot_name)
+ 
+-        # Disable API timeout as the APIs for snapshot related procedures
+-        # take longer.
+-        self._microvm.api_session.untime()
+-
+         snaps_dir_name = os.path.basename(snaps_dir)
+         self._microvm.pause_to_snapshot(
+             mem_file_path=os.path.join('/', snaps_dir_name, mem_file_name),
+diff --git a/tests/framework/microvm.py b/tests/framework/microvm.py
+index f4403c85..c6700c07 100644
+--- a/tests/framework/microvm.py
++++ b/tests/framework/microvm.py
+@@ -750,6 +750,7 @@ class Microvm:
+         response = self.vm.patch(state='Paused')
+         assert self.api_session.is_status_no_content(response.status_code)
+ 
++        self.api_session.untime()
+         response = self.snapshot.create(mem_file_path=mem_file_path,
+                                         snapshot_path=snapshot_path,
+                                         diff=diff,
+diff --git a/tests/framework/resources.py b/tests/framework/resources.py
+index 0a66b293..2b7fb17e 100644
+--- a/tests/framework/resources.py
++++ b/tests/framework/resources.py
+@@ -324,6 +324,7 @@ class SnapshotCreate():
+ 
+     def put(self, **args):
+         """Create a snapshot of the microvm."""
++        self._api_session.untime()
+         datax = self.create_json(**args)
+         return self._api_session.put(
+             "{}".format(self._snapshot_cfg_url),
+diff --git a/tests/integration_tests/functional/test_snapshot_version.py b/tests/integration_tests/functional/test_snapshot_version.py
+index 111fb0ab..0b27cd96 100644
+--- a/tests/integration_tests/functional/test_snapshot_version.py
++++ b/tests/integration_tests/functional/test_snapshot_version.py
+@@ -55,6 +55,7 @@ def test_create_with_past_version(test_microvm_with_ssh, network_config):
+     snapshot_builder = SnapshotBuilder(test_microvm)
+     # Create directory and files for saving snapshot state and memory.
+     _snapshot_dir = snapshot_builder.create_snapshot_dir()
++
+     # Pause and create a snapshot of the microVM. Firecracker v0.23 allowed a
+     # maximum of `FC_V0_23_MAX_DEVICES_ATTACHED` virtio devices at a time.
+     # This microVM has `FC_V0_23_MAX_DEVICES_ATTACHED` devices, including the

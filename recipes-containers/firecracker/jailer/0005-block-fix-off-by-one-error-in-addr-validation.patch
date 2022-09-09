@@ -1,0 +1,214 @@
+From f3cce68f86574cd68f485e55d53b9261ebfb738f Mon Sep 17 00:00:00 2001
+From: George Pisaltu <gpl@amazon.com>
+Date: Mon, 11 Jan 2021 13:56:27 +0200
+Subject: [PATCH] block: fix off-by-one error in addr validation
+
+The block device validated addresses from virtio descriptors before
+trying to execute requests. In this validation, the `checked_offset`
+function of guest memory was used to determine if the slice defined
+by the sum of the address and length of the virtio descriptor was
+within the guest memory bounds. However, this sum is greater than
+the last valid offset, `addr + len - 1`, by 1. This made the block
+device mark descriptors with slices at the very end of a region as
+invalid, making the last byte of a memory region unusable by the
+block device.
+
+This check was performed as the previous guest memory model did not
+have it built in. This commit removes the checks as the current guest
+memory model validates the addresses before operations. Also added
+regression tests for this case.
+
+Signed-off-by: George Pisaltu <gpl@amazon.com>
+---
+ src/devices/src/virtio/block/device.rs  | 73 ++++++++++++++++++++++++-
+ src/devices/src/virtio/block/request.rs | 34 +++---------
+ 2 files changed, 78 insertions(+), 29 deletions(-)
+
+diff --git a/src/devices/src/virtio/block/device.rs b/src/devices/src/virtio/block/device.rs
+index cb60cbfb..b15e89db 100644
+--- a/src/devices/src/virtio/block/device.rs
++++ b/src/devices/src/virtio/block/device.rs
+@@ -301,9 +301,10 @@ impl Block {
+                             e.status()
+                         }
+                     };
+-                    // We use unwrap because the request parsing process already checked that the
+-                    // status_addr was valid.
+-                    mem.write_obj(status, request.status_addr).unwrap();
++
++                    if let Err(e) = mem.write_obj(status, request.status_addr) {
++                        error!("Failed to write virtio block status: {:?}", e)
++                    }
+                 }
+                 Err(e) => {
+                     error!("Failed to parse available descriptor chain: {:?}", e);
+@@ -603,6 +604,39 @@ pub(crate) mod tests {
+         assert_eq!(vq.used.ring[0].get().len, 0);
+     }
+ 
++    #[test]
++    fn test_addr_out_of_bounds() {
++        let mut block = default_block();
++        // Default mem size is 0x10000
++        let mem = default_mem();
++        let vq = VirtQueue::new(GuestAddress(0), &mem, 16);
++        set_queue(&mut block, 0, vq.create_queue());
++        block.activate(mem.clone()).unwrap();
++        initialize_virtqueue(&vq);
++        vq.dtable[1].set(0xff00, 0x1000, VIRTQ_DESC_F_NEXT | VIRTQ_DESC_F_WRITE, 2);
++
++        let request_type_addr = GuestAddress(vq.dtable[0].addr.get());
++
++        // Mark the next available descriptor.
++        vq.avail.idx.set(1);
++        // Read.
++        {
++            vq.used.idx.set(0);
++
++            mem.write_obj::<u32>(VIRTIO_BLK_T_IN, request_type_addr)
++                .unwrap();
++            vq.dtable[1]
++                .flags
++                .set(VIRTQ_DESC_F_NEXT | VIRTQ_DESC_F_WRITE);
++
++            check_metric_after_block!(
++                &METRICS.block.invalid_reqs_count,
++                1,
++                invoke_handler_for_queue_event(&mut block)
++            );
++        }
++    }
++
+     #[test]
+     fn test_request_execute_failures() {
+         let mut block = default_block();
+@@ -690,6 +724,39 @@ pub(crate) mod tests {
+             VIRTIO_BLK_S_UNSUPP
+         );
+     }
++    #[test]
++    fn test_end_of_region() {
++        let mut block = default_block();
++        let mem = default_mem();
++        let vq = VirtQueue::new(GuestAddress(0), &mem, 16);
++        set_queue(&mut block, 0, vq.create_queue());
++        block.activate(mem.clone()).unwrap();
++        initialize_virtqueue(&vq);
++        vq.dtable[1].set(0xf000, 0x1000, VIRTQ_DESC_F_NEXT | VIRTQ_DESC_F_WRITE, 2);
++
++        let request_type_addr = GuestAddress(vq.dtable[0].addr.get());
++        let status_addr = GuestAddress(vq.dtable[2].addr.get());
++
++        vq.used.idx.set(0);
++
++        mem.write_obj::<u32>(VIRTIO_BLK_T_IN, request_type_addr)
++            .unwrap();
++        vq.dtable[1]
++            .flags
++            .set(VIRTQ_DESC_F_NEXT | VIRTQ_DESC_F_WRITE);
++
++        check_metric_after_block!(
++            &METRICS.block.read_count,
++            1,
++            invoke_handler_for_queue_event(&mut block)
++        );
++
++        assert_eq!(vq.used.idx.get(), 1);
++        assert_eq!(vq.used.ring[0].get().id, 0);
++        // Added status byte length.
++        assert_eq!(vq.used.ring[0].get().len, vq.dtable[1].len.get() + 1);
++        assert_eq!(mem.read_obj::<u32>(status_addr).unwrap(), VIRTIO_BLK_S_OK);
++    }
+ 
+     #[test]
+     fn test_read_write() {
+diff --git a/src/devices/src/virtio/block/request.rs b/src/devices/src/virtio/block/request.rs
+index f1878d0b..85c18f5c 100644
+--- a/src/devices/src/virtio/block/request.rs
++++ b/src/devices/src/virtio/block/request.rs
+@@ -7,12 +7,11 @@
+ 
+ use std::convert::From;
+ use std::io::{self, Seek, SeekFrom, Write};
+-use std::mem;
+ use std::result;
+ 
+ use logger::{IncMetric, METRICS};
+ use virtio_gen::virtio_blk::*;
+-use vm_memory::{ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap};
++use vm_memory::{ByteValued, Bytes, GuestAddress, GuestMemoryError, GuestMemoryMmap};
+ 
+ use super::super::DescriptorChain;
+ use super::device::DiskProperties;
+@@ -159,13 +158,6 @@ impl Request {
+                 return Err(Error::UnexpectedReadOnlyDescriptor);
+             }
+ 
+-            // Check that the address of the data descriptor is valid in guest memory.
+-            let _ = mem
+-                .checked_offset(data_desc.addr, data_desc.len as usize)
+-                .ok_or(Error::GuestMemory(GuestMemoryError::InvalidGuestAddress(
+-                    data_desc.addr,
+-                )))?;
+-
+             req.data_addr = data_desc.addr;
+             req.data_len = data_desc.len;
+         }
+@@ -179,14 +171,6 @@ impl Request {
+             return Err(Error::DescriptorLengthTooSmall);
+         }
+ 
+-        // Check that the address of the status descriptor is valid in guest memory.
+-        // We will write an u32 status here after executing the request.
+-        let _ = mem
+-            .checked_offset(status_desc.addr, mem::size_of::<u32>())
+-            .ok_or(Error::GuestMemory(GuestMemoryError::InvalidGuestAddress(
+-                status_desc.addr,
+-            )))?;
+-
+         req.status_addr = status_desc.addr;
+ 
+         Ok(req)
+@@ -257,7 +241,7 @@ mod tests {
+ 
+     use crate::virtio::queue::tests::*;
+     use crate::virtio::test_utils::VirtQueue;
+-    use vm_memory::{Address, GuestAddress};
++    use vm_memory::{Address, GuestAddress, GuestMemory};
+ 
+     #[test]
+     fn test_read_request_header() {
+@@ -440,13 +424,12 @@ mod tests {
+             // Fix status descriptor length.
+             vq.dtable[status_descriptor].len.set(0x1000);
+             // Invalid guest address for the status descriptor.
++            // Parsing will still succeed as the operation that
++            // will fail happens when executing the request.
+             vq.dtable[status_descriptor]
+                 .addr
+                 .set(m.last_addr().raw_value());
+-            assert!(matches!(
+-                Request::parse(&q.pop(m).unwrap(), m),
+-                Err(Error::GuestMemory(GuestMemoryError::InvalidGuestAddress(_)))
+-            ));
++            assert!(Request::parse(&q.pop(m).unwrap(), m).is_ok());
+         }
+ 
+         {
+@@ -454,13 +437,12 @@ mod tests {
+             // Restore status descriptor.
+             vq.dtable[status_descriptor].set(0x3000, 0x1000, VIRTQ_DESC_F_WRITE, 0);
+             // Invalid guest address for the data descriptor.
++            // Parsing will still succeed as the operation that
++            // will fail happens when executing the request.
+             vq.dtable[data_descriptor]
+                 .addr
+                 .set(m.last_addr().raw_value());
+-            assert!(matches!(
+-                Request::parse(&q.pop(m).unwrap(), m),
+-                Err(Error::GuestMemory(GuestMemoryError::InvalidGuestAddress(_)))
+-            ));
++            assert!(Request::parse(&q.pop(m).unwrap(), m).is_ok());
+         }
+ 
+         {

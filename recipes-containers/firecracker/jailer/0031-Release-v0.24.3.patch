@@ -1,0 +1,110 @@
+From 9f447fe65c1c549ef7b0abe863428fa33ffe5f79 Mon Sep 17 00:00:00 2001
+From: Luminita Voicu <lumivo@amazon.com>
+Date: Tue, 11 May 2021 15:26:55 +0300
+Subject: [PATCH] Release v0.24.3
+
+Signed-off-by: Luminita Voicu <lumivo@amazon.com>
+---
+ CHANGELOG.md                            | 2 +-
+ CREDITS.md                              | 3 ++-
+ Cargo.lock                              | 4 ++--
+ src/api_server/swagger/firecracker.yaml | 2 +-
+ src/firecracker/Cargo.toml              | 2 +-
+ src/jailer/Cargo.toml                   | 2 +-
+ 6 files changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2071f4f3..a121a3cd 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,6 +1,6 @@
+ # Changelog
+ 
+-## [Unreleased]
++## [0.24.3]
+ 
+ ### Changed
+ 
+diff --git a/CREDITS.md b/CREDITS.md
+index 47bc2459..ddcab8b9 100644
+--- a/CREDITS.md
++++ b/CREDITS.md
+@@ -44,7 +44,6 @@ Contributors to the Firecracker repository:
+ * Babis Chalios <babis.chalios@gmail.com>
+ * Begley Brothers Inc <begleybrothers@gmail.com>
+ * Benjamin Fry <benjaminfry@me.com>
+-* Liviu Berciu <lberciu@amazon.com>
+ * bin liu <bin@hyper.sh>
+ * Bob Potter <bobby.potter@gmail.com>
+ * Bogdan Ionita <bci@amazon.com>
+@@ -97,9 +96,11 @@ Contributors to the Firecracker repository:
+ * Kazuyoshi Kato <katokazu@amazon.com>
+ * keyangxie <keyang.xie@gmail.com>
+ * Krishna Kumar T <krishna.thokala2010@gmail.com>
++* kumargu <kumargu@amazon.com>
+ * Laura Loghin <lauralg@amazon.com>
+ * lifupan <lifupan@gmail.com>
+ * Liu Jiang <gerry@linux.alibaba.com>
++* Liviu Berciu <lberciu@amazon.com>
+ * Lloyd <lloydmeta@gmail.com>
+ * lloydmeta <lloydmeta@gmail.com>
+ * LOU Xun <aquarhead@ela.build>
+diff --git a/Cargo.lock b/Cargo.lock
+index 50a9c6b9..48ed5f10 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -326,7 +326,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "firecracker"
+-version = "0.24.2"
++version = "0.24.3"
+ dependencies = [
+  "api_server",
+  "libc",
+@@ -377,7 +377,7 @@ checksum = "dc6f3ad7b9d11a0c00842ff8de1b60ee58661048eb8049ed33c73594f359d7e6"
+ 
+ [[package]]
+ name = "jailer"
+-version = "0.24.2"
++version = "0.24.3"
+ dependencies = [
+  "libc",
+  "regex",
+diff --git a/src/api_server/swagger/firecracker.yaml b/src/api_server/swagger/firecracker.yaml
+index 46326be7..f3300e76 100644
+--- a/src/api_server/swagger/firecracker.yaml
++++ b/src/api_server/swagger/firecracker.yaml
+@@ -5,7 +5,7 @@ info:
+     The API is accessible through HTTP calls on specific URLs
+     carrying JSON modeled data.
+     The transport medium is a Unix Domain Socket.
+-  version: 0.24.2
++  version: 0.24.3
+   termsOfService: ""
+   contact:
+     email: "compute-capsule@amazon.com"
+diff --git a/src/firecracker/Cargo.toml b/src/firecracker/Cargo.toml
+index 9bfee4da..df4ab82a 100644
+--- a/src/firecracker/Cargo.toml
++++ b/src/firecracker/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "firecracker"
+-version = "0.24.2"
++version = "0.24.3"
+ authors = ["Amazon Firecracker team <firecracker-devel@amazon.com>"]
+ edition = "2018"
+ build = "../../build.rs"
+diff --git a/src/jailer/Cargo.toml b/src/jailer/Cargo.toml
+index 756de80c..31c52da1 100644
+--- a/src/jailer/Cargo.toml
++++ b/src/jailer/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "jailer"
+-version = "0.24.2"
++version = "0.24.3"
+ authors = ["Amazon Firecracker team <firecracker-devel@amazon.com>"]
+ edition = "2018"
+ build = "../../build.rs"

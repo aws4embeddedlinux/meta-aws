@@ -8,7 +8,7 @@ inherit cargo
 # how to get jailer could be as easy as but default to a git checkout:
 # SRC_URI += "crate://crates.io/jailer/0.24.3"
 SRC_URI += "git://github.com/firecracker-microvm/firecracker.git;protocol=https;nobranch=1"
-SRCREV = "9f447fe65c1c549ef7b0abe863428fa33ffe5f79"
+SRCREV = "1285e4a356c61c7a8455dee4273df77bd05d0c16"
 S = "${WORKDIR}/git"
 CARGO_SRC_DIR = "src/jailer"
 

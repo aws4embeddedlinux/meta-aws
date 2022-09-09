@@ -1,0 +1,53 @@
+From c3cabd431a261cf68fe20f332d38fe81035ec913 Mon Sep 17 00:00:00 2001
+From: George Pisaltu <gpl@amazon.com>
+Date: Wed, 28 Apr 2021 11:42:35 +0300
+Subject: [PATCH] persist: update balloon related structs
+
+Signed-off-by: George Pisaltu <gpl@amazon.com>
+---
+ src/devices/src/virtio/balloon/persist.rs | 4 ++--
+ src/vmm/src/device_manager/persist.rs     | 2 +-
+ src/vmm/src/persist.rs                    | 2 +-
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/devices/src/virtio/balloon/persist.rs b/src/devices/src/virtio/balloon/persist.rs
+index 1c9bb401..d882cd07 100644
+--- a/src/devices/src/virtio/balloon/persist.rs
++++ b/src/devices/src/virtio/balloon/persist.rs
+@@ -62,8 +62,8 @@ impl BalloonStatsState {
+         BalloonStats {
+             target_pages: 0,
+             actual_pages: 0,
+-            target_mb: 0,
+-            actual_mb: 0,
++            target_mib: 0,
++            actual_mib: 0,
+             swap_in: self.swap_in,
+             swap_out: self.swap_out,
+             major_faults: self.major_faults,
+diff --git a/src/vmm/src/device_manager/persist.rs b/src/vmm/src/device_manager/persist.rs
+index 3cd47d3a..e7c98103 100644
+--- a/src/vmm/src/device_manager/persist.rs
++++ b/src/vmm/src/device_manager/persist.rs
+@@ -540,7 +540,7 @@ mod tests {
+ 
+             // Add a balloon device.
+             let balloon_cfg = BalloonDeviceConfig {
+-                amount_mb: 123,
++                amount_mib: 123,
+                 deflate_on_oom: false,
+                 stats_polling_interval_s: 1,
+             };
+diff --git a/src/vmm/src/persist.rs b/src/vmm/src/persist.rs
+index c0932f38..5c45f435 100644
+--- a/src/vmm/src/persist.rs
++++ b/src/vmm/src/persist.rs
+@@ -441,7 +441,7 @@ mod tests {
+ 
+         // Add a balloon device.
+         let balloon_config = BalloonDeviceConfig {
+-            amount_mb: 0,
++            amount_mib: 0,
+             deflate_on_oom: false,
+             stats_polling_interval_s: 0,
+         };
