@@ -1,4 +1,4 @@
-From c59610283da8fac5364960a35b06d6e5170f4e41 Mon Sep 17 00:00:00 2001
+From a41cec50c4a5aef07480b270d0353a71bd4d4c47 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.com>
 Date: Tue, 31 May 2022 15:41:57 +0200
 Subject: [PATCH] aws-crt-python, aws-lc: fix for arch arm
