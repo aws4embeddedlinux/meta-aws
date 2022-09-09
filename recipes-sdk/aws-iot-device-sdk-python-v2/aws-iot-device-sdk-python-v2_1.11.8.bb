@@ -10,7 +10,7 @@ inherit setuptools3
 BRANCH ?= "main"
 
 SRC_URI = "git://github.com/aws/aws-iot-device-sdk-python-v2.git;protocol=https;branch=${BRANCH}"
-SRCREV = "ba6a4e0557caeb7f86128c32292115b18ff4db57"
+SRCREV = "384d035180ca90dc9dd61a89b3c46c8420b22807"
 
 S = "${WORKDIR}/git"
 
