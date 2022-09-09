@@ -1,0 +1,49 @@
+From 4820aa8d959b27da34e56086c7933818e7fed5f3 Mon Sep 17 00:00:00 2001
+From: Andrei Sandu <sandreim@amazon.com>
+Date: Wed, 23 Dec 2020 16:29:21 +0200
+Subject: [PATCH] Update version.
+
+Signed-off-by: Andrei Sandu <sandreim@amazon.com>
+---
+ src/api_server/swagger/firecracker.yaml | 2 +-
+ src/firecracker/Cargo.toml              | 2 +-
+ src/jailer/Cargo.toml                   | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/api_server/swagger/firecracker.yaml b/src/api_server/swagger/firecracker.yaml
+index b940d7ad..0b1ef5b5 100644
+--- a/src/api_server/swagger/firecracker.yaml
++++ b/src/api_server/swagger/firecracker.yaml
+@@ -5,7 +5,7 @@ info:
+     The API is accessible through HTTP calls on specific URLs
+     carrying JSON modeled data.
+     The transport medium is a Unix Domain Socket.
+-  version: 0.23.0
++  version: 0.24.0
+   termsOfService: ""
+   contact:
+     email: "compute-capsule@amazon.com"
+diff --git a/src/firecracker/Cargo.toml b/src/firecracker/Cargo.toml
+index 81efc5c3..68f62be1 100644
+--- a/src/firecracker/Cargo.toml
++++ b/src/firecracker/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "firecracker"
+-version = "0.23.0"
++version = "0.24.0"
+ authors = ["Amazon Firecracker team <firecracker-devel@amazon.com>"]
+ edition = "2018"
+ build = "../../build.rs"
+diff --git a/src/jailer/Cargo.toml b/src/jailer/Cargo.toml
+index 4f475ea0..2f2c9b5d 100644
+--- a/src/jailer/Cargo.toml
++++ b/src/jailer/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "jailer"
+-version = "0.23.0"
++version = "0.24.0"
+ authors = ["Amazon Firecracker team <firecracker-devel@amazon.com>"]
+ edition = "2018"
+ build = "../../build.rs"

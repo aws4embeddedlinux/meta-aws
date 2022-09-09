@@ -1,0 +1,23 @@
+From de68757db065f065e92a3ee8145b6d49c75ce661 Mon Sep 17 00:00:00 2001
+From: George Pisaltu <gpl@amazon.com>
+Date: Wed, 5 May 2021 18:53:43 +0300
+Subject: [PATCH] added API update to changelog
+
+Signed-off-by: George Pisaltu <gpl@amazon.com>
+---
+ CHANGELOG.md | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 02d45fae..2071f4f3 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -10,6 +10,8 @@
+ 
+ - Snapshot related host files (vm-state, memory, block backing files) are now
+   flushed to their backing mediums as part of the CreateSnapshot operation.
++- Fixed ballooning API definition by renaming all fields which mentioned "MB"
++  to use "MiB" instead.
+ 
+ ## [0.24.2]
+ 

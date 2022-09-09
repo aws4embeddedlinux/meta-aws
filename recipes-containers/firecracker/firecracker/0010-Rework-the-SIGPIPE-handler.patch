@@ -1,0 +1,67 @@
+From 544fb4225eefd17529338622433a21e6ea1f4318 Mon Sep 17 00:00:00 2001
+From: Andrei Sandu <sandreim@amazon.com>
+Date: Thu, 18 Feb 2021 13:36:37 +0200
+Subject: [PATCH] Rework the SIGPIPE handler
+
+With this change the VMM will no longer exit() on this signal,
+but the metrics and logs will record the event.
+
+Signed-off-by: Andrei Sandu <sandreim@amazon.com>
+---
+ src/vmm/src/signal_handler.rs | 29 +++++++++++++++++++++--------
+ 1 file changed, 21 insertions(+), 8 deletions(-)
+
+diff --git a/src/vmm/src/signal_handler.rs b/src/vmm/src/signal_handler.rs
+index 0b4b4029..0f5739bf 100644
+--- a/src/vmm/src/signal_handler.rs
++++ b/src/vmm/src/signal_handler.rs
+@@ -105,14 +105,6 @@ generate_handler!(
+     empty_fn
+ );
+ 
+-generate_handler!(
+-    sigpipe_handler,
+-    SIGPIPE,
+-    FC_EXIT_CODE_SIGPIPE,
+-    METRICS.signals.sigpipe,
+-    empty_fn
+-);
+-
+ generate_handler!(
+     sigsys_handler,
+     SIGSYS,
+@@ -128,6 +120,7 @@ generate_handler!(
+     METRICS.signals.sighup,
+     empty_fn
+ );
++
+ generate_handler!(
+     sigill_handler,
+     SIGILL,
+@@ -135,6 +128,26 @@ generate_handler!(
+     METRICS.signals.sigill,
+     empty_fn
+ );
++
++#[inline(always)]
++extern "C" fn sigpipe_handler(num: c_int, info: *mut siginfo_t, _unused: *mut c_void) {
++    // Just record the metric and allow the process to continue, the EPIPE error needs
++    // to be handled at caller level.
++
++    // Safe because we're just reading some fields from a supposedly valid argument.
++    let si_signo = unsafe { (*info).si_signo };
++    let si_code = unsafe { (*info).si_code };
++
++    if num != si_signo || num != SIGPIPE {
++        error!("Received invalid signal {}, code {}.", si_signo, si_code);
++        return;
++    }
++
++    METRICS.signals.sigpipe.inc();
++
++    error!("Received signal {}, code {}.", si_signo, si_code);
++}
++
+ /// Registers all the required signal handlers.
+ ///
+ /// Custom handlers are installed for: `SIGBUS`, `SIGSEGV`, `SIGSYS`

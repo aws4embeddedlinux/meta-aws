@@ -1,0 +1,246 @@
+From 62054ef49b8cd8096dda765ff1eac57249305de1 Mon Sep 17 00:00:00 2001
+From: George Pisaltu <gpl@amazon.com>
+Date: Wed, 28 Apr 2021 11:46:10 +0300
+Subject: [PATCH] vmm: updated balloon struct field names
+
+Signed-off-by: George Pisaltu <gpl@amazon.com>
+---
+ src/vmm/src/builder.rs            |  2 +-
+ src/vmm/src/lib.rs                |  6 +++---
+ src/vmm/src/resources.rs          | 14 +++++++-------
+ src/vmm/src/rpc_interface.rs      |  8 ++++----
+ src/vmm/src/vmm_config/balloon.rs | 22 +++++++++++-----------
+ 5 files changed, 26 insertions(+), 26 deletions(-)
+
+diff --git a/src/vmm/src/builder.rs b/src/vmm/src/builder.rs
+index 15971299..3f083d6a 100644
+--- a/src/vmm/src/builder.rs
++++ b/src/vmm/src/builder.rs
+@@ -1282,7 +1282,7 @@ pub mod tests {
+         let mut vmm = default_vmm();
+ 
+         let balloon_config = BalloonDeviceConfig {
+-            amount_mb: 0,
++            amount_mib: 0,
+             deflate_on_oom: false,
+             stats_polling_interval_s: 0,
+         };
+diff --git a/src/vmm/src/lib.rs b/src/vmm/src/lib.rs
+index 3e44193e..bb918970 100644
+--- a/src/vmm/src/lib.rs
++++ b/src/vmm/src/lib.rs
+@@ -614,11 +614,11 @@ impl Vmm {
+     /// Updates configuration for the balloon device target size.
+     pub fn update_balloon_config(
+         &mut self,
+-        amount_mb: u32,
++        amount_mib: u32,
+     ) -> std::result::Result<(), BalloonError> {
+         // The balloon cannot have a target size greater than the size of
+         // the guest memory.
+-        if amount_mb as u64 > mem_size_mib(self.guest_memory()) {
++        if amount_mib as u64 > mem_size_mib(self.guest_memory()) {
+             return Err(BalloonError::TooManyPagesRequested);
+         }
+ 
+@@ -640,7 +640,7 @@ impl Vmm {
+                     .as_mut_any()
+                     .downcast_mut::<Balloon>()
+                     .unwrap()
+-                    .update_size(amount_mb)?;
++                    .update_size(amount_mib)?;
+             }
+ 
+             let locked_dev = busdev.lock().expect("Poisoned lock");
+diff --git a/src/vmm/src/resources.rs b/src/vmm/src/resources.rs
+index 4bb38199..35ce4684 100644
+--- a/src/vmm/src/resources.rs
++++ b/src/vmm/src/resources.rs
+@@ -198,7 +198,7 @@ impl VmResources {
+                     .balloon
+                     .get_config()
+                     .map_err(|_| VmConfigError::InvalidVmState)?
+-                    .amount_mb as usize
++                    .amount_mib as usize
+         {
+             return Err(VmConfigError::IncompatibleBalloonSize);
+         }
+@@ -245,7 +245,7 @@ impl VmResources {
+     ) -> Result<BalloonConfigError> {
+         // The balloon cannot have a target size greater than the size of
+         // the guest memory.
+-        if config.amount_mb as usize
++        if config.amount_mib as usize
+             > self
+                 .vm_config
+                 .mem_size_mib
+@@ -721,7 +721,7 @@ mod tests {
+         json = format!(
+             r#"{{
+                     "balloon": {{
+-                        "amount_mb": 0,
++                        "amount_mib": 0,
+                         "deflate_on_oom": false,
+                         "stats_polling_interval_s": 0
+                     }},
+@@ -817,7 +817,7 @@ mod tests {
+         vm_resources.vm_config.mem_size_mib = Some(128);
+         vm_resources
+             .set_balloon_device(BalloonDeviceConfig {
+-                amount_mb: 100,
++                amount_mib: 100,
+                 deflate_on_oom: false,
+                 stats_polling_interval_s: 0,
+             })
+@@ -846,7 +846,7 @@ mod tests {
+             boot_timer: false,
+         };
+         let mut new_balloon_cfg = BalloonDeviceConfig {
+-            amount_mb: 100,
++            amount_mib: 100,
+             deflate_on_oom: false,
+             stats_polling_interval_s: 0,
+         };
+@@ -856,7 +856,7 @@ mod tests {
+             .unwrap();
+ 
+         let actual_balloon_cfg = vm_resources.balloon.get_config().unwrap();
+-        assert_eq!(actual_balloon_cfg.amount_mb, new_balloon_cfg.amount_mb);
++        assert_eq!(actual_balloon_cfg.amount_mib, new_balloon_cfg.amount_mib);
+         assert_eq!(
+             actual_balloon_cfg.deflate_on_oom,
+             new_balloon_cfg.deflate_on_oom
+@@ -876,7 +876,7 @@ mod tests {
+             mmds_config: None,
+             boot_timer: false,
+         };
+-        new_balloon_cfg.amount_mb = 256;
++        new_balloon_cfg.amount_mib = 256;
+         assert!(vm_resources.set_balloon_device(new_balloon_cfg).is_err());
+     }
+ 
+diff --git a/src/vmm/src/rpc_interface.rs b/src/vmm/src/rpc_interface.rs
+index 33327f07..96de92bd 100644
+--- a/src/vmm/src/rpc_interface.rs
++++ b/src/vmm/src/rpc_interface.rs
+@@ -474,7 +474,7 @@ impl RuntimeApiController {
+                 .vmm
+                 .lock()
+                 .expect("Poisoned lock")
+-                .update_balloon_config(balloon_update.amount_mb)
++                .update_balloon_config(balloon_update.amount_mib)
+                 .map(|_| VmmData::Empty)
+                 .map_err(|e| VmmActionError::BalloonConfig(BalloonConfigError::from(e))),
+             UpdateBalloonStatistics(balloon_stats_update) => self
+@@ -1201,7 +1201,7 @@ mod tests {
+             VmmActionError::OperationNotSupportedPreBoot,
+         );
+         check_preboot_request_err(
+-            VmmAction::UpdateBalloon(BalloonUpdateConfig { amount_mb: 0 }),
++            VmmAction::UpdateBalloon(BalloonUpdateConfig { amount_mib: 0 }),
+             VmmActionError::OperationNotSupportedPreBoot,
+         );
+         check_preboot_request_err(
+@@ -1392,13 +1392,13 @@ mod tests {
+ 
+     #[test]
+     fn test_runtime_update_balloon_config() {
+-        let req = VmmAction::UpdateBalloon(BalloonUpdateConfig { amount_mb: 0 });
++        let req = VmmAction::UpdateBalloon(BalloonUpdateConfig { amount_mib: 0 });
+         check_runtime_request(req, |result, vmm| {
+             assert_eq!(result, Ok(VmmData::Empty));
+             assert!(vmm.update_balloon_config_called)
+         });
+ 
+-        let req = VmmAction::UpdateBalloon(BalloonUpdateConfig { amount_mb: 0 });
++        let req = VmmAction::UpdateBalloon(BalloonUpdateConfig { amount_mib: 0 });
+         check_runtime_request_err(
+             req,
+             VmmActionError::BalloonConfig(BalloonConfigError::DeviceNotFound),
+diff --git a/src/vmm/src/vmm_config/balloon.rs b/src/vmm/src/vmm_config/balloon.rs
+index 6e13d06f..bff3ff98 100644
+--- a/src/vmm/src/vmm_config/balloon.rs
++++ b/src/vmm/src/vmm_config/balloon.rs
+@@ -73,8 +73,8 @@ type Result<T> = std::result::Result<T, BalloonConfigError>;
+ #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+ #[serde(deny_unknown_fields)]
+ pub struct BalloonDeviceConfig {
+-    /// Target balloon size in MB.
+-    pub amount_mb: u32,
++    /// Target balloon size in MiB.
++    pub amount_mib: u32,
+     /// Option to deflate the balloon in case the guest is out of memory.
+     pub deflate_on_oom: bool,
+     /// Interval in seconds between refreshing statistics.
+@@ -85,7 +85,7 @@ pub struct BalloonDeviceConfig {
+ impl From<BalloonConfig> for BalloonDeviceConfig {
+     fn from(state: BalloonConfig) -> Self {
+         BalloonDeviceConfig {
+-            amount_mb: state.amount_mb,
++            amount_mib: state.amount_mib,
+             deflate_on_oom: state.deflate_on_oom,
+             stats_polling_interval_s: state.stats_polling_interval_s,
+         }
+@@ -97,8 +97,8 @@ impl From<BalloonConfig> for BalloonDeviceConfig {
+ #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+ #[serde(deny_unknown_fields)]
+ pub struct BalloonUpdateConfig {
+-    /// Target balloon size in MB.
+-    pub amount_mb: u32,
++    /// Target balloon size in MiB.
++    pub amount_mib: u32,
+ }
+ 
+ /// The data fed into a balloon statistics interval update request.
+@@ -135,7 +135,7 @@ impl BalloonBuilder {
+     pub fn set(&mut self, cfg: BalloonDeviceConfig) -> Result<()> {
+         self.inner = Some(Arc::new(Mutex::new(
+             Balloon::new(
+-                cfg.amount_mb,
++                cfg.amount_mib,
+                 cfg.deflate_on_oom,
+                 cfg.stats_polling_interval_s,
+                 // `restored` flag is false because this code path
+@@ -168,7 +168,7 @@ pub(crate) mod tests {
+ 
+     pub(crate) fn default_config() -> BalloonDeviceConfig {
+         BalloonDeviceConfig {
+-            amount_mb: 0,
++            amount_mib: 0,
+             deflate_on_oom: false,
+             stats_polling_interval_s: 0,
+         }
+@@ -186,7 +186,7 @@ pub(crate) mod tests {
+     fn test_balloon_create() {
+         let default_balloon_config = default_config();
+         let balloon_config = BalloonDeviceConfig {
+-            amount_mb: 0,
++            amount_mib: 0,
+             deflate_on_oom: false,
+             stats_polling_interval_s: 0,
+         };
+@@ -198,7 +198,7 @@ pub(crate) mod tests {
+         assert_eq!(builder.get().unwrap().lock().unwrap().num_pages(), 0);
+         assert_eq!(builder.get_config().unwrap(), default_balloon_config);
+ 
+-        let _update_config = BalloonUpdateConfig { amount_mb: 5 };
++        let _update_config = BalloonUpdateConfig { amount_mib: 5 };
+         let _stats_update_config = BalloonUpdateStatsConfig {
+             stats_polling_interval_s: 5,
+         };
+@@ -207,13 +207,13 @@ pub(crate) mod tests {
+     #[test]
+     fn test_from_balloon_state() {
+         let expected_balloon_config = BalloonDeviceConfig {
+-            amount_mb: 5,
++            amount_mib: 5,
+             deflate_on_oom: false,
+             stats_polling_interval_s: 3,
+         };
+ 
+         let actual_balloon_config = BalloonDeviceConfig::from(BalloonConfig {
+-            amount_mb: 5,
++            amount_mib: 5,
+             deflate_on_oom: false,
+             stats_polling_interval_s: 3,
+         });

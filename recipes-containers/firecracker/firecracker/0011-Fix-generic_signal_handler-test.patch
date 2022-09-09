@@ -1,0 +1,38 @@
+From b9f3820addbc1103bd89af3ad3d8f07301537f33 Mon Sep 17 00:00:00 2001
+From: Andrei Sandu <sandreim@amazon.com>
+Date: Thu, 18 Feb 2021 17:05:10 +0200
+Subject: [PATCH] Fix generic_signal_handler test
+
+Firecracker no longer bails out on SIGPIPE, so we just validate
+a different log message and flush metrics before asserting.
+
+Signed-off-by: Andrei Sandu <sandreim@amazon.com>
+---
+ tests/integration_tests/functional/test_signals.py | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/tests/integration_tests/functional/test_signals.py b/tests/integration_tests/functional/test_signals.py
+index a4fcd7b5..3184b8c3 100644
+--- a/tests/integration_tests/functional/test_signals.py
++++ b/tests/integration_tests/functional/test_signals.py
+@@ -58,7 +58,19 @@ def test_generic_signal_handler(test_microvm_with_api, signum):
+     assert len(line_metrics) == 1
+ 
+     os.kill(firecracker_pid, signum)
+-    msg = 'Shutting down VM after intercepting signal {}'.format(signum)
++
++    # Firecracker gracefully handles SIGPIPE (doesn't terminate).
++    # False positive during lint - object member is created dynamically.
++    # pylint: disable=E1101
++    if signum == SIGPIPE.value:
++        msg = 'Received signal 13'
++
++        # Flush metrics to file, so we can see the SIGPIPE at bottom assert.
++        # This will also fail if FC has exited due to SIGPIPE.
++        response = microvm.actions.put(action_type='FlushMetrics')
++        assert microvm.api_session.is_status_no_content(response.status_code)
++    else:
++        msg = 'Shutting down VM after intercepting signal {}'.format(signum)
+ 
+     microvm.check_log_message(msg)
+ 

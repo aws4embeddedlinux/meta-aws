@@ -1,0 +1,71 @@
+From 20b9b1576fe8e3cbd200ddc533dce8950af6c13c Mon Sep 17 00:00:00 2001
+From: Adrian Catangiu <acatan@amazon.com>
+Date: Tue, 30 Mar 2021 18:54:10 +0300
+Subject: [PATCH] block: flush backing file on serialization
+
+Signed-off-by: Adrian Catangiu <acatan@amazon.com>
+---
+ src/devices/src/virtio/block/device.rs  |  4 ++++
+ src/devices/src/virtio/block/persist.rs | 11 ++++++++++-
+ src/vmm/src/default_syscalls/filters.rs |  1 +
+ 3 files changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/src/devices/src/virtio/block/device.rs b/src/devices/src/virtio/block/device.rs
+index b15e89db..2294e832 100644
+--- a/src/devices/src/virtio/block/device.rs
++++ b/src/devices/src/virtio/block/device.rs
+@@ -64,6 +64,10 @@ impl DiskProperties {
+         })
+     }
+ 
++    pub fn file(&self) -> &File {
++        &self.file
++    }
++
+     pub fn file_mut(&mut self) -> &mut File {
+         &mut self.file
+     }
+diff --git a/src/devices/src/virtio/block/persist.rs b/src/devices/src/virtio/block/persist.rs
+index fcec620a..11debf12 100644
+--- a/src/devices/src/virtio/block/persist.rs
++++ b/src/devices/src/virtio/block/persist.rs
+@@ -3,10 +3,11 @@
+ 
+ //! Defines the structures needed for saving/restoring block devices.
+ 
+-use std::io;
++use std::io::{self, Write};
+ use std::sync::atomic::AtomicUsize;
+ use std::sync::Arc;
+ 
++use logger::error;
+ use rate_limiter::{persist::RateLimiterState, RateLimiter};
+ use snapshot::Persist;
+ use versionize::{VersionMap, Versionize, VersionizeResult};
+@@ -40,6 +41,14 @@ impl Persist<'_> for Block {
+     type Error = io::Error;
+ 
+     fn save(&self) -> Self::State {
++        if let Err(e) = self.disk.file().flush() {
++            error!("Failed to flush block data on serialization. Error: {}", e);
++        }
++        // Sync data out to backing file on host.
++        if let Err(e) = self.disk.file().sync_all() {
++            error!("Failed to sync block data on serialization. Error: {}", e);
++        }
++        // Save device state.
+         BlockState {
+             id: self.id.clone(),
+             partuuid: self.partuuid.clone(),
+diff --git a/src/vmm/src/default_syscalls/filters.rs b/src/vmm/src/default_syscalls/filters.rs
+index 2928ebbf..44437e7f 100644
+--- a/src/vmm/src/default_syscalls/filters.rs
++++ b/src/vmm/src/default_syscalls/filters.rs
+@@ -73,6 +73,7 @@ pub fn default_filter() -> Result<SeccompFilter, Error> {
+                     )?],
+                 ],
+             ),
++            allow_syscall(libc::SYS_fsync),
+             // Used by glibc's tgkill
+             #[cfg(target_env = "gnu")]
+             allow_syscall(libc::SYS_getpid),

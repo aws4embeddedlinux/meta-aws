@@ -1,0 +1,26 @@
+From 5b873e384d1c2248a7f4177f6b073fd9acab94fc Mon Sep 17 00:00:00 2001
+From: George Pisaltu <gpl@amazon.com>
+Date: Mon, 11 Jan 2021 17:29:45 +0200
+Subject: [PATCH] docs: updated changelog with off-by-one block fix
+
+Signed-off-by: George Pisaltu <gpl@amazon.com>
+---
+ CHANGELOG.md | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index c049a944..5d99da9b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,11 @@
+ # Changelog
+ 
++## [Unreleased]
++
++### Fixed
++
++- Fixed off-by-one error in virtio-block descriptor address validation.
++
+ ## [0.24.0]
+ 
+ ### Added

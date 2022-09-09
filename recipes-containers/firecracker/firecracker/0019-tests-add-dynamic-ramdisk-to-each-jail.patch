@@ -1,0 +1,132 @@
+From 48878d1ad0023e6d12e0807b0002d38cff55be8d Mon Sep 17 00:00:00 2001
+From: Adrian Catangiu <acatan@amazon.com>
+Date: Tue, 4 May 2021 16:36:46 +0300
+Subject: [PATCH] tests: add dynamic ramdisk to each jail
+
+Each jail now comes with a 1MB ramdisk that will dinamically grow as
+needed.
+In order to share the ramdisk contents outside the jail, this mount
+has to happen before jailer actually runs and moves to its own private
+mount namespace.
+The ramdisk will be automatically discarded on jailer destructor.
+
+Signed-off-by: Adrian Catangiu <acatan@amazon.com>
+---
+ tests/framework/jailer.py  | 28 +++++++++++++++++++++++++++-
+ tests/framework/microvm.py | 22 ++++++++++++++++++++--
+ 2 files changed, 47 insertions(+), 3 deletions(-)
+
+diff --git a/tests/framework/jailer.py b/tests/framework/jailer.py
+index eeb3eea5..cce7780d 100644
+--- a/tests/framework/jailer.py
++++ b/tests/framework/jailer.py
+@@ -65,6 +65,8 @@ class JailerContext:
+         self.extra_args = extra_args
+         self.api_socket_name = DEFAULT_USOCKET_NAME
+         self.cgroups = cgroups
++        self.ramfs_subdir_name = 'ramfs'
++        self._ramfs_path = None
+ 
+     def __del__(self):
+         """Cleanup this jailer context."""
+@@ -134,6 +136,10 @@ class JailerContext:
+         """Return the MicroVM chroot path."""
+         return os.path.join(self.chroot_base_with_id(), 'root')
+ 
++    def chroot_ramfs_path(self):
++        """Return the MicroVM chroot ramfs subfolder path."""
++        return os.path.join(self.chroot_path(), self.ramfs_subdir_name)
++
+     def jailed_path(self, file_path, create=False, create_jail=False):
+         """Create a hard link or block special device owned by uid:gid.
+ 
+@@ -198,19 +204,39 @@ class JailerContext:
+             return 'ip netns exec {} '.format(self.netns)
+         return ''
+ 
+-    def setup(self):
++    def setup(self, use_ramdisk=False):
+         """Set up this jailer context."""
+         os.makedirs(
+             self.chroot_base if self.chroot_base is not None
+             else DEFAULT_CHROOT_PATH,
+             exist_ok=True
+         )
++
++        if use_ramdisk:
++            self._ramfs_path = self.chroot_ramfs_path()
++            os.makedirs(self._ramfs_path, exist_ok=True)
++            ramdisk_name = 'ramfs-{}'.format(self.jailer_id)
++            utils.run_cmd(
++                'mount -t ramfs -o size=1M {} {}'.format(
++                    ramdisk_name, self._ramfs_path
++                )
++            )
++            cmd = 'chown {}:{} {}'.format(
++                self.uid, self.gid, self._ramfs_path
++            )
++            utils.run_cmd(cmd)
++
+         if self.netns:
+             utils.run_cmd('ip netns add {}'.format(self.netns))
+ 
+     def cleanup(self):
+         """Clean up this jailer context."""
+         # pylint: disable=subprocess-run-check
++        if self._ramfs_path:
++            utils.run_cmd(
++                'umount {}'.format(self._ramfs_path), ignore_return_code=True
++            )
++
+         if self.jailer_id:
+             shutil.rmtree(self.chroot_base_with_id(), ignore_errors=True)
+ 
+diff --git a/tests/framework/microvm.py b/tests/framework/microvm.py
+index 3dc4e7c5..f4403c85 100644
+--- a/tests/framework/microvm.py
++++ b/tests/framework/microvm.py
+@@ -15,6 +15,7 @@ import logging
+ import os
+ import re
+ import select
++import shutil
+ import time
+ 
+ from retry import retry
+@@ -316,6 +317,22 @@ class Microvm:
+         )
+         self._cpu_load_monitor.start()
+ 
++    def copy_to_jail_ramfs(self, src):
++        """Copy a file to a jail ramfs."""
++        filename = os.path.basename(src)
++        dest_path = os.path.join(self.jailer.chroot_ramfs_path(), filename)
++        jailed_path = os.path.join(
++            '/', self.jailer.ramfs_subdir_name, filename
++        )
++        shutil.copy(src, dest_path)
++        cmd = 'chown {}:{} {}'.format(
++            self.jailer.uid,
++            self.jailer.gid,
++            dest_path
++        )
++        utils.run_cmd(cmd)
++        return jailed_path
++
+     def create_jailed_resource(self, path, create_jail=False):
+         """Create a hard link to some resource inside this microvm."""
+         return self.jailer.jailed_path(path, create=True,
+@@ -395,10 +412,11 @@ class Microvm:
+             return True
+         return False
+ 
+-    def spawn(self, create_logger=True, log_file='log_fifo', log_level='Info'):
++    def spawn(self, create_logger=True,
++              log_file='log_fifo', log_level='Info', use_ramdisk=False):
+         """Start a microVM as a daemon or in a screen session."""
+         # pylint: disable=subprocess-run-check
+-        self._jailer.setup()
++        self._jailer.setup(use_ramdisk=use_ramdisk)
+         self._api_socket = self._jailer.api_socket_path()
+         self._api_session = Session()
+ 

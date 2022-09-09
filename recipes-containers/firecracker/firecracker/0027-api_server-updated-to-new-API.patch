@@ -1,0 +1,130 @@
+From 2bdc44db35ab0cb2b7cf7d61bb1bc6edb5b108cd Mon Sep 17 00:00:00 2001
+From: George Pisaltu <gpl@amazon.com>
+Date: Wed, 28 Apr 2021 11:44:05 +0300
+Subject: [PATCH] api_server: updated to new API
+
+Signed-off-by: George Pisaltu <gpl@amazon.com>
+---
+ src/api_server/src/parsed_request.rs  |  8 ++++----
+ src/api_server/src/request/balloon.rs | 22 +++++++++++-----------
+ 2 files changed, 15 insertions(+), 15 deletions(-)
+
+diff --git a/src/api_server/src/parsed_request.rs b/src/api_server/src/parsed_request.rs
+index 37789686..9a84e279 100644
+--- a/src/api_server/src/parsed_request.rs
++++ b/src/api_server/src/parsed_request.rs
+@@ -546,7 +546,7 @@ pub(crate) mod tests {
+              Server: Firecracker API\r\n\
+              Connection: keep-alive\r\n\
+              Content-Type: application/json\r\n\
+-             Content-Length: 88\r\n\r\n{}",
++             Content-Length: 90\r\n\r\n{}",
+             serde_json::to_string(&stats).unwrap(),
+         );
+         assert_eq!(buf.into_inner(), expected_response.as_bytes());
+@@ -650,8 +650,8 @@ pub(crate) mod tests {
+             .write_all(
+                 b"PUT /balloon HTTP/1.1\r\n\
+                 Content-Type: application/json\r\n\
+-                Content-Length: 74\r\n\r\n{ \
+-                \"amount_mb\": 0, \
++                Content-Length: 75\r\n\r\n{ \
++                \"amount_mib\": 0, \
+                 \"deflate_on_oom\": false, \
+                 \"stats_polling_interval_s\": 0 \
+                 }",
+@@ -928,7 +928,7 @@ pub(crate) mod tests {
+             .write_all(
+                 b"PATCH /balloon HTTP/1.1\r\n\
+                 Content-Type: application/json\r\n\
+-                Content-Length: 18\r\n\r\n{ \"amount_mb\": 1 }",
++                Content-Length: 19\r\n\r\n{ \"amount_mib\": 1 }",
+             )
+             .unwrap();
+         assert!(connection.try_read().is_ok());
+diff --git a/src/api_server/src/request/balloon.rs b/src/api_server/src/request/balloon.rs
+index 59217c4f..4e2e0b76 100644
+--- a/src/api_server/src/request/balloon.rs
++++ b/src/api_server/src/request/balloon.rs
+@@ -69,22 +69,22 @@ mod tests {
+ 
+         // PATCH with invalid fields.
+         let body = r#"{
+-                "amount_mb": "bar",
++                "amount_mib": "bar",
+                 "foo": "bar"
+               }"#;
+         assert!(parse_patch_balloon(&Body::new(body), None).is_err());
+ 
+         // PATCH with invalid types on fields. Adding a polling interval as string instead of bool.
+         let body = r#"{
+-                "amount_mb": 1000,
++                "amount_mib": 1000,
+                 "stats_polling_interval_s": "false"
+               }"#;
+         let res = parse_patch_balloon(&Body::new(body), None);
+         assert!(res.is_err());
+ 
+-        // PATCH with invalid types on fields. Adding a amount_mb as a negative number.
++        // PATCH with invalid types on fields. Adding a amount_mib as a negative number.
+         let body = r#"{
+-                "amount_mb": -1000,
++                "amount_mib": -1000,
+                 "stats_polling_interval_s": true
+               }"#;
+         let res = parse_patch_balloon(&Body::new(body), None);
+@@ -92,12 +92,12 @@ mod tests {
+ 
+         // PATCH on statistics with missing ppolling interval field.
+         let body = r#"{
+-                "amount_mb": 100
++                "amount_mib": 100
+               }"#;
+         let res = parse_patch_balloon(&Body::new(body), Some(&"statistics"));
+         assert!(res.is_err());
+ 
+-        // PATCH with missing amount_mb field.
++        // PATCH with missing amount_mib field.
+         let body = r#"{
+                 "stats_polling_interval_s": 0
+               }"#;
+@@ -106,7 +106,7 @@ mod tests {
+ 
+         // PATCH that tries to update something else other than allowed fields.
+         let body = r#"{
+-                "amount_mb": "dummy_id",
++                "amount_mib": "dummy_id",
+                 "stats_polling_interval_s": "dummy_host"
+               }"#;
+         let res = parse_patch_balloon(&Body::new(body), None);
+@@ -125,11 +125,11 @@ mod tests {
+         assert!(parse_patch_balloon(&Body::new(body), Some(&"config")).is_err());
+ 
+         let body = r#"{
+-                "amount_mb": 1
++                "amount_mib": 1
+               }"#;
+         #[allow(clippy::match_wild_err_arm)]
+         match vmm_action_from_request(parse_patch_balloon(&Body::new(body), None).unwrap()) {
+-            VmmAction::UpdateBalloon(balloon_cfg) => assert_eq!(balloon_cfg.amount_mb, 1),
++            VmmAction::UpdateBalloon(balloon_cfg) => assert_eq!(balloon_cfg.amount_mib, 1),
+             _ => panic!("Test failed: Invalid parameters"),
+         };
+ 
+@@ -153,14 +153,14 @@ mod tests {
+ 
+         // PUT with invalid fields.
+         let body = r#"{
+-                "amount_mb": "bar",
++                "amount_mib": "bar",
+                 "is_read_only": false
+               }"#;
+         assert!(parse_put_balloon(&Body::new(body)).is_err());
+ 
+         // PUT with valid input fields.
+         let body = r#"{
+-                "amount_mb": 1000,
++                "amount_mib": 1000,
+                 "deflate_on_oom": true,
+                 "stats_polling_interval_s": 0
+             }"#;

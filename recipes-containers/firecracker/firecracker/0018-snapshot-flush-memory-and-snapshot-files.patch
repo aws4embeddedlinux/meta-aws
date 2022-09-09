@@ -1,0 +1,127 @@
+From b61c27c8641d588e52a089c185d516cbb6f45f32 Mon Sep 17 00:00:00 2001
+From: Adrian Catangiu <acatan@amazon.com>
+Date: Tue, 30 Mar 2021 18:54:54 +0300
+Subject: [PATCH] snapshot: flush memory and snapshot files
+
+Make sure state files are flushed to their backing mediums as
+part of the create snapshot API call.
+
+Signed-off-by: Adrian Catangiu <acatan@amazon.com>
+---
+ CHANGELOG.md           |  9 +++++++++
+ src/vmm/src/persist.rs | 22 ++++++++++++++++++----
+ 2 files changed, 27 insertions(+), 4 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 10930217..02d45fae 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,15 +1,24 @@
+ # Changelog
+ 
++## [Unreleased]
++
+ ### Changed
+ 
+ - Changed Docker images repository from DockerHub to Amazon ECR.
+ 
++### Fixed
++
++- Snapshot related host files (vm-state, memory, block backing files) are now
++  flushed to their backing mediums as part of the CreateSnapshot operation.
++
+ ## [0.24.2]
+ 
+ ### Fixed
+ 
+ - Fixed the SIGPIPE signal handler so Firecracker no longer exits. The signal
+ is still recorded in metrics and logs.
++- Snapshot related host files (vm-state, memory, block backing files) are now
++  flushed to their backing mediums as part of the CreateSnapshot operation.
+ 
+ ## [0.24.1]
+ 
+diff --git a/src/vmm/src/persist.rs b/src/vmm/src/persist.rs
+index e6a25c09..c0932f38 100644
+--- a/src/vmm/src/persist.rs
++++ b/src/vmm/src/persist.rs
+@@ -5,7 +5,7 @@
+ 
+ use std::fmt::{Display, Formatter};
+ use std::fs::{File, OpenOptions};
+-use std::io;
++use std::io::{self, Write};
+ use std::path::PathBuf;
+ use std::sync::{Arc, Mutex};
+ 
+@@ -113,12 +113,16 @@ pub enum CreateSnapshotError {
+     Memory(memory_snapshot::Error),
+     /// Failed to open memory backing file.
+     MemoryBackingFile(io::Error),
++    /// Failed to flush memory backing file contents.
++    MemoryFileFlush(io::Error),
+     /// Failed to save MicrovmState.
+     MicrovmState(MicrovmStateError),
+     /// Failed to serialize microVM state.
+     SerializeMicrovmState(snapshot::Error),
+     /// Failed to open the snapshot backing file.
+     SnapshotBackingFile(io::Error),
++    /// Failed to flush the snapshot backing file.
++    SnapshotFileFlush(io::Error),
+     #[cfg(target_arch = "x86_64")]
+     /// Number of devices exceeds the maximum supported devices for the snapshot data version.
+     TooManyDevices(usize),
+@@ -136,9 +140,11 @@ impl Display for CreateSnapshotError {
+             InvalidVmState(err) => write!(f, "Cannot save Vm state. Error: {:?}", err),
+             Memory(err) => write!(f, "Cannot write memory file: {:?}", err),
+             MemoryBackingFile(err) => write!(f, "Cannot open memory file: {:?}", err),
++            MemoryFileFlush(err) => write!(f, "Cannot flush memory file contents: {:?}", err),
+             MicrovmState(err) => write!(f, "Cannot save microvm state: {}", err),
+             SerializeMicrovmState(err) => write!(f, "Cannot serialize MicrovmState: {:?}", err),
+             SnapshotBackingFile(err) => write!(f, "Cannot open snapshot file: {:?}", err),
++            SnapshotFileFlush(err) => write!(f, "Cannot flush snapshot file: {:?}", err),
+             #[cfg(target_arch = "x86_64")]
+             TooManyDevices(val) => write!(
+                 f,
+@@ -231,8 +237,8 @@ fn snapshot_state_to_file(
+     snapshot
+         .save(&mut snapshot_file, microvm_state)
+         .map_err(SerializeMicrovmState)?;
+-
+-    Ok(())
++    snapshot_file.flush().map_err(SnapshotFileFlush)?;
++    snapshot_file.sync_all().map_err(SnapshotFileFlush)
+ }
+ 
+ fn snapshot_memory_to_file(
+@@ -261,7 +267,9 @@ fn snapshot_memory_to_file(
+                 .map_err(Memory)
+         }
+         SnapshotType::Full => vmm.guest_memory().dump(&mut file).map_err(Memory),
+-    }
++    }?;
++    file.flush().map_err(MemoryFileFlush)?;
++    file.sync_all().map_err(MemoryFileFlush)
+ }
+ 
+ /// Validate the microVM version and translate it to its corresponding snapshot data format.
+@@ -568,6 +576,9 @@ mod tests {
+         let err = MemoryBackingFile(io::Error::from_raw_os_error(0));
+         let _ = format!("{}{:?}", err, err);
+ 
++        let err = MemoryFileFlush(io::Error::from_raw_os_error(0));
++        let _ = format!("{}{:?}", err, err);
++
+         let err = MicrovmState(MicrovmStateError::UnexpectedVcpuResponse);
+         let _ = format!("{}{:?}", err, err);
+ 
+@@ -577,6 +588,9 @@ mod tests {
+         let err = SnapshotBackingFile(io::Error::from_raw_os_error(0));
+         let _ = format!("{}{:?}", err, err);
+ 
++        let err = SnapshotFileFlush(io::Error::from_raw_os_error(0));
++        let _ = format!("{}{:?}", err, err);
++
+         #[cfg(target_arch = "x86_64")]
+         {
+             let err = TooManyDevices(0);

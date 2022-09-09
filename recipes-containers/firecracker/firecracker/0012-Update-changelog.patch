@@ -1,0 +1,27 @@
+From d7ac0c6456a01bd14000844a8e37aa204617a130 Mon Sep 17 00:00:00 2001
+From: Andrei Sandu <sandreim@amazon.com>
+Date: Fri, 19 Feb 2021 10:50:58 +0200
+Subject: [PATCH] Update changelog
+
+Signed-off-by: Andrei Sandu <sandreim@amazon.com>
+---
+ CHANGELOG.md | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index a226ec37..8840dc99 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,12 @@
+ # Changelog
+ 
++## [0.24.2]
++
++### Fixed
++
++- Fixed the SIGPIPE signal handler so Firecracker no longer exits. The signal 
++is still recorded in metrics and logs.
++
+ ## [0.24.1]
+ 
+ ### Fixed
