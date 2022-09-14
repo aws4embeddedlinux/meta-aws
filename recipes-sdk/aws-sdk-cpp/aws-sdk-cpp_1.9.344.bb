@@ -30,6 +30,7 @@ PACKAGES =+ " \
     ${PN}-iot \
     ${PN}-kinesis \
     ${PN}-lambda \
+    ${PN}-polly \
     ${PN}-s3 \
     ${PN}-sts \
 "
@@ -45,6 +46,7 @@ FILES:${PN}-iam = "${libdir}/libaws-cpp-sdk-iam.so"
 FILES:${PN}-iot = "${libdir}/libaws-cpp-sdk-iot.so"
 FILES:${PN}-kinesis = "${libdir}/libaws-cpp-sdk-kinesis.so"
 FILES:${PN}-lambda = "${libdir}/libaws-cpp-sdk-lambda.so"
+FILES:${PN}-polly = "${libdir}/libaws-cpp-sdk-polly.so"
 FILES:${PN}-s3 = "${libdir}/libaws-cpp-sdk-s3.so"
 FILES:${PN}-sts = "${libdir}/libaws-cpp-sdk-sts.so"
 
@@ -60,6 +62,7 @@ iam;\
 iot;\
 kinesis;\
 lambda;\
+polly;\
 s3;\
 sts;\
 '"
