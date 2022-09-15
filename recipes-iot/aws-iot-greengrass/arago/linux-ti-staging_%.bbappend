@@ -1,4 +1,4 @@
-FILESEXTRAPATHS_prepend := "${THISDIR}:"
-SRC_URI_append = " file://linux-kernel.cfg "
-KERNEL_CONFIG_FRAGMENTS_remove = "${WORKDIR}/docker.cfg"
-KERNEL_CONFIG_FRAGMENTS_append = "${WORKDIR}/linux-kernel.cfg "
+FILESEXTRAPATHS:prepend := "${THISDIR}:"
+SRC_URI:append = " file://linux-kernel.cfg "
+KERNEL_CONFIG_FRAGMENTS:remove = "${WORKDIR}/docker.cfg"
+KERNEL_CONFIG_FRAGMENTS:append = "${WORKDIR}/linux-kernel.cfg "

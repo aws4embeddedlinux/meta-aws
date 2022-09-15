@@ -6,6 +6,12 @@ See the AWS IoT Greengrass V1 section if you still require V1.
 
 ## AWS IoT Greengrass V2
 
+These images are provided for AWS IoT Greengrass V2:
+* `greengrass-bin`: This installs Greengrass v2 without a configuration file. This can be used if you plan to add logic to configure Greengrass when the device runs for the first time
+* `greengrass-bin-demo`: This installs Greengrass v2 and configures it to run using the provided certificates and configs. Use this if you want the image to be specific to a device, or to get started quickly.
+
+If you want to use a version of greengrass that is not the latest, you can provide `PREFERRED_VERSION_greengrass-bin` and `PREFERRED_VERSION_greengrass-bin-demo` (if used) to use latest.
+
 ### Add systemd
 
 Greengrass v2 runs more elegantly using systemd.  Add this to your
@@ -23,7 +29,7 @@ VIRTUAL-RUNTIME_initscripts = ""
 1. Put this in local.conf and configure
 
 ```bash
-IMAGE_INSTALL_append = " greengrass-bin-demo"
+IMAGE_INSTALL:append = " greengrass-bin-demo"
 
 GGV2_DATA_EP     = ""
 GGV2_CRED_EP     = ""
@@ -52,7 +58,7 @@ GGV2_THING_NAME  = "workstation"
 GGV2_TES_RALIAS  = "GreengrassV2TokenExchangeRoleAlias"
 ```
 
-More docs will come later on how to get each of these values.
+In order to get the information above you can follow the instructions provided here: https://docs.aws.amazon.com/greengrass/v2/developerguide/manual-installation.html
 
 
 ## AWS IoT Greengrass V1
