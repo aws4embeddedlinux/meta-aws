@@ -49,7 +49,7 @@ jobs:
       - name: Create Pulls
         working-directory: meta-aws
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.BOT_CREDENTIAL }}
         run: |
           upgrader create-pulls --branch-file=../build/branches.txt --repo=${{ github.repository }} --target-branch="master-next"
       - name: Publish Artifacts
