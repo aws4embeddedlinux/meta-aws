@@ -31,7 +31,6 @@ jobs:
         with:
           path: ci
           repository: 'aws4embeddedlinux/meta-aws-ci'
-          ref: 'auto-upgrader'
       - name: Install Helper Tool
         run: |
           pip install ci/auto-upgrader
