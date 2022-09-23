@@ -24,6 +24,7 @@ jobs:
       - name: Clone Our Layer
         uses: actions/checkout@v3
         with:
+          ref: master-next
           path: meta-aws
           fetch-depth: 0
       - name: Clone CI Tolls Repo
