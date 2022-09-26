@@ -15,11 +15,13 @@ jobs:
         fetch-depth: 0
 
     - name: merge master-next into master
+      working-directory: meta-aws
       run: |
         git config --global user.name aws-iot-embedded-linux-ci
         git config --global user.email aws-iot-embedded-linux-ci@users.noreply.github.com
         git merge --ff-only origin/master-next
 
     - name: push master
+      working-directory: meta-aws
       run: |
         git push -u origin master
