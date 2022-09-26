@@ -19,10 +19,11 @@ jobs:
       run: |
         git config --global user.name aws-iot-embedded-linux-ci
         git config --global user.email aws-iot-embedded-linux-ci@users.noreply.github.com
-        git status
         git merge --ff-only origin/master-next
 
     - name: push master
       working-directory: meta-aws
+      env:
+          GITHUB_TOKEN: ${{ secrets.BOT_CREDENTIAL }}
       run: |
         git push -u origin master
