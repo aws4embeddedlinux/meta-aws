@@ -1,0 +1,26 @@
+on:
+  pull_request:
+    branches:
+      - master-next
+    types: ["closed"]
+
+jobs:
+  cherry_pick_:
+    runs-on: ubuntu-latest
+    name: Cherry pick into kirkstone-next
+    if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Cherry pick into kirkstone-next
+        uses: carloscastrojumo/github-cherry-pick-action@v1.0.3
+        with:
+          branch: kirkstone-next
+          labels: |
+            backport
+          reviewers: |
+            aws4embeddedlinux/yoctogerians
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
