@@ -7,6 +7,8 @@ on:
 jobs:
   cherry_pick_:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     name: Cherry pick into kirkstone-next
     if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
     steps:
@@ -20,6 +22,7 @@ jobs:
           branch: kirkstone-next
           labels: |
             backport
+            kirkstone
           reviewers: |
             aws4embeddedlinux/yoctogerians
 env:
