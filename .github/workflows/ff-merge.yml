@@ -18,6 +18,7 @@ jobs:
         ref: ${{ github.event.inputs.branch }}
         path: meta-aws
         fetch-depth: 0
+        token: ${{ secrets.BOT_CREDENTIAL }}
 
     - name: merge ${{ github.event.inputs.branch }}-next into ${{ github.event.inputs.branch }}
       working-directory: meta-aws
@@ -28,8 +29,6 @@ jobs:
 
     - name: push ${{ github.event.inputs.branch }}
       working-directory: meta-aws
-      env:
-          GITHUB_TOKEN: ${{ secrets.BOT_CREDENTIAL }}
       run: |
         git push -u origin ${{ github.event.inputs.branch }}
 
