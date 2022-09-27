@@ -7,8 +7,7 @@ on:
 jobs:
   cherry_pick_:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
+    permissions: write-all
     name: Cherry pick into kirkstone-next
     if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
     steps:
