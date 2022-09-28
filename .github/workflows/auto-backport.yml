@@ -4,11 +4,11 @@ on:
       - master-next
     types: ["closed"]
 
-jobs:
+jobs:  
   cherry_pick_:
     runs-on: ubuntu-latest
     name: Cherry pick into kirkstone-next
-    if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
+    if: ${{github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'version-upgrade') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -22,7 +22,4 @@ jobs:
             auto
             backport
             kirkstone
-          reviewers: |
-            aws4embeddedlinux/yoctogerians
-env:
-  GITHUB_TOKEN: ${{ secrets.BOT_CREDENTIAL }}
+          token: ${{ secrets.BOT_CREDENTIAL }}
