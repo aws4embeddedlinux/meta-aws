@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
       inputs:
         branch:
-          description: 'branch to ff merge into'
+          description: 'branch to ff merge branch-next into'
           default: 'master'
           required: true
 
 jobs:
-  build:
+  ff-merge:
     runs-on: ubuntu-latest
     steps:
     - name: clone meta-aws ${{ github.event.inputs.branch }} branch
