@@ -1,0 +1,28 @@
+name: auto approve and enable auto-merge
+
+on:
+  pull_request:
+    branches:
+      - master-next
+      - kirkstone-next
+    types: ["opened"]
+
+jobs:  
+  auto-approve-and-merge:
+    runs-on: ubuntu-latest
+    name: auto approve and enable auto-merge
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'version-upgrade') && steps.cpr.outputs.pull-request-operation == 'created' }}
+    steps:
+      - name: Enable Pull Request Automerge
+        if: steps.cpr.outputs.pull-request-operation == 'created'
+        uses: peter-evans/enable-pull-request-automerge@v2
+        with:
+          token: ${{ secrets.BOT_CREDENTIAL }}
+          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
+          merge-method: rebase
+      - name: Auto approve
+        if: steps.cpr.outputs.pull-request-operation == 'created'
+        uses: juliangruber/approve-pull-request-action@v1
+        with:
+          github-token: ${{ secrets.BOT_CREDENTIAL }}
+          number: ${{ steps.cpr.outputs.pull-request-number }
