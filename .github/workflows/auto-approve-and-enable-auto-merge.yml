@@ -11,7 +11,7 @@ jobs:
   auto-approve-and-merge:
     runs-on: ubuntu-latest
     name: auto approve and enable auto-merge
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'version-upgrade') && steps.cpr.outputs.pull-request-operation == 'created' }}
+    if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
     steps:
       - name: Enable Pull Request Automerge
         if: steps.cpr.outputs.pull-request-operation == 'created'
@@ -25,4 +25,4 @@ jobs:
         uses: juliangruber/approve-pull-request-action@v1
         with:
           github-token: ${{ secrets.BOT_CREDENTIAL }}
-          number: ${{ steps.cpr.outputs.pull-request-number }
+          number: ${{ steps.cpr.outputs.pull-request-number }}
