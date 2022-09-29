@@ -3,12 +3,14 @@ HOMEPAGE = "https://github.com/aws/aws-cli"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=7970352423db76abb33cbe303884afbf"
 
-SRC_URI = "git://github.com/aws/aws-cli.git;protocol=https;branch=v2"
-SRCREV = "efe934bd5906f1955d576c024a3297043325615b"
+LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=7970352423db76abb33cbe303884afbf"
+
+SRC_URI = "git://github.com/aws/aws-cli.git;protocol=https;branch=master"
+SRCREV = "abf2720a71eba56091777c1f4fad413b6a26cffe"
 S = "${WORKDIR}/git"
 
-#version 2.x has got library link issues - so stick to version 1.x for now
-UPSTREAM_CHECK_GITTAGREGEX = "1(?P<pver>.*)"
+# version 2.x has got library link issues - so stick to version 1.x for now
+UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>1\.\d+(\.\d+)+)"
 
 inherit setuptools3
 
