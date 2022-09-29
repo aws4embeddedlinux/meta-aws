@@ -15,7 +15,7 @@ LIC_FILES_CHKSUM = "file://${SDIR}/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-c.git;protocol=https;branch=${BRANCH};destsuffix=${S}/${SDIR}"
 
-SRCREV = "79da5b6d6ad67560cc08530f967e9187a6d1c594"
+SRCREV = "1204f14081caf300b4e9bbb93e0a8824cb67cd22"
 S = "${WORKDIR}/git"
 
 DEPENDS = "openssl curl gtest amazon-kvs-producer-pic mbedtls libwebsockets"
