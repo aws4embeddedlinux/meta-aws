@@ -12,12 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     name: auto approve and enable auto-merge
     steps:
-      - name: Sleep for 30 seconds to allow creation and labling to settle
-        uses: jakejarvis/wait-action@master
-        with:
-        time: '30s'
-      
-      - name: Sleep for 30 seconds to allow creation and labling to settle
+      - name: check label and fail if not valid
         uses: jesusvasquez333/verify-pr-label-action@v1.4.0
         with:
             github-token: '${{ secrets.BOT_CREDENTIAL }}'
