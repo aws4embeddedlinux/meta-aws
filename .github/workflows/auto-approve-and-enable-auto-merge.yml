@@ -4,9 +4,6 @@ on:
   pull_request:
     types:
       - opened
-    branches:
-      - master-next
-      - kirkstone-next
 
 jobs:  
   auto-approve-and-merge:
