@@ -5,12 +5,13 @@ on:
     branches:
       - master-next
       - kirkstone-next
-    types: ["labeled"]
+    types: ["openend","reopenend","labeled"]
 
 jobs:  
   auto-approve-and-merge:
     runs-on: ubuntu-latest
     name: auto approve and enable auto-merge
+    if: github.actor == 'aws-iot-embedded-linux-ci' || github.actor == 'yoctogerians' 
     steps:
       - name: check label and fail if not valid
         uses: jesusvasquez333/verify-pr-label-action@v1.4.0
