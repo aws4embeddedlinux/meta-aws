@@ -2,8 +2,10 @@ name: auto approve and enable auto-merge
 
 on:
   pull_request:
-    types:
-      - opened
+    branches:
+      - master-next
+      - kirkstone-next
+    types: ["labeled"]
 
 jobs:  
   auto-approve-and-merge:
@@ -13,7 +15,15 @@ jobs:
       - name: Sleep for 30 seconds to allow creation and labling to settle
         uses: jakejarvis/wait-action@master
         with:
-          time: '30s'
+        time: '30s'
+      
+      - name: Sleep for 30 seconds to allow creation and labling to settle
+        uses: jesusvasquez333/verify-pr-label-action@v1.4.0
+        with:
+            github-token: '${{ secrets.BOT_CREDENTIAL }}'
+            valid-labels: 'version-upgrade'
+            invalid-labels: 'help wanted, invalid'
+
       - name: Enable Pull Request Automerge
         if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
         uses: peter-evans/enable-pull-request-automerge@v2.2.0
@@ -21,6 +31,7 @@ jobs:
           token: ${{ secrets.BOT_CREDENTIAL }}
           pull-request-number: ${{ github.event.pull_request.number }}
           merge-method: rebase
+
       - name: Auto approve
         if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
         uses: juliangruber/approve-pull-request-action@v1.1.1
