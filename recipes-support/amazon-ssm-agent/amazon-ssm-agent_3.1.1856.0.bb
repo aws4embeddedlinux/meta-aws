@@ -1,22 +1,44 @@
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = " \
-    file://src/${GO_IMPORT}/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57 \
+    file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57 \
     "
+SRC_URI = "git://github.com/aws/amazon-ssm-agent.git;protocol=https;branch=mainline"
 
-GO_IMPORT = "github.com/aws/amazon-ssm-agent"
-SRC_URI = "git://${GO_IMPORT};branch=mainline;protocol=https"
-
-SRCREV = "c4414a04a161ed90e141050fb1a8cc7f43835e70"
+SRCREV = "db56c99f4966ce1e60290b613b87326db080cb85"
 
 S = "${WORKDIR}/git"
+
+GO_IMPORT = ""
 
 inherit go systemd
 
 SYSTEMD_AUTO_ENABLE = "enable"
 SYSTEMD_SERVICE:${PN} = "amazon-ssm-agent.service"
 
+# src folder will break devtool upgrade
+python go_do_unpack() {
+    src_uri = (d.getVar('SRC_URI') or "").split()
+    if len(src_uri) == 0:
+        return
+
+    fetcher = bb.fetch2.Fetch(src_uri, d)
+    for url in fetcher.urls:
+        if fetcher.ud[url].type == 'git':
+            if fetcher.ud[url].parm.get('destsuffix') is None:
+                s_dirname = os.path.basename(d.getVar('S'))
+#                fetcher.ud[url].parm['destsuffix'] = os.path.join(s_dirname, 'src', d.getVar('GO_IMPORT')) + '/'
+                fetcher.ud[url].parm['destsuffix'] = os.path.join(s_dirname, '', d.getVar('GO_IMPORT')) + '/'
+    fetcher.unpack(d.getVar('WORKDIR'))
+}
+
+# src folder will break devtool upgrade
+go_do_configure() {
+# 	 ln -snf ${S}/src ${B}/
+    ln -snf ${S} ${B}/
+}
+
 do_compile () {
-    cd ${S}/src/${GO_IMPORT}
+    cd ${S}
 
     ${GO} build -trimpath -o ${B}/amazon-ssm-agent -v \
         core/agent.go core/agent_unix.go core/agent_parser.go
@@ -58,8 +80,8 @@ do_install () {
     # TODO(glimsdal): This is hard coded in the SSM source. We should probably
     # patch the file or override the variable at link time.
     install -d ${D}/etc/amazon/ssm
-    install -m 644 ${S}/src/${GO_IMPORT}/seelog_unix.xml ${D}/etc/amazon/ssm/seelog.xml
+    install -m 644 ${S}/seelog_unix.xml ${D}/etc/amazon/ssm/seelog.xml
     install -d ${D}${systemd_unitdir}/system/
-    install -m 644 ${S}/src/${GO_IMPORT}/packaging/linux/amazon-ssm-agent.service ${D}${systemd_unitdir}/system/amazon-ssm-agent.service
+    install -m 644 ${S}/packaging/linux/amazon-ssm-agent.service ${D}${systemd_unitdir}/system/amazon-ssm-agent.service
 }
 

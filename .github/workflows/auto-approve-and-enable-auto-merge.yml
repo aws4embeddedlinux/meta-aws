@@ -1,0 +1,36 @@
+name: auto approve and enable auto-merge
+
+on:
+  pull_request:
+    branches:
+      - master-next
+      - kirkstone-next
+    types: ["openend","reopenend","labeled"]
+
+jobs:  
+  auto-approve-and-merge:
+    runs-on: ubuntu-latest
+    name: auto approve and enable auto-merge
+    if: github.actor == 'aws-iot-embedded-linux-ci' || github.actor == 'yoctogerians' 
+    steps:
+      - name: check label and fail if not valid
+        uses: jesusvasquez333/verify-pr-label-action@v1.4.0
+        with:
+            github-token: '${{ secrets.BOT2_CREDENTIAL }}'
+            valid-labels: 'version-upgrade'
+            invalid-labels: 'help wanted, invalid'
+
+      - name: Enable Pull Request Automerge
+        if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
+        uses: peter-evans/enable-pull-request-automerge@v2.2.0
+        with:
+          token: ${{ secrets.BOT2_CREDENTIAL }}
+          pull-request-number: ${{ github.event.pull_request.number }}
+          merge-method: rebase
+
+      - name: Auto approve
+        if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
+        uses: juliangruber/approve-pull-request-action@v1.1.1
+        with:
+          github-token: ${{ secrets.BOT2_CREDENTIAL }}
+          number: ${{ github.event.pull_request.number }}
