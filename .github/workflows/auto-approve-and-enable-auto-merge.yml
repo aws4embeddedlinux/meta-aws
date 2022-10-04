@@ -2,9 +2,6 @@ name: auto approve and enable auto-merge
 
 on:
   pull_request:
-    branches:
-      - master-next
-      - kirkstone-next
 
 jobs:  
   auto-approve-and-merge:
@@ -12,13 +9,6 @@ jobs:
     name: auto approve and enable auto-merge
     if: github.actor == 'aws-iot-embedded-linux-ci' || github.actor == 'aws4embeddedlinux/yoctogerians'
     steps:
-      - name: check label and fail if not valid
-        uses: jesusvasquez333/verify-pr-label-action@v1.4.0
-        with:
-            github-token: '${{ secrets.BOT2_CREDENTIAL }}'
-            valid-labels: 'version-upgrade'
-            invalid-labels: 'help wanted, invalid'
-
       - name: Enable Pull Request Automerge
         if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
         uses: peter-evans/enable-pull-request-automerge@v2.2.0
