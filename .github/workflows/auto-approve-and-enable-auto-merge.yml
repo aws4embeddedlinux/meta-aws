@@ -2,6 +2,10 @@ name: auto approve and enable auto-merge
 
 on:
   pull_request:
+    types:
+      - opened
+    branches:
+      - 'releases/**'
 
 jobs:  
   auto-approve-and-merge:
