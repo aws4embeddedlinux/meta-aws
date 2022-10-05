@@ -4,9 +4,6 @@ on:
   pull_request:
     types:
       - labeled
-    branches:
-      - 'refs/heads/master-next'
-      - 'refs/heads/kirkstone-next'
 
 jobs:  
   auto-approve-and-merge:
