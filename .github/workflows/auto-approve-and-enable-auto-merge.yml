@@ -9,8 +9,13 @@ jobs:
   auto-approve-and-merge:
     runs-on: ubuntu-latest
     name: auto approve and enable auto-merge
-    if: github.actor == 'aws-iot-embedded-linux-ci' || github.actor == 'yoctogerians' 
+    if: github.actor == 'aws-iot-embedded-linux-ci'
     steps:
+      - name: Sleep for 60 seconds - wait for finished labeling
+        uses: jakejarvis/wait-action@master
+        with:
+          time: '60s'
+          
       - name: Enable Pull Request Automerge
         if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
         uses: peter-evans/enable-pull-request-automerge@v2.2.0
