@@ -15,5 +15,5 @@ jobs:
       - name: delete branch
         uses: SvanBoxel/delete-merged-branch@main
         env:
-          GITHUB_TOKEN: ${{ secrets.BOT_CREDENTIAL }
+          GITHUB_TOKEN: ${{ secrets.BOT_CREDENTIAL }}
           
