@@ -1,8 +1,8 @@
 SUMMARY     = "Amazon Corretto 8"
 DESCRIPTION = ""
-LICENSE = "GPL-2"
+LICENSE = "GPL-2.0"
 
-LIC_FILES_CHKSUM = "file://../${BASE}/LICENSE;md5=3e0b59f8fac05c3c03d4a26bbda13f8f"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=3e0b59f8fac05c3c03d4a26bbda13f8f"
 SHR             = "amazon-corretto-${PV}"
 BASE_aarch64    = "amazon-corretto-${PV}-linux-aarch64"
 SRC_URI_aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
@@ -10,6 +10,8 @@ SRC_URI_aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corrett
 BASE_x86-64     = "amazon-corretto-${PV}-linux-x64"
 SRC_URI_x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
+
+# you can find checksum here: https://github.com/corretto/corretto-8/releases since devtool upgrade can only do one arch atm.
 SRC_URI[aarch64.sha256sum] = "cd3ea7604cca20b7d03e84fe6d8f90e0de5c8fc2d057c2d78d4114e82ac8ead5"
 
 SRC_URI[x86-64.sha256sum]  = "364105ae5825cda8b7426fd819916b78526a279fbfd352bfada490358c3c0888"
@@ -21,7 +23,13 @@ COMPATIBLE_MACHINE:x86-64 = "(.*)"
 FILES = ""
 FILES_${PN} = "/usr/lib/${SHR} /usr/bin"
 
-UPSTREAM_VERSION_UNKNOWN = "1"
+
+# also available in master (not kirkstone) in classes-recipe: github-releases
+UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
+
+UPSTREAM_CHECK_URI = "https://github.com/corretto/corretto-8/tags"
+
+S = "${WORKDIR}/${BASE}"
 
 do_package_qa[noexec] = "1"
 EXCLUDE_FROM_SHLIBS = "1"
