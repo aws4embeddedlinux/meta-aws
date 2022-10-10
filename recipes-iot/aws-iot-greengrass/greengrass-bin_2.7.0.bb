@@ -15,7 +15,11 @@ SRC_URI[payload.sha256sum] = "4fd253de55db61c8b9fc9c10ef8b8202b01d583e6597197098
 
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 
-UPSTREAM_VERSION_UNKNOWN = "1"
+# also available in master (not kirkstone) in classes-recipe: github-releases
+UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
+
+UPSTREAM_CHECK_URI = "https://github.com/aws-greengrass/aws-greengrass-nucleus/tags"
+
 
 GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
 RDEPENDS:${PN} += "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'ntp-systemd', '', d)}"
