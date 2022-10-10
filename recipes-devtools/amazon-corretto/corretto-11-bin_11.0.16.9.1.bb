@@ -1,8 +1,8 @@
 SUMMARY     = "Amazon Corretto 11"
 DESCRIPTION = ""
-LICENSE = "GPL-2"
+LICENSE = "GPL-2.0"
 
-LIC_FILES_CHKSUM = "file://../${BASE}/LICENSE;md5=3e0b59f8fac05c3c03d4a26bbda13f8f"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=3e0b59f8fac05c3c03d4a26bbda13f8f"
 SHR             = "amazon-corretto-${PV}"
 BASE:aarch64    = "amazon-corretto-${PV}-linux-aarch64"
 SRC_URI:aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
@@ -16,21 +16,27 @@ SRC_URI:x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corrett
 BASE:x86        = "amazon-corretto-${PV}-linux-x86"
 SRC_URI:x86     = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x86.tar.gz;name=x86"
 
-SRC_URI[aarch64.sha256sum] = "d3968138f266661cdc9d0d8a6830fea1d0c697113d6496027b4eb1139bed5f68"
 
-SRC_URI[arm.sha256sum]     = "0db58483018d7c1a0daa222c8e1c7d77ba0bf6949c28d91fd27c1cd8a6ab09f7"
-
-SRC_URI[x86-64.sha256sum] = "1878cfcb1ed374d5c8d3e11f230ec702ad3a6779107b640ddb5a0cf9e313bb61"
-
-SRC_URI[x86.sha256sum]     = "cfd956be63c33217093161022cb37176e48953e4e9f4d2b7a79de0277ac8c933"
+# you can find checksum here: https://github.com/corretto/corretto-11/releases  since devtool upgrade can only do one arch atm.
+SRC_URI[aarch64.sha256sum] = "b3d3967fa153d93aba30da76b075a364698324d536c05bbb01e95509cbe13df5"
+SRC_URI[arm.sha256sum] = "a0ace8aa42678fe93882437274b456caa91248fa9fb52ed45bf74ef03bf5d7b7"
+SRC_URI[x86-64.sha256sum] = "a707cf68983a16a2e01e19d236aeecdd5bfe7e461158e9f934f9cb978eae7340"
+SRC_URI[x86.sha256sum] = "84d80ed3d703bb4820fa0a6ceb323aa8491b559dbf9d8ae2c80619fa7632aeb6"
 
 COMPATIBLE_MACHINE = "(^$)"
 COMPATIBLE_MACHINE:armv7a = "(.*)"
+COMPATIBLE_MACHINE:armv7ve = "(.*)"
 COMPATIBLE_MACHINE:aarch64 = "(.*)"
 COMPATIBLE_MACHINE:x86 = "(.*)"
 COMPATIBLE_MACHINE:x86-64 = "(.*)"
 
-UPSTREAM_VERSION_UNKNOWN = "1"
+# also available in master (not kirkstone) in classes-recipe: github-releases
+UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
+
+UPSTREAM_CHECK_URI = "https://github.com/corretto/corretto-11/tags"
+
+
+S = "${WORKDIR}/${BASE}"
 
 FILES = ""
 FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
