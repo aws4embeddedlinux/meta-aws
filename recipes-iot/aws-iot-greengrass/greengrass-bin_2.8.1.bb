@@ -11,11 +11,15 @@ SRC_URI                    = "https://d2s8p88vqu9w66.cloudfront.net/releases/gre
                               https://raw.githubusercontent.com/aws-greengrass/aws-greengrass-nucleus/main/LICENSE;name=license; \
                               file://greengrassv2-init.yaml \
                               "
-SRC_URI[payload.sha256sum] = "4fd253de55db61c8b9fc9c10ef8b8202b01d583e659719709841ea75c69b9101"
+SRC_URI[payload.sha256sum] = "d9878aadc60b410921d3c5f5114d1d632b62979c5f065e0f938a711fad836805"
 
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 
-UPSTREAM_VERSION_UNKNOWN = "1"
+# also available in master (not kirkstone) in classes-recipe: github-releases
+UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
+
+UPSTREAM_CHECK_URI = "https://github.com/aws-greengrass/aws-greengrass-nucleus/tags"
+
 
 GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
 RDEPENDS:${PN} += "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'ntp-systemd', '', d)}"
@@ -41,7 +45,7 @@ do_install() {
     install -m 0740 ${WORKDIR}/lib/Greengrass.jar              ${GG_ROOT}/alts/init/distro/lib/Greengrass.jar
 
     cd ${GG_ROOT}/alts
-    ln -s -r  /${GG_ROOT}/alts/init current
+    ln -s -r /${GG_ROOT}/alts/init current
     
     # Install systemd service file
     install -d ${D}${systemd_unitdir}/system/
