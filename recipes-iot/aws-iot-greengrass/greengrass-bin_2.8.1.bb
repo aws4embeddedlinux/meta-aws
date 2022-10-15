@@ -11,7 +11,7 @@ SRC_URI                    = "https://d2s8p88vqu9w66.cloudfront.net/releases/gre
                               https://raw.githubusercontent.com/aws-greengrass/aws-greengrass-nucleus/main/LICENSE;name=license; \
                               file://greengrassv2-init.yaml \
                               "
-SRC_URI[payload.sha256sum] = "3b1643636265540f777e10d01ddbf82ef07a932b342bc08f39e31a3a329a078b"
+SRC_URI[payload.sha256sum] = "d9878aadc60b410921d3c5f5114d1d632b62979c5f065e0f938a711fad836805"
 
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 
