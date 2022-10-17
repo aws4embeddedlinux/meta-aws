@@ -7,6 +7,7 @@ on:
     branches:
       - master-next
       - kirkstone-next
+      - dunfell-next
       
 jobs:  
   auto-approve-and-merge:
