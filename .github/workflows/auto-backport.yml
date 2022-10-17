@@ -9,7 +9,7 @@ on:
 jobs:  
   cherry_pick_:
     runs-on: ubuntu-latest
-    name: Cherry pick into kirkstone-next
+    name: Cherry pick into kirkstone-next and dunfell-next
     if: ${{github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'version-upgrade') }}
     steps:
       - name: Checkout
@@ -24,4 +24,13 @@ jobs:
             auto
             backport
             kirkstone
+          token: ${{ secrets.BOT_CREDENTIAL }}
+      - name: Cherry pick into dunfell-next
+        uses: carloscastrojumo/github-cherry-pick-action@v1.0.3
+        with:
+          branch: dunfell-next
+          labels: |
+            auto
+            backport
+            dunfell
           token: ${{ secrets.BOT_CREDENTIAL }}
