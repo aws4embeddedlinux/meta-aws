@@ -13,6 +13,8 @@ BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;protocol=https;branch=${BRANCH} \
            file://01-missing-thread-includes.patch \
+           file://run-ptest \
+           file://ptest_result.py \
 "
 
 SRCREV = "745e6a85588b8f1d0768e77a6798254b0872fbd6"
@@ -63,3 +65,17 @@ SYSTEMD_AUTO_ENABLE = "enable"
 SYSTEMD_SERVICE:${PN} = "aws-iot-device-client.service"
 
 
+inherit ptest
+RDEPENDS:${PN}-ptest += "bash python3"
+
+do_compile_ptest()  {
+	cmake_runcmake_build --target test-aws-iot-device-client
+}
+
+do_install_ptest() {
+    install -d ${D}${PTEST_PATH}/tests
+
+    cp -r ${B}/test/test-aws-iot-device-client ${D}${PTEST_PATH}/
+ 
+    install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
+}

@@ -1,0 +1,6 @@
+#!/bin/sh
+# Copyright (c) 2022 Amazon.com, Inc. or its affiliates.
+# SPDX-License-Identifier: MIT
+
+./test-aws-iot-device-client --gtest_output=json:result.json
+python3 ptest_result.py result.json 
