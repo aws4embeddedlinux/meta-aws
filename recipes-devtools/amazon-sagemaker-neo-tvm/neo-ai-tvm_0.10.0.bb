@@ -5,11 +5,11 @@ LICENSE = "Apache-2.0 & BSD-3-Clause"
 
 LIC_FILES_CHKSUM = "file://LICENSE;md5=f30f7a1bcf7728eb568504d96cee7b09"
 
-BRANCH = "v0.9.0"
+BRANCH = "v0.10.0"
 
 SRC_URI = "gitsm://github.com/apache/tvm;protocol=https;branch=${BRANCH}"
 
-SRCREV = "d361585965b95acfb35563b92a2011fe8059876c"
+SRCREV = "3313c71ab7a0413b359da0adb3a7c5a51d3efe20"
 
 # exclude .dev releases
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>\d+\.\d+.\d+)(?<!dev)$"
@@ -19,10 +19,6 @@ S = "${WORKDIR}/git"
 inherit setuptools3_legacy cmake python3native
 
 DEPENDS += "zlib llvm llvm-native googletest"
-
-# Point to llvm-config
-LLVM_RELEASE = "14.0.6"
-EXTRA_OECMAKE += "-DUSE_LLVM=llvm-config${LLVM_RELEASE}"
 
 # libbacktrace has cross build problems
 EXTRA_OECMAKE += "-DUSE_LIBBACKTRACE=0"
