@@ -18,10 +18,10 @@ SRC_URI:x86     = "https://corretto.aws/downloads/resources/${PV}/amazon-corrett
 
 
 # you can find checksum here: https://github.com/corretto/corretto-11/releases  since devtool upgrade can only do one arch atm.
-SRC_URI[aarch64.sha256sum] = "b3d3967fa153d93aba30da76b075a364698324d536c05bbb01e95509cbe13df5"
-SRC_URI[arm.sha256sum] = "a0ace8aa42678fe93882437274b456caa91248fa9fb52ed45bf74ef03bf5d7b7"
-SRC_URI[x86-64.sha256sum] = "a707cf68983a16a2e01e19d236aeecdd5bfe7e461158e9f934f9cb978eae7340"
-SRC_URI[x86.sha256sum] = "84d80ed3d703bb4820fa0a6ceb323aa8491b559dbf9d8ae2c80619fa7632aeb6"
+SRC_URI[aarch64.sha256sum] = "094077a359fc7485cd76db1f2a42316f02cc1c332e6cd5bb93d1f733a1ac259c"
+SRC_URI[arm.sha256sum] = "afc3308ebd41db63ff6795b3cb28c21f71fdfb85b39e588162cdcb639bc7da1c"  
+SRC_URI[x86-64.sha256sum] = "9628b1c1ec298a6e0f277afe383b342580086cfd7eee2be567b8d00529ca9449"
+SRC_URI[x86.sha256sum] = "5318f31c791517d6d38ec2152560003cb06911ae55a36d16cc4f022399095ab3"
 
 COMPATIBLE_MACHINE = "(^$)"
 COMPATIBLE_MACHINE:armv7a = "(.*)"
@@ -113,4 +113,4 @@ do_install:append() {
 FILES:${PN} += " /lib64"
 
 
-INSANE_SKIP:${PN} = "libdir"
+INSANE_SKIP:${PN} += "ldflags libdir"
