@@ -12,8 +12,10 @@ on:
 jobs:  
   auto-approve-and-merge:
     runs-on: ubuntu-latest
-    name: auto approve and enable auto-merge
-    if: github.actor == 'aws-iot-embedded-linux-ci'
+    name: auto approve and enable auto-merge     
+    if: |
+      (github.actor == 'aws-iot-embedded-linux-ci' || github.actor == 'aws4embeddedlinux/yoctogerians'  ) &&
+      github.event.review.state != 'approved'
     steps:       
       - name: Enable Pull Request Automerge
         if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
