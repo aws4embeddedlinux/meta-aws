@@ -5,13 +5,24 @@ HOMEPAGE = "https://github.com/aws/aws-iot-device-sdk-python-v2"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://documents/LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
 
-inherit setuptools3
+inherit setuptools3 ptest
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/aws/aws-iot-device-sdk-python-v2.git;protocol=https;branch=${BRANCH}"
+SRC_URI = "git://github.com/aws/aws-iot-device-sdk-python-v2.git;protocol=https;branch=${BRANCH} \
+           file://run-ptest"
 SRCREV = "86f25036799d8a07894a27ce2b832d8ab15252b8"
 
 S = "${WORKDIR}/git"
 
 RDEPENDS:${PN} += "aws-crt-python python3-json"
+
+RDEPENDS:${PN}-ptest += " \
+        ${PYTHON_PN}-ptest \
+        python3-boto3 \
+"
+
+do_install_ptest() {
+        install -d ${D}${PTEST_PATH}/tests
+        cp -rf ${S}/test/* ${D}${PTEST_PATH}/tests/
+}
