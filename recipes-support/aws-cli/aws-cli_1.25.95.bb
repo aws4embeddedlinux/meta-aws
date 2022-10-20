@@ -12,7 +12,7 @@ S = "${WORKDIR}/git"
 # version 2.x has got library link issues - so stick to version 1.x for now
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>1\.\d+(\.\d+)+)"
 
-inherit setuptools3
+inherit setuptools3 ptest
 
 RDEPENDS:${PN} += " \
     python3-botocore \
@@ -32,3 +32,17 @@ RDEPENDS:${PN} += " \
     python3-jmespath \
     groff \
 "
+
+RDEPENDS:${PN}-ptest += " \
+        ${PYTHON_PN}-pytest \
+        bash \
+"
+
+SRC_URI += " \
+	file://run-ptest \
+"
+
+do_install_ptest() {
+        install -d ${D}${PTEST_PATH}/test
+        cp -rf ${S}/tests/* ${D}${PTEST_PATH}/test/
+}
