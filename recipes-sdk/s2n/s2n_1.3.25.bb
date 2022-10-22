@@ -12,7 +12,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=26d85861cd0c0d05ab56ebff38882975"
 BRANCH ?= "main"
 SRC_URI = "git://github.com/aws/s2n-tls.git;protocol=https;branch=${BRANCH}"
 
-SRCREV = "af80f6b47a17bab71cfdc5377e3d1af7530ba540"
+SRCREV = "5eaebef91867141def23cef327a97a823dbc8130"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S= "${WORKDIR}/git"
@@ -33,6 +33,7 @@ EXTRA_OECMAKE += "-DUNSAFE_TREAT_WARNINGS_AS_ERRORS=OFF"
 FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
                    ${libdir}/lib${PN}.so.1"
 FILES:${PN}-dev = "${includedir}/s2n.h \
+                   ${includedir}/s2n/unstable/renegotiate.h \
                    ${libdir}/s2n/* \
                    ${libdir}/lib${PN}.so"
 FILES:${PN}-dbg = "/usr/src/debug/s2n/* \
