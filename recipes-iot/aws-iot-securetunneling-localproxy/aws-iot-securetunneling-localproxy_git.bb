@@ -11,7 +11,7 @@ DEPENDS += "boost catch2 openssl protobuf protobuf-native zlib"
 BRANCH ?= "main"
 
 SRC_URI = "git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https"
-SRCREV = "e089c8989353652d4b045bb9cd649ea11d8f136f"
+SRCREV = "0d97d61b6f3f84316bcc228ee8f5aa98b384071c"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
