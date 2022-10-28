@@ -6,7 +6,7 @@ LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=7970352423db76abb33cbe303884afbf"
 LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=7970352423db76abb33cbe303884afbf"
 
 SRC_URI = "git://github.com/aws/aws-cli.git;protocol=https;branch=master"
-SRCREV = "3f8a276e4bd781108424a565a2c5c00fdd6f6700"
+SRCREV = "d923941bd2cb4c881ba49eebbc8c7395060d0e7f"
 S = "${WORKDIR}/git"
 
 # version 2.x has got library link issues - so stick to version 1.x for now
