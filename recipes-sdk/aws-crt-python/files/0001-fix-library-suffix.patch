@@ -1,4 +1,4 @@
-From b390938bb7797e8560d50ed7b688767e252f6375 Mon Sep 17 00:00:00 2001
+From 09af6b9e6ccb9363b817d2525f18099f7c040469 Mon Sep 17 00:00:00 2001
 From: rpcme <rich@richelberger.com>
 Date: Mon, 13 Sep 2021 16:27:00 -0400
 Subject: [PATCH] upgrade support for CRT Python and Device SDK Python v2
@@ -8,7 +8,7 @@ Subject: [PATCH] upgrade support for CRT Python and Device SDK Python v2
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/setup.py b/setup.py
-index 7d3515d..6f2a97d 100644
+index 6d417c5..8be87ee 100644
 --- a/setup.py
 +++ b/setup.py
 @@ -306,7 +306,7 @@ def awscrt_ext():
