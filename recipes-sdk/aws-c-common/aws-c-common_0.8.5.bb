@@ -28,15 +28,6 @@ EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 OECMAKE_BUILDPATH = "${WORKDIR}/build"
 OECMAKE_SOURCEPATH = "${S}"
 
-
-FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
-                   ${libdir}/lib${PN}.so.1"
-FILES:${PN}-dev = "${includedir}/aws/common/* \
-                   ${includedir}/aws/testing/* \
-                   ${libdir}/cmake/* \
-                   ${libdir}/aws-c-common/* \
-                   ${libdir}/lib${PN}.so"
-
 RDEPENDS:${PN}-ptest += "cmake python3"
 
 do_install_ptest() {
@@ -51,5 +42,7 @@ do_install_ptest() {
 
     install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
 }
+
+FILES:${PN}-dev += "${libdir}/*/cmake"
 
 BBCLASSEXTEND = "native nativesdk"
