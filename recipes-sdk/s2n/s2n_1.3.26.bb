@@ -30,14 +30,6 @@ TARGET_CC_ARCH += "${LDFLAGS}"
 # Assume that warnings from upstream have already been evaluated
 EXTRA_OECMAKE += "-DUNSAFE_TREAT_WARNINGS_AS_ERRORS=OFF"
 
-FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
-                   ${libdir}/lib${PN}.so.1"
-FILES:${PN}-dev = "${includedir}/s2n.h \
-                   ${includedir}/s2n/unstable/renegotiate.h \
-                   ${libdir}/s2n/* \
-                   ${libdir}/lib${PN}.so"
-
-# Notify that libraries are not versioned
-FILES_SOLIBSDEV = ""
+FILES:${PN}-dev += "${libdir}/*/cmake"
 
 BBCLASSEXTEND = "native nativesdk"
