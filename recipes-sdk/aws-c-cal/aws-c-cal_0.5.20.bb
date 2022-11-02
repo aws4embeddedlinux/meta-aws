@@ -29,20 +29,10 @@ EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 
-FILES:${PN} = " \
-    ${libdir}/*.so \
-    ${libdir}/*.so.1.0.0 \
-"
-FILES:${PN}-dev = "\
-    ${includedir}/aws/cal/* \
-    ${libdir}/aws-c-cal/* \
-    ${libdir}/*.so \
-"
-
-FILES:${PN}-dbg = " \
-    ${prefix}/src/debug/aws-c-cal/* \
-    ${libdir}/.debug/lib${PN}.so.1.0.0 \
-"
+FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
+FILES:${PN}-dev = "${includedir}/aws/cal/* \
+                   ${libdir}/aws-c-cal/* \
+                   ${libdir}/lib${PN}.so"
 
 BBCLASSEXTEND = "native nativesdk"
 

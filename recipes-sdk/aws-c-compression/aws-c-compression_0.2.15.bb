@@ -37,8 +37,6 @@ FILES:${PN} = " \
 FILES:${PN}-dev = "${includedir}/aws/compression/* \
                    ${libdir}/aws-c-compression/* \
                    ${libdir}/lib${PN}.so"
-FILES:${PN}-dbg = "${prefix}/src/debug/aws-c-compression/* \
-                   ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"
 

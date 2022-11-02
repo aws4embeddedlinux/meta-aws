@@ -39,7 +39,5 @@ FILES:${PN} = " \
 FILES:${PN}-dev = "${includedir}/aws/event-stream/* \
                    ${libdir}/aws-c-event-stream/* \
                    ${libdir}/lib${PN}.so"
-FILES:${PN}-dbg = "${prefix}/src/debug/aws-c-event-stream/* \
-                   ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"

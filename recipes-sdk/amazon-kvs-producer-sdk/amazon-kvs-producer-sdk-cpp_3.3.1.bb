@@ -83,7 +83,6 @@ do_install() {
 
 FILES:${PN}     = "${libdir}/libKinesisVideoProducer.so"
 FILES:${PN}-dev = "${includedir}/com/amazonaws/kinesis/video/*"
-FILES:${PN}-dbg = ""
 
 # Notify that libraries are not versioned
 FILES_SOLIBSDEV = ""

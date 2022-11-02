@@ -21,8 +21,6 @@ PACKAGES = "${PN}-dev ${PN}-dbg ${PN}-staticdev ${PN}"
 FILES:${PN}-dev = "${includedir} \
                    /usr/runtime/native/*"
 
-FILES:${PN}-dbg = "${libdir}/.debug/*.so" 
-
 FILES:${PN}-staticdev = "${libdir}/*.a"
 
 FILES:${PN} = "${libdir}/*"
