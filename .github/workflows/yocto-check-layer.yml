@@ -10,7 +10,8 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-20.04
+    runs-on:
+      labels: ubuntu-20.04-16core
     steps:
       - name: install required packages to run yocto-check-layer
         run: | 
@@ -21,9 +22,9 @@ jobs:
         run: |
           mkdir yocto_checklayer
           cd yocto_checklayer/
-          git clone git://git.yoctoproject.org/poky -b  ${{ github.event.inputs.branch }}
-          git clone https://github.com/aws4embeddedlinux/meta-aws -b ${{ github.event.inputs.branch }}
-          git clone https://github.com/openembedded/meta-openembedded.git -b ${{ github.event.inputs.branch }}
+          git clone git://git.yoctoproject.org/poky -b  ${{ github.event.inputs.branch }} --single-branch
+          git clone https://github.com/aws4embeddedlinux/meta-aws -b ${{ github.event.inputs.branch }} --single-branch
+          git clone https://github.com/openembedded/meta-openembedded.git -b ${{ github.event.inputs.branch }} --single-branch
           source poky/oe-init-build-env build
           yocto-check-layer ../meta-aws/ --dependency ../meta-openembedded/meta-oe/ ../meta-openembedded/meta-python/  ../meta-openembedded/meta-networking --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency
           cat ycl-check_meta-aws.log
