@@ -15,9 +15,9 @@ jobs:
         run: |
           mkdir yocto_checklayer
           cd yocto_checklayer/
-          git clone git://git.yoctoproject.org/poky -b  ${{ github.head_ref }} --single-branch
-          git clone https://github.com/aws4embeddedlinux/meta-aws -b ${{ github.ref_name }} --single-branch
-          git clone https://github.com/openembedded/meta-openembedded.git -b ${{ github.head_ref }} --single-branch
+          git clone git://git.yoctoproject.org/poky --single-branch
+          git clone https://github.com/aws4embeddedlinux/meta-aws --single-branch -b ${{ github.ref_name }}
+          git clone https://github.com/openembedded/meta-openembedded.git --single-branch
           source poky/oe-init-build-env build
           yocto-check-layer ../meta-aws/ --dependency ../meta-openembedded/meta-oe/ ../meta-openembedded/meta-python/  ../meta-openembedded/meta-networking --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency
           cat ycl-check_meta-aws.log
