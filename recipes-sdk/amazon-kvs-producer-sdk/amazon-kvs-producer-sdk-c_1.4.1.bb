@@ -41,7 +41,6 @@ EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 FILES:${PN}     = "${libdir}/libcproducer.so \
                    ${libdir}/pkgconfig/*.pc"
 FILES:${PN}-dev = "${includedir}/com/amazonaws/kinesis/video/*"
-FILES:${PN}-dbg = ""
 
 # Notify that libraries are not versioned
 FILES_SOLIBSDEV = ""
