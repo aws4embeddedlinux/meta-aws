@@ -32,9 +32,6 @@ EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
-FILES:${PN}-dev = "${includedir}/aws/event-stream/* \
-                   ${libdir}/aws-c-event-stream/* \
-                   ${libdir}/lib${PN}.so"
+FILES:${PN}-dev += "${libdir}/*/cmake"
 
 BBCLASSEXTEND = "native nativesdk"
