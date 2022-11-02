@@ -1,13 +1,13 @@
 name: yocto-check-layer
 
-on:
+on: |
+  [push]
   workflow_dispatch:
     inputs:
         branch:
           description: 'branch to run checklayer'
           default: 'master'
           required: true
-
 jobs:
   check:
     runs-on: ubuntu-20.04
@@ -32,3 +32,20 @@ jobs:
         with:
           name: ycl-check_meta-aws
           path: ycl-check_meta-aws.log
+
+      - uses: actions/checkout@v1
+      - id: annotations
+        run: |
+          echo "value=$ANNOTATIONS" >> $GITHUB_OUTPUT
+        env:
+          ANNOTATIONS: |
+            [{"path":"README.md","start_line":1,"end_line":2,"message":"Check your spelling for 'banaas'.","annotation_level":"warning"}]
+      - uses: ./
+        with:
+          token: ${{ secrets.BOT_CREDENTIAL }}
+          name: Test With Annotations From Run
+          conclusion: ${{ job.status }}
+          # output.summary is required with actions!
+          output: |
+            {"summary":"Some warnings in README.md"}
+          annotations: ${{ steps.annotations.outputs.value }}
