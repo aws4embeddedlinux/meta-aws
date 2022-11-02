@@ -22,10 +22,12 @@ DEPENDS = "aws-crt-cpp aws-c-common s2n aws-c-common aws-c-io aws-c-mqtt aws-c-a
 RDEPENDS:${PN} = "aws-crt-cpp aws-c-common"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
-EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake"
-EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
-EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
-EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
+EXTRA_OECMAKE += " \
+    -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
+    -DCMAKE_PREFIX_PATH=$D/usr \
+    -DCMAKE_INSTALL_PREFIX=$D/usr \
+    -DBUILD_SHARED_LIBS=ON \
+"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 

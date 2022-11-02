@@ -19,13 +19,15 @@ S = "${WORKDIR}/git"
 DEPENDS = ""
 RDEPENDS:${PN} = ""
 
-EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
-EXTRA_OECMAKE += "-DDISABLE_PERL=ON"
-EXTRA_OECMAKE += "-DDISABLE_GO=ON"
-
-EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=${libdir}/aws-lc"
-EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=${libdir}/aws-lc"
-EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
+EXTRA_OECMAKE += " \
+    -DBUILD_TESTING=OFF \
+    -DDISABLE_PERL=ON \
+    -DDISABLE_GO=ON \
+    \
+    -DCMAKE_PREFIX_PATH=${libdir}/aws-lc \
+    -DCMAKE_INSTALL_PREFIX=${libdir}/aws-lc \
+    -DBUILD_SHARED_LIBS=ON \
+"
 
 
 FILES:${PN}     += "${libdir}/aws-lc/lib/libssl.so \
