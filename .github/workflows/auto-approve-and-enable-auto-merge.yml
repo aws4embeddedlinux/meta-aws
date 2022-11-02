@@ -8,6 +8,7 @@ on:
       - master-next
       - kirkstone-next
       - dunfell-next
+      - langdale-next
       
 jobs:  
   auto-approve-and-merge:
@@ -15,19 +16,20 @@ jobs:
     name: auto approve and enable auto-merge     
     if: |
       (github.actor == 'aws-iot-embedded-linux-ci' || github.actor == 'aws4embeddedlinux/yoctogerians'  ) &&
-      github.event.review.state != 'approved'
-    steps:       
+      github.event.review.state != 'approved' &&
+      github.event.label.name == 'auto-integrate'
+    steps:
+      - name: Auto approve
+        uses: juliangruber/approve-pull-request-action@v2.0.1
+        with:
+          github-token: ${{ secrets.BOT2_CREDENTIAL }}
+          number: ${{ github.event.pull_request.number }}
+
       - name: Enable Pull Request Automerge
-        if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
         uses: peter-evans/enable-pull-request-automerge@v2.2.0
         with:
           token: ${{ secrets.BOT2_CREDENTIAL }}
           pull-request-number: ${{ github.event.pull_request.number }}
           merge-method: rebase
 
-      - name: Auto approve
-        if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
-        uses: juliangruber/approve-pull-request-action@v1.1.1
-        with:
-          github-token: ${{ secrets.BOT2_CREDENTIAL }}
-          number: ${{ github.event.pull_request.number }}
+
