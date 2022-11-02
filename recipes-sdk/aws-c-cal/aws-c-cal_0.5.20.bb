@@ -23,11 +23,13 @@ DEPENDS = "openssl s2n aws-c-common"
 RDEPENDS:${PN} = "s2n aws-c-common"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
-EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
-EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake"
-EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
-EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
-EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
+EXTRA_OECMAKE += " \
+    -DBUILD_SHARED_LIBS=ON \
+    -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
+    -DCMAKE_PREFIX_PATH=$D/usr \
+    -DCMAKE_INSTALL_PREFIX=$D/usr \
+    -DCMAKE_BUILD_TYPE=Release \
+"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
