@@ -15,7 +15,7 @@ jobs:
       - name: install required packages to run yocto-check-layer
         run: | 
           sudo apt-get -y install file gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping python3-git python3-jinja2 libegl1-mesa libsdl1.2-dev pylint3 xterm python3-subunit mesa-common-dev zstd liblz4-tool locales
-          sudo echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+          echo "en_US.UTF-8 UTF-8" | sudo tee --append /etc/locale.gen
           sudo locale-gen
       - name: run yocto-check-layer
         run: |
@@ -27,3 +27,8 @@ jobs:
           source poky/oe-init-build-env build
           yocto-check-layer ../meta-aws/ --dependency ../meta-openembedded/meta-oe/ ../meta-openembedded/meta-python/  ../meta-openembedded/meta-networking --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency
           cat ycl-check_meta-aws.log
+      - name: save ycl-check_meta-aws.log
+        uses: actions/upload-artifact@v2
+        with:
+          name: ycl-check_meta-aws
+          path: ycl-check_meta-aws.log
