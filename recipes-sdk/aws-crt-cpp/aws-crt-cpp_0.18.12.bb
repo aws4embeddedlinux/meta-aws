@@ -22,12 +22,14 @@ DEPENDS = "s2n aws-c-common aws-c-io aws-c-mqtt aws-c-auth aws-c-http aws-checks
 RDEPENDS:${PN} = "s2n aws-c-common"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
-EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake"
-EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
-EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
-EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
-EXTRA_OECMAKE += "-DBUILD_DEPS=OFF"
-EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
+EXTRA_OECMAKE += " \
+    -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
+    -DCMAKE_PREFIX_PATH=$D/usr \
+    -DCMAKE_INSTALL_PREFIX=$D/usr \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_DEPS=OFF \
+    -DBUILD_SHARED_LIBS=ON \
+"
 
 FILES:${PN} += "${libdir}/libaws-crt-cpp.so"
 FILES:${PN}-dev = "${includedir}/aws/crt/* \

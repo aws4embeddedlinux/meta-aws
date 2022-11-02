@@ -22,12 +22,14 @@ DEPENDS = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http"
 RDEPENDS:${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-c-http"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
-EXTRA_OECMAKE += "-DBUILD_TEST_DEPS=OFF"
-EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
-EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake"
-EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
-EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
-EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
+EXTRA_OECMAKE += " \
+    -DBUILD_TEST_DEPS=OFF \
+    -DBUILD_TESTING=OFF \
+    -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
+    -DCMAKE_PREFIX_PATH=$D/usr \
+    -DCMAKE_INSTALL_PREFIX=$D/usr \
+    -DBUILD_SHARED_LIBS=ON \
+"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 

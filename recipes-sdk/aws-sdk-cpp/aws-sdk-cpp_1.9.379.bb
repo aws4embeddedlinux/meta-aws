@@ -65,10 +65,11 @@ lambda;\
 polly;\
 s3;\
 sts;\
-'"
-EXTRA_OECMAKE += "-DBUILD_DEPS=OFF"
-EXTRA_OECMAKE += "-DENABLE_TESTING=OFF"
-EXTRA_OECMAKE += "-DAUTORUN_UNIT_TESTS=OFF"
+' \
+    -DBUILD_DEPS=OFF \
+    -DENABLE_TESTING=OFF \
+    -DAUTORUN_UNIT_TESTS=OFF \
+"
 
 # -Werror will cause deprecation warnings to fail the build e.g. OpenSSL cause one, so disable these warnings
 OECMAKE_CXX_FLAGS += "-Wno-deprecated-declarations"
