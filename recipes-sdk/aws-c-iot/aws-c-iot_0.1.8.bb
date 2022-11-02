@@ -32,8 +32,6 @@ FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
 FILES:${PN}-dev = "${includedir}/aws/iotdevice/* \
                    ${libdir}/aws-c-iot/* \
                    ${libdir}/lib${PN}.so"
-FILES:${PN}-dbg = "${prefix}/src/debug/aws-c-iot/* \
-                   ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"
 

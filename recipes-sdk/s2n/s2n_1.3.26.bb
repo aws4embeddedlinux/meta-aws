@@ -36,8 +36,6 @@ FILES:${PN}-dev = "${includedir}/s2n.h \
                    ${includedir}/s2n/unstable/renegotiate.h \
                    ${libdir}/s2n/* \
                    ${libdir}/lib${PN}.so"
-FILES:${PN}-dbg = "/usr/src/debug/s2n/* \
-                   ${libdir}/.debug/libs2n.so"
 
 # Notify that libraries are not versioned
 FILES_SOLIBSDEV = ""
