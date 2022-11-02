@@ -22,15 +22,12 @@ DEPENDS = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-lc"
 RDEPENDS:${PN} = "s2n aws-c-common aws-c-cal aws-c-io aws-c-compression aws-lc"
 
 AWS_C_INSTALL = "$D/usr"
-OECMAKE_SOURCEPATH = "${S}"
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "-DBUILD_TEST_DEPS=OFF"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
 EXTRA_OECMAKE += "-DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake"
 EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
-OECMAKE_SOURCEPATH += "${S}"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 

@@ -80,8 +80,6 @@ inherit setuptools3 cmake
 
 OECMAKE_GENERATOR = "Unix Makefiles"
 
-OECMAKE_BUILDPATH = "${B}"
-OECMAKE_SOURCEPATH = "${S}"
 DISTUTILS_SETUP_PATH = "${S}/python"
 
 
