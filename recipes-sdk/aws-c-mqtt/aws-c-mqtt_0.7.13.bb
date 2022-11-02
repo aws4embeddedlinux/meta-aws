@@ -29,13 +29,7 @@ EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 
-FILES:${PN} = " \
-    ${libdir}/*.so.1.0.0 \
-    ${libdir}/*.so \
-"
-FILES:${PN}-dev = "${includedir}/aws/mqtt/* \
-                   ${libdir}/aws-c-mqtt/* \
-                   ${libdir}/lib${PN}.so"
+FILES:${PN}-dev += "${libdir}/*/cmake"
 
 BBCLASSEXTEND = "native nativesdk"
 

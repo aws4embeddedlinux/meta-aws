@@ -29,13 +29,6 @@ EXTRA_OECMAKE += "-DCMAKE_PREFIX_PATH=$D/usr"
 EXTRA_OECMAKE += "-DCMAKE_INSTALL_PREFIX=$D/usr"
 EXTRA_OECMAKE += "-DBUILD_SHARED_LIBS=ON"
 
-FILES:${PN} = " \
-    ${libdir}/*.so.1.0.0 \
-    ${libdir}/*.so.0unstable \
-    ${libdir}/*.so \
-"
-FILES:${PN}-dev = "${includedir}/aws/s3/* \
-                   ${libdir}/aws-c-s3/* \
-                   ${libdir}/lib${PN}.so"
+FILES:${PN}-dev += "${libdir}/*/cmake"
 
 BBCLASSEXTEND = "native nativesdk"
