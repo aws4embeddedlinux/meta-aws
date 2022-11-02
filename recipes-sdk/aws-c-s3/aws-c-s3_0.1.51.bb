@@ -34,7 +34,5 @@ FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0 \
 FILES:${PN}-dev = "${includedir}/aws/s3/* \
                    ${libdir}/aws-c-s3/* \
                    ${libdir}/lib${PN}.so"
-FILES:${PN}-dbg = "/usr/src/debug/aws-c-s3/* \
-                   ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"

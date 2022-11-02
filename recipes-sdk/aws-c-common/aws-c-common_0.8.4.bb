@@ -36,8 +36,6 @@ FILES:${PN}-dev = "${includedir}/aws/common/* \
                    ${libdir}/cmake/* \
                    ${libdir}/aws-c-common/* \
                    ${libdir}/lib${PN}.so"
-FILES:${PN}-dbg = "/usr/src/debug/aws-c-common/* \
-                   ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 RDEPENDS:${PN}-ptest += "cmake python3"
 
