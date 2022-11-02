@@ -10,7 +10,9 @@ jobs:
   cherry_pick_:
     runs-on: ubuntu-latest
     name: Cherry pick into kirkstone-next and dunfell-next
-    if: ${{github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'version-upgrade') }}
+    if: |
+      (github.event.pull_request.merged == true ) &&
+      (contains(github.event.pull_request.labels.*.name, 'version-upgrade') || contains(github.event.pull_request.labels.*.name, 'auto-backport'))
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -21,16 +23,28 @@ jobs:
         with:
           branch: kirkstone-next
           labels: |
-            auto
+            auto-created
             backport
             kirkstone
+            auto-integrate
           token: ${{ secrets.BOT_CREDENTIAL }}
       - name: Cherry pick into dunfell-next
         uses: carloscastrojumo/github-cherry-pick-action@v1.0.3
         with:
           branch: dunfell-next
           labels: |
-            auto
+            auto-created
             backport
             dunfell
+            auto-integrate
           token: ${{ secrets.BOT_CREDENTIAL }}
+      - name: Cherry pick into langdale-next
+        uses: carloscastrojumo/github-cherry-pick-action@v1.0.3
+        with:
+          branch: langdale-next
+          labels: |        
+            auto-created
+            backport
+            langdale
+            auto-integrate  
+          token: ${{ secrets.BOT_CREDENTIAL }}          
