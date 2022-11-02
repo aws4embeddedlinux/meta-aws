@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 From c3062dc95a8209513d5b272ed817cb71d2a30dbc Mon Sep 17 00:00:00 2001
+=======
+From 2502058685a5a9157f60876b060ff710a6b71538 Mon Sep 17 00:00:00 2001
+>>>>>>> 174e8b0... aws-sdk-cpp: upgrade 1.9.375 -> 1.9.376
 From: Bartosz Golaszewski <brgl@bgdev.pl>
 Date: Mon, 7 Feb 2022 12:23:10 +0100
 Subject: [PATCH] build: fix building without external dependencies
