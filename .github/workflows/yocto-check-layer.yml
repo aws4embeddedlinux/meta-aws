@@ -10,8 +10,7 @@ on:
 
 jobs:
   check:
-    runs-on:
-      labels: ubuntu-20.04-16core
+    runs-on: ubuntu-20.04
     steps:
       - name: install required packages to run yocto-check-layer
         run: | 
