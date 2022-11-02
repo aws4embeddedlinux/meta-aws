@@ -31,12 +31,6 @@ EXTRA_OECMAKE += "-DCMAKE_BUILD_TYPE=Release"
 OECMAKE_BUILDPATH += "${WORKDIR}/build"
 OECMAKE_SOURCEPATH += "${S}"
 
-FILES:${PN} = " \
-    ${libdir}/*.so.1.0.0 \
-    ${libdir}/*.so \
-"
-FILES:${PN}-dev = "${includedir}/aws/auth/* \
-                   ${libdir}/aws-c-auth/* \
-                   ${libdir}/lib${PN}.so"
+FILES:${PN}-dev += "${libdir}/*/cmake"
 
 BBCLASSEXTEND = "native nativesdk"
