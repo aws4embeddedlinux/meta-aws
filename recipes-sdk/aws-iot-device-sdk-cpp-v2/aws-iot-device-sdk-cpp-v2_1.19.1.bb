@@ -43,8 +43,6 @@ FILES:${PN}-dev = "${includedir}/aws/* \
                    ${libdir}/EventstreamRpc-cpp/* \
                    ${libdir}/IotJobs-cpp/* \
                    ${libdir}/lib${PN}.so"
-FILES:${PN}-dbg = "/usr/src/debug/aws-iot-device-sdk-cpp-v2/* \
-                   ${libdir}/.debug/lib*"
 
 # Notify that libraries are not versioned
 FILES_SOLIBSDEV = ""
