@@ -33,8 +33,6 @@ FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
 FILES:${PN}-dev = "${includedir}/aws/cal/* \
                    ${libdir}/aws-c-cal/* \
                    ${libdir}/lib${PN}.so"
-FILES:${PN}-dbg = "/usr/src/debug/aws-c-cal/* \
-                   ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"
 
