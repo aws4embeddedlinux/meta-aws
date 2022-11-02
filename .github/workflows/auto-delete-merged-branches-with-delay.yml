@@ -6,7 +6,9 @@ on:
 jobs:
   auto-delete-merged-branches-with-delay:
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.labels.*.name, 'version-upgrade')
+    if: | 
+      contains(github.event.pull_request.labels.*.name, 'version-upgrade') ||
+      contains(github.event.pull_request.labels.*.name, 'auto-created') 
     steps:
       - name: Sleep for 10 min
         run: sleep 10m
