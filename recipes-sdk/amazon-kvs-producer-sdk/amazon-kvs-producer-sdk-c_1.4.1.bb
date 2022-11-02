@@ -18,8 +18,6 @@ S = "${WORKDIR}/git"
 DEPENDS = "openssl curl gtest amazon-kvs-producer-pic mbedtls libwebsockets"
 RDEPENDS:${PN} = ""
 CFLAGS:append = " -Wl,-Bsymbolic"
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
-OECMAKE_SOURCEPATH += "${S}"
 
 EXTRA_OECMAKE += "-DBUILD_DEPENDENCIES=OFF"
 EXTRA_OECMAKE += "-DBUILD_TEST=OFF"
