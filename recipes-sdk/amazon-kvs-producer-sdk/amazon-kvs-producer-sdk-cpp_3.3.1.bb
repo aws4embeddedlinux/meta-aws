@@ -21,7 +21,6 @@ S = "${WORKDIR}/git"
 DEPENDS = "openssl amazon-kvs-producer-sdk-c gtest log4cplus"
 RDEPENDS:${PN} = ""
 CFLAGS:append = " -Wl,-Bsymbolic"
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
 
 EXTRA_OECMAKE += "-DBUILD_DEPENDENCIES=OFF"
 EXTRA_OECMAKE += "-DBUILD_GSTREAMER_PLUGIN=OFF"

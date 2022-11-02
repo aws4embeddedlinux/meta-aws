@@ -35,8 +35,6 @@ do_install() {
                   ${D}${systemd_system_unitdir}/aws-iot-device-client.service
 }
 
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
-OECMAKE_SOURCEPATH += "${S}"
 EXTRA_OECMAKE += "-DBUILD_SDK=OFF"
 EXTRA_OECMAKE += "-DBUILD_TEST_DEPS=OFF"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
@@ -61,5 +59,3 @@ FILES:${PN} += "${sysconfdir}/aws-iot-device-client.json"
 inherit systemd
 SYSTEMD_AUTO_ENABLE = "enable"
 SYSTEMD_SERVICE:${PN} = "aws-iot-device-client.service"
-
-
