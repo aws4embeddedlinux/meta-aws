@@ -35,8 +35,6 @@ FILES:${PN}     = "${libdir}/lib${PN}.so.1.0.0"
 FILES:${PN}-dev = "${includedir}/aws/checksums/* \
                    ${libdir}/aws-checksums/* \
                    ${libdir}/lib${PN}.so"
-FILES:${PN}-dbg = "/usr/src/debug/aws-checksums/* \
-                   ${libdir}/.debug/lib${PN}.so.1.0.0"
 
 BBCLASSEXTEND = "native nativesdk"
 
