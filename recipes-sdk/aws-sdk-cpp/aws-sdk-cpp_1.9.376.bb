@@ -9,7 +9,7 @@ SRC_URI = " \
     file://0002-build-fix-building-without-external-dependencies.patch"
  
 
-SRCREV = "621a94386c02b63b6060b40144ff41966746109c"
+SRCREV = "cbc397221e0e218269210ac79b2b2001d7eed2a4"
 
 S = "${WORKDIR}/git"
 
