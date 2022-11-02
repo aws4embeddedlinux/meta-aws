@@ -35,6 +35,5 @@ FILES:${PN}-dev += "${libdir}/aws-lc/include/openssl/* \
                    ${libdir}/aws-lc/lib/ssl/* \
                    ${libdir}/aws-lc/lib/AWSLC/* \
                    ${libdir}/aws-lc/lib/crypto/*"
-FILES:${PN}-dbg += "/usr/src/debug/aws-lc/*"
 
 BBCLASSEXTEND = "native nativesdk"
