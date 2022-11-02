@@ -4,26 +4,25 @@ on:
   workflow_dispatch:
     inputs:
         branch:
-          description: 'branch to ff merge branch-next into'
+          description: 'branch to run checklayer'
           default: 'master'
           required: true
 
-jobs:
-  build:
-    runs-on: ubuntu-20.04
-    steps:
-      - name: install required packages to run yocto-check-layer
-        run: | 
-          sudo apt-get -y install file gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping python3-git python3-jinja2 libegl1-mesa libsdl1.2-dev pylint3 xterm python3-subunit mesa-common-dev zstd liblz4-tool locales
-          echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
-          locale-gen
-      - name: run yocto-check-layer
-        run: |
-          mkdir yocto_checklayer
-          cd yocto_checklayer/
-          git clone git://git.yoctoproject.org/poky -b  ${{ github.event.inputs.branch }}
-          git clone https://github.com/aws4embeddedlinux/meta-aws -b ${{ github.event.inputs.branch }}
-          git clone https://github.com/openembedded/meta-openembedded.git -b ${{ github.event.inputs.branch }}
-          source poky/oe-init-build-env build
-          yocto-check-layer ../meta-aws/ --dependency ../meta-openembedded/meta-oe/ ../meta-openembedded/meta-python/  ../meta-openembedded/meta-networking --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency
-          cat ycl-check_meta-aws.log
+jobs:  
+  runs-on: ubuntu-20.04
+  steps:
+    - name: install required packages to run yocto-check-layer
+      run: | 
+        sudo apt-get -y install file gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping python3-git python3-jinja2 libegl1-mesa libsdl1.2-dev pylint3 xterm python3-subunit mesa-common-dev zstd liblz4-tool locales
+        sudo echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+        sudo locale-gen
+    - name: run yocto-check-layer
+      run: |
+        mkdir yocto_checklayer
+        cd yocto_checklayer/
+        git clone git://git.yoctoproject.org/poky -b  ${{ github.event.inputs.branch }}
+        git clone https://github.com/aws4embeddedlinux/meta-aws -b ${{ github.event.inputs.branch }}
+        git clone https://github.com/openembedded/meta-openembedded.git -b ${{ github.event.inputs.branch }}
+        source poky/oe-init-build-env build
+        yocto-check-layer ../meta-aws/ --dependency ../meta-openembedded/meta-oe/ ../meta-openembedded/meta-python/  ../meta-openembedded/meta-networking --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency
+        cat ycl-check_meta-aws.log
