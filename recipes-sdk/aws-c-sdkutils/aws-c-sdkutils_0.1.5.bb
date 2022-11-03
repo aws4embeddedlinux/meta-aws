@@ -28,3 +28,5 @@ EXTRA_OECMAKE += " \
     -DBUILD_SHARED_LIBS=ON \
     -DCMAKE_BUILD_TYPE=Release \
 "
+
+FILES:${PN}-dev += "${libdir}/*/cmake"
