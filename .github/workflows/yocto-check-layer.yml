@@ -14,16 +14,18 @@ jobs:
           sudo apt-get -y install file gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping python3-git python3-jinja2 libegl1-mesa libsdl1.2-dev pylint3 xterm python3-subunit mesa-common-dev zstd liblz4-tool locales
           echo "en_US.UTF-8 UTF-8" | sudo tee --append /etc/locale.gen
           sudo locale-gen
+      - name: checkout meta-aws branch to test
+        uses: actions/checkout@v3
+        with:
+          path: yocto_checklayer          
       - name: run yocto-check-layer
         run: |
-          mkdir yocto_checklayer
           cd yocto_checklayer/
-          git clone git://git.yoctoproject.org/poky --single-branch
-          git clone ${{ github.repository }} --single-branch -b ${{ github.ref_name }}
-          git clone https://github.com/openembedded/meta-openembedded.git --single-branch
+          git clone git://git.yoctoproject.org/poky --single-branch -b master        
+          git clone https://github.com/openembedded/meta-openembedded.git --single-branch -b master
           source poky/oe-init-build-env build
-          yocto-check-layer ../meta-aws/ --dependency ../meta-openembedded/meta-oe/ ../meta-openembedded/meta-python/  ../meta-openembedded/meta-networking --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency
-          cat ycl-check_meta-aws.log
+          yocto-check-layer ../meta-aws/ --dependency ../meta-openembedded/meta-oe/ ../meta-openembedded/meta-python/  ../meta-openembedded/meta-networking --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency --help
+          touch ycl-check_meta-aws.log
       - name: save ycl-check_meta-aws.log
         uses: actions/upload-artifact@v3.1.1
         with:
