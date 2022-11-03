@@ -9,7 +9,7 @@ on:
 jobs:  
   cherry_pick_:
     runs-on: ubuntu-latest
-    name: Cherry pick into kirkstone-next and dunfell-next
+    name: Cherry pick into release branches
     if: |
       (github.event.pull_request.merged == true ) &&
       (contains(github.event.pull_request.labels.*.name, 'version-upgrade') || contains(github.event.pull_request.labels.*.name, 'auto-backport'))
