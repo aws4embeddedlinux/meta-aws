@@ -1,6 +1,9 @@
 name: yocto-check-layer
 
-on: [push]
+on:
+  pull_request:
+    branches:
+      - master-next
 
 jobs:
   check:
@@ -22,24 +25,7 @@ jobs:
           yocto-check-layer ../meta-aws/ --dependency ../meta-openembedded/meta-oe/ ../meta-openembedded/meta-python/  ../meta-openembedded/meta-networking --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency
           cat ycl-check_meta-aws.log
       - name: save ycl-check_meta-aws.log
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3.1.1
         with:
           name: ycl-check_meta-aws
-          path: ycl-check_meta-aws.log
-
-      - uses: actions/checkout@v1
-      - id: annotations
-        run: |
-          echo "value=$ANNOTATIONS" >> $GITHUB_OUTPUT
-        env:
-          ANNOTATIONS: |
-            [{"path":"README.md","start_line":1,"end_line":2,"message":"Check your spelling for 'banaas'.","annotation_level":"warning"}]
-      - uses: ./
-        with:
-          token: ${{ secrets.BOT_CREDENTIAL }}
-          name: Test With Annotations From Run
-          conclusion: ${{ job.status }}
-          # output.summary is required with actions!
-          output: |
-            {"summary":"Some warnings in README.md"}
-          annotations: ${{ steps.annotations.outputs.value }}
+          path: yocto_checklayer/build/ycl-check_meta-aws.log
