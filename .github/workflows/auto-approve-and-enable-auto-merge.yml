@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     name: auto approve and enable auto-merge     
     if: |
-      (github.actor == 'aws-iot-embedded-linux-ci' || github.actor == 'aws4embeddedlinux/yoctogerians'  ) &&
+      (github.actor == 'aws-iot-embedded-linux-ci' || github.actor == 'thomas-roos'  ) &&
       github.event.review.state != 'approved' &&
       (github.event.label.name == 'auto-integrate' || github.event.label.name == 'version-upgrade' )
     steps:
