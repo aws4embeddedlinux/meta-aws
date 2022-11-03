@@ -9,7 +9,7 @@ PREFERRED_RPROVIDER:${PN} += "aws/crt-cpp"
 
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3eb31626add6ada64ff9ac772bd3c653"
 
-BRANCH = "main"
+BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;protocol=https;branch=${BRANCH} \
            file://01-missing-thread-includes.patch \
