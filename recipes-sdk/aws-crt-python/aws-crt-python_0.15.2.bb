@@ -10,11 +10,10 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 BRANCH ?= "main"
 SRC_URI = "git://github.com/awslabs/aws-crt-python.git;protocol=https;branch=${BRANCH} \
            file://0001-fix-library-suffix.patch \
-           file://0002-disable-building-of-depending-libs.patch \
            "
 
 
-SRCREV = "a989a07ff90676ef5ce4e912a0cf7e67167ae45a"
+SRCREV = "c88e3f18075713d90b467ed0addb09c76dc3226c"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
