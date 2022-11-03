@@ -16,23 +16,9 @@ Please check out [our sister project meta-aws-demos](https://github.com/aws-samp
 
 ### Supported Yocto Project Releases
 
-We are supporting customers building solutions on AWS with meta-aws for the following Yocto Project releases.  Let us know if you need AWS device software for a specific Yocto Project release and we will work with you through Github Issues to resolve the challenge you might be facing.  We also encourage [**contributions**](CONTRIBUTING.md) by the community.
-
-<table>
-<tr><th>Release branch <a href="https://wiki.yoctoproject.org/wiki/Releases" target="none" title="What is this?">(?)</a></th><th>Layer integrity check <a href="https://www.yoctoproject.org/docs/2.5/dev-manual/dev-manual.html#making-sure-your-layer-is-compatible-with-yocto-project" target="none" title="What is this?">(?)</a></th></tr>
-<tr><td>master</td><td><img src="https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoibjRaeDZVUzQrdTRtaDhmb0xRK0FCdndZRU00TytjSEJ6bGR2RzFLZFdOaTIwU0sxOFk5RUZ1Yk04VGxvWVlIVXIvai9aSUIyL1RkaXlSalAxS0IxWGdZPSIsIml2UGFyYW1ldGVyU3BlYyI6IkVWQnd5bXA4Si9zaW04OU4iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master"/></td></tr>
-<tr><td>kirkstone</td><td><img src="https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiUTVKN3F4ZGFZNUpkeFovZW5CTTVwQktlUThuRHZZTzNONWJ0M01ocUJWOVpwL2Y3NURVK2ovVVNoMjhMbFhpSTlkcFhiS0dPRzErWnhza2xqbkV3ZXpBPSIsIml2UGFyYW1ldGVyU3BlYyI6IkZBSTRWRHZXM082ZndXT1EiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=kirkstone"/></td></tr>
-<tr><td>honister</td><td><img src="https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoieE0zYzlVdG10WWdYT0RwUGhQRW80dVE5OVNWd1RjQ2pna0xoQm1kc09odjQ0ZjRSQmpveWVrdksrREdDVzcrQW10eVE5SFVpRmNHM2FnbnZMdmU0ZzVzPSIsIml2UGFyYW1ldGVyU3BlYyI6IlYrcmhWdkxqakNHYkUxUnMiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=honister"/></td></tr>
-<tr><td>hardknott</td><td><img src="https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiaFQ3SEZZOTZGamdQWkt5RUREZS9XTjVxY1IvMlliUXRZcFVXODQxMjJDSW5tK0xWbzRneDdxQ2toZS93ek8zOXNCcHc1UFV2QVdjTXloRE5JMUU2Q0owPSIsIml2UGFyYW1ldGVyU3BlYyI6InRRay9YRTNyTTZGWUFWTTciLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=hardknott"/></td></tr>
-<tr><td>gatesgarth </td><td><img src="https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoieTNEbG5BdFRvdXNJU20zUUprZU1EM2Q5c0RnNW9hRFVRQ2ZJeUFJSnN4UVQxdFhJNS9yMnhwaHB0dlhZSXZzTVUwMHRJWHZyU1NNRTc5WlJVbVBWZ1ZVPSIsIml2UGFyYW1ldGVyU3BlYyI6InJVSDhaZHhHN29ERjlqMEIiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=gatesgarth"/></td></tr>
-<tr><td>dunfell</td><td><img src="https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiTk9VRSs1aHBiMXpMTzJLbVlBTVFvUXU5blNQb0hzd2o5TEJZWUVwajBnbXpacmROMlM4VzE4aWU4dDIvWG9nTHN5TXY1UWxNeW1LL1lrTkVYcWJmcE1BPSIsIml2UGFyYW1ldGVyU3BlYyI6IlM5emZaLzVaTDVxL09DYnQiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=dunfell"/></td></tr>
-<tr><td>zeus (breakfix only)</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiYXZDSnIwdXVNSFRjMW13MmxVOVZYZVJhVktKTkVScG1UQURqTDdpMHlrYXFKS2x0VHdXV1ZzeUVxR0Q1cVU4RTBtUkkzWnVOMjRPdVZhKzRhSTBqQkI4PSIsIml2UGFyYW1ldGVyU3BlYyI6IlNwZXFGbXJ3U0ZwM1dLQVciLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=zeus"/></td></tr>
-<tr><td>thud (breakfix only)</td><td><img src="https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiK0IwWDFuaTZFZFd4NVY3N2UwdGdGcWtsMGtDc2dRVEgzMHdxV2V6TU5ZRmpOU01MaUtreVowSlJid204VHEwelIzdGoxQnJ4RnViNWI0bjQ3cEgxN1k4PSIsIml2UGFyYW1ldGVyU3BlYyI6IjA3ZndZRHFjeVlKMGUvQ2IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=thud"/></td></tr>
-<tr><td>warrior (breakfix only)</td><td><img src="https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiR0kyTTJZek11SHkwTGJ2QVlsWE1uTjUyNTJYdjhmaEtKVUcvZXNWUzFBSXFBUHJuN0hoc2k0SVRMRWhWOWRBcWovTEQ3RUF6aWdpbmhtZEN5RUR4VDRBPSIsIml2UGFyYW1ldGVyU3BlYyI6Inoyd1VHbU5Qd0FGTXhBYTIiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=warrior"/></td></tr>
-<tr><td>sumo (breakfix only)</td><td><img src="https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiOHhleEREbml5SDJnanZQL0FIb1lKZDlmT1JFZ3dROGdwekhiVEhYWGxSVzQwSGFKM09DaWplcnNwNFVRMTVsd2hTZytwdE9KNXNMRUdlNDZ6ck0xaDBzPSIsIml2UGFyYW1ldGVyU3BlYyI6InVmQnp4a2h4d1pEU0xDeUYiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=sumo"/></td></tr>
-</table>
-
-All prior releases will be handled on a case by case basis.  Again, please let us know if you're in a crunch on earlier releases and we'll help you the best we can!
+We are supporting customers building solutions on AWS with meta-aws. Let us know if you need AWS device software for a specific Yocto Project release and we will work with you through Github Issues to resolve the challenge you might be facing.  We also encourage [**contributions**](CONTRIBUTING.md) by the community.
+We are yocto project compatible<a href="https://www.yoctoproject.org/software-overview/layers/?searchTerm=meta-aws" target="none" title="What is this?">(?)</a>.
+Currently maintained release branches are: master, kirkstone, dunfell, langdale. All prior releases will be handled on a case by case basis. Again, please let us know if you're in a crunch on earlier releases and we'll help you the best we can!
 
 ### Dependencies
 
