@@ -1,4 +1,4 @@
-name: Auto-Backport
+name: auto-backport
 
 on:
   pull_request:
@@ -7,44 +7,27 @@ on:
     types: ["closed"]
 
 jobs:  
-  cherry_pick_:
-    runs-on: ubuntu-latest
+  cherry_pick:
+    strategy:
+      matrix:
+        branch: [kirkstone, dunfell, langdale]
+    runs-on: ubuntu-22.04
     name: Cherry pick into release branches
     if: |
       (github.event.pull_request.merged == true ) &&
       (contains(github.event.pull_request.labels.*.name, 'version-upgrade') || contains(github.event.pull_request.labels.*.name, 'auto-backport'))
     steps:
-      - name: Checkout
+      - name: checkout current
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Cherry pick into kirkstone-next
+      - name: Cherry pick into ${{ matrix.branch }}-next
         uses: carloscastrojumo/github-cherry-pick-action@v1.0.3
         with:
-          branch: kirkstone-next
+          branch: ${{ matrix.branch }}-next
           labels: |
             auto-created
             backport
-            kirkstone
+            ${{ matrix.branch }}
             auto-integrate
           token: ${{ secrets.BOT_CREDENTIAL }}
-      - name: Cherry pick into dunfell-next
-        uses: carloscastrojumo/github-cherry-pick-action@v1.0.3
-        with:
-          branch: dunfell-next
-          labels: |
-            auto-created
-            backport
-            dunfell
-            auto-integrate
-          token: ${{ secrets.BOT_CREDENTIAL }}
-      - name: Cherry pick into langdale-next
-        uses: carloscastrojumo/github-cherry-pick-action@v1.0.3
-        with:
-          branch: langdale-next
-          labels: |        
-            auto-created
-            backport
-            langdale
-            auto-integrate  
-          token: ${{ secrets.BOT_CREDENTIAL }}          
