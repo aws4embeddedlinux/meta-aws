@@ -6,7 +6,7 @@ on:
       - '*-next'
 
 jobs:
-  check:
+  yocto-check-layer:
     runs-on: ubuntu-20.04
     steps:
       - name: get yocto release name
