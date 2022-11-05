@@ -12,7 +12,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=26d85861cd0c0d05ab56ebff38882975"
 BRANCH ?= "main"
 SRC_URI = "git://github.com/aws/s2n-tls.git;protocol=https;branch=${BRANCH}"
 
-SRCREV = "72a3a37f0f807fe53cd2d56f08c27a7416dbecff"
+SRCREV = "15d534e8a9ca1eda6bacee514e37d08b4f38a526"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S= "${WORKDIR}/git"
