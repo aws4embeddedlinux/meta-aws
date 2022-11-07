@@ -1,0 +1,42 @@
+name: oelint-adv
+
+on:
+  pull_request:
+    branches:
+      - '*-next'
+
+jobs:
+  oelint-adv:
+    runs-on: ubuntu-20.04
+      
+    steps:
+      - name: install required packages to run oelint_adv
+        run: | 
+          sudo apt-get -y install python3-pip
+          sudo pip3 install oelint_adv
+          
+      - name: checkout meta-aws branch to test
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+ 
+      - name: get changed bb files
+        id: changes       
+        run: |          
+          echo "::set-output name=bb::$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep .bb | xargs)"          
+          
+      - name: run oelint_adv      
+        if: ${{steps.changes.outputs.bb}}
+        run: |
+          set +e
+          oelint-adv --output result.log ${{steps.changes.outputs.bb}}
+          touch result.log
+          cat result.log
+
+      - name: save test result
+        if: success() || failure()
+        uses: actions/upload-artifact@v3.1.1
+        with:
+          name: oelint_adv_meta-aws
+          path: result.log
+
