@@ -1,0 +1,63 @@
+name: Auto-Recipe-Update
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    name: Recipe Update
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Yocto Dependencies
+        run: |
+          sudo apt install gawk wget git diffstat unzip texinfo gcc \
+          build-essential chrpath socat cpio python3 python3-pip \
+          python3-pexpect xz-utils debianutils iputils-ping python3-git \
+          python3-jinja2 libegl1-mesa libsdl1.2-dev pylint3 xterm \
+          python3-subunit mesa-common-dev zstd liblz4-tool
+          git config --global user.name aws-iot-embedded-linux-ci
+          git config --global user.email aws-iot-embedded-linux-ci@users.noreply.github.com
+          git clone git://git.yoctoproject.org/poky -b  master
+          git clone https://github.com/openembedded/meta-openembedded.git -b master
+      - name: Clone Our Layer
+        uses: actions/checkout@v3
+        with:
+          ref: master-next
+          path: meta-aws
+          fetch-depth: 0
+      - name: Clone CI Tolls Repo
+        uses: actions/checkout@v3
+        with:
+          path: ci
+          repository: 'aws4embeddedlinux/meta-aws-ci'
+      - name: Install Helper Tool
+        run: |
+          pip install ci/auto-upgrader
+      - name: Run Update
+        run: |
+          source poky/oe-init-build-env build
+          bitbake-layers add-layer ../meta-openembedded/meta-oe
+          bitbake-layers add-layer ../meta-openembedded/meta-python
+          bitbake-layers add-layer ../meta-openembedded/meta-networking
+          bitbake-layers add-layer ../meta-aws
+          upgrader update --layer-path ../meta-aws
+      - name: Push Result
+        working-directory: meta-aws
+        run: |
+          cat ../build/branches.txt | xargs -n1 git push origin
+      - name: Create Pulls
+        working-directory: meta-aws
+        env:
+          GITHUB_TOKEN: ${{ secrets.BOT_CREDENTIAL }}
+        run: |
+          upgrader create-pulls --branch-file=../build/branches.txt --repo=${{ github.repository }} --target-branch="master-next"
+      - name: Publish Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: updated-recipes
+          path: |
+            ./build/result.json
+            ./build/upgrader.log
+            ./build/branches.txt
