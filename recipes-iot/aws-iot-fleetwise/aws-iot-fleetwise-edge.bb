@@ -1,12 +1,12 @@
 DESCRIPTION = "AWS IoT FleetWise Edge Agent" 
-LICENSE = "ASL-1.0"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=79ba3a8bc4e89e76f90b0dadbf304749"
+LICENSE = "Apache-2.0"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 DEPENDS = "protobuf protobuf-native boost jsoncpp aws-sdk-cpp snappy"
 RDEPENDS:${PN} = "protobuf"
 SRC_URI = "git://github.com/aws/aws-iot-fleetwise-edge.git;protocol=https;branch=main;name=fwe \
            git://github.com/hartkopp/can-isotp.git;protocol=https;name=isotp;destsuffix=isotp \
            "
-SRCREV_fwe = "cf0d2a1529d3eab9d393b138b1e79447f2a333b3"
+SRCREV_fwe = "de5ee9cb51224737834c9447a351aa0a5af2bdf2"
 SRCREV_isotp = "beb4650660179963a8ed5b5cbf2085cc1b34f608"
 S = "${WORKDIR}/git"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
