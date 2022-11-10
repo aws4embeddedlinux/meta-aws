@@ -1,4 +1,4 @@
-From ae34bd0c1781835bf35b0662c0148a62bd92e4b3 Mon Sep 17 00:00:00 2001
+From 42a92dda24f306ec1cb1be417feed2ed1c829d8d Mon Sep 17 00:00:00 2001
 From: rpcme <rich@richelberger.com>
 Date: Mon, 13 Sep 2021 16:27:00 -0400
 Subject: [PATCH] upgrade support for CRT Python and Device SDK Python v2
@@ -8,10 +8,10 @@ Subject: [PATCH] upgrade support for CRT Python and Device SDK Python v2
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/setup.py b/setup.py
-index 6d417c5..8be87ee 100644
+index 68c4539..3865539 100644
 --- a/setup.py
 +++ b/setup.py
-@@ -306,7 +306,7 @@ def awscrt_ext():
+@@ -297,7 +297,7 @@ def awscrt_ext():
      else:  # unix
          # linker will prefer shared libraries over static if it can find both.
          # force linker to choose static variant by using using "-l:libcrypto.a" syntax instead of just "-lcrypto".

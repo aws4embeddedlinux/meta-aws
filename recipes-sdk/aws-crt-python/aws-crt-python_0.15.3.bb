@@ -13,7 +13,7 @@ SRC_URI = "git://github.com/awslabs/aws-crt-python.git;protocol=https;branch=${B
            "
 
 
-SRCREV = "c88e3f18075713d90b467ed0addb09c76dc3226c"
+SRCREV = "191b52d307793ac105d7389b0bce646917857ed1"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
