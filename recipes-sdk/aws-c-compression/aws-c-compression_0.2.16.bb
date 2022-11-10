@@ -14,7 +14,7 @@ BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-c-compression.git;protocol=https;branch=${BRANCH}"
 
-SRCREV = "63e1ada3d1c1b2d337e9edc5ea977b1f17450ded"
+SRCREV = "b517b7decd0dac30be2162f5186c250221c53aff"
 
 S = "${WORKDIR}/git"
 
