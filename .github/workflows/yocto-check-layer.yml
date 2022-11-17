@@ -7,7 +7,9 @@ on:
 
 jobs:
   yocto-check-layer:
-    runs-on: ubuntu-20.04
+    runs-on:
+      group: meta-aws
+      labels: meta-aws_ubuntu-latest_4-core
     steps:
       - name: get yocto release name
         id: get-yocto-release-name
