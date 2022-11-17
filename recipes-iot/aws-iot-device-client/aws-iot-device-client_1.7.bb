@@ -1,4 +1,3 @@
-# -*- mode: Conf; -*-
 SUMMARY = "AWS IoT Device Client"
 DESCRIPTION = "The AWS IoT Device Client is free, open-source, modular software written in C++ that you can compile and install on your Embedded Linux based IoT devices to access AWS IoT Core, AWS IoT Device Management, and AWS IoT Device Defender features by default."
 HOMEPAGE = "https://github.com/awslabs/aws-iot-device-client"
