@@ -9,7 +9,7 @@ jobs:
   yocto-check-layer:
     runs-on:
       group: meta-aws
-      labels: meta-aws_ubuntu-latest_32-core
+      labels: meta-aws_ubuntu-latest_64-core
     steps:
       - name: get yocto release name
         id: get-yocto-release-name
