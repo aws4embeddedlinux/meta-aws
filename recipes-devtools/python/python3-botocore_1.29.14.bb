@@ -5,7 +5,7 @@ LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=2ee41112a44fe7014dce33e26468ba93"
 
 SRC_URI = "git://github.com/boto/botocore.git;protocol=https;branch=master"
-SRCREV = "de6dfccdb68e70005ed2a73dc5d04bc1e97f0541"
+SRCREV = "0b56c3baa91950b0376f0305b859de03edd5e8d0"
 S = "${WORKDIR}/git"
 
 inherit setuptools3
