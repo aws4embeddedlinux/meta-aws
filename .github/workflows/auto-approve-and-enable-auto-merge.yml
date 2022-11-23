@@ -15,7 +15,7 @@ jobs:
         run: sleep 5m
         shell: bash
       - name: check label after delay
-        uses: agilepathway/pull-request-label-checker@v1.2.9
+        uses: docker://agilepathway/pull-request-label-checker:latest
         with:
           one_of: auto-integrate,version-upgrade
           repo_token: ${{ secrets.BOT2_CREDENTIAL }}
