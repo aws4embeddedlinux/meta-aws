@@ -2,7 +2,7 @@ name: auto approve and enable auto-merge
 
 on:
   pull_request:
-    types: [review_requested]
+    types: [synchronize]
     branches:
       - '*-next'
       
