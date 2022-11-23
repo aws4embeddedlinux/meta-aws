@@ -2,8 +2,7 @@ name: auto approve and enable auto-merge
 
 on:
   pull_request:
-    types:
-      - labeled
+    types: [review_requested]
     branches:
       - '*-next'
       
@@ -11,10 +10,17 @@ jobs:
   auto-approve-and-merge:
     runs-on: ubuntu-latest
     name: auto approve and enable auto-merge     
-    if: |
-      github.event.review.state != 'approved' &&
-      (github.event.label.name == 'auto-integrate' || github.event.label.name == 'version-upgrade' )
     steps:
+      - name: Sleep for 5 min (give PR time to create labels)
+        run: sleep 5m
+        shell: bash
+        
+      - name: check label after delay
+        uses: docker://agilepathway/pull-request-label-checker:latest
+        with:
+          one_of: auto-integrate,version-upgrade
+          repo_token: ${{ secrets.BOT2_CREDENTIAL }}
+          
       - name: Auto approve
         uses: juliangruber/approve-pull-request-action@v2.0.1
         with:
