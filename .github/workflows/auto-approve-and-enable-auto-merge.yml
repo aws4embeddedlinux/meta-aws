@@ -18,7 +18,7 @@ jobs:
       - name: check label after delay
         uses: docker://agilepathway/pull-request-label-checker:latest
         with:
-          one_of: auto-integrate,version-upgrade
+          any_of: auto-integrate,version-upgrade
           repo_token: ${{ secrets.BOT2_CREDENTIAL }}
           
       - name: Auto approve
