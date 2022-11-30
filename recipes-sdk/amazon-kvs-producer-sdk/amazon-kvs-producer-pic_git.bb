@@ -16,7 +16,7 @@ SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-pic.git;protoco
 
 # this project do not use version tags, use latest commit
 UPSTREAM_CHECK_COMMITS = "1"
-SRCREV = "afc15aff555090424d6b92ef316116e85004a479"
+SRCREV = "dc4bc6cb87cf97cd3b1dc3e8027e0c75cdfa13b3"
 
 S = "${WORKDIR}/git"
 
