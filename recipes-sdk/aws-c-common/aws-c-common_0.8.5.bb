@@ -1,4 +1,3 @@
-# -*- mode: Conf; -*-
 SUMMARY = "AWS C Common"
 DESCRIPTION = "Core c99 package for AWS SDK for C. Includes cross-platform primitives, configuration, data structures, and error handling."
 
