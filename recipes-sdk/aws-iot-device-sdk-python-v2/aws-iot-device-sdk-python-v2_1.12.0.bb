@@ -10,7 +10,7 @@ BRANCH ?= "main"
 
 SRC_URI = "git://github.com/aws/aws-iot-device-sdk-python-v2.git;protocol=https;branch=${BRANCH} \
            file://run-ptest"
-SRCREV = "e4b02fd77490c616b28cc69453803f0c39ca0483"
+SRCREV = "5f1eb4483752d16db7bd3329f96dae82b34660a8"
 
 S = "${WORKDIR}/git"
 
