@@ -4,7 +4,7 @@ LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=7970352423db76abb33cbe303884afbf"
 
 SRC_URI = "git://github.com/aws/aws-cli.git;protocol=https;branch=master"
-SRCREV = "a71df6db8d01978265cf8a27b7692adf1e38ba26"
+SRCREV = "09cad3343cfb93ce8930e7693f7f5c8d8d5f1727"
 S = "${WORKDIR}/git"
 
 # version 2.x has got library link issues - so stick to version 1.x for now
