@@ -1,0 +1,13 @@
+#!/bin/bash
+
+RETVAL=0
+
+cd tests && python3 run_integration_tests.py
+RETVAL=$?
+
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: aws-sdk-cpp integration tests"
+else
+    echo "FAIL: aws-sdk-cpp integration tests"
+fi
+
