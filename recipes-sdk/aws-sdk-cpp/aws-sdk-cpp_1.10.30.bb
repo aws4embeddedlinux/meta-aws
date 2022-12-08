@@ -1,75 +1,91 @@
-# -*- mode: Conf; -*-
 SUMMARY = "AWS C++ SDK"
+DESCRIPTION = "AWS C++ SDK and ptest"
 HOMEPAGE = "https://github.com/aws/aws-sdk-cpp"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e"
 
-SRC_URI = " \
+DEPENDS += "\
+    aws-c-auth \
+    aws-crt-cpp \
+    curl \
+"
+
+AWS_SDK_PACKAGES = ""
+
+SRC_URI = "\
     git://github.com/aws/aws-sdk-cpp.git;protocol=https;branch=main \
-    file://0002-build-fix-building-without-external-dependencies.patch"
- 
+    file://0002-build-fix-building-without-external-dependencies.patch \
+    file://run-ptest"
 
 SRCREV = "51943bee5e5f1acc79de3f2c3ced82b3bbc13aee"
 
 S = "${WORKDIR}/git"
 
-inherit cmake
+inherit cmake ptest pkgconfig
 
-DEPENDS = " \
-    curl \
-    aws-crt-cpp \
-    aws-c-auth \
-"
+PACKAGECONFIG ??= "\
+    ${@bb.utils.filter('DISTRO_FEATURES', 'pulseaudio', d)} \
+    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)}"
 
-PACKAGES =+ " \
-    ${PN}-access-management \
-    ${PN}-cloudfront \
-    ${PN}-cognito-identity \
-    ${PN}-cognito-idp \
-    ${PN}-iam \
-    ${PN}-iot \
-    ${PN}-kinesis \
-    ${PN}-lambda \
-    ${PN}-polly \
-    ${PN}-s3 \
-    ${PN}-sts \
-"
+PACKAGECONFIG[pulseaudio] = "-DPULSEAUDIO=TRUE, -DPULSEAUDIO=FALSE, pulseaudio"
 
-PROVIDES += "${PACKAGES}"
+PACKAGECONFIG[with-tests] = "-DENABLE_TESTING=ON -DAUTORUN_UNIT_TESTS=ON,-DENABLE_TESTING=OFF -DAUTORUN_UNIT_TESTS=OFF, googletest"
 
-FILES:${PN} += "${libdir}/libaws-cpp-sdk-core.so"
-FILES:${PN}-access-management = "${libdir}/libaws-cpp-sdk-access-management.so"
-FILES:${PN}-cloudfront = "${libdir}/libaws-cpp-sdk-cloudfront.so"
-FILES:${PN}-cognito-identity = "${libdir}/libaws-cpp-sdk-cognito-identity.so"
-FILES:${PN}-cognito-idp = "${libdir}/libaws-cpp-sdk-cognito-idp.so"
-FILES:${PN}-iam = "${libdir}/libaws-cpp-sdk-iam.so"
-FILES:${PN}-iot = "${libdir}/libaws-cpp-sdk-iot.so"
-FILES:${PN}-kinesis = "${libdir}/libaws-cpp-sdk-kinesis.so"
-FILES:${PN}-lambda = "${libdir}/libaws-cpp-sdk-lambda.so"
-FILES:${PN}-polly = "${libdir}/libaws-cpp-sdk-polly.so"
-FILES:${PN}-s3 = "${libdir}/libaws-cpp-sdk-s3.so"
-FILES:${PN}-sts = "${libdir}/libaws-cpp-sdk-sts.so"
+python populate_packages:prepend () {
+    packages = []
+    def hook(f, pkg, file_regex, output_pattern, modulename):
+        packages.append(pkg)
 
+    # Put the libraries into separate packages
+    do_split_packages(d, d.expand('${libdir}'), r'^lib(.*)\.so$', '%s', 'library for %s', extra_depends='', prepend=True, hook=hook)
+
+    d.setVar("AWS_SDK_PACKAGES", " ".join(packages))
+}
+
+# enable PACKAGECONFIG = "static" to build static instead of shared libs
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
+
+# Notify that libraries are not versioned
 FILES_SOLIBSDEV = ""
-
-# We can't have spaces in -DBUILD_ONLY, hence the strange formatting
-EXTRA_OECMAKE += "-DBUILD_ONLY='\
-access-management;\
-cloudfront;\
-cognito-identity;\
-cognito-idp;\
-iam;\
-iot;\
-kinesis;\
-lambda;\
-polly;\
-s3;\
-sts;\
-' \
-    -DBUILD_DEPS=OFF \
-    -DENABLE_TESTING=OFF \
-    -DAUTORUN_UNIT_TESTS=OFF \
-"
 
 # -Werror will cause deprecation warnings to fail the build e.g. OpenSSL cause one, so disable these warnings
 OECMAKE_CXX_FLAGS += "-Wno-deprecated-declarations"
+
+# -Wno-maybe-uninitialized is related to this: https://github.com/aws/aws-sdk-cpp/issues/2234
+OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PTEST_ENABLED', '1', '-Wno-maybe-uninitialized', '', d)}"
+
+EXTRA_OECMAKE += "\
+     -DBUILD_DEPS=OFF \
+"
+
+RDEPENDS:${PN}-ptest += "\
+    bash \
+    python3 \
+"
+# "aws-sdk-cpp" is a metapackage which pulls in all aws-sdk-cpp libraries
+ALLOW_EMPTY:${PN} = "1"
+RRECOMMENDS:${PN} += "${AWS_SDK_PACKAGES}"
+RRECOMMENDS:${PN}:class-native = ""
+
+do_install_ptest () {
+    install -d ${D}${PTEST_PATH}/tests/build
+    # nooelint: oelint.task.nocopy
+    cd ${B}/ && find . -name "*integration-tests*" -executable -type f -exec cp --parents "{}" ${D}${PTEST_PATH}/tests/build/ \;
+    install -m 0755 ${S}/scripts/run_integration_tests.py ${D}${PTEST_PATH}/tests/
+    chmod 755 ${D}${PTEST_PATH}/tests/build/*
+}
+
+# to save compile time you can specify libs you only want to build
+# (we can't have spaces in -DBUILD_ONLY, hence the strange formatting)
+# EXTRA_OECMAKE += "-DBUILD_ONLY='\
+# access-management;\
+# cloudfront;\
+# cognito-identity;\
+# cognito-idp;\
+# iam;\
+# iot;\
+# kinesis;\
+# lambda;\
+# polly;\
+# s3;\
+# sts;'"
