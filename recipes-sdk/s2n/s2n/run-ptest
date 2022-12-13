@@ -1,0 +1,15 @@
+#!/bin/bash
+
+RETVAL=0
+
+set -euxo pipefail
+
+ldd /usr/lib/libaws-c-iot.so.1.0.0 | grep -v 'not found'
+
+RETVAL=$?
+
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: s2n check if libaws-c-iot is linked against s2n"
+else
+    echo "FAIL: s2n check if libaws-c-iot is linked against s2n"
+fi
