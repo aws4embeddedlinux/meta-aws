@@ -1,0 +1,6 @@
+#!/bin/sh
+# Copyright (c) 2022 Amazon.com, Inc. or its affiliates.
+# SPDX-License-Identifier: MIT
+
+ctest --test-dir build/tests/ --output-junit result.xml
+python3 ptest_result.py build/tests/result.xml 
