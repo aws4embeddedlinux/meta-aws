@@ -12,4 +12,4 @@ tree = ET.parse(sys.argv[1])
 
 for child in tree.getroot():
     result = 'PASS' if child.attrib['status'] == 'run' else 'FAIL'
-    print(f"{result} {child.attrib['name']}")
+    print(f"{result}: {child.attrib['name']}")
