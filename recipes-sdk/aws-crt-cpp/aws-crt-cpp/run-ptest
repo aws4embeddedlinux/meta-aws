@@ -1,0 +1,71 @@
+#!/bin/sh
+cd tests
+
+rm -rf tests.log
+
+# known good tests
+TESTS="\
+ApiMultiCreateDestroy \
+ApiMultiDefaultCreateDestroy \
+ApiStaticDefaultCreateDestroy \
+EventLoopResourceSafety \
+ClientBootstrapResourceSafety \
+MqttClientNewConnectionUninitializedTlsContext \
+TLSContextUninitializedNewConnectionOptions \
+Base64RoundTrip \
+DateTimeBinding \
+BasicJsonParsing \
+JsonNullParsing \
+JsonNullNestedObject \
+JsonExplicitNull \
+JsonBoolTest \
+SHA256ResourceSafety \
+MD5ResourceSafety \
+SHA256HMACResourceSafety \
+HttpCreateConnectionInvalidTlsConnectionOptions \
+IotPublishSubscribe \
+HttpClientConnectionManagerInvalidTlsConnectionOptions \
+DefaultResolution \
+OptionalCopySafety \
+OptionalMoveSafety \
+OptionalCopyAndMoveSemantics \
+StreamTestCreateDestroyWrapper \
+StreamTestLength \
+StreamTestRead \
+StreamTestReadEmpty \
+StreamTestSeekBegin \
+StreamTestSeekEnd \
+StreamTestRefcount \
+TestCredentialsConstruction \
+TestAnonymousCredentialsConstruction \
+TestProviderStaticGet \
+TestProviderAnonymousGet \
+TestProviderEnvironmentGet \
+TestProviderProfileGet \
+TestProviderImdsGet \
+TestProviderDefaultChainGet \
+TestProviderDefaultChainManualTlsContextGet \
+TestProviderDelegateGet \
+TestProviderDelegateGetAnonymous \
+HttpRequestTestCreateDestroy \
+Sigv4SigningTestCreateDestroy \
+Sigv4SigningTestSimple \
+Sigv4SigningTestCredentials \
+Sigv4SigningTestUnsignedPayload \
+UUIDToString \
+TestIntArrayListToVector \
+TestByteCursorArrayListToVector \
+StringViewTest \
+TestCreatingImdsClient \
+ChannelHandlerInterop \
+Mqtt5NewClientMinimal \
+Mqtt5NewClientFull \
+RuleEngine \
+"
+
+for TEST in $TESTS
+do
+./aws-crt-cpp-tests $TEST >> tests.log 2>&1
+done
+
+sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: /' tests.log
