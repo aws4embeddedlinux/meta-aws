@@ -2,7 +2,7 @@
 DESCRIPTION = "Push metrics and logs to CloudWatch from any system that can run Python"
 HOMEPAGE = "https://github.com/awslabs/amazon-cloudwatch-publisher"
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://${WORKDIR}/git/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 RDEPENDS:${PN} += " \
 	python3-boto3 \
@@ -26,7 +26,7 @@ FILES:${PN} += " \
 BRANCH ?= "main"
 
 SRC_URI += "git://github.com/awslabs/${BPN};branch=${BRANCH};protocol=https"
-SRCREV = "903fd61901cd1428b53d945e2dc14d2aa3a002e8"
+SRCREV = "9feebfa9facb6bfddade737de7a90bfbfd65cf6e"
 S = "${WORKDIR}/git"
 
 do_install() {
