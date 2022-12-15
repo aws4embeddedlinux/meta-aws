@@ -3,9 +3,12 @@ HOMEPAGE = "https://github.com/aws/aws-cli"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=7970352423db76abb33cbe303884afbf"
 
-SRC_URI = "git://github.com/aws/aws-cli.git;protocol=https;branch=master"
-SRCREV = "e32cabb67eeb0f014e102c913c77c980512b0d5d"
-S = "${WORKDIR}/git"
+SRC_URI = "\
+    git://github.com/aws/aws-cli.git;protocol=https;branch=master \
+    file://run-ptest \
+"
+
+SRCREV = "8076a39f0ae6347d0ffeca54f51969a21435ab1c"
 
 # version 2.x has got library link issues - so stick to version 1.x for now
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>1\.\d+(\.\d+)+)"
