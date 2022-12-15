@@ -4,8 +4,11 @@ HOMEPAGE = "https://github.com/boto/boto3"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=2ee41112a44fe7014dce33e26468ba93"
 
-SRC_URI = "git://github.com/boto/boto3.git;protocol=https;branch=master"
-SRCREV = "bf8be6608669009013b9ad14a4605c0e956e8225"
+SRC_URI = "\
+    git://github.com/boto/boto3.git;protocol=https;branch=master \
+    file://run-ptest"
+
+SRCREV = "c5d8e4a5d3a85d7115377b1d20bdd944c83a3211"
 S = "${WORKDIR}/git"
 
 inherit setuptools3
