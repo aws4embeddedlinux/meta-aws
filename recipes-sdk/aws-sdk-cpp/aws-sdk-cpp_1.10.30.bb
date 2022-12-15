@@ -1,4 +1,3 @@
-# -*- mode: Conf; -*-
 SUMMARY = "AWS C++ SDK"
 HOMEPAGE = "https://github.com/aws/aws-sdk-cpp"
 LICENSE = "Apache-2.0"
