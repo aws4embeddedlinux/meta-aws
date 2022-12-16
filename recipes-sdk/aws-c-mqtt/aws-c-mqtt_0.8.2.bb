@@ -14,7 +14,7 @@ BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-c-mqtt.git;protocol=https;branch=${BRANCH}"
 
-SRCREV = "709047b9fd1b1137fdfaaefe5116710191186539"
+SRCREV = "c2bc31060984dc3eb89b016c9ea0a525d259fc7d"
 
 S = "${WORKDIR}/git"
 
