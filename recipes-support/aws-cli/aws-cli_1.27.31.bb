@@ -8,7 +8,6 @@ SRC_URI = "\
     git://github.com/aws/aws-cli.git;protocol=https;branch=master \
     file://run-ptest \
 "
-
 SRCREV = "5b19a8ac59dcdd849705a9e1a5c27d4962e2b84a"
 
 # version 2.x has got library link issues - so stick to version 1.x for now
