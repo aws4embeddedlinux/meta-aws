@@ -19,7 +19,7 @@ jobs:
             echo "::set-output name=release_name::$release_name"
       - name: install required packages to run yocto-check-layer
         run: | 
-          sudo apt-get -y install file gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping python3-git python3-jinja2 libegl1-mesa libsdl1.2-dev pylint3 xterm python3-subunit mesa-common-dev zstd liblz4-tool locales
+          sudo apt-get -y install gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio python3 xz-utils zstd liblz4-tool locales
           echo "en_US.UTF-8 UTF-8" | sudo tee --append /etc/locale.gen
           sudo locale-gen
       - name: checkout meta-aws branch to test
