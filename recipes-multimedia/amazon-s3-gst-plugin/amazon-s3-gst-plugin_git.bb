@@ -16,8 +16,7 @@ inherit meson pkgconfig
 
 DEPENDS = " \
     gstreamer1.0 \
-    aws-sdk-cpp-s3 \
-    aws-sdk-cpp-sts \
+    aws-sdk-cpp \
 "
 
 FILES:${PN} += " \

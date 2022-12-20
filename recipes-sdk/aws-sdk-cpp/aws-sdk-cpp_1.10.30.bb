@@ -12,6 +12,8 @@ DEPENDS += "\
 
 AWS_SDK_PACKAGES = ""
 
+PACKAGES_DYNAMIC = "^${PN}-.*"
+
 SRC_URI = "\
     git://github.com/aws/aws-sdk-cpp.git;protocol=https;branch=main \
     file://0002-build-fix-building-without-external-dependencies.patch \
