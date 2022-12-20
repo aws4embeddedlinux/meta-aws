@@ -1,0 +1,196 @@
+#!/bin/sh
+# set -euxo pipefail
+cd tests
+
+rm -rf tests.log
+
+echo nameserver 8.8.4.4 >> /etc/resolv.conf
+
+# known good tests
+TESTS="\
+io_library_init \
+io_library_init_cleanup_init_cleanup \
+pipe_open_close \
+pipe_open_close_2loops \
+pipe_read_write \
+pipe_read_write_2loops \
+pipe_read_write_large_buffer \
+pipe_read_write_large_buffer_2loops \
+pipe_readable_event_sent_after_write \
+pipe_readable_event_sent_after_write_2loops \
+pipe_readable_event_sent_once \
+pipe_readable_event_sent_once_2loops \
+pipe_readable_event_sent_on_subscribe_if_data_present \
+pipe_readable_event_sent_on_subscribe_if_data_present_2loops \
+pipe_readable_event_sent_on_resubscribe_if_data_present \
+pipe_readable_event_sent_on_resubscribe_if_data_present_2loops \
+pipe_readable_event_sent_again_after_all_data_read \
+pipe_readable_event_sent_again_after_all_data_read_2loops \
+pipe_error_event_sent_after_write_end_closed \
+pipe_error_event_sent_after_write_end_closed_2loops \
+pipe_error_event_sent_on_subscribe_if_write_end_already_closed \
+pipe_error_event_sent_on_subscribe_if_write_end_already_closed_2loops \
+pipe_writes_are_fifo \
+pipe_writes_are_fifo_2loops \
+pipe_clean_up_cancels_pending_writes \
+pipe_clean_up_cancels_pending_writes_2loops \
+event_loop_xthread_scheduled_tasks_execute \
+event_loop_canceled_tasks_run_in_el_thread \
+event_loop_subscribe_unsubscribe \
+event_loop_writable_event_on_subscribe \
+event_loop_no_readable_event_before_write \
+event_loop_readable_event_after_write \
+event_loop_readable_event_on_subscribe_if_data_present \
+event_loop_readable_event_on_2nd_time_readable \
+event_loop_no_events_after_unsubscribe \
+event_loop_stop_then_restart \
+event_loop_multiple_stops \
+event_loop_group_setup_and_shutdown \
+event_loop_group_setup_and_shutdown_async \
+numa_aware_event_loop_group_setup_and_shutdown \
+io_testing_channel \
+local_socket_communication \
+tcp_socket_communication \
+udp_socket_communication \
+udp_bind_connect_communication \
+connect_timeout \
+connect_timeout_cancelation \
+outgoing_local_sock_errors \
+outgoing_tcp_sock_error \
+incoming_tcp_sock_errors \
+incoming_duplicate_tcp_bind_errors \
+bind_on_zero_port_tcp_ipv4 \
+bind_on_zero_port_udp_ipv4 \
+incoming_udp_sock_errors \
+wrong_thread_read_write_fails \
+cleanup_before_connect_or_timeout_doesnt_explode \
+cleanup_in_accept_doesnt_explode \
+cleanup_in_write_cb_doesnt_explode \
+sock_write_cb_is_async \
+channel_setup \
+channel_single_slot_cleans_up \
+channel_slots_clean_up \
+channel_refcount_delays_clean_up \
+channel_tasks_run \
+channel_tasks_serialized_run \
+channel_rejects_post_shutdown_tasks \
+channel_cancels_pending_tasks \
+channel_duplicate_shutdown \
+channel_connect_some_hosts_timeout \
+test_default_with_ipv6_lookup \
+test_resolver_ipv6_address_lookup \
+test_resolver_ipv4_address_lookup \
+test_default_with_ipv4_only_lookup \
+test_resolver_ttls \
+test_resolver_pinned_host_entry \
+test_resolver_unpinned_host_entry \
+test_resolver_address_promote_demote_listener_callbacks \
+test_pem_single_cert_parse \
+test_pem_private_key_parse \
+test_pem_cert_chain_parse \
+test_pem_cert_chain_comments_and_whitespace \
+test_pem_invalid_parse \
+test_pem_valid_data_invalid_parse \
+test_pem_invalid_in_chain_parse \
+pem_sanitize_comments_around_pem_object_removed \
+pem_sanitize_empty_file_rejected \
+pem_sanitize_wrong_format_rejected \
+socket_handler_echo_and_backpressure \
+socket_handler_close \
+socket_pinned_event_loop \
+tls_client_channel_negotiation_no_verify_expired \
+tls_client_channel_negotiation_no_verify_wrong_host \
+tls_client_channel_negotiation_no_verify_self_signed \
+tls_client_channel_negotiation_success_no_verify_no_common_name \
+tls_client_channel_negotiation_success_no_verify_incomplete_chain \
+tls_client_channel_negotiation_success_no_verify_no_subject \
+test_concurrent_cert_import \
+tls_channel_echo_and_backpressure_test \
+tls_client_channel_negotiation_error_socket_closed \
+tls_server_hangup_during_negotiation \
+tls_client_channel_no_verify \
+alpn_successfully_negotiates \
+alpn_no_protocol_message \
+alpn_error_creating_handler \
+tls_destroy_null_context \
+test_input_stream_memory_simple \
+test_input_stream_memory_iterate \
+test_input_stream_memory_seek_beginning \
+test_input_stream_memory_seek_end \
+test_input_stream_memory_seek_multiple_times \
+test_input_stream_memory_seek_past_end \
+test_input_stream_memory_seek_before_start \
+test_input_stream_file_simple \
+test_input_stream_file_iterate \
+test_input_stream_file_seek_beginning \
+test_input_stream_file_seek_end \
+test_input_stream_memory_length \
+test_input_stream_file_length \
+test_input_stream_binary \
+open_channel_statistics_test \
+"
+
+for TEST in $TESTS
+do
+./aws-c-io-tests $TEST >> tests.log
+done
+
+sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: / ; /ERROR/ s/^/FAIL: /' tests.log
+
+### disabled tests ###
+# test_resolver_connect_failure_recording
+# test_resolver_ttl_refreshes_on_resolve
+# test_resolver_listener_create_destroy
+# test_resolver_add_listener_before_host
+# test_resolver_add_listener_after_host
+# test_resolver_add_multiple_listeners_fn
+# test_resolver_listener_host_re_add_fn
+# test_resolver_listener_multiple_results
+# test_resolver_listener_address_expired_fn
+# test_pem_private_key_parse_from_file
+# test_pem_cert_parse_from_file
+# test_pem_private_key_parse_from_file
+# tls_client_channel_negotiation_error_expired
+# tls_client_channel_negotiation_no_verify_untrusted_root
+# tls_client_channel_negotiation_override_legacy_crypto_tls10
+# tls_client_channel_negotiation_error_override_legacy_crypto_tls11
+# tls_client_channel_negotiation_success_rsa8192
+# tls_client_channel_negotiation_success_tls12
+# tls_client_channel_negotiation_success_sha256
+# tls_client_channel_negotiation_success_rsa2048
+# tls_client_channel_negotiation_success_ecc256
+# tls_client_channel_negotiation_success_ecc384
+# tls_client_channel_negotiation_success_mozilla_modern
+# tls_client_channel_negotiation_success
+# test_tls_negotiation_timeout
+# tls_channel_statistics_test
+# tls_certificate_chain_test
+# shared_library_open_success
+# shared_library_find_function_failure
+# test_exponential_backoff_retry_too_many_retries_no_jitter
+# test_exponential_backoff_retry_too_many_retries_full_jitter
+# test_exponential_backoff_retry_too_many_retries_decorrelated_jitter
+# test_exponential_backoff_retry_too_many_retries_default_jitter
+# test_exponential_backoff_retry_client_errors_do_not_count
+# test_exponential_backoff_retry_no_jitter_time_taken
+# test_exponential_backoff_retry_invalid_options
+# test_standard_retry_strategy_setup_shutdown
+# test_standard_retry_strategy_failure_exhausts_bucket
+# test_standard_retry_strategy_failure_recovers
+# test_ecc_cert_import
+# tls_server_multiple_connections
+# shared_library_open_failure
+# tls_client_channel_negotiation_error_wrong_host
+# tls_client_channel_negotiation_error_broken_crypto_rc4 
+# tls_client_channel_negotiation_error_broken_crypto_rc4_md5 
+# tls_client_channel_negotiation_error_broken_crypto_dh480 
+# tls_client_channel_negotiation_error_broken_crypto_dh512 
+# tls_client_channel_negotiation_error_broken_crypto_null 
+# tls_client_channel_negotiation_error_legacy_crypto_tls10 
+# tls_client_channel_negotiation_error_wrong_host_with_ca_override 
+# tls_client_channel_negotiation_error_self_signed 
+# tls_client_channel_negotiation_error_untrusted_root 
+# tls_client_channel_negotiation_error_untrusted_root_due_to_ca_override 
+# tls_client_channel_negotiation_success_legacy_crypto_tls11
+# tls_client_channel_negotiation_error_no_subject
+# tls_client_channel_negotiation_error_no_common_name
