@@ -1,0 +1,16 @@
+#!/bin/sh
+cd tests
+
+rm -rf tests.log
+
+# known good tests
+TESTS="\
+ClientApiFunctionalityTest \
+"
+ 
+for TEST in $TESTS
+do
+    ./kvspic_test --gtest_filter=*$TEST* >> tests.log 2>&1
+done
+ 
+sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: /' tests.log
