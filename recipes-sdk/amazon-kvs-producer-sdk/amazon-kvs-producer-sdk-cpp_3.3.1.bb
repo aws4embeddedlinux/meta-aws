@@ -28,7 +28,6 @@ FILES:${PN} = "${libdir}/libKinesisVideoProducer.so"
 FILES:${PN}-dev = "${includedir}/com/amazonaws/kinesis/video/*"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
-OECMAKE_BUILDPATH += "${WORKDIR}/build"
 
 EXTRA_OECMAKE += "\
     -DBUILD_DEPENDENCIES=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
