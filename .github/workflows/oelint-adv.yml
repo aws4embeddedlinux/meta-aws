@@ -28,8 +28,7 @@ jobs:
       - name: run oelint_adv      
         if: ${{steps.changes.outputs.bb}}
         run: |
-          set +e
-          oelint-adv --output result.log ${{steps.changes.outputs.bb}}
+          oelint-adv --nowarn --noinfo --output result.log ${{steps.changes.outputs.bb}}
           touch result.log
           cat result.log
 
