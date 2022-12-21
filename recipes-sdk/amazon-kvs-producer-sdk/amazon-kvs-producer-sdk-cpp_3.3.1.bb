@@ -16,6 +16,7 @@ BRANCH ?= "master"
 SRC_URI = "\
     git://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git;protocol=https;branch=${BRANCH} \
     file://amazon-kvs-producer-sdk-cpp-deps.patch \
+    file://disable_kvs_gstreamer_sample.patch \
     "
 
 SRCREV = "70f74f14cf27b09f71dc1889f36eb6e04cdd90a8"
@@ -24,28 +25,33 @@ S = "${WORKDIR}/git"
 
 inherit cmake pkgconfig
 
-FILES:${PN} = "${libdir}/libKinesisVideoProducer.so"
+PACKAGECONFIG ??= "\
+    ${@bb.utils.contains('PTEST_ENABLED', '1', 'gstreamer', '', d)} \
+"
+
+PACKAGECONFIG[gstreamer] = "-DBUILD_GSTREAMER_PLUGIN=ON,-DBUILD_GSTREAMER_PLUGIN=OFF,curl log4cplus openssl gstreamer1.0 gstreamer1.0-plugins-base"
+
+FILES:${PN} = "${libdir}/*"
 FILES:${PN}-dev = "${includedir}/com/amazonaws/kinesis/video/*"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
 EXTRA_OECMAKE += "\
-    -DBUILD_DEPENDENCIES=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
-    -DBUILD_GSTREAMER_PLUGIN=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-    -DBUILD_JNI=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
-    -DBUILD_STATIC=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
-    -DBUILD_DEPENDENCIES=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
-    -DBUILD_OPENSSL_PLATFORM=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-    -DCODE_COVERAGE=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
-    -DCOMPILER_WARNINGS=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
-    -DADDRESS_SANITIZER=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
-    -DMEMORY_SANITIZER=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
-    -DTHREAD_SANITIZER=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
-    -DUNDEFINED_BEHAVIOR_SANITIZER=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
-    -DBUILD_TEST=OFF \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
-    -DBUILD_SHARED_LIBS=ON \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
-    -DCMAKE_BUILD_TYPE=Release \                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
-    -DCMAKE_INSTALL_PREFIX=$D/usr \   
+    -DBUILD_DEPENDENCIES=OFF \
+    -DBUILD_JNI=OFF \
+    -DBUILD_STATIC=OFF \
+    -DBUILD_DEPENDENCIES=OFF \
+    -DBUILD_OPENSSL_PLATFORM=OFF \
+    -DCODE_COVERAGE=OFF \
+    -DCOMPILER_WARNINGS=OFF \
+    -DADDRESS_SANITIZER=OFF \
+    -DMEMORY_SANITIZER=OFF \
+    -DTHREAD_SANITIZER=OFF \
+    -DUNDEFINED_BEHAVIOR_SANITIZER=OFF \
+    -DBUILD_TEST=OFF \
+    -DBUILD_SHARED_LIBS=ON \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=$D/usr \
     "
 
 do_install() {
@@ -86,6 +92,11 @@ do_install() {
     install -m 0640 ${WORKDIR}/git/src/gstreamer/gstkvssink.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/credential-providers/gstkvssink.h
 
     install -m 0755 ${B}/libKinesisVideoProducer.so ${D}${libdir}/
+    
+    if ${@bb.utils.contains('PACKAGECONFIG', 'gstreamer', 'true', 'false', d)}; then
+        install -d ${D}${libdir}/gstreamer-1.0
+        install -m 755 ${B}/libgstkvssink.so ${D}${libdir}/gstreamer-1.0/libgstkvssink.so
+    fi
 }
 
 BBCLASSEXTEND = "native nativesdk"
