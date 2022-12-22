@@ -1,7 +1,7 @@
 name: auto-backport
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - master-next
     types: ["closed"]
@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Cherry pick into ${{ matrix.branch }}-next
-        uses: carloscastrojumo/github-cherry-pick-action@v1.0.3
+        uses: carloscastrojumo/github-cherry-pick-action@v1.0.6
         with:
           branch: ${{ matrix.branch }}-next
           labels: |
