@@ -54,6 +54,17 @@ To send us a pull request, please:
 GitHub provides additional document on [forking a repository](https://help.github.com/articles/fork-a-repo/) and
 [creating a pull request](https://help.github.com/articles/creating-a-pull-request/).
 
+## Quality
+With every pull request following tests are performed:
+### build
+All recipes are tested to build with qemuarm, qemuarm64, qemux86-64.
+### ptest
+We like to have a [ptest](https://wiki.yoctoproject.org/wiki/Ptest) for every recipe. With every pull request we ptest with the different architectures we support. 
+If there is a ptest it must pass. To get an idea how to write an ptest just grep for it in the layer.
+### oelint-adv
+We think having the same "coding" style for recipes is a good idea. Therefore we test with [oelint-adv](https://github.com/priv-kweihmann/oelint-adv) for errors. 
+### checklayer
+Meta-aws is Yocto project [compatible](https://www.yoctoproject.org/software-overview/layers/). To keep this status we test this.
 
 ## Finding contributions to work on
 
