@@ -1,10 +1,13 @@
+SUMMARY = "Amazon SSM Agent"
+DESCRIPTION = "An agent to enable remote management of your EC2 instances, on-premises servers, or virtual machines (VMs)."
+HOMEPAGE = "https://github.com/aws/amazon-ssm-agent"
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = " \
+LIC_FILES_CHKSUM = "\
     file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57 \
     "
 SRC_URI = "git://github.com/aws/amazon-ssm-agent.git;protocol=https;branch=mainline"
 
-SRCREV = "49163b8f3bd47b3dce6e8f97e04d58a7874bcc6e"
+SRCREV = "44665b7ca49ae3d5e302a57d0931edea6d8e4771"
 
 S = "${WORKDIR}/git"
 
@@ -12,7 +15,7 @@ GO_IMPORT = ""
 
 inherit go systemd
 
-SYSTEMD_AUTO_ENABLE = "enable"
+SYSTEMD_AUTO_ENABLE = "enabsle"
 SYSTEMD_SERVICE:${PN} = "amazon-ssm-agent.service"
 
 # src folder will break devtool upgrade
