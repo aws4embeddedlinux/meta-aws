@@ -28,14 +28,4 @@ jobs:
       - name: run oelint_adv      
         if: ${{steps.changes.outputs.bb}}
         run: |
-          oelint-adv --nowarn --noinfo --output result.log ${{steps.changes.outputs.bb}}
-          touch result.log
-          cat result.log
-
-      - name: save test result
-        if: success() || failure()
-        uses: actions/upload-artifact@v3.1.1
-        with:
-          name: oelint_adv_meta-aws
-          path: result.log
-
+          oelint-adv --nowarn --noinfo ${{steps.changes.outputs.bb}}
