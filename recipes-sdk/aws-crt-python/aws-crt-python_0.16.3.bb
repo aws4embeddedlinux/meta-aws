@@ -27,7 +27,7 @@ SRC_URI = "\
            file://0001-fix-library-suffix.patch \
            file://run-ptest \
            "
-SRCREV = "c3d2b5eadc8860ba1171fc9de380a947d15f2d5c"
+SRCREV = "337b17a059ec1026c9f108e51cf2d2a793f77e64"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
