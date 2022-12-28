@@ -14,7 +14,7 @@ BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-c-iot.git;protocol=https;branch=${BRANCH}"
 
-SRCREV = "a61ed88a14a2a8ebef1a6ea50bcc79e900729954"
+SRCREV = "596c8ae489ffe50417b545c012ef9a1e30a09a16"
 
 S = "${WORKDIR}/git"
 
