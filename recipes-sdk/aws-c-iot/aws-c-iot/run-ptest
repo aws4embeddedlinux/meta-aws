@@ -1,0 +1,37 @@
+#!/bin/sh
+# set -euxo pipefail
+cd tests
+
+rm -rf tests.log
+
+echo nameserver 8.8.4.4 >> /etc/resolv.conf
+
+# known good tests
+TESTS="\
+devicedefender_task_unsupported_report_format \
+devicedefender_get_system_network_total \
+devicedefender_get_network_connections \
+devicedefender_success_test \
+devicedefender_custom_metrics_success_test \
+devicedefender_stop_while_running_test \
+devicedefender_publish_failure_callback_invoked \
+"
+
+for TEST in $TESTS
+do
+./aws-c-iot-tests $TEST >> tests.log
+done
+
+sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: / ; /ERROR/ s/^/FAIL: /' tests.log
+
+### disabled tests - require aws_test_harness###
+# secure_tunneling_handle_stream_start_test
+# secure_tunneling_handle_data_receive_test
+# secure_tunneling_handle_stream_reset_test
+# secure_tunneling_handle_session_reset_test
+# secure_tunneling_handle_session_reset_no_stream_test
+# secure_tunneling_init_websocket_options_test
+# secure_tunneling_handle_send_data
+# secure_tunneling_handle_send_data_stream_start
+# secure_tunneling_handle_send_data_stream_reset
+# secure_tunneling_handle_send_data_public
