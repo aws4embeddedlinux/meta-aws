@@ -1,0 +1,9 @@
+#!/bin/sh
+
+mqtt5_pubsub --help
+RETVAL=$?
+if [ $RETVAL -eq 255 ] ; then
+    echo "PASS: aws-iot-device-sdk-cpp-v2-sample-mqtt5_pubsub help test"
+else
+    echo "FAIL: aws-iot-device-sdk-cpp-v2-sample-mqtt5_pubsub help test"
+fi
