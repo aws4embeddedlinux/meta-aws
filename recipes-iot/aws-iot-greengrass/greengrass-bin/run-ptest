@@ -1,0 +1,15 @@
+#!/bin/sh
+set -euxo pipefail
+
+cd /greengrass/v2/alts/current/distro/bin
+chmod 755 loader
+./loader  2>&1 > test.log &
+sleep 30
+grep "Launched Nucleus successfully" test.log
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: greengrass-bin startup test"
+else
+    echo "FAIL: greengrass-bin startup test"
+fi
