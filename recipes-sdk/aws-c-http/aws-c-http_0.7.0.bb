@@ -20,7 +20,7 @@ BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-c-http.git;protocol=https;branch=${BRANCH}"
 
-SRCREV = "5400050bff7a730f81be3f238a702bea73570e00"
+SRCREV = "69b952ef08cc1d2766374cb7702f098c01e30250"
 
 S = "${WORKDIR}/git"
 
