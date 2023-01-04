@@ -13,10 +13,11 @@ DEPENDS += "\
 PROVIDES += "aws/amazon-kvs-producer-sdk-cpp"
 
 BRANCH ?= "master"
+# nooelint: oelint.file.patchsignedoff
 SRC_URI = "\
     git://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git;protocol=https;branch=${BRANCH} \
     file://amazon-kvs-producer-sdk-cpp-deps.patch \
-    file://disable_kvs_gstreamer_sample.patch \
+    file://fix_kvs_gstreamer_sample.patch \
     "
 
 SRCREV = "70f74f14cf27b09f71dc1889f36eb6e04cdd90a8"
@@ -31,8 +32,18 @@ PACKAGECONFIG ??= "\
 
 PACKAGECONFIG[gstreamer] = "-DBUILD_GSTREAMER_PLUGIN=ON,-DBUILD_GSTREAMER_PLUGIN=OFF,curl log4cplus openssl gstreamer1.0 gstreamer1.0-plugins-base"
 
-FILES:${PN} = "${libdir}/*"
-FILES:${PN}-dev = "${includedir}/com/amazonaws/kinesis/video/*"
+# Notify that libraries are not versioned
+FILES_SOLIBSDEV = ""
+
+FILES:${PN} += "\
+    ${libdir}/pkgconfig/*.pc \
+    ${libdir}/*.so \
+    ${libdir}/*/*.so \
+    "
+
+FILES:${PN}-dev += "\
+    ${includedir}/* \
+    "
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
@@ -92,7 +103,7 @@ do_install() {
     install -m 0640 ${WORKDIR}/git/src/gstreamer/gstkvssink.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/credential-providers/gstkvssink.h
 
     install -m 0755 ${B}/libKinesisVideoProducer.so ${D}${libdir}/
-    
+
     if ${@bb.utils.contains('PACKAGECONFIG', 'gstreamer', 'true', 'false', d)}; then
         install -d ${D}${libdir}/gstreamer-1.0
         install -m 755 ${B}/libgstkvssink.so ${D}${libdir}/gstreamer-1.0/libgstkvssink.so
