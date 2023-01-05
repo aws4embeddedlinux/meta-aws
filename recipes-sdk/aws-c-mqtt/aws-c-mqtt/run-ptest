@@ -280,6 +280,8 @@ rate_limiter_token_bucket_reset \
 for TEST in $TESTS
 do
 ./aws-c-mqtt-tests $TEST >> tests.log
+#rate limit
+sleep 0.5
 done
 
 sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: / ; /ERROR/ s/^/FAIL: /' tests.log
