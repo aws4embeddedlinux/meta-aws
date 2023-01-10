@@ -5,7 +5,7 @@ LICENSE = "LGPL-2.1-only"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=1803fa9c2c3ce8cb06b4861d75310742"
 
 SRC_URI = "git://github.com/amzn/amazon-s3-gst-plugin.git;protocol=https;branch=master"
-SRCREV = "06c235948a673b240be32fe5f8241feb675d6cc8"
+SRCREV = "b8ecca63791e6a4f9559b47d32132144d2d191ab"
 
 # this project do not use version tags, use latest commit
 UPSTREAM_CHECK_COMMITS = "1"
