@@ -75,9 +75,16 @@ do_install_ptest () {
     find ${B}/generated/tests -executable -type f -exec install -m 0755 "{}" ${D}${PTEST_PATH}/tests/ \;
 }
 
+# this is related to this bug 
+# https://github.com/aws/aws-sdk-cpp/issues/2242
+EXTRA_OECMAKE:append:armv4 = " ${LIBS_BUILD_ON_ARM32} "
+EXTRA_OECMAKE:append:armv5 = " ${LIBS_BUILD_ON_ARM32} "
+EXTRA_OECMAKE:append:armv6 = " ${LIBS_BUILD_ON_ARM32} "
+EXTRA_OECMAKE:append:class-target:arm = " ${LIBS_BUILD_ON_ARM32} "
+
 # to save compile time you can specify libs you only want to build
 # (we can't have spaces in -DBUILD_ONLY, hence the strange formatting)
-EXTRA_OECMAKE += "\
+LIBS_BUILD_ON_ARM32 = "\
 -DBUILD_ONLY='\
 accessanalyzer;\
 access-management;\
@@ -382,11 +389,16 @@ workspaces-web;\
 xray;'\
 "
 
-### removed due to build failures with arm32, arm64 and x86-64 they work ###
-# this issue: https://github.com/aws/aws-sdk-cpp/issues/2242
+### removed due to build failures with arm32
+### with arm64 and x86-64 they work
 # ec2;\
 # ec2-instance-connect;\
 # polly-sample;\
+# s3;\
+# s3-crt;\
+# s3control;\
+# s3-encryption;\
+# s3outposts;\
 # ssm;\
 # ssm-contacts;\
 # ssm-incidents;\
@@ -411,9 +423,4 @@ xray;'\
 # pinpoint-sms-voice-v2;\
 # glue;\
 # lightsail;\
-# s3-crt;\
-# s3;\
-# s3control;\
-# s3-encryption;\
-# s3outposts;\
 # identity-management;\
