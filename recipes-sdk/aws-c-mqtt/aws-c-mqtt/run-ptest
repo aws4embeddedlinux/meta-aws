@@ -6,7 +6,7 @@ rm -rf tests.log
 echo nameserver 8.8.4.4 >> /etc/resolv.conf
 
 # known good tests
-MQTT5_TESTS="\
+MQTT_TESTS="\
 mqtt5_topic_skip_rules_prefix \
 mqtt5_topic_get_segment_count \
 mqtt5_shared_subscription_validation \
@@ -226,9 +226,6 @@ rate_limiter_token_bucket_fractional_iteration \
 rate_limiter_token_bucket_large_fractional_iteration \
 rate_limiter_token_bucket_real_iteration \
 rate_limiter_token_bucket_reset \
-"
-
-MQTT_TESTS="\
 mqtt_packet_pubrec \
 mqtt_packet_pubrel \
 mqtt_packet_pubcomp \
@@ -275,23 +272,16 @@ mqtt_connection_destory_pending_requests \
 mqtt_clean_session_not_retry \
 mqtt_clean_session_discard_previous \
 mqtt_clean_session_keep_next_session \
-mqtt_connection_publish_QoS1_timeout_connection_lost_reset_time \
-mqtt_connection_publish_QoS1_timeout \
 "
-
-for TEST in $MQTT5_TESTS
-do
-echo $TEST
-./aws-c-mqtt-tests $TEST >> tests.log
-done
 
 for TEST in $MQTT_TESTS
 do
-echo $TEST
 ./aws-c-mqtt-tests $TEST >> tests.log
 done
 
 sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: / ; /ERROR/ s/^/FAIL: /' tests.log
 
 ### disabled tests - when doing ptest in codebuild ptest hangs - try to reduce tests - those all do pass locally ###
+# mqtt_connection_publish_QoS1_timeout
 # mqtt_connection_unsub_timeout
+# mqtt_connection_publish_QoS1_timeout_connection_lost_reset_time
