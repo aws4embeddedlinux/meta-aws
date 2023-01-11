@@ -275,24 +275,23 @@ mqtt_connection_destory_pending_requests \
 mqtt_clean_session_not_retry \
 mqtt_clean_session_discard_previous \
 mqtt_clean_session_keep_next_session \
-mqtt_connection_publish_QoS1_timeout \
-mqtt_connection_unsub_timeout \
 mqtt_connection_publish_QoS1_timeout_connection_lost_reset_time \
+mqtt_connection_publish_QoS1_timeout \
 "
 
 for TEST in $MQTT5_TESTS
 do
+echo $TEST
 ./aws-c-mqtt-tests $TEST >> tests.log
 done
 
-# sleep and do mqtt5 tests first, otherwise strange, random hangs occur on CodeBuild
-#sleep 10
-#
-#for TEST in $MQTT_TESTS
-#do
-#./aws-c-mqtt-tests $TEST >> tests.log
-#done
-#
+for TEST in $MQTT_TESTS
+do
+echo $TEST
+./aws-c-mqtt-tests $TEST >> tests.log
+done
+
 sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: / ; /ERROR/ s/^/FAIL: /' tests.log
 
 ### disabled tests - when doing ptest in codebuild ptest hangs - try to reduce tests - those all do pass locally ###
+# mqtt_connection_unsub_timeout
