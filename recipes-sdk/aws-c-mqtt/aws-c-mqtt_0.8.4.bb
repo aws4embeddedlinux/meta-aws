@@ -1,5 +1,6 @@
 SUMMARY = "AWS C MQTT"
 DESCRIPTION = "C99 implementation of the MQTT 3.1.1 specification."
+
 HOMEPAGE = "https://github.com/awslabs/aws-c-mqtt"
 
 LICENSE = "Apache-2.0"
