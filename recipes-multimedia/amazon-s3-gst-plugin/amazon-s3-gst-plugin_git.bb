@@ -6,10 +6,12 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=1803fa9c2c3ce8cb06b4861d75310742"
 
 DEPENDS = "\
     aws-sdk-cpp \
+    aws-crt-cpp \
     gstreamer1.0 \
 "
 
-SRC_URI = "git://github.com/amzn/amazon-s3-gst-plugin.git;protocol=https;branch=master"
+SRC_URI = "git://github.com/amzn/amazon-s3-gst-plugin.git;protocol=https;branch=master \
+           file://fix-linking-of-aws-crt-cpp.patch"
 SRCREV = "b8ecca63791e6a4f9559b47d32132144d2d191ab"
 
 # this project do not use version tags, use latest commit
