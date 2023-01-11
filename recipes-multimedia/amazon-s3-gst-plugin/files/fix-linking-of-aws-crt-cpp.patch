@@ -1,0 +1,44 @@
+Index: git/meson.build
+===================================================================
+--- git.orig/meson.build
++++ git/meson.build
+@@ -17,6 +17,9 @@ gst_base_dep = dependency('gstreamer-bas
+   fallback : ['gstreamer', 'gst_base_dep'])
+ gst_check_dep = dependency('gstreamer-check-1.0', version : gst_req,
+   fallback : ['gstreamer', 'gst_check_dep'])
++cpp = meson.get_compiler('cpp')
++aws_c_common_dep = cpp.find_library('aws-c-common', required: true)
++aws_crt_cpp_dep=cpp.find_library('aws-crt-cpp', required:true)
+ aws_cpp_sdk_s3_dep = dependency('aws-cpp-sdk-s3', version : aws_cpp_sdk_req)
+ aws_cpp_sdk_sts_dep = dependency('aws-cpp-sdk-sts', version : aws_cpp_sdk_req)
+ 
+@@ -32,4 +35,5 @@ configure_file(output : 'config.h', conf
+ 
+ subdir('src')
+ subdir('tests')
+-subdir('pkgconfig')
+\ No newline at end of file
++subdir('pkgconfig')
++
+Index: git/src/meson.build
+===================================================================
+--- git.orig/src/meson.build
++++ git/src/meson.build
+@@ -15,7 +15,7 @@ symbol_export_define = ['-DGST_EXPORTS']
+ 
+ credentials = library('gstawscredentials-@0@'.format(apiversion),
+   ['gstawscredentials.cpp'],
+-  dependencies : [aws_cpp_sdk_sts_dep, gst_dep],
++  dependencies : [aws_cpp_sdk_sts_dep, gst_dep, aws_c_common_dep, aws_crt_cpp_dep],
+   cpp_args: symbol_export_define,
+   install : true
+ )
+@@ -37,7 +37,7 @@ gst_s3_elements = library('gsts3elements
+   gst_s3_elements_sources,
+   cpp_args: symbol_export_define,
+   c_args: symbol_export_define,
+-  dependencies : [gst_dep, gst_base_dep, multipart_uploader_dep, credentials_dep],
++  dependencies : [gst_dep, gst_base_dep, multipart_uploader_dep, credentials_dep, aws_c_common_dep, aws_crt_cpp_dep],
+   include_directories : [configinc],
+   install : true,
+   install_dir : plugins_install_dir,
