@@ -6,11 +6,11 @@ RDEPENDS:${PN} = "protobuf"
 SRC_URI = "git://github.com/aws/aws-iot-fleetwise-edge.git;protocol=https;branch=main;name=fwe \
            git://github.com/hartkopp/can-isotp.git;protocol=https;name=isotp;destsuffix=isotp \
            "
-SRCREV_fwe = "de5ee9cb51224737834c9447a351aa0a5af2bdf2"
+SRCREV_fwe = "adab89b798e01c2e5c0a5eb85af0fc465865f304"
 SRCREV_isotp = "beb4650660179963a8ed5b5cbf2085cc1b34f608"
 S = "${WORKDIR}/git"
 EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
-EXTRA_OECMAKE += "-DFWE_IOT_SDK_SHARED_LIBS=ON"
+EXTRA_OECMAKE += "-DFWE_AWS_SDK_SHARED_LIBS=ON"
 # Bring in <linux/can/isotp.h> ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) independently of the kernel headers
 CXXFLAGS += "-I${WORKDIR}/isotp/include/uapi"
 inherit cmake systemd
