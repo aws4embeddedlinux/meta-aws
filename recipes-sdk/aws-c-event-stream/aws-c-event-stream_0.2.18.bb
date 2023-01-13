@@ -14,7 +14,7 @@ BRANCH ?= "main"
 
 SRC_URI = "git://github.com/awslabs/aws-c-event-stream.git;protocol=https;branch=${BRANCH}"
 
-SRCREV = "e812dd4df0fcc350ad7b5b7babe82cfe5664f4a4"
+SRCREV = "2f9b60c42f90840ec11822acda3d8cdfa97a773d"
 
 S = "${WORKDIR}/git"
 
