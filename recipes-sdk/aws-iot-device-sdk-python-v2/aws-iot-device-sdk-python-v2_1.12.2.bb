@@ -4,6 +4,14 @@ HOMEPAGE = "https://github.com/aws/aws-iot-device-sdk-python-v2"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://documents/LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
 
+SRC_URI = "\
+        git://github.com/aws/aws-iot-device-sdk-python-v2.git;protocol=https;branch=${BRANCH} \
+        file://run-ptest\
+        "
+SRCREV = "b953d341d0d983073180b2b9ece0a9f7dc18c38b"
+
+S = "${WORKDIR}/git"
+
 inherit setuptools3 ptest
 
 BRANCH ?= "main"
