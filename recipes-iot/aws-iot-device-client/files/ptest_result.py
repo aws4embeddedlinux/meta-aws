@@ -14,4 +14,4 @@ with open (sys.argv[1], 'rb') as json_file:
             for test in testsuite['testsuite']:
                 testname = test['name']
                 result = 'PASS' if not 'failures' in test else 'FAIL'
-                print(f"{result} {test['name']}")
+                print(f"{result}: {test['name']}")
