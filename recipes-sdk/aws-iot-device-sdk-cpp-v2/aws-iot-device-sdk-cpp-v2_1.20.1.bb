@@ -17,7 +17,7 @@ S = "${WORKDIR}/git"
 
 inherit cmake pkgconfig ptest
 
-UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
+UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>\d+\.\d+(\.\d+)*)"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
