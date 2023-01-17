@@ -1,0 +1,32 @@
+#!/bin/sh
+
+cd tests
+
+rm -rf tests.log
+
+# known good tests
+TESTS="\
+library_init \
+huffman_symbol_encoder \
+huffman_encoder \
+huffman_encoder_all_code_points \
+huffman_encoder_partial_output \
+huffman_encoder_exact_output \
+huffman_symbol_decoder \
+huffman_decoder \
+huffman_decoder_all_code_points \
+huffman_decoder_partial_input \
+huffman_decoder_partial_output \
+huffman_decoder_allow_growth \
+huffman_transitive \
+huffman_transitive_even_bytes \
+huffman_transitive_all_code_points \
+huffman_transitive_chunked \
+"
+
+for TEST in $TESTS
+do
+./aws-c-compression-tests $TEST >> tests.log
+done
+
+sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: / ; /ERROR/ s/^/FAIL: /' tests.log
