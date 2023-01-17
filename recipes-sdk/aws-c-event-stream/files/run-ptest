@@ -1,0 +1,58 @@
+#!/bin/sh
+
+cd tests
+
+rm -rf tests.log
+
+# known good tests
+TESTS="\
+test_incoming_no_op_valid \
+test_incoming_application_data_no_headers_valid \
+test_incoming_application_one_compressed_header_pair_valid \
+test_incoming_application_int32_header_valid \
+test_outgoing_no_op_valid \
+test_outgoing_application_data_no_headers_valid \
+test_outgoing_application_one_compressed_header_pair_valid \
+test_streaming_decoder_incoming_no_op_valid_single_message \
+test_streaming_decoder_incoming_application_no_headers \
+test_streaming_decoder_incoming_application_one_compressed_header_pair_valid \
+test_streaming_decoder_incoming_application_one_int32_header_pair_valid \
+test_streaming_decoder_incoming_application_one_bool_header_pair_valid \
+test_streaming_decoder_incoming_multiple_messages \
+test_channel_handler_single_valid_messages_parse \
+test_channel_handler_multiple_valid_messages_parse \
+test_channel_handler_corrupted_crc_fails \
+test_channel_handler_msg_too_large_fails \
+test_channel_handler_write_message \
+test_event_stream_rpc_server_connection_setup_and_teardown \
+test_event_stream_rpc_server_connection_setup_and_teardown_with_bind_to_zero_port \
+test_event_stream_rpc_server_connection_connect_flow \
+test_event_stream_rpc_server_connection_connect_reject_flow \
+test_event_stream_rpc_server_connection_messages_before_connect_received \
+test_event_stream_rpc_server_connection_messages_before_connect_ack_sent \
+test_event_stream_rpc_server_connection_unknown_message_type \
+test_event_stream_rpc_server_connection_missing_message_type \
+test_event_stream_rpc_server_connection_missing_message_flags \
+test_event_stream_rpc_server_connection_continuation_missing_operation \
+test_event_stream_rpc_server_connection_missing_stream_id \
+test_event_stream_rpc_server_connection_continuation_messages_flow \
+test_event_stream_rpc_server_connection_continuation_failure \
+test_event_stream_rpc_server_connection_stream_id_ahead \
+test_event_stream_rpc_server_connection_continuation_reused_stream_id_fails \
+test_event_stream_rpc_server_connection_continuation_max_stream_id_reached \
+test_event_stream_rpc_client_connection_setup_and_teardown \
+test_event_stream_rpc_client_connection_connect \
+test_event_stream_rpc_client_connection_message_before_connect \
+test_event_stream_rpc_client_connection_protocol_message \
+test_event_stream_rpc_client_connection_continuation_flow \
+test_event_stream_rpc_client_connection_unactivated_continuation_fails \
+test_event_stream_rpc_client_connection_continuation_send_message_on_closed_fails \
+test_event_stream_rpc_client_connection_continuation_duplicated_activate_fails \
+"
+
+for TEST in $TESTS
+do
+./aws-c-event-stream-tests $TEST >> tests.log
+done
+
+sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: / ; /ERROR/ s/^/FAIL: /' tests.log
