@@ -1,0 +1,94 @@
+#!/bin/sh
+
+cd tests
+
+rm -rf tests.log
+
+# known good tests
+TESTS="\
+sha256_nist_test_case_1 \
+sha256_nist_test_case_2 \
+sha256_nist_test_case_3 \
+sha256_nist_test_case_4 \
+sha256_nist_test_case_5 \
+sha256_nist_test_case_5_truncated \
+sha256_nist_test_case_6 \
+sha256_test_invalid_buffer \
+sha256_test_oneshot \
+sha256_test_invalid_state \
+sha256_test_extra_buffer_space \
+sha1_nist_test_case_1 \
+sha1_nist_test_case_2 \
+sha1_nist_test_case_3 \
+sha1_nist_test_case_4 \
+sha1_nist_test_case_5 \
+sha1_nist_test_case_5_truncated \
+sha1_nist_test_case_6 \
+sha1_test_invalid_buffer \
+sha1_test_oneshot \
+sha1_test_invalid_state \
+sha1_test_extra_buffer_space \
+md5_rfc1321_test_case_1 \
+md5_rfc1321_test_case_2 \
+md5_rfc1321_test_case_3 \
+md5_rfc1321_test_case_4 \
+md5_rfc1321_test_case_5 \
+md5_rfc1321_test_case_6 \
+md5_rfc1321_test_case_7 \
+md5_rfc1321_test_case_7_truncated \
+md5_verify_known_collision \
+md5_invalid_buffer_size \
+md5_test_invalid_state \
+md5_test_extra_buffer_space \
+sha256_hmac_rfc4231_test_case_1 \
+sha256_hmac_rfc4231_test_case_2 \
+sha256_hmac_rfc4231_test_case_3 \
+sha256_hmac_rfc4231_test_case_4 \
+sha256_hmac_rfc4231_test_case_5 \
+sha256_hmac_rfc4231_test_case_6 \
+sha256_hmac_rfc4231_test_case_7 \
+sha256_hmac_test_oneshot \
+sha256_hmac_test_invalid_buffer \
+sha256_hmac_test_invalid_state \
+sha256_hmac_test_extra_buffer_space \
+ecdsa_p256_test_pub_key_derivation \
+ecdsa_p384_test_pub_key_derivation \
+ecdsa_p256_test_known_signing_value \
+ecdsa_p384_test_known_signing_value \
+ecdsa_test_invalid_signature \
+ecdsa_p256_test_key_gen \
+ecdsa_p384_test_key_gen \
+ecdsa_p256_test_key_gen_export \
+ecdsa_p384_test_key_gen_export \
+ecdsa_p256_test_import_asn1_key_pair \
+ecdsa_p384_test_import_asn1_key_pair \
+ecdsa_test_import_asn1_key_pair_public_only \
+ecdsa_test_import_asn1_key_pair_invalid_fails \
+ecdsa_test_signature_format \
+ecdsa_p256_test_small_coordinate_verification \
+der_encode_integer \
+der_encode_boolean \
+der_encode_null \
+der_encode_bit_string \
+der_encode_octet_string \
+der_encode_sequence \
+der_encode_set \
+der_decode_integer \
+der_decode_boolean \
+der_decode_null \
+der_decode_bit_string \
+der_decode_octet_string \
+der_decode_sequence \
+der_decode_set \
+der_decode_key_pair \
+ecc_key_pair_random_ref_count_test \
+ecc_key_pair_public_ref_count_test \
+ecc_key_pair_asn1_ref_count_test \
+"
+
+for TEST in $TESTS
+do
+./aws-c-cal-tests $TEST >> tests.log
+done
+
+sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: / ; /ERROR/ s/^/FAIL: /' tests.log
