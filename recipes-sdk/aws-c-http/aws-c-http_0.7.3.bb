@@ -18,13 +18,32 @@ PROVIDES += "aws/crt-c-http"
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-c-http.git;protocol=https;branch=${BRANCH}"
+SRC_URI = "\
+    git://github.com/awslabs/aws-c-http.git;protocol=https;branch=${BRANCH} \
+    file://run-ptest \
+    "
 
 SRCREV = "dd34461987947672444d0bc872c5a733dfdb9711"
 
 S = "${WORKDIR}/git"
 
-inherit cmake
+inherit cmake ptest pkgconfig
+
+PACKAGECONFIG ??= "\
+    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
+    "
+
+# CMAKE_CROSSCOMPILING=ON will disable building the tests
+PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
+
+# enable PACKAGECONFIG = "static" to build static instead of shared libs
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,"
+
+do_install_ptest () {
+   install -d ${D}${PTEST_PATH}/tests
+   cp -r ${B}/tests/* ${D}${PTEST_PATH}/tests/
+   install -m 0755 ${B}/tests/aws-c-http-tests ${D}${PTEST_PATH}/tests/
+}
 
 AWS_C_INSTALL = "$D/usr"
 OECMAKE_SOURCEPATH = "${S}"
@@ -34,10 +53,8 @@ EXTRA_OECMAKE += "\
     -DBUILD_TESTING=OFF \
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_SHARED_LIBS=ON \
 "
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
 BBCLASSEXTEND = "native nativesdk"
-
