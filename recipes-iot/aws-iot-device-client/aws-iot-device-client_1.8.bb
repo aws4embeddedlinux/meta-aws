@@ -17,7 +17,7 @@ BRANCH ?= "main"
 # nooelint: oelint.file.patchsignedoff:Patch
 SRC_URI = "\
     git://github.com/awslabs/aws-iot-device-client.git;protocol=https;branch=${BRANCH} \
-    file://noerroronwarnings.patch \
+    file://fix_jobs_warning_error.patch \
     file://run-ptest \
     file://ptest_result.py \
     "
