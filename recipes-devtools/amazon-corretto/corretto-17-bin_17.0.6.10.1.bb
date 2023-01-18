@@ -1,24 +1,30 @@
-# -*- mode: Conf; -*-
-SUMMARY     = "Amazon Corretto 17"
-DESCRIPTION = ""
+SUMMARY = "Amazon Corretto 17"
+DESCRIPTION = "Amazon Corretto is a no-cost, multiplatform, production-ready distribution of the Open Java Development Kit (OpenJDK)."
+HOMEPAGE = "https://github.com/corretto/corretto-17"
 LICENSE = "GPL-2.0"
 
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3e0b59f8fac05c3c03d4a26bbda13f8f"
-SHR             = "amazon-corretto-${PV}"
-BASE:aarch64    = "amazon-corretto-${PV}-linux-aarch64"
-SRC_URI:aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
+SHR = "amazon-corretto-${PV}"
+BASE:aarch64 = "amazon-corretto-${PV}-linux-aarch64"
 
-BASE:x86-64     = "amazon-corretto-${PV}-linux-x64"
-SRC_URI:x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
+# nooelint: oelint.vars.srcurichecksum:SRC_URI[aarch64.md5sum]
+SRC_URI:append:aarch64 = " https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
+
+BASE:x86-64 = "amazon-corretto-${PV}-linux-x64"
+# nooelint: oelint.vars.srcurichecksum:SRC_URI[aarch64.md5sum]
+SRC_URI:append:x86-64 = " https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
 # you can find checksum here: https://github.com/corretto/corretto-17/releases since devtool upgrade can only do one arch atm.
 
-SRC_URI[x86-64.sha256sum] = "aeec1a4fb34ffabbac931ba430601807133659a4bd02703c33044e80c925bed2"
-SRC_URI[aarch64.sha256sum] = "69aa5a95b3f9030e1fef5b5886e4c97f75fffa7534dc2c98e59ef402a819a0aa"
+SRC_URI[aarch64.sha256sum] = "8fc36009858cfb4dbd30ba4847c6fc4d53d4f843b08dea8189f38fbf8bf40ca8"
+
+SRC_URI[x86-64.sha256sum] = "365bb4ae3f56bfb3c0df5f8f5b809ff0212366c46970c4b371acb80ecf4706cc"
 
 COMPATIBLE_MACHINE = "(^$)"
 COMPATIBLE_MACHINE:aarch64 = "(.*)"
 COMPATIBLE_MACHINE:x86-64 = "(.*)"
+
+SRC_URI:append = " file://run-ptest"
 
 # also available in master (not kirkstone) in classes-recipe: github-releases
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
@@ -27,19 +33,25 @@ UPSTREAM_CHECK_URI = "https://github.com/corretto/corretto-17/tags"
 
 S = "${WORKDIR}/${BASE}"
 
-FILES = ""
-FILES:${PN} = "/usr/lib/${SHR} /usr/bin"
+inherit ptest
 
-RDEPENDS:${PN} += " \
+FILES:${PN} += "\
+    /usr/lib/${SHR} \
+    /usr/bin \
+    "
+
+FILES:${PN} += "/lib64"
+
+RDEPENDS:${PN} += "\
     ${@bb.utils.contains('DISTRO_FEATURES', 'alsa', 'alsa-lib', '', d)} \
-    ${@bb.utils.contains('DISTRO_FEATURES', 'x11', 'libxrender libxext libxi libxtst libx11', '', d)} \
+    ${@bb.utils.contains('DISTRO_FEATURES', 'x11', 'libx11 libxext libxi libxrender libxtst ', '', d)} \
 "
 
 do_install() {
-    install -d ${D}/usr/bin
-    install -d ${D}/usr/lib/${SHR}
-    cp -r ${WORKDIR}/${BASE}/* ${D}/usr/lib/${SHR}/
-    cd ${D}/usr/bin
+    install -d ${D}${bindir}
+    install -d ${D}${libdir}/${SHR}
+    cp -r ${WORKDIR}/${BASE}/* ${D}${libdir}/${SHR}/
+    cd ${D}${bindir}
     ln -s ../lib/${SHR}/bin/jaotc
     ln -s ../lib/${SHR}/bin/jarsigner
     ln -s ../lib/${SHR}/bin/javac
@@ -87,17 +99,14 @@ do_install:append:x86-64() {
 
 do_install:append() {
     if ${@bb.utils.contains('DISTRO_FEATURES','x11','false','true',d)}; then
-        rm ${D}/usr/lib/${SHR}/lib/libawt_xawt.so
-        rm ${D}/usr/lib/${SHR}/lib/libjawt.so
-        rm ${D}/usr/lib/${SHR}/lib/libsplashscreen.so
+        rm ${D}${libdir}/${SHR}/lib/libawt_xawt.so
+        rm ${D}${libdir}/${SHR}/lib/libjawt.so
+        rm ${D}${libdir}/${SHR}/lib/libsplashscreen.so
     fi
-}
-
-do_install:append() {
     if ${@bb.utils.contains('DISTRO_FEATURES','alsa','false','true',d)}; then
-        rm ${D}/usr/lib/${SHR}/lib/libjsound.so
+        rm ${D}${libdir}/${SHR}/lib/libjsound.so
     fi
 }
 
-FILES:${PN} += " /lib64"
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN} += "libdir"
