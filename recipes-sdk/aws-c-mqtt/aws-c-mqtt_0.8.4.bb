@@ -52,6 +52,7 @@ do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
    cp -r ${B}/tests/* ${D}${PTEST_PATH}/tests/
    install -m 0755 ${B}/tests/aws-c-mqtt-tests ${D}${PTEST_PATH}/tests/
+   dd if=/dev/zero of=${D}${PTEST_PATH}/tests/tests.log count=100000
 }
 
 BBCLASSEXTEND = "native nativesdk"
