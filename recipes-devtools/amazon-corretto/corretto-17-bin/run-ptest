@@ -1,0 +1,12 @@
+#!/bin/sh
+set -euxo pipefail
+
+cd /usr/lib/amazon-corretto-17.0.6.10.1/bin
+./java --version
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: corretto-17-bin startup test"
+else
+    echo "FAIL: corretto-17-bin startup test"
+fi
