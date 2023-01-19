@@ -17,7 +17,7 @@ DEPENDS += "\
 BRANCH ?= "main"
 
 SRC_URI = "git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https"
-SRCREV = "f5ae5d003d173ca3b3e25d1744c9536655088ba8"
+SRCREV = "989c1be67d164558376c738e0d64ba5983502220"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
