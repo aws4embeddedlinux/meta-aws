@@ -1,0 +1,182 @@
+#!/bin/sh
+cd tests
+
+rm -rf tests.log
+
+# known good tests
+TESTS="\
+test_s3_copy_http_message \
+test_s3_message_util_assign_body \
+test_s3_ranged_get_object_message_new \
+test_s3_set_multipart_request_path \
+test_s3_create_multipart_upload_message_new \
+test_s3_upload_part_message_new \
+test_s3_complete_multipart_message_new \
+test_s3_abort_multipart_upload_message_new \
+test_s3_upload_part_message_with_content_md5 \
+test_s3_upload_part_message_without_content_md5 \
+test_s3_create_multipart_upload_message_with_content_md5 \
+test_s3_complete_multipart_message_with_content_md5 \
+test_s3_parse_content_range_response_header \
+test_s3_parse_content_length_response_header \
+test_s3_get_num_parts_and_get_part_range \
+test_s3_aws_xml_get_top_level_tag_with_root_name \
+test_get_existing_compute_platform_info \
+test_get_nonexistent_compute_platform_info \
+sha1_nist_test_case_1 \
+sha1_nist_test_case_2 \
+sha1_nist_test_case_3 \
+sha1_nist_test_case_4 \
+sha1_nist_test_case_5 \
+sha1_nist_test_case_5_truncated \
+sha1_nist_test_case_6 \
+sha1_test_invalid_buffer \
+sha1_test_oneshot \
+sha1_test_invalid_state \
+sha256_nist_test_case_1 \
+sha256_nist_test_case_2 \
+sha256_nist_test_case_3 \
+sha256_nist_test_case_4 \
+sha256_nist_test_case_5 \
+sha256_nist_test_case_5_truncated \
+sha256_nist_test_case_6 \
+sha256_test_invalid_buffer \
+sha256_test_oneshot \
+sha256_test_invalid_state \
+crc32_nist_test_case_1 \
+crc32_nist_test_case_2 \
+crc32_nist_test_case_3 \
+crc32_nist_test_case_4 \
+crc32_nist_test_case_5 \
+crc32_nist_test_case_5_truncated \
+crc32_nist_test_case_6 \
+crc32_test_invalid_buffer \
+crc32_test_oneshot \
+crc32_test_invalid_state \
+crc32c_nist_test_case_1 \
+crc32c_nist_test_case_2 \
+crc32c_nist_test_case_3 \
+crc32c_nist_test_case_4 \
+crc32c_nist_test_case_5 \
+crc32c_nist_test_case_5_truncated \
+crc32c_nist_test_case_6 \
+crc32c_test_invalid_buffer \
+crc32c_test_oneshot \
+crc32c_test_invalid_state \
+verify_checksum_stream \
+verify_chunk_stream \
+"
+
+for TEST in $TESTS
+do
+./aws-c-s3-tests $TEST >> tests.log
+done
+
+sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: / ; /ERROR/ s/^/FAIL: /' tests.log
+
+### disabled tests ###
+# test_s3_put_object_multipart_correct_content_md5_disabled \
+# test_s3_put_object_multipart_incorrect_content_md5_enabled \
+# test_s3_put_object_multipart_incorrect_content_md5_disabled \
+# test_s3_upload_part_message_with_content_md5 \
+# test_s3_upload_part_message_without_content_md5 \
+# test_s3_create_multipart_upload_message_with_content_md5 \
+# test_s3_complete_multipart_message_with_content_md5 \
+# test_s3_put_object_double_slashes \
+# test_s3_get_object_less_than_part_size_mrap \
+# test_s3_get_object_multipart_mrap \
+# test_s3_put_object_less_than_part_size_mrap \
+# test_s3_put_object_multipart_mrap \
+# test_s3_round_trip \
+# test_s3_round_trip_default_get \
+# test_s3_round_trip_multipart_get_fc \
+# test_s3_round_trip_default_get_fc \
+# test_s3_round_trip_mpu_multipart_get_fc \
+# test_s3_round_trip_mpu_multipart_get_with_list_algorithm_fc \
+# test_s3_round_trip_mpu_default_get_fc \
+# test_s3_chunked_then_unchunked \
+# test_s3_cancel_mpu_one_part_completed_fc \
+# test_s3_cancel_mpd_one_part_completed_fc \
+# test_s3_meta_request_default \
+# test_s3_put_object_fail_headers_callback \
+# test_s3_put_object_fail_body_callback \
+# test_s3_get_object_fail_headers_callback \
+# test_s3_get_object_fail_body_callback \
+# test_s3_default_fail_headers_callback \
+# test_s3_default_invoke_headers_callback_on_error \
+# test_s3_default_invoke_headers_callback_cancels_on_error \
+# test_s3_get_object_invoke_headers_callback_on_error \
+# test_s3_put_object_invoke_headers_callback_on_error \
+# test_s3_put_object_invoke_headers_callback_on_error_with_user_cancellation \
+# test_s3_default_fail_body_callback \
+# test_s3_error_missing_file \
+# test_s3_existing_host_entry \
+# test_s3_put_fail_object_invalid_request \
+# test_s3_put_fail_object_inputstream_fail_reading \
+# test_s3_put_single_part_fail_object_inputstream_fail_reading \
+# test_s3_put_object_clamp_part_size \
+# test_s3_auto_ranged_get_sending_user_agent \
+# test_s3_auto_ranged_put_sending_user_agent \
+# test_s3_default_sending_meta_request_user_agent \
+# test_s3_range_requests \
+# test_s3_not_satisfiable_range \
+# test_s3_bad_endpoint \
+# test_s3_different_endpoints \
+# test_s3_replace_quote_entities \
+# test_s3_strip_quotes \
+# test_s3_put_object_double_slashes \
+# test_s3_get_object_less_than_part_size_mrap \
+# test_s3_get_object_multipart_mrap \
+# test_s3_put_object_less_than_part_size_mrap \
+# test_s3_put_object_multipart_mrap \
+# test_s3_round_trip \
+# test_s3_round_trip_default_get \
+# test_s3_round_trip_multipart_get_fc \
+# test_s3_round_trip_default_get_fc \
+# test_s3_round_trip_mpu_multipart_get_fc \
+# test_s3_round_trip_mpu_multipart_get_with_list_algorithm_fc \
+# test_s3_round_trip_mpu_default_get_fc \
+# test_s3_chunked_then_unchunked \
+# test_s3_cancel_mpu_one_part_completed_fc \
+# test_s3_cancel_mpd_one_part_completed_fc \
+# test_s3_meta_request_default \
+# test_s3_put_object_fail_headers_callback \
+# test_s3_put_object_fail_body_callback \
+# test_s3_get_object_fail_headers_callback \
+# test_s3_get_object_fail_body_callback \
+# test_s3_default_fail_headers_callback \
+# test_s3_default_invoke_headers_callback_on_error \
+# test_s3_default_invoke_headers_callback_cancels_on_error \
+# test_s3_get_object_invoke_headers_callback_on_error \
+# test_s3_put_object_invoke_headers_callback_on_error \
+# test_s3_put_object_invoke_headers_callback_on_error_with_user_cancellation \
+# test_s3_default_fail_body_callback \
+# test_s3_error_missing_file \
+# test_s3_existing_host_entry \
+# test_s3_put_fail_object_invalid_request \
+# test_s3_put_fail_object_inputstream_fail_reading \
+# test_s3_put_single_part_fail_object_inputstream_fail_reading \
+# test_s3_put_object_clamp_part_size \
+# test_s3_auto_ranged_get_sending_user_agent \
+# test_s3_auto_ranged_put_sending_user_agent \
+# test_s3_default_sending_meta_request_user_agent \
+# test_s3_range_requests \
+# test_s3_not_satisfiable_range \
+# test_s3_bad_endpoint \
+# test_s3_different_endpoints \
+# test_s3_replace_quote_entities \
+# test_s3_strip_quotes \
+# test_add_user_agent_header \
+# test_s3_copy_small_object \
+# test_s3_copy_small_object_special_char \
+# test_s3_multipart_copy_large_object_special_char \
+# test_s3_multipart_copy_large_object \
+# test_s3_copy_object_invalid_source_key \
+# test_s3_put_pause_resume_happy_path \
+# test_s3_put_pause_resume_all_parts_done \
+# test_s3_put_pause_resume_invalid_checksum \
+# test_s3_copy_source_prefixed_by_slash \
+# test_s3_copy_source_prefixed_by_slash_multipart \
+# test_s3_list_bucket_init_mem_safety \
+# test_s3_list_bucket_init_mem_safety_optional_copies \
+# test_s3_list_bucket_valid \
