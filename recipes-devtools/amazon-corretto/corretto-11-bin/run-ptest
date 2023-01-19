@@ -1,0 +1,24 @@
+#!/bin/sh
+set -euxo pipefail
+
+java --version
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: corretto-11-bin startup test"
+else
+    echo "FAIL: corretto-11-bin startup test"
+fi
+
+cd /greengrass/v2/alts/current/distro/bin
+chmod 755 loader
+./loader  2>&1 > test.log &
+sleep 30
+grep "Launched Nucleus successfully" test.log
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: corretto-11-bin -> greengrass-bin startup test"
+else
+    echo "FAIL: corretto-11-bin -> greengrass-bin startup test"
+fi
