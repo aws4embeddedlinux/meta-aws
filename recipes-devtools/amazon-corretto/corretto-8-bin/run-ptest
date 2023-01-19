@@ -1,0 +1,11 @@
+#!/bin/sh
+set -euxo pipefail
+
+java -version
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: corretto-8-bin startup test"
+else
+    echo "FAIL: corretto-8-bin startup test"
+fi
