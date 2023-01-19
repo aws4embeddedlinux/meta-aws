@@ -1,8 +1,7 @@
 #!/bin/sh
 set -euxo pipefail
 
-cd /usr/lib/amazon-corretto-17.0.6.10.1/bin
-./java --version
+java --version
 
 RETVAL=$?
 if [ $RETVAL -eq 0 ] ; then

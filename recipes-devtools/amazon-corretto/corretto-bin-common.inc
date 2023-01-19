@@ -1,54 +1,35 @@
-SUMMARY     = "Amazon Corretto 8"
-DESCRIPTION = ""
+DESCRIPTION = "Amazon Corretto is a no-cost, multiplatform, production-ready distribution of the Open Java Development Kit (OpenJDK)."
 LICENSE = "GPL-2.0"
-
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3e0b59f8fac05c3c03d4a26bbda13f8f"
-SHR             = "amazon-corretto-${PV}"
-BASE_aarch64    = "amazon-corretto-${PV}-linux-aarch64"
-SRC_URI_aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
 
-BASE_x86-64     = "amazon-corretto-${PV}-linux-x64"
-SRC_URI_x86-64  = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
+SHR = "amazon-corretto-${PV}"
 
-
-# you can find checksum here: https://github.com/corretto/corretto-8/releases since devtool upgrade can only do one arch atm.
-
-SRC_URI[x86-64.sha256sum] = "dcdfb4c715c8ffe3a192e9b694c1dc64cca490a9b756a63491b83e154c598949"
-SRC_URI[aarch64.sha256sum] = "43aacf849992df424f40ae124bba38dba5fe420f6ba8d72864cf28169032dbb0"
+BASE:aarch64 = "amazon-corretto-${PV}-linux-aarch64"
+BASE:x86-64 = "amazon-corretto-${PV}-linux-x64"
 
 COMPATIBLE_MACHINE = "(^$)"
 COMPATIBLE_MACHINE:aarch64 = "(.*)"
 COMPATIBLE_MACHINE:x86-64 = "(.*)"
 
-FILES = ""
-FILES_${PN} = "/usr/lib/${SHR} /usr/bin"
-
-
 # also available in master (not kirkstone) in classes-recipe: github-releases
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 
-UPSTREAM_CHECK_URI = "https://github.com/corretto/corretto-8/tags"
+SRC_URI:append = " file://run-ptest"
 
 S = "${WORKDIR}/${BASE}"
 
-do_package_qa[noexec] = "1"
-EXCLUDE_FROM_SHLIBS = "1"
+inherit ptest
 
-RDEPENDS_${PN} += " \
-    libgl \
-    libxi \
-    libxtst \
-    libasound \
-    cairo \
-    pango \
-    gtk+ \
-"
+FILES:${PN} += "\
+    /usr/lib/${SHR} \
+    /usr/bin \
+    "
 
 do_install() {
-    install -d ${D}/usr/bin
-    install -d ${D}/usr/lib/${SHR}
-    cp -r ${WORKDIR}/${BASE}/* ${D}/usr/lib/${SHR}/
-    cd ${D}/usr/bin
+    install -d ${D}${bindir}
+    install -d ${D}${libdir}/${SHR}
+    cp -r ${WORKDIR}/${BASE}/* ${D}${libdir}/${SHR}/
+    cd ${D}${bindir}
     ln -s ../lib/${SHR}/bin/jaotc
     ln -s ../lib/${SHR}/bin/jarsigner
     ln -s ../lib/${SHR}/bin/javac
@@ -94,5 +75,23 @@ do_install_append_x86-64() {
     ln -s ../lib/ld-linux-x86-64.so.2 ld-linux-x86-64.so.2
 }
 
-FILES_${PN} += " /lib64"
-INSANE_SKIP_${PN} += " libdir"
+FILES:${PN} += "/lib64"
+
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN} += "libdir"
+
+RDEPENDS:${PN} += "\
+    ${@bb.utils.contains('DISTRO_FEATURES', 'alsa', 'alsa-lib', '', d)} \
+    ${@bb.utils.contains('DISTRO_FEATURES', 'x11', 'libx11 libxext libxi libxrender libxtst ', '', d)} \
+"
+
+do_install:append() {
+    if ${@bb.utils.contains('DISTRO_FEATURES','x11','false','true',d)}; then
+        rm ${D}${libdir}/${SHR}/lib/libawt_xawt.so
+        rm ${D}${libdir}/${SHR}/lib/libjawt.so
+        rm ${D}${libdir}/${SHR}/lib/libsplashscreen.so
+    fi
+    if ${@bb.utils.contains('DISTRO_FEATURES','alsa','false','true',d)}; then
+        rm ${D}${libdir}/${SHR}/lib/libjsound.so
+    fi
+}
