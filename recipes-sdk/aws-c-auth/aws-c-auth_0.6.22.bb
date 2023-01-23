@@ -12,8 +12,8 @@ DEPENDS += "\
     aws-c-http \
     aws-c-io \
     aws-c-sdkutils \
-    openssl \
     s2n \
+    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
     "
 
 PROVIDES += "aws/crt-c-auth"
@@ -35,7 +35,6 @@ EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DCMAKE_PREFIX_PATH=$D/usr \
     -DCMAKE_INSTALL_PREFIX=$D/usr \
-    -DBUILD_SHARED_LIBS=ON \
     -DCMAKE_BUILD_TYPE=Release \
 "
 
@@ -43,19 +42,12 @@ PACKAGECONFIG ??= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
     "
 
+# enable PACKAGECONFIG = "static" to build static instead of shared libs
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
+
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
-
-RDEPENDS:${PN} += "\
-    aws-c-cal \
-    aws-c-common \
-    aws-c-compression \
-    aws-c-http \
-    aws-c-io \
-    aws-c-sdkutils \
-    s2n \
-    "
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests

@@ -7,8 +7,8 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 DEPENDS = "\
     aws-c-common \
-    openssl \
     s2n \
+    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
     "
 
 PROVIDES += "aws/crt-c-cal"
@@ -33,6 +33,9 @@ PACKAGECONFIG ??= "\
 # CMAKE_CROSSCOMPILING=ON will disable building the tests
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
 
+# enable PACKAGECONFIG = "static" to build static instead of shared libs
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
+
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
 RDEPENDS:${PN} = "\
@@ -49,7 +52,6 @@ do_install_ptest () {
 CFLAGS:append = " -Wl,-Bsymbolic"
 
 EXTRA_OECMAKE += "\
-    -DBUILD_SHARED_LIBS=ON \
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DCMAKE_PREFIX_PATH=$D/usr \
     -DCMAKE_INSTALL_PREFIX=$D/usr \

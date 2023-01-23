@@ -10,7 +10,6 @@ DEPENDS += "\
     aws-c-cal \
     aws-c-common \
     aws-c-io \
-    openssl \
     s2n \
     "
 
@@ -34,9 +33,9 @@ PACKAGECONFIG ??= "\
     "
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
-PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
-PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
+PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF"
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
