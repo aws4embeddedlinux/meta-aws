@@ -2,40 +2,64 @@ SUMMARY = "AWS libcrypto (AWS-LC)"
 DESCRIPTION = "AWS-LC is a general-purpose cryptographic library maintained by the AWS Cryptography team for AWS and their customers. It іs based on code from the Google BoringSSL project and the OpenSSL project."
 
 HOMEPAGE = "https://github.com/awslabs/aws-lc"
+
 LICENSE = "Apache-2.0"
-PROVIDES += "aws/lc"
-
-inherit cmake
-
 LIC_FILES_CHKSUM = "file://LICENSE;md5=c91257e3cc0bd6026b93fb15aecf6f1c"
+
+PROVIDES += "aws/lc"
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH}"
+SRC_URI = "\
+    git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH} \
+    file://run-ptest \
+    "
 SRCREV = "75a73bfabf1be384b49c7f92da6fdfd9d867069e"
 
 S = "${WORKDIR}/git"
 
-DEPENDS = ""
-RDEPENDS:${PN} = ""
+inherit cmake ptest pkgconfig
 
-EXTRA_OECMAKE += " \
-    -DBUILD_TESTING=OFF \
+PACKAGECONFIG ??= "\
+    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
+    "
+
+# CMAKE_CROSSCOMPILING=ON will disable building the tests
+PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
+
+# enable PACKAGECONFIG = "static" to build static instead of shared libs
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
+
+do_install_ptest () {
+   install -d ${D}${PTEST_PATH}/tests
+   cp -r ${B}/libboringssl_gtest.so ${D}${PTEST_PATH}/tests/
+   install -m 0755 ${B}/ssl/ssl_test ${D}${PTEST_PATH}/tests/
+}
+
+EXTRA_OECMAKE += "\
     -DDISABLE_PERL=ON \
     -DDISABLE_GO=ON \
-    \
-    -DCMAKE_PREFIX_PATH=${libdir}/aws-lc \
-    -DCMAKE_INSTALL_PREFIX=${libdir}/aws-lc \
-    -DBUILD_SHARED_LIBS=ON \
 "
 
+FILES:${PN} += "\
+    ${libdir}/libcrypto.so \
+    ${libdir}/libssl.so \
+    ${libdir}/libdecrepit.so \
+    "
 
-FILES:${PN}     += "${libdir}/aws-lc/lib/libssl.so \
-                   ${libdir}/aws-lc/lib/libcrypto.so \
-                   ${libdir}/aws-lc/lib/libdecrepit.so"
-FILES:${PN}-dev += "${libdir}/aws-lc/include/openssl/* \
-                   ${libdir}/aws-lc/lib/ssl/* \
-                   ${libdir}/aws-lc/lib/AWSLC/* \
-                   ${libdir}/aws-lc/lib/crypto/*"
+FILES:${PN}-dev += "${libdir}/*/cmake"
+
+# also test depend-on-us packages build
+RDEPENDS:${PN}-ptest = "\
+    aws-c-auth \
+    aws-c-cal \
+    aws-c-compression \
+    aws-c-io \
+    aws-c-s3 \
+    aws-checksums \
+    "
+
+# Notify that libraries are not versioned
+FILES_SOLIBSDEV = ""
 
 BBCLASSEXTEND = "native nativesdk"
