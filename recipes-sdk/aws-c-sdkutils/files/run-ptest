@@ -1,0 +1,94 @@
+#!/bin/sh
+cd tests
+
+rm -rf tests.log
+
+# known good tests
+TESTS="\
+sdkutils_library_test \
+aws_profile_early_property_parse_failure_test \
+aws_profile_missing_bracket_parse_failure_test \
+aws_profile_missing_assignment_parse_failure_test \
+aws_profile_missing_property_key_parse_failure_test \
+aws_profile_early_continuation_parse_failure_test \
+aws_profile_illegal_continuation1_parse_failure_test \
+aws_profile_illegal_continuation2_parse_failure_test \
+aws_profile_illegal_continuation3_parse_failure_test \
+aws_profile_continuation_reset_on_new_profile_parse_failure_test \
+aws_profile_empty_test \
+aws_profile_empty_profile_test \
+aws_profile_whitespace_empty_profile_test \
+aws_profile_tab_empty_profile_test \
+aws_profile_single_simple_property_profile_test \
+aws_profile_equal_containing_property_profile_test \
+aws_profile_unicode_containing_property_profile_test \
+aws_profile_multiple_property_profile_test \
+aws_profile_trimmable_property_profile_test \
+aws_profile_empty_property_profile_test \
+aws_profile_multiple_empty_profile_test \
+aws_profile_multiple_profile_test \
+aws_profile_blank_lines_ignored_test \
+aws_profile_pound_comments_ignored_test \
+aws_profile_semicolon_comments_ignored_test \
+aws_profile_mixed_comments_ignored_test \
+aws_profile_empty_comments_ignored_test \
+aws_profile_profile_adjacent_comment_test \
+aws_profile_value_adjacent_comment_test \
+aws_profile_continued_property_value_test \
+aws_profile_multiline_continued_property_value_test \
+aws_profile_continued_property_value_trim_test \
+aws_profile_continued_property_value_pound_comment_test \
+aws_profile_continued_property_value_semicolon_comment_test \
+aws_profile_duplicate_profiles_merge_test \
+aws_profile_duplicate_properties_last_property_value_test \
+aws_profile_duplicate_profiles_last_property_value_test \
+aws_profile_duplicate_default_profiles_property_resolution1_test \
+aws_profile_duplicate_default_profiles_property_resolution2_test \
+aws_profile_invalid_profile_names_merge_test \
+aws_profile_invalid_property_names_ignored_test \
+aws_profile_all_valid_profile_characters_test \
+aws_profile_all_valid_property_characters_test \
+aws_profile_basic_sub_property_test \
+aws_profile_empty_sub_property_test \
+aws_profile_invalid_sub_property_name_test \
+aws_profile_sub_property_blank_line_test \
+aws_profile_basic_duplicate_merge_test \
+aws_profile_mixed_prefix_default_test \
+aws_profile_override_duplicate_merge_test \
+aws_profile_no_prefix_nondefault_test \
+aws_profile_prefix_credentials_test \
+parse_resource_name_test \
+parse_resource_name_failures_test \
+resource_name_tostring_test \
+resource_name_tostring_failure_test \
+resource_name_length_test \
+parse_ruleset_from_string \
+test_endpoints_aws_region \
+test_endpoints_default_values \
+test_endpoints_eventbridge \
+test_endpoints_fns \
+test_endpoints_get_attr_type_inference \
+test_endpoints_headers \
+test_endpoints_is_virtual_hostable_s3_bucket \
+test_endpoints_region_override \
+test_endpoints_minimal_ruleset \
+test_endpoints_parse_arn \
+test_endpoints_parse_url \
+test_endpoints_partition_fn \
+test_endpoints_substring \
+test_endpoints_uri_encode \
+test_endpoints_valid_hostlabel \
+test_endpoints_condition_mem_clean_up \
+endpoints_eval_util_is_ipv4 \
+endpoints_eval_util_is_ipv6 \
+endpoints_map_region_to_partition \
+endpoints_uri_normalize_path \
+endpoints_byte_buf_init_from_resolved_templated_string \
+"
+
+for TEST in $TESTS
+do
+./aws-c-sdkutils-tests $TEST >> tests.log
+done
+
+sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: / ; /ERROR/ s/^/FAIL: /' tests.log
