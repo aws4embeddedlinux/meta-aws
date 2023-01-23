@@ -17,7 +17,6 @@ DEPENDS += "\
         aws-c-s3 \
         aws-c-sdkutils \
         aws-checksums \
-        aws-lc \
         s2n \
         "
 
