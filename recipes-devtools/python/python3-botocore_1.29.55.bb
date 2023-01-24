@@ -19,6 +19,7 @@ RDEPENDS:${PN} += "\
     python3-jmespath \
     python3-logging \
     "
+
 RDEPENDS:${PN}-ptest += "\
         python3 \
         python3-pytest \
