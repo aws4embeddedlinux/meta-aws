@@ -1,0 +1,10 @@
+#!/bin/sh
+
+amazon-ssm-agent --help
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: amazon-ssm-agent startup test"
+else
+    echo "FAIL: amazon-ssm-agent startup test"
+fi
