@@ -1,0 +1,25 @@
+#!/bin/sh
+
+# known good tests
+TESTS="\
+unit/test_bandwidth.py \
+unit/test_compat.py \
+unit/test_copies.py \
+"
+
+for TEST in $TESTS
+do
+    pytest tests/$TEST -o log_cli=true -o log_cli_level=INFO | sed -e 's/\[...%\]//g'| sed -e 's/PASSED/PASS/g'| sed -e 's/FAILED/FAIL/g'| sed -e 's/SKIPPED/SKIP/g'| awk '{if ($NF=="PASS" || $NF=="FAIL" || $NF=="SKIP" || $NF=="XFAIL" || $NF=="XPASS"){printf "%s: %s\n", $NF, $0}else{print}}'| awk '{if ($NF=="PASS" || $NF=="FAIL" || $NF=="SKIP" || $NF=="XFAIL" || $NF=="XPASS") {$NF="";print $0}else{print}}'
+done
+
+#disabled tests
+# unit/test_delete.py
+# unit/test_download.py
+# unit/test_futures.py
+# unit/test_manager.py
+# unit/test_processpool.py
+# unit/test_s3transfer.py
+# unit/test_subscribers.py
+# unit/test_tasks.py
+# unit/test_upload.py
+# unit/test_utils.py
