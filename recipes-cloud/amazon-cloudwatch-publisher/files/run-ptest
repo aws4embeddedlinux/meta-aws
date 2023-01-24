@@ -1,0 +1,15 @@
+#!/bin/sh
+set -euxo pipefail
+
+cd /opt/aws/amazon-cloudwatch-publisher
+
+./amazon-cloudwatch-publisher &
+sleep 30
+grep "Instance ID is" /opt/aws/amazon-cloudwatch-publisher/logs/amazon-cloudwatch-publisher.log
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: amazon-cloudwatch-publisher: startup test"
+else
+    echo "FAIL: amazon-cloudwatch-publisher: startup test"
+fi
