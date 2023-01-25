@@ -1,0 +1,9 @@
+#!/bin/sh
+gst-inspect-1.0 s3sink > test.log
+RETVAL=$?
+cat test.log
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: amazon-s3-gst-plugin simple test"
+else
+    echo "FAIL: amazon-s3-gst-plugin simple test"
+fi
