@@ -1,0 +1,23 @@
+From b7600c1ab7f3f08339fa69345de6eb248478a78f Mon Sep 17 00:00:00 2001
+From: nateglims <glimsdal@amazon.com>
+Date: Thu, 19 May 2022 23:38:05 +0000
+Subject: [PATCH] kvm-bindings: use local version
+
+Use the local version of kvm-bindings instead of finding it on github.
+---
+ Cargo.toml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Cargo.toml b/Cargo.toml
+index f05d00a8..ac01558f 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -10,4 +10,4 @@ panic = "abort"
+ lto = true
+ 
+ [patch.crates-io]
+-kvm-bindings = { git = "https://github.com/firecracker-microvm/kvm-bindings", tag = "v0.3.0-3", features = ["fam-wrappers"] }
++kvm-bindings = { path="../kvm-bindings" , features = ["fam-wrappers"] }
+-- 
+2.25.1
+

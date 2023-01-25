@@ -1,4 +1,4 @@
-From 835a3775c95491224ce2b5585958e3b0b998a88c Mon Sep 17 00:00:00 2001
+From 96ab5ffcbfab68038aff994eff0a36c4d2a8785a Mon Sep 17 00:00:00 2001
 From: nateglims <glimsdal@amazon.com>
 Date: Fri, 27 May 2022 17:52:02 +0000
 Subject: [PATCH] Remove abort panic from the workspace
@@ -8,11 +8,11 @@ Subject: [PATCH] Remove abort panic from the workspace
  1 file changed, 4 deletions(-)
 
 diff --git a/Cargo.toml b/Cargo.toml
-index 8c3056c9..84e8cc3e 100644
+index ac01558f..2fbed68d 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -2,11 +2,7 @@
- members = ["src/firecracker", "src/jailer", "src/seccompiler", "src/rebase-snap"]
+ members = ["src/firecracker", "src/jailer"]
  default-members = ["src/firecracker"]
  
 -[profile.dev]
@@ -23,3 +23,6 @@ index 8c3056c9..84e8cc3e 100644
  lto = true
  
  [patch.crates-io]
+-- 
+2.25.1
+
