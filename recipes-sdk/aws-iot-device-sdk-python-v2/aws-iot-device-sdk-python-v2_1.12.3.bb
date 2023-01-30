@@ -16,20 +16,15 @@ inherit setuptools3 ptest
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/aws/aws-iot-device-sdk-python-v2.git;protocol=https;branch=${BRANCH} \
-           file://run-ptest"
-SRCREV = "5f1eb4483752d16db7bd3329f96dae82b34660a8"
-
-S = "${WORKDIR}/git"
-
 RDEPENDS:${PN} += "aws-crt-python python3-json"
 
-RDEPENDS:${PN}-ptest += " \
-        ${PYTHON_PN}-pytest \
+RDEPENDS:${PN}-ptest += "\
+        ${PYTHON_PN} \
+        bash \
         python3-boto3 \
 "
 
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
-        cp -rf ${S}/test/* ${D}${PTEST_PATH}/tests/
+        cp -rf ${S}/* ${D}${PTEST_PATH}/tests/
 }
