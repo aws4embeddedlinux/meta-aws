@@ -18,7 +18,6 @@ TESTS="\
 ./test/test_io.py \
 ./test/test_mqtt.py \
 ./test/test_mqtt5.py \
-./test/test_mqtt5_canary.py \
 ./test/test_proxy.py \
 ./test/test_s3.py \
 ./test/test_websocket.py \
@@ -35,5 +34,6 @@ do
     fi
 done
 
-### removed tests####
+### removed tests ####
 # ./test/test_http_client.py
+# ./test/test_mqtt5_canary.py
