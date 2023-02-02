@@ -6,7 +6,7 @@ LICENSE = "Apache-2.0"
 GG_BASENAME = "greengrass/v2"
 GG_ROOT = "${D}/${GG_BASENAME}"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
-# nooelint: oelint.vars.downloadfilename
+# nooelint: oelint.vars.downloadfilename,oelint.vars.srcurichecksum:SRC_URI[payload.md5sum]
 SRC_URI = "\
     https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-${PV}.zip;name=payload; \
     https://raw.githubusercontent.com/aws-greengrass/aws-greengrass-nucleus/main/LICENSE;name=license; \
@@ -14,8 +14,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRC_URI[payload.sha256sum] = "976a5c135d78de9e614750c4abfc13f91a122c43b088a6ec056026c8c08093b7"
-SRC_URI[payload.md5sum] = "a290091b1a3d3e876614a538c4bf7e2e"
+SRC_URI[payload.sha256sum] = "197119570dfb65908304fb6c565d6c167c58cef1229c5d0da56e760dfd47c233"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 SRC_URI[license.md5sum] = "34400b68072d710fecd0a2940a0d1658"
 
