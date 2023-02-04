@@ -11,8 +11,8 @@ LIC_FILES_CHKSUM = "file://aws-c-iot/LICENSE;md5=2ee41112a44fe7014dce33e26468ba9
 
 BRANCH ?= "main"
 
-SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common;tag=v0.4.67 \
-           git://github.com/awslabs/aws-c-iot.git;branch=${BRANCH};destsuffix=${S}/aws-c-iot;name=iot;tag=v0.0.2 \
+SRC_URI = "https://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common;tag=v0.4.67 \
+           https://github.com/awslabs/aws-c-iot.git;branch=${BRANCH};destsuffix=${S}/aws-c-iot;name=iot;tag=v0.0.2 \
 "
 
 S = "${WORKDIR}/git"

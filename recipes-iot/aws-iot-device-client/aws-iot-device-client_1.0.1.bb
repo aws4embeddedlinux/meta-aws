@@ -7,11 +7,11 @@ PROVIDES += "aws/aws-iot-device-client"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3eb31626add6ada64ff9ac772bd3c653"
 
 BRANCH ?= "main"
-#SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH};tag=v1.0"
+#SRC_URI = "https://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH};tag=v1.0"
 
 # NOTE: This is v1.0 PLUS a fix for stripping the output binary.  it is why there is no
 #       tag reference.
-SRC_URI = "git://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH};bareclone=0"
+SRC_URI = "https://github.com/awslabs/aws-iot-device-client.git;branch=${BRANCH};bareclone=0"
 SRCREV = "16b73b81da29149581a433cf7b6e69fcdd11176a"
 
 S= "${WORKDIR}/git"
@@ -44,7 +44,7 @@ do_install() {
 
 #do_install_append() {
 #  rm -rf ${D}/sbin/.debug
-#}
+# }
 
 AWSIOTDC_EXCL_JOBS ?= "OFF"
 AWSIOTDC_EXCL_DD ?= "OFF"
