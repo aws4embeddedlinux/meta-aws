@@ -4,7 +4,7 @@ LICENSE = "Apache-2.0"
 
 BRANCH = "master"
 SRCREV = "f269fc8d07f2922f49429e1d8bc097d65bb67188"
-SRC_URI = "git://github.com/aws/aws-greengrass-core-sdk-c.git;protocol=https;branch=${BRANCH}"
+SRC_URI = "https://github.com/aws/aws-greengrass-core-sdk-c.git;protocol=https;branch=${BRANCH}"
 
 S = "${WORKDIR}/git"
 
