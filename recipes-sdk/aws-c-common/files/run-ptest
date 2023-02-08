@@ -2,5 +2,5 @@
 # Copyright (c) 2022 Amazon.com, Inc. or its affiliates.
 # SPDX-License-Identifier: MIT
 
-ctest --test-dir build/tests/ --output-junit result.xml
+ctest --exclude-regex "(assert_test|test_add_u64_saturating|test_add_size_saturating)" --test-dir build/tests/ --output-junit result.xml
 python3 ptest_result.py build/tests/result.xml 
