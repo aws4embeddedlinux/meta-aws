@@ -5,7 +5,7 @@ LICENSE = "Apache-2.0"
 
 LIC_FILES_CHKSUM = "file://LICENSE;md5=26d85861cd0c0d05ab56ebff38882975"
 
-DEPENDS += "openssl"
+DEPENDS = "${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)}"
 
 PROVIDES += "aws/s2n"
 
@@ -15,20 +15,27 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "a58b308637e736f7024ad45aed8c63a51a267e6c"
+SRCREV = "0725d3c0bb5bc1383310e19dd94c821a9234d299"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
 
-inherit cmake ptest
+inherit cmake ptest pkgconfig
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
+PACKAGECONFIG ??= "\
+    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
+    "
+
+# enable PACKAGECONFIG = "static" to build static instead of shared libs
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
+
+PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
+
 EXTRA_OECMAKE += "\
-    -DBUILD_TESTING=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=$D/usr \
-    -DBUILD_SHARED_LIBS=ON \
 "
 # Fix "doesn't have GNU_HASH (didn't pass LDFLAGS?)" issue
 TARGET_CC_ARCH += "${LDFLAGS}"
@@ -38,10 +45,11 @@ EXTRA_OECMAKE += "-DUNSAFE_TREAT_WARNINGS_AS_ERRORS=OFF"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
-RDEPENDS:${PN}-ptest += "\
-    aws-c-iot \
-    bash \
-    ldd \
-"
+RDEPENDS:${PN}-ptest += "openssl"
+
+do_install_ptest () {
+   install -d ${D}${PTEST_PATH}/tests
+   cp -r ${B}/bin/* ${D}${PTEST_PATH}/tests/
+}
 
 BBCLASSEXTEND = "native nativesdk"
