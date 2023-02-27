@@ -14,7 +14,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRC_URI[payload.sha256sum] = "197119570dfb65908304fb6c565d6c167c58cef1229c5d0da56e760dfd47c233"
+SRC_URI[payload.sha256sum] = "d7a3d623296cabfb0e301a6d45ebdb5ed25efbbb668abae30992b9f94a61621b"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 SRC_URI[license.md5sum] = "34400b68072d710fecd0a2940a0d1658"
 
