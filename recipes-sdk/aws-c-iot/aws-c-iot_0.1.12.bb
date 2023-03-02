@@ -16,8 +16,8 @@ DEPENDS += "\
     aws-c-s3 \
     aws-checksums \
     aws-crt-cpp \
-    aws-lc \
     s2n \
+    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
     "
 
 PROVIDES += "aws/aws-c-iot"
@@ -33,21 +33,25 @@ SRCREV = "09ded2b5e5bd34bbcf0fd71b5482381cf7f08627"
 
 S = "${WORKDIR}/git"
 
-inherit cmake ptest
+inherit cmake ptest pkgconfig
+
+PACKAGECONFIG ??= "\
+    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
+    "
+
+# enable PACKAGECONFIG = "static" to build static instead of shared libs
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
+
+# CMAKE_CROSSCOMPILING=ON will disable building the tests
+PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
-
-RDEPENDS:${PN} = "\
-    aws-c-common \
-    aws-crt-cpp \
-    "
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DCMAKE_PREFIX_PATH=$D/usr \
     -DCMAKE_INSTALL_PREFIX=$D/usr \
-    -DBUILD_SHARED_LIBS=ON \
 "
 
 do_install_ptest () {
