@@ -8,6 +8,29 @@
 #
 # --- LICENSE
 # +++ LICENSE
+# @@ -25,7 +25,8 @@
+#    27287199
+#    27287880
+#    27287883
+# - 
+# +  263291445
+# +
+#    OpenSSL License
+#    ---------------
+#   
+# 
+#
+
+# FIXME: the LIC_FILES_CHKSUM values have been updated by 'devtool upgrade'.
+# The following is the difference between the old and the new license text.
+# Please update the LICENSE value if needed, and summarize the changes in
+# the commit message via 'License-Update:' tag.
+# (example: 'License-Update: copyright years updated.')
+#
+# The changes:
+#
+# --- LICENSE
+# +++ LICENSE
 # @@ -1,6 +1,6 @@
 # -AWS Lib Crypto is a fork of BoringSSL, which is itself a fork of OpenSSL. New 
 # -files from AWS-LC are made available under an Apache 2.0 license. This license is 
@@ -69,7 +92,7 @@ DESCRIPTION = "AWS-LC is a general-purpose cryptographic library maintained by t
 HOMEPAGE = "https://github.com/awslabs/aws-lc"
 
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=974f12032b1ab549ffe204c158bcdcb2"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=006f3752e7de4899a9fc5a48db9d45a4"
 
 PROVIDES += "aws/lc"
 
@@ -79,7 +102,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "cfbc38bfbd72cfb1a680d0483381b2e93b9a3e73"
+SRCREV = "161e747063dcb16e71d299190f072a26c0a56294"
 
 S = "${WORKDIR}/git"
 
