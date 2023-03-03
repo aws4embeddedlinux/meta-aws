@@ -10,8 +10,8 @@ DEPENDS += "\
     aws-c-common \
     aws-c-compression \
     aws-c-io \
-    aws-lc \
     s2n \
+    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
     "
 
 PROVIDES += "aws/crt-c-http"
@@ -37,7 +37,7 @@ PACKAGECONFIG ??= "\
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
-PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,"
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
