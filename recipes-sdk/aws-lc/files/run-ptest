@@ -1,0 +1,10 @@
+#!/bin/sh
+
+cd tests
+
+rm -rf tests.log
+
+./ssl_test >> tests.log
+
+
+sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: / ; /ERROR/ s/^/FAIL: /' tests.log
