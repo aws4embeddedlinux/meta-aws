@@ -1,15 +1,22 @@
-# -*- mode: Conf; -*-
-SUMMARY = "Open Deep Learning Compiler Stack"
+SUMMARY = "neo-ai-tvm"
+DESCRIPTION = "Open Deep Learning Compiler Stack"
 HOMEPAGE = "https://tvm.ai/"
 LICENSE = "Apache-2.0 & BSD-3-Clause"
 
-LIC_FILES_CHKSUM = "file://LICENSE;md5=f30f7a1bcf7728eb568504d96cee7b09"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=6ec4db95cc43836f5e2ff1d6edaa2284"
 
-BRANCH = "v0.10.0"
+DEPENDS += "\
+    googletest \
+    llvm \
+    llvm-native \
+    zlib \
+    "
+
+BRANCH = "v0.11.0"
 
 SRC_URI = "gitsm://github.com/apache/tvm;protocol=https;branch=${BRANCH}"
 
-SRCREV = "3313c71ab7a0413b359da0adb3a7c5a51d3efe20"
+SRCREV = "cd9193a7ebd40c5662cae73e985a360855101d2a"
 
 # exclude .dev releases
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>\d+\.\d+.\d+)(?<!dev)$"
@@ -18,8 +25,6 @@ S = "${WORKDIR}/git"
 
 inherit setuptools3_legacy cmake python3native
 
-DEPENDS += "zlib llvm llvm-native googletest"
-
 # libbacktrace has cross build problems
 EXTRA_OECMAKE += "-DUSE_LIBBACKTRACE=0"
 
@@ -27,7 +32,7 @@ EXTRA_OECMAKE += "-DUSE_LIBBACKTRACE=0"
 export GTEST_LIB = "${STAGING_LIBDIR}"
 
 do_configure:prepend() {
- ln -sfr ${STAGING_LIBDIR} ${STAGING_LIBDIR}/lib 
+ ln -sfr ${STAGING_LIBDIR} ${STAGING_LIBDIR}/lib
 }
 
 SETUPTOOLS_SETUP_PATH = "${S}/python"
@@ -44,7 +49,7 @@ do_install() {
 }
 
 PACKAGES =+ "${PN}-tests"
-FILES:${PN}-tests = "${datadir}/tvm/cpptest"
+FILES:${PN}-tests += "${datadir}/tvm/cpptest"
 RDEPENDS:${PN}-tests += "${PN} "
 
 # Versioned libs are not produced
