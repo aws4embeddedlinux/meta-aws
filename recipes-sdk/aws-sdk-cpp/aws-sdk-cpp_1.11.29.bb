@@ -5,7 +5,6 @@ LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e"
 
 DEPENDS += "\
-    aws-c-auth \
     aws-crt-cpp \
     curl \
 "
@@ -57,6 +56,8 @@ OECMAKE_CXX_FLAGS += "-Wno-deprecated-declarations"
 # -Wno-maybe-uninitialized is related to this: https://github.com/aws/aws-sdk-cpp/issues/2234
 OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PTEST_ENABLED', '1', '-Wno-maybe-uninitialized', '', d)}"
 
+OECMAKE_CXX_FLAGS += "-Wno-psabi"
+
 EXTRA_OECMAKE += "\
      -DBUILD_DEPS=OFF \
 "
@@ -86,11 +87,11 @@ EXTRA_OECMAKE:append:class-target:arm = " ${LIBS_BUILD_ON_ARM32} "
 # (we can't have spaces in -DBUILD_ONLY, hence the strange formatting)
 LIBS_BUILD_ON_ARM32 = "\
 -DBUILD_ONLY='\
-accessanalyzer;\
 access-management;\
+accessanalyzer;\
 account;\
-acm;\
 acm-pca;\
+acm;\
 alexaforbusiness;\
 amp;\
 amplify;\
@@ -104,8 +105,8 @@ appconfigdata;\
 appflow;\
 appintegrations;\
 application-autoscaling;\
-applicationcostprofiler;\
 application-insights;\
+applicationcostprofiler;\
 appmesh;\
 apprunner;\
 appstream;\
@@ -113,23 +114,23 @@ appsync;\
 arc-zonal-shift;\
 athena;\
 auditmanager;\
-autoscaling;\
 autoscaling-plans;\
+autoscaling;\
 awstransfer;\
-backup;\
 backup-gateway;\
+backup;\
 backupstorage;\
 batch;\
 billingconductor;\
 braket;\
 budgets;\
 ce;\
-chime;\
 chime-sdk-identity;\
 chime-sdk-media-pipelines;\
 chime-sdk-meetings;\
 chime-sdk-messaging;\
 chime-sdk-voice;\
+chime;\
 cloud9;\
 cloudcontrol;\
 clouddirectory;\
@@ -145,12 +146,12 @@ codebuild;\
 codecatalyst;\
 codecommit;\
 codedeploy;\
-codeguruprofiler;\
 codeguru-reviewer;\
+codeguruprofiler;\
 codepipeline;\
-codestar;\
 codestar-connections;\
 codestar-notifications;\
+codestar;\
 cognito-identity;\
 cognito-idp;\
 cognito-sync;\
@@ -158,10 +159,10 @@ comprehend;\
 comprehendmedical;\
 compute-optimizer;\
 config;\
+connect-contact-lens;\
 connect;\
 connectcampaigns;\
 connectcases;\
-connect-contact-lens;\
 connectparticipant;\
 controltower;\
 core;\
@@ -179,21 +180,22 @@ directconnect;\
 discovery;\
 dlm;\
 dms;\
-docdb;\
 docdb-elastic;\
+docdb;\
 drs;\
 ds;\
 dynamodb;\
 dynamodbstreams;\
 ebs;\
-ecr;\
+ec2-instance-connect;\
 ecr-public;\
+ecr;\
 ecs;\
 eks;\
+elastic-inference;\
 elasticache;\
 elasticbeanstalk;\
 elasticfilesystem;\
-elastic-inference;\
 elasticloadbalancing;\
 elasticloadbalancingv2;\
 elasticmapreduce;\
@@ -205,8 +207,8 @@ es;\
 eventbridge;\
 events;\
 evidently;\
-finspace;\
 finspace-data;\
+finspace;\
 firehose;\
 fis;\
 fms;\
@@ -218,6 +220,7 @@ gamelift;\
 gamesparks;\
 glacier;\
 globalaccelerator;\
+glue;\
 grafana;\
 greengrass;\
 greengrassv2;\
@@ -230,19 +233,20 @@ iam;\
 identitystore;\
 imagebuilder;\
 importexport;\
-inspector;\
 inspector2;\
-iot1click-devices;\
-iot1click-projects;\
-iotanalytics;\
+inspector;\
 iot-data;\
-iotdeviceadvisor;\
-iotevents;\
-iotevents-data;\
-iotfleethub;\
-iotfleetwise;\
 iot-jobs-data;\
 iot-roborunner;\
+iot1click-devices;\
+iot1click-projects;\
+iot;\
+iotanalytics;\
+iotdeviceadvisor;\
+iotevents-data;\
+iotevents;\
+iotfleethub;\
+iotfleetwise;\
 iotsecuretunneling;\
 iotsitewise;\
 iotthingsgraph;\
@@ -254,22 +258,23 @@ kafka;\
 kafkaconnect;\
 kendra;\
 keyspaces;\
+kinesis-video-archived-media;\
+kinesis-video-media;\
+kinesis-video-signaling;\
 kinesis;\
 kinesisanalytics;\
 kinesisanalyticsv2;\
 kinesisvideo;\
-kinesis-video-archived-media;\
-kinesis-video-media;\
-kinesis-video-signaling;\
 kms;\
 lakeformation;\
 lambda;\
-lex;\
 lex-models;\
+lex;\
 lexv2-models;\
 lexv2-runtime;\
-license-manager;\
 license-manager-user-subscriptions;\
+license-manager;\
+lightsail;\
 location;\
 logs;\
 lookoutequipment;\
@@ -277,26 +282,26 @@ lookoutmetrics;\
 lookoutvision;\
 m2;\
 machinelearning;\
-macie;\
 macie2;\
+macie;\
 managedblockchain;\
 marketplace-catalog;\
-marketplacecommerceanalytics;\
 marketplace-entitlement;\
+marketplacecommerceanalytics;\
 mediaconnect;\
 mediaconvert;\
 medialive;\
-mediapackage;\
 mediapackage-vod;\
-mediastore;\
+mediapackage;\
 mediastore-data;\
+mediastore;\
 mediatailor;\
 memorydb;\
 meteringmarketplace;\
 mgn;\
+migration-hub-refactor-spaces;\
 migrationhub-config;\
 migrationhuborchestrator;\
-migration-hub-refactor-spaces;\
 migrationhubstrategy;\
 mobile;\
 monitoring;\
@@ -316,58 +321,83 @@ opsworkscm;\
 organizations;\
 outposts;\
 panorama;\
-personalize;\
 personalize-events;\
 personalize-runtime;\
+personalize;\
 pi;\
+pinpoint-email;\
+pinpoint-sms-voice-v2;\
+pinpoint;\
 pipes;\
 polly;\
 pricing;\
 privatenetworks;\
 proton;\
-qldb;\
 qldb-session;\
+qldb;\
 queues;\
+quicksight;\
 ram;\
 rbin;\
+rds-data;\
+rds;\
+redshift-data;\
+redshift-serverless;\
+redshift;\
 rekognition;\
 resiliencehub;\
 resource-explorer-2;\
 resource-groups;\
 resourcegroupstaggingapi;\
+s3-crt;\
+s3;\
+s3control;\
+s3outposts;\
+sagemaker-a2i-runtime;\
+sagemaker-edge;\
+sagemaker-featurestore-runtime;\
+sagemaker-geospatial;\
+sagemaker-metrics;\
+sagemaker-runtime;\
+sagemaker;\
 savingsplans;\
 scheduler;\
 schemas;\
 sdb;\
 secretsmanager;\
+securityhub;\
 securitylake;\
 serverlessrepo;\
-servicecatalog;\
-servicecatalog-appregistry;\
-servicediscovery;\
 service-quotas;\
+servicecatalog-appregistry;\
+servicecatalog;\
+servicediscovery;\
 sesv2;\
 shield;\
 signer;\
 simspaceweaver;\
-sms;\
 sms-voice;\
-snowball;\
+sms;\
 snow-device-management;\
+snowball;\
 sns;\
 sqs;\
-sso;\
+ssm-contacts;\
+ssm-incidents;\
+ssm-sap;\
+ssm;\
 sso-admin;\
 sso-oidc;\
+sso;\
 states;\
 storagegateway;\
 sts;\
-support;\
 support-app;\
+support;\
 swf;\
 synthetics;\
-textract;\
 text-to-speech;\
+textract;\
 timestream-query;\
 timestream-write;\
 transcribe;\
@@ -375,8 +405,8 @@ transcribestreaming;\
 transfer;\
 translate;\
 voice-id;\
-waf;\
 waf-regional;\
+waf;\
 wafv2;\
 wellarchitected;\
 wisdom;\
@@ -384,43 +414,13 @@ workdocs;\
 worklink;\
 workmail;\
 workmailmessageflow;\
-workspaces;\
 workspaces-web;\
+workspaces;\
 xray;'\
 "
 
 ### removed due to build failures with arm32
 ### with arm64 and x86-64 they work
 # ec2;\
-# ec2-instance-connect;\
-# polly-sample;\
-# s3;\
-# s3-crt;\
-# s3control;\
 # s3-encryption;\
-# s3outposts;\
-# ssm;\
-# ssm-contacts;\
-# ssm-incidents;\
-# ssm-sap;\
-# sagemaker;\
-# sagemaker-a2i-runtime;\
-# sagemaker-edge;\
-# sagemaker-featurestore-runtime;\
-# sagemaker-geospatial;\
-# sagemaker-metrics;\
-# sagemaker-runtime;\
-# rds;\
-# rds-data;\
-# securityhub;\
-# quicksight;\
-# iot;\
-# redshift;\
-# redshift-data;\
-# redshift-serverless;\
-# pinpoint;\
-# pinpoint-email;\
-# pinpoint-sms-voice-v2;\
-# glue;\
-# lightsail;\
 # identity-management;\
