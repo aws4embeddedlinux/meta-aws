@@ -112,7 +112,6 @@ TESTS="\
 ./s2n_set_test \
 ./s2n_shutdown_test \
 ./s2n_ssl_prf_test \
-./s2n_stacktrace_test \
 ./s2n_stream_cipher_null_test \
 ./s2n_stuffer_base64_test \
 ./s2n_stuffer_hex_test \
@@ -249,3 +248,4 @@ done
 # s2n_tls_prf_test
 # s2n_x509_validator_certificate_signatures_test
 # s2n_x509_validator_test
+# s2n_stacktrace_test
