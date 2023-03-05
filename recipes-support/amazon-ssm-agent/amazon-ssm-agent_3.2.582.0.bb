@@ -20,7 +20,7 @@ GO_IMPORT = ""
 
 inherit go systemd ptest
 
-SYSTEMD_AUTO_ENABLE = "enabsle"
+SYSTEMD_AUTO_ENABLE = "enable"
 SYSTEMD_SERVICE:${PN} = "amazon-ssm-agent.service"
 
 # src folder will break devtool upgrade
