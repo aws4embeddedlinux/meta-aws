@@ -17,7 +17,6 @@ DEPENDS += "\
         aws-c-s3 \
         aws-c-sdkutils \
         aws-checksums \
-        aws-lc \
         s2n \
         "
 
@@ -27,7 +26,7 @@ SRC_URI = "\
            file://0001-fix-library-suffix.patch \
            file://run-ptest \
            "
-SRCREV = "0d59a202940f4e49a540b4cb7824cd46fa9d115e"
+SRCREV = "c192bbe9c92e161e27ee099a762d94b464ec35be"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
