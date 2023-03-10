@@ -1,4 +1,4 @@
-From 3d4c65a7dcfe3a526def833a6fd98adc13cfdcfa Mon Sep 17 00:00:00 2001
+From 64f39b7bcbd737c1282bca009e8161fe5a7c359b Mon Sep 17 00:00:00 2001
 From: rpcme <rich@richelberger.com>
 Date: Mon, 13 Sep 2021 16:27:00 -0400
 Subject: [PATCH] upgrade support for CRT Python and Device SDK Python v2
@@ -9,14 +9,15 @@ Subject: [PATCH] upgrade support for CRT Python and Device SDK Python v2
 
 diff --git a/setup.py b/setup.py
 index 68c4539..3865539 100644
---- a/setup.py
-+++ b/setup.py
+--- git.orig/setup.py
++++ git/setup.py
 @@ -297,7 +297,7 @@ def awscrt_ext():
      else:  # unix
          # linker will prefer shared libraries over static if it can find both.
          # force linker to choose static variant by using using "-l:libcrypto.a" syntax instead of just "-lcrypto".
 -        libraries = [':lib{}.a'.format(x) for x in libraries]
 +        libraries = [':lib{}.so'.format(x) for x in libraries]
-         libraries += ['rt']
- 
-         # hide the symbols from libcrypto.a
+         # OpenBSD doesn't have librt; functions are found in libc instead.
+         if not sys.platform.startswith('openbsd'):
+             libraries += ['rt']
+
