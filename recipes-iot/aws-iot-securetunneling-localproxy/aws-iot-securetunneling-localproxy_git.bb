@@ -16,7 +16,8 @@ DEPENDS += "\
 
 BRANCH ?= "main"
 
-SRC_URI = "git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https"
+SRC_URI = "git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https\
+           file://boost-support-any.patch"
 SRCREV = "c9a337567240059a0ea9a5af91868ec775c55e47"
 
 UPSTREAM_CHECK_COMMITS = "1"
