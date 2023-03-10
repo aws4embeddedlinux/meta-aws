@@ -16,7 +16,7 @@ BRANCH = "v0.11.0"
 
 SRC_URI = "gitsm://github.com/apache/tvm;protocol=https;branch=${BRANCH}"
 
-SRCREV = "cd9193a7ebd40c5662cae73e985a360855101d2a"
+SRCREV = "46fae40030b7b371878d3b274bf41de25f31aea1"
 
 # exclude .dev releases
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>\d+\.\d+.\d+)(?<!dev)$"
