@@ -6,26 +6,27 @@ cd tests/
 
 # known good tests
 TESTS="\
-./test/test_appexit.py \
-./test/test_auth.py \
-./test/test_checksums.py \
-./test/test_common.py \
-./test/test_crypto.py \
-./test/test_eventstream.py \
-./test/test_eventstream_rpc.py \
-./test/test_exceptions.py \
-./test/test_http_headers.py \
-./test/test_io.py \
-./test/test_mqtt.py \
-./test/test_mqtt5.py \
-./test/test_proxy.py \
-./test/test_s3.py \
-./test/test_websocket.py \
+test/test_appexit.py \
+test/test_auth.py \
+test/test_checksums.py \
+test/test_common.py \
+test/test_crypto.py \
+test/test_eventstream.py \
+test/test_eventstream_rpc.py \
+test/test_exceptions.py \
+test/test_http_headers.py \
+test/test_io.py \
+test/test_mqtt.py \
+test/test_mqtt5.py \
+test/test_proxy.py \
+test/test_s3.py \
+test/test_websocket.py \
 "
 
 for TEST in $TESTS
 do
-    python3 -v -m unittest $TEST
+    cd tests
+    python3 -m unittest $TEST
     RETVAL=$?
     if [ $RETVAL -eq 0 ] ; then
         echo "PASS: aws-crt-python unittest: $TEST"
