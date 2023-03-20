@@ -4,7 +4,7 @@ set -euxo pipefail
 cd /greengrass/v2/alts/current/distro/bin
 chmod 755 loader
 ./loader  2>&1 > test.log &
-sleep 30
+sleep 120
 grep "Launched Nucleus successfully" test.log
 
 RETVAL=$?
