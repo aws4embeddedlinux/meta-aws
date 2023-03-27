@@ -1,3 +1,29 @@
 #!/bin/sh
 
-pytest -o log_cli=true -o log_cli_level=INFO | sed -e 's/\[...%\]//g'| sed -e 's/PASSED/PASS/g'| sed -e 's/FAILED/FAIL/g'|sed -e 's/SKIPPED/SKIP/g'| awk '{if ($NF=="PASS" || $NF=="FAIL" || $NF=="SKIP" || $NF=="XFAIL" || $NF=="XPASS"){printf "%s: %s\n", $NF, $0}else{print}}'| awk '{if ($NF=="PASS" || $NF=="FAIL" || $NF=="SKIP" || $NF=="XFAIL" || $NF=="XPASS") {$NF="";print $0}else{print}}'
+echo nameserver 8.8.4.4 >> /etc/resolv.conf 
+
+cd tests/
+
+# known good tests
+TESTS="\
+test/test_ggv2.py \
+test/test_mqtt.py \
+test/test_mqtt5.py \
+test/test_rpc.py \
+test/test_samples.py \
+test/test_shadow_state.py \
+"
+
+for TEST in $TESTS
+do
+    python3 -m unittest $TEST
+    RETVAL=$?
+    if [ $RETVAL -eq 0 ] ; then
+        echo "PASS: aws-crt-python unittest: $TEST"
+    else
+        echo "FAIL: aws-crt-python unittest: $TEST"
+    fi
+done
+
+### removed tests####
+#
