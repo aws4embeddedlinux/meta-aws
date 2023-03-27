@@ -6,17 +6,17 @@ cd tests/
 
 # known good tests
 TESTS="\
-./test/test_ggv2.py \
-./test/test_mqtt.py \
-./test/test_mqtt5.py \
-./test/test_rpc.py \
-./test/test_samples.py \
-./test/test_shadow_state.py \
+test/test_ggv2.py \
+test/test_mqtt.py \
+test/test_mqtt5.py \
+test/test_rpc.py \
+test/test_samples.py \
+test/test_shadow_state.py \
 "
 
 for TEST in $TESTS
 do
-    python3 -v -m unittest $TEST
+    python3 -m unittest $TEST
     RETVAL=$?
     if [ $RETVAL -eq 0 ] ; then
         echo "PASS: aws-crt-python unittest: $TEST"
@@ -26,4 +26,4 @@ do
 done
 
 ### removed tests####
-# 
+#
