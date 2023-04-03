@@ -59,18 +59,18 @@ do_install() {
     install -d ${GG_ROOT}/alts/init/distro/conf
     install -d ${GG_ROOT}/alts/init/distro/lib
 
-    install -m 0440 ${WORKDIR}/LICENSE                         ${GG_ROOT}
-    install -m 0640 ${WORKDIR}/greengrassv2-init.yaml          ${GG_ROOT}/config/config.yaml.clean
-    install -m 0640 ${WORKDIR}/bin/greengrass.service.template ${GG_ROOT}/alts/init/distro/bin/greengrass.service.template
-    install -m 0640 ${WORKDIR}/bin/loader                      ${GG_ROOT}/alts/init/distro/bin/loader
-    install -m 0640 ${WORKDIR}/conf/recipe.yaml                ${GG_ROOT}/alts/init/distro/conf/recipe.yaml
-    install -m 0740 ${WORKDIR}/lib/Greengrass.jar              ${GG_ROOT}/alts/init/distro/lib/Greengrass.jar
+    install -m 0440 ${S}/LICENSE                         ${GG_ROOT}
+    install -m 0640 ${S}/greengrassv2-init.yaml          ${GG_ROOT}/config/config.yaml.clean
+    install -m 0640 ${S}/bin/greengrass.service.template ${GG_ROOT}/alts/init/distro/bin/greengrass.service.template
+    install -m 0640 ${S}/bin/loader                      ${GG_ROOT}/alts/init/distro/bin/loader
+    install -m 0640 ${S}/conf/recipe.yaml                ${GG_ROOT}/alts/init/distro/conf/recipe.yaml
+    install -m 0740 ${S}/lib/Greengrass.jar              ${GG_ROOT}/alts/init/distro/lib/Greengrass.jar
 
     ln -s /${GG_BASENAME}/alts/init ${GG_ROOT}/alts/current
 
     # Install systemd service file
     install -d ${D}${systemd_unitdir}/system/
-    install -m 0644 ${WORKDIR}/bin/greengrass.service.template ${D}${systemd_unitdir}/system/greengrass.service
+    install -m 0644 ${S}/bin/greengrass.service.template ${D}${systemd_unitdir}/system/greengrass.service
     sed -i -e "s,REPLACE_WITH_GG_LOADER_FILE,/${GG_BASENAME}/alts/current/distro/bin/loader,g" ${D}${systemd_unitdir}/system/greengrass.service
     sed -i -e "s,REPLACE_WITH_GG_LOADER_PID_FILE,/var/run/greengrass.pid,g" ${D}${systemd_unitdir}/system/greengrass.service
 }
