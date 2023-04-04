@@ -18,7 +18,7 @@ SRC_URI = "\
     file://0002-build-fix-building-without-external-dependencies.patch \
     file://run-ptest"
 
-SRCREV = "e2c2e3e4eb624ba5a21ccfa69d532c785d5f3452"
+SRCREV = "fdae1a7f14e354fa465e1491c49f330b244a34c7"
 
 S = "${WORKDIR}/git"
 
