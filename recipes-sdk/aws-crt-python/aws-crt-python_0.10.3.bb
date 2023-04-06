@@ -5,7 +5,7 @@ LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 BRANCH ?= "main"
-SRC_URI = "https://github.com/awslabs/aws-crt-python.git;branch=${BRANCH}"
+SRC_URI = "git://github.com/awslabs/aws-crt-python.git;branch=${BRANCH}"
 SRCREV = "d020399725065de2999c6743063d7fabf5e0dd9a"
 
 S = "${WORKDIR}/git"

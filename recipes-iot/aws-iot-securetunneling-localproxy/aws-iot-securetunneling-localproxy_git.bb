@@ -9,7 +9,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 DEPENDS += "boost catch2 openssl protobuf protobuf-native zlib"
 
 PV = "1.0+git${SRCPV}"
-SRC_URI = "https://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;protocol=ssh \
+SRC_URI = "git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;protocol=ssh \
            file://0001-patch-dependency-versions.patch"
 SRCREV = "b5bc3d3e250089ace65b55adf1835eab19642e45"
 

@@ -11,8 +11,8 @@ LIC_FILES_CHKSUM = "file://aws-c-auth/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd
 
 BRANCH ?= "main"
 
-SRC_URI = "https://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
-           https://github.com/awslabs/aws-c-auth.git;branch=${BRANCH};destsuffix=${S}/aws-c-auth;name=auth \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
+           git://github.com/awslabs/aws-c-auth.git;branch=${BRANCH};destsuffix=${S}/aws-c-auth;name=auth \
 "
 
 SRCREV_common = "00c91eeb186970d50690ebbdceefdeae5c31fb4c"

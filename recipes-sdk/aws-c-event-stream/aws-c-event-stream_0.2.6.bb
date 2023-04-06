@@ -11,8 +11,8 @@ LIC_FILES_CHKSUM = "file://aws-c-event-stream/LICENSE;md5=3b83ef96387f14655fc854
 
 BRANCH ?= "main"
 
-SRC_URI = "https://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
-           https://github.com/awslabs/aws-c-event-stream.git;branch=${BRANCH};destsuffix=${S}/aws-c-event-stream;name=es \
+SRC_URI = "git://github.com/awslabs/aws-c-common.git;branch=${BRANCH};destsuffix=${S}/aws-c-common;name=common \
+           git://github.com/awslabs/aws-c-event-stream.git;branch=${BRANCH};destsuffix=${S}/aws-c-event-stream;name=es \
 "
 
 SRCREV_common = "00c91eeb186970d50690ebbdceefdeae5c31fb4c"

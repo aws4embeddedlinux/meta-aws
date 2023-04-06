@@ -8,7 +8,7 @@ HOMEPAGE = "https://github.com/aws/aws-greengrass-core-sdk-python"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=d9a734997394df8920646c5a08be0ea7"
 
-SRC_URI = "https://github.com/aws/aws-greengrass-core-sdk-python.git;protocol=https;tag=v${PV}"
+SRC_URI = "git://github.com/aws/aws-greengrass-core-sdk-python.git;protocol=https;tag=v${PV}"
 
 S = "${WORKDIR}/git"
 
