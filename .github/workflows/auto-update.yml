@@ -40,6 +40,7 @@ jobs:
           source poky/oe-init-build-env build
           bitbake-layers add-layer ../meta-openembedded/meta-oe
           bitbake-layers add-layer ../meta-openembedded/meta-python
+          bitbake-layers add-layer ../meta-openembedded/meta-multimedia
           bitbake-layers add-layer ../meta-openembedded/meta-networking
           bitbake-layers add-layer ../meta-aws
           upgrader update --layer-path ../meta-aws

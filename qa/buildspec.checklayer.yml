@@ -30,7 +30,7 @@ phases:
       - sed -i -e "s,DIST,$HOME/dist," -e "s,CODEBUILD_SRC_DIR,${CODEBUILD_SRC_DIR}," $CODEBUILD_SRC_DIR/qa/checklayer/conf/bblayers.conf
       - |
         yocto-check-layer \
-        --dependency $HOME/dist/meta-openembedded/meta-oe $HOME/dist/meta-openembedded/meta-networking $HOME/dist/meta-openembedded/meta-python \
+        --dependency $HOME/dist/meta-openembedded/meta-oe $HOME/dist/meta-openembedded/meta-multimedia $HOME/dist/meta-openembedded/meta-networking $HOME/dist/meta-openembedded/meta-python \
         --output-log ycl-check.log \
         --debug \
         --no-auto \
