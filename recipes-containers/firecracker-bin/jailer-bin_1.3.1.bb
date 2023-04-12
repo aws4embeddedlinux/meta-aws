@@ -1,9 +1,14 @@
-SUMMARY = "Process for starting Firecracker in production scenarios; applies a cgroup/namespace isolation barrier and then drops privileges."
+SUMMARY = "jailer - Binary Distribution"
+DESCRIPTION = "Process for starting Firecracker in production scenarios; applies a cgroup/namespace isolation barrier and then drops privileges."
 HOMEPAGE = "https://firecracker-microvm.github.io/"
-include firecracker-microvm-bin.inc
+require firecracker-microvm-bin.inc
 
-FILES:${PN} = "\
+FILES:${PN} += "\
     ${bindir}/jailer \
+"
+
+RDEPENDS:${PN}-ptest += "\
+    firecracker-bin \
 "
 
 do_install() {
