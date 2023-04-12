@@ -1,8 +1,9 @@
-SUMMARY = "A microvm Virtual Machine Monitor."
+SUMMARY = "firecracker - Binary Distribution"
+DESCRIPTION = "Secure and fast microVMs for serverless computing."
 HOMEPAGE = "https://firecracker-microvm.github.io/"
-include firecracker-microvm-bin.inc
+require firecracker-microvm-bin.inc
 
-FILES:${PN} = "\
+FILES:${PN} += "\
     ${bindir}/firecracker \
 "
 
@@ -11,4 +12,3 @@ do_install() {
 
     install -m 0755 ${S}/release-v${PV}-${TARGET_ARCH}/firecracker-v${PV}-${TARGET_ARCH} ${D}${bindir}/firecracker
 }
-
