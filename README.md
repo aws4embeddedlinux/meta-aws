@@ -28,6 +28,7 @@ Base dependencies:
 
 * core
 * openembedded-layer (meta-oe)
+* multimedia-layer (meta-multimedia)
 * networking-layer (meta-networking)
 * meta-python
 
