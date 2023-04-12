@@ -42,11 +42,6 @@ RDEPENDS:${PN} += "\
     sudo \
     "
 
-# nooelint: oelint.vars.dependsordered
-RDEPENDS:${PN} += "\
-    ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'ntp-systemd', '', d)} \
-    "
-
 do_configure[noexec] = "1"
 do_compile[noexec]   = "1"
 
