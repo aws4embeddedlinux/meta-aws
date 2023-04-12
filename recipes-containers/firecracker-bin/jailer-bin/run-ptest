@@ -1,0 +1,10 @@
+#!/bin/sh
+
+/usr/bin/jailer --id 551e7604-e35c-42b3-b825-416853441234 --exec-file /usr/bin/firecracker --version --uid 123 --gid 100
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: jailer: simple test"
+else
+    echo "FAIL: jailer: simple test"
+fi
