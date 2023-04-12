@@ -1,0 +1,10 @@
+#!/bin/sh
+
+firecracker --version
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: firecracker: simple test"
+else
+    echo "FAIL: firecracker: simple test"
+fi
