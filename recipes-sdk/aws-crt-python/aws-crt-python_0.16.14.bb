@@ -23,7 +23,6 @@ DEPENDS += "\
 BRANCH ?= "main"
 SRC_URI = "\
            git://github.com/awslabs/aws-crt-python.git;protocol=https;branch=${BRANCH} \
-           file://0001-fix-library-suffix.patch \
            file://run-ptest \
            "
 SRCREV = "2fa5fd8e2c6553a6156ade683607f7c6bf7b3e2d"
