@@ -25,6 +25,8 @@ SRC_URI = "\
 
 SRCREV = "b820e2ea3d28c670da2fbc789face742cb949ef1"
 
+UPSTREAM_CHECK_COMMITS = "1"
+
 S = "${WORKDIR}/git"
 
 inherit cmake pkgconfig
