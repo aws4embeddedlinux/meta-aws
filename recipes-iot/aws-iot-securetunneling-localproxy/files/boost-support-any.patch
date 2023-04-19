@@ -1,7 +1,16 @@
-Index: git/CMakeLists.txt
-===================================================================
---- git.orig/CMakeLists.txt
-+++ git/CMakeLists.txt
+From aa17740b66d7a33d9259719cb143c1b97327b202 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Fri, 10 Mar 2023 12:46:05 +0000
+Subject: [PATCH] aws-iot-securetunneling-localproxy: support any boost version
+
+---
+ CMakeLists.txt | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 340e109..38f1af4 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
 @@ -75,8 +75,7 @@ endif(BUILD_TESTS)
  set(Boost_USE_STATIC_LIBS ON)
  set(Boost_USE_DEBUG_RUNTIME OFF)
