@@ -14,7 +14,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-c-sdkutils.git;protocol=https;branch=main \
     file://run-ptest \
     "
-SRCREV = "9de59230f025df2745b098feda3611f9667e5a35"
+SRCREV = "75fa71a861f3185c1a25594a47772c0404eed6fc"
 
 S = "${WORKDIR}/git"
 
