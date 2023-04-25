@@ -3,20 +3,33 @@ DESCRIPTION = "The Greengrass nucleus component provides functionality for devic
 HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-nucleus"
 LICENSE = "Apache-2.0"
 
+FILESEXTRAPATHS:prepend := "${THISDIR}/fleetprovisioning:"
+
 GG_BASENAME = "greengrass/v2"
 GG_ROOT = "${D}/${GG_BASENAME}"
+GGV2_FLEETPROVISIONING_VERSION ?= "latest"
+
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 # nooelint: oelint.vars.downloadfilename,oelint.vars.srcurichecksum:SRC_URI[payload.md5sum]
 SRC_URI = "\
     https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-${PV}.zip;name=payload; \
     https://raw.githubusercontent.com/aws-greengrass/aws-greengrass-nucleus/main/LICENSE;name=license; \
+    https://d2s8p88vqu9w66.cloudfront.net/releases/aws-greengrass-FleetProvisioningByClaim/fleetprovisioningbyclaim-${GGV2_FLEETPROVISIONING_VERSION}.jar; \
     file://greengrassv2-init.yaml \
     file://run-ptest \
+    file://config.yaml.template \
+    file://greengrass.service.diff \
+    file://loader.diff \
+    file://replace_board_id.sh \
+    file://claim.pkey.pem \
+    file://claim.cert.pem \
+    file://claim.root.pem \
     "
 
 SRC_URI[payload.sha256sum] = "61723b60db1ad4a72c22cf8b2c6fbeade98c0c1f13bec2e15f76452eaf792383"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 SRC_URI[license.md5sum] = "34400b68072d710fecd0a2940a0d1658"
+SRC_URI[sha256sum] = "25926c02e0b8b449d2f5fbc1a8320a82106199d0f7f5a35c88be403a3cfe6560"
 
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 
@@ -41,9 +54,11 @@ RDEPENDS:${PN} += "\
     python3-numbers \
     sudo \
     "
+DEPENDS += " gettext-native"
 
 do_configure[noexec] = "1"
 do_compile[noexec]   = "1"
+do_patch[noexec] = "1"
 
 do_install() {
     install -d ${GG_ROOT}/config
@@ -68,6 +83,37 @@ do_install() {
     install -m 0644 ${S}/bin/greengrass.service.template ${D}${systemd_unitdir}/system/greengrass.service
     sed -i -e "s,REPLACE_WITH_GG_LOADER_FILE,/${GG_BASENAME}/alts/current/distro/bin/loader,g" ${D}${systemd_unitdir}/system/greengrass.service
     sed -i -e "s,REPLACE_WITH_GG_LOADER_PID_FILE,/var/run/greengrass.pid,g" ${D}${systemd_unitdir}/system/greengrass.service
+
+    if [ "${FLEETPROVISIONING_ENABLED}" = "1" ]; then
+
+        install -d ${GG_ROOT}/claim-certs
+        install -d ${GG_ROOT}/plugins
+        install -d ${GG_ROOT}/plugins/trusted
+        install -m 0440 ${WORKDIR}/claim.pkey.pem ${GG_ROOT}/claim-certs
+        install -m 0440 ${WORKDIR}/claim.cert.pem ${GG_ROOT}/claim-certs
+        install -m 0440 ${WORKDIR}/claim.root.pem ${GG_ROOT}/claim-certs
+
+        install -m 0740 ${WORKDIR}/fleetprovisioningbyclaim-${GGV2_FLEETPROVISIONING_VERSION}.jar ${GG_ROOT}/plugins/trusted/aws.greengrass.FleetProvisioningByClaim.jar
+
+        install -m 0755 ${WORKDIR}/replace_board_id.sh ${GG_ROOT}/config/
+
+        patch ${GG_ROOT}/alts/init/distro/bin/loader -p1 < ${WORKDIR}/loader.diff
+        patch ${D}${systemd_unitdir}/system/greengrass.service -p1 < ${WORKDIR}/greengrass.service.diff
+
+        install -m 0640 ${WORKDIR}/config.yaml.template ${GG_ROOT}/config/config.yaml
+
+        AWS_DEFAULT_REGION=${GGV2_REGION} \
+        PROXY_USER=ggc_user:ggc_group \
+        IOT_DATA_ENDPOINT=${GGV2_DATA_EP} \
+        IOT_CRED_ENDPOINT=${GGV2_CRED_EP} \
+        TE_ROLE_ALIAS=${GGV2_TES_RALIAS} \
+        CLAIM_CERT_PATH=/${GG_BASENAME}/claim-certs/claim.cert.pem \
+        CLAIM_KEY_PATH=/${GG_BASENAME}/claim-certs/claim.pkey.pem \
+        ROOT_CA_PATH=/${GG_BASENAME}/claim-certs/claim.root.pem \
+        THING_NAME=${GGV2_THING_NAME} \
+        THING_GROUP_NAME=${GGV2_THING_GROUP} \
+        envsubst < ${WORKDIR}/config.yaml.template > ${GG_ROOT}/config/config.yaml
+    fi
 }
 
 CONFFILES:${PN} += "/${GG_BASENAME}/config/config.yaml.clean"
