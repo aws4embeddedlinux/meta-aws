@@ -60,6 +60,35 @@ GGV2_TES_RALIAS  = "GreengrassV2TokenExchangeRoleAlias"
 
 In order to get the information above you can follow the instructions provided here: https://docs.aws.amazon.com/greengrass/v2/developerguide/manual-installation.html
 
+## Using Greengrass Fleet Provisioning
+
+When enabling Fleet provisioning `FLEETPROVISIONING_ENABLED = "1"` it is important to provide claim certificates and place them in the `fleetprovisioning` dir:
+```
+meta-aws
+└── recipes-iot
+    └── aws-iot-greengrass
+        └── fleetprovisioning
+            └── claim.cert.pem
+            └── claim.pkey.pem
+            └── claim.root.pem
+```
+Additionally make sure to provide the configuration through the variables from the local.conf similar to the ones in `greengrass-bin-demo`
+
+```
+GGV2_DATA_EP     = ""
+GGV2_CRED_EP     = ""
+GGV2_REGION      = ""
+GGV2_PKEY        = ""
+GGV2_CERT        = ""
+GGV2_CA          = ""
+GGV2_THING_NAME  = ""
+GGV2_TES_RALIAS  = ""
+```
+with the addition of:
+```
+GGV2_THING_GROUP = ""
+in which the devices will be part of after automatic provisioning.
+```
 
 ## AWS IoT Greengrass V1
 
