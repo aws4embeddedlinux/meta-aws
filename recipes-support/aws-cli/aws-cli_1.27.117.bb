@@ -47,3 +47,7 @@ do_install_ptest() {
         # just install some tests with low memory (less than 4GB) consumption
         cp -rf ${S}/tests/functional/test_args.py ${D}${PTEST_PATH}/tests/
 }
+
+PACKAGES =+ "${PN}-examples"
+
+FILES:${PN}-examples = "${libdir}/${PYTHON_DIR}/site-packages/awscli/examples"
