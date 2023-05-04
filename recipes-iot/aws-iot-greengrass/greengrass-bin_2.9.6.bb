@@ -3,20 +3,24 @@ DESCRIPTION = "The Greengrass nucleus component provides functionality for devic
 HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-nucleus"
 LICENSE = "Apache-2.0"
 
-FILESEXTRAPATHS:prepend := "${THISDIR}/fleetprovisioning:"
-
 GG_BASENAME = "greengrass/v2"
 GG_ROOT = "${D}/${GG_BASENAME}"
 GGV2_FLEETPROVISIONING_VERSION ?= "latest"
 
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
+
+DEPENDS += "gettext-native"
+
 # nooelint: oelint.vars.downloadfilename,oelint.vars.srcurichecksum:SRC_URI[payload.md5sum]
 SRC_URI = "\
     https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-${PV}.zip;name=payload; \
     https://raw.githubusercontent.com/aws-greengrass/aws-greengrass-nucleus/main/LICENSE;name=license; \
-    https://d2s8p88vqu9w66.cloudfront.net/releases/aws-greengrass-FleetProvisioningByClaim/fleetprovisioningbyclaim-${GGV2_FLEETPROVISIONING_VERSION}.jar; \
     file://greengrassv2-init.yaml \
     file://run-ptest \
+    "
+
+SRC_URI:append = " ${@bb.utils.contains('PACKAGECONFIG', 'fleetprovisioning', '\
+    https://d2s8p88vqu9w66.cloudfront.net/releases/aws-greengrass-FleetProvisioningByClaim/fleetprovisioningbyclaim-${GGV2_FLEETPROVISIONING_VERSION}.jar; \
     file://config.yaml.template \
     file://greengrass.service.diff \
     file://loader.diff \
@@ -24,7 +28,7 @@ SRC_URI = "\
     file://claim.pkey.pem \
     file://claim.cert.pem \
     file://claim.root.pem \
-    "
+    ', '', d)}"
 
 SRC_URI[payload.sha256sum] = "61723b60db1ad4a72c22cf8b2c6fbeade98c0c1f13bec2e15f76452eaf792383"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
@@ -39,7 +43,7 @@ GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no',
 
 S = "${WORKDIR}"
 
-inherit systemd useradd ptest
+inherit systemd useradd ptest pkgconfig
 
 FILES:${PN} += "\
     /${GG_BASENAME} \
@@ -54,7 +58,6 @@ RDEPENDS:${PN} += "\
     python3-numbers \
     sudo \
     "
-DEPENDS += " gettext-native"
 
 do_configure[noexec] = "1"
 do_compile[noexec]   = "1"
@@ -84,7 +87,7 @@ do_install() {
     sed -i -e "s,REPLACE_WITH_GG_LOADER_FILE,/${GG_BASENAME}/alts/current/distro/bin/loader,g" ${D}${systemd_unitdir}/system/greengrass.service
     sed -i -e "s,REPLACE_WITH_GG_LOADER_PID_FILE,/var/run/greengrass.pid,g" ${D}${systemd_unitdir}/system/greengrass.service
 
-    if [ "${FLEETPROVISIONING_ENABLED}" = "1" ]; then
+    if ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','true','false',d)}; then
 
         install -d ${GG_ROOT}/claim-certs
         install -d ${GG_ROOT}/plugins
