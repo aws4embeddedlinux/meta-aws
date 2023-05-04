@@ -2,7 +2,6 @@
 
 All new designs should be using AWS IoT Greengrass V2.
 
-See the AWS IoT Greengrass V1 section if you still require V1.
 
 ## AWS IoT Greengrass V2
 
@@ -62,12 +61,13 @@ In order to get the information above you can follow the instructions provided h
 
 ## Using Greengrass Fleet Provisioning
 
-When enabling Fleet provisioning `FLEETPROVISIONING_ENABLED = "1"` it is important to provide claim certificates and place them in the `fleetprovisioning` dir:
+When enabling Fleet provisioning `PACKAGECONFIG:pn-greengrass-bin = "fleetprovisioning"` 
+it is important to provide claim certificates and place them in the `files` dir:
 ```
 meta-aws
 └── recipes-iot
     └── aws-iot-greengrass
-        └── fleetprovisioning
+        └── files
             └── claim.cert.pem
             └── claim.pkey.pem
             └── claim.root.pem
@@ -88,29 +88,4 @@ with the addition of:
 ```
 GGV2_THING_GROUP = ""
 in which the devices will be part of after automatic provisioning.
-```
-
-## AWS IoT Greengrass V1
-
-### Enabling the V1 version.
-
-AWS IoT Greengrass v2 will be used by default. to use AWS IoT
-Greengrass v1, you must override the version number. Configure
-local.conf or your distribution file with the preferred version.
-
-```text
-PREFERRED_VERSION_greengrass = "1.11.0"
-```
-
-### Kernel Dependencies
-
-Greengrass v1 requires specific kernel features which must be opt-in
-according the Yocto Project best practices and achieving layer
-compatibility.
-
-In your local.conf or distribution configuration, set the following
-variable:
-
-```text
-GG_KERNEL_MOD = 1
 ```
