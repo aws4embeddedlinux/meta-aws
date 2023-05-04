@@ -16,15 +16,18 @@ DEPENDS += "\
 
 BRANCH ?= "main"
 
-SRC_URI = "git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https\
-           file://boost-support-any.patch"
+SRC_URI = "\
+  git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https \
+  file://boost-support-any.patch \
+  file://run-ptest \
+  "
 SRCREV = "c9a337567240059a0ea9a5af91868ec775c55e47"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
 S = "${WORKDIR}/git"
 
-inherit cmake
+inherit cmake ptest
 
 do_configure:prepend() {
     sed -i "s/Protobuf_LITE_STATIC_LIBRARY/Protobuf_LITE_LIBRARY/g" ${S}/CMakeLists.txt
@@ -35,10 +38,14 @@ do_configure:prepend() {
 do_install () {
   install -d ${D}${bindir}
   install -m 0755 ${B}/bin/localproxy ${D}${bindir}/localproxy
+}
+
+FILES:${PN} += "${bindir}/localproxy"
+FILES:${PN}-ptest += "${bindir}/localproxytest"
+
+do_install_ptest() {
+  install -d ${D}${bindir}
   install -m 0755 ${B}/bin/localproxytest ${D}${bindir}/localproxytest
 }
 
-PACKAGES =+ "${PN}-tests"
-FILES:${PN} += "${bindir}/localproxy"
-FILES:${PN}-tests += "${bindir}/localproxytest"
-RDEPENDS:${PN}-tests += "${PN}"
+
