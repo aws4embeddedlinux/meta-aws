@@ -1,0 +1,297 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon Machine Image (AMI) vmimport role and relaed buckets
+Metadata:
+  "AWS::CloudFormation::Interface":
+    ParameterGroups:
+      - Label:
+          default: Storage Configuration
+        Parameters:
+          - CreateNewS3Bucket
+          - S3BucketName
+      - Label:
+          default: IAM Roles
+        Parameters:
+          - CreateVMImportRole
+          - VMImportPolicyName
+Parameters:
+  CreateNewS3Bucket:
+    Description: Create new S3 Bucket from where the image files will be imported
+    Type: String
+    Default: "no"
+    AllowedValues:
+      - "yes"
+      - "no"
+    ConstraintDescription: Choose 'yes' to create a new S3 Bucket or 'no' to use an existing bucket.
+  S3BucketName:
+    Description: Name of S3 Bucket where image files are stored before importing
+    Type: String
+    AllowedPattern: "^[a-z][a-z0-9_-]*[a-z0-9]${3,63}"
+    ConstraintDescription: >-
+      Bucket name must be lowercase, contain only letters and numbers, not begin
+      or end with special characters, and be 3-63 characters long
+  CreateVMImportRole:
+    Description: Create a new VM Import Role.
+    Type: String
+    Default: "yes"
+    AllowedValues:
+      - "yes"
+      - "no"
+    ConstraintDescription: >-
+      Choose 'yes' to create a new VM Import Role or 'no' if the role already
+      exists.
+  VMImportPolicyName:
+    Description: Name of policy for the VM Import Role.
+    Type: String
+    Default: vmimport-policy
+Mappings: {}
+Conditions:
+  CreateBucket: !Equals
+    - !Ref CreateNewS3Bucket
+    - "yes"
+  CreateVMImport: !Equals
+    - !Ref CreateVMImportRole
+    - "yes"
+  DontCreateVMImport: !Equals
+    - !Ref CreateVMImportRole
+    - "no"
+Resources:
+  CreateS3Bucket:
+    Type: "AWS::S3::Bucket"
+    Condition: CreateBucket
+    DeletionPolicy: Retain
+    Properties:
+      AccessControl: Private
+      BucketName: !Ref S3BucketName
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'AES256'
+  CreateNewVMImportRole:
+    Type: "AWS::IAM::Role"
+    Condition: CreateVMImport
+    DeletionPolicy: Retain
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: vmie.amazonaws.com
+            Action: "sts:AssumeRole"
+            Condition:
+              StringEquals:
+                "sts:Externalid": vmimport
+      Path: /
+      Policies: []
+      RoleName: vmimport
+  CreatePolicyForNewVMImportRole:
+    Type: "AWS::IAM::Policy"
+    DependsOn: CreateNewVMImportRole
+    Condition: CreateVMImport
+    DeletionPolicy: Retain
+    Properties:
+      PolicyName: !Ref VMImportPolicyName
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - "s3:GetBucketLocation"
+              - "s3:GetObject"
+              - "s3:ListBucket"
+            Resource:
+              - !Join
+                - ""
+                - - "arn:aws:s3:::"
+                  - !Ref S3BucketName
+              - !Join
+                - ""
+                - - "arn:aws:s3:::"
+                  - !Ref S3BucketName
+                  - "/*"
+          - Effect: Allow
+            Action:
+              - "ec2:ModifySnapshotAttribute"
+              - "ec2:CopySnapshot"
+              - "ec2:RegisterImage"
+              - "ec2:Describe*"
+            Resource: "*"
+      Roles:
+        - vmimport
+  CreatePolicyForExistingVMImportRole:
+    Type: "AWS::IAM::Policy"
+    Condition: DontCreateVMImport
+    DeletionPolicy: Retain
+    Properties:
+      PolicyName: !Ref VMImportPolicyName
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - "s3:GetBucketLocation"
+              - "s3:GetObject"
+              - "s3:ListBucket"
+            Resource:
+              - !Join
+                - ""
+                - - "arn:aws:s3:::"
+                  - !Ref S3BucketName
+              - !Join
+                - ""
+                - - "arn:aws:s3:::"
+                  - !Ref S3BucketName
+                  - "/*"
+          - Effect: Allow
+            Action:
+              - "ec2:ModifySnapshotAttribute"
+              - "ec2:CopySnapshot"
+              - "ec2:RegisterImage"
+              - "ec2:Describe*"
+            Resource: "*"
+      Roles:
+        - vmimport
+
+  CreateVMImporterPolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    DeletionPolicy: Retain
+    Properties:
+      ManagedPolicyName: VMImporter
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: VMImporterSpecificBuckets
+            Effect: Allow
+            Action:
+              - "s3:GetBucketLocation"
+              - "s3:PutObject"
+              - "s3:GetObject"
+            Resource:
+              - !Join
+                - ""
+                - - "arn:aws:s3:::"
+                  - !Ref S3BucketName
+              - !Join
+                - ""
+                - - "arn:aws:s3:::"
+                  - !Ref S3BucketName
+                  - "/*"
+          - Sid: VMImporterTasks
+            Effect: Allow
+            Action:
+              - "ec2:CancelConversionTask"
+              - "ec2:CancelExportTask"
+              - "ec2:CreateImage"
+              - "ec2:CreateInstanceExportTask"
+              - "ec2:CreateTags"
+              - "ec2:DescribeConversionTasks"
+              - "ec2:DescribeExportTasks"
+              - "ec2:DescribeExportImageTasks"
+              - "ec2:DescribeImages"
+              - "ec2:DescribeInstanceStatus"
+              - "ec2:DescribeInstances"
+              - "ec2:DescribeSnapshots"
+              - "ec2:DescribeTags"
+              - "ec2:ExportImage"
+              - "ec2:ImportInstance"
+              - "ec2:ImportVolume"
+              - "ec2:StartInstances"
+              - "ec2:StopInstances"
+              - "ec2:TerminateInstances"
+              - "ec2:ImportImage"
+              - "ec2:RegisterImage"
+              - "ec2:DeregisterImage"
+              - "ec2:ImportSnapshot"
+              - "ec2:DescribeImportImageTasks"
+              - "ec2:DescribeImportSnapshotTasks"
+              - "ec2:CancelImportTask"
+            Resource: "*"
+
+  VMBuilderEC2Role: 
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "ec2.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AWSCodeCommitPowerUser"
+        - "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      Policies: 
+        - PolicyName: VMImporter
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: VMImporterSpecificBuckets
+                Effect: Allow
+                Action:
+                  - "s3:GetBucketLocation"
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                Resource:
+                  - !Join
+                    - ""
+                    - - "arn:aws:s3:::"
+                      - !Ref S3BucketName
+                  - !Join
+                    - ""
+                    - - "arn:aws:s3:::"
+                      - !Ref S3BucketName
+                      - "/*"
+              - Sid: VMImporterTasks
+                Effect: Allow
+                Action:
+                  - "ec2:CancelConversionTask"
+                  - "ec2:CancelExportTask"
+                  - "ec2:CreateImage"
+                  - "ec2:CreateInstanceExportTask"
+                  - "ec2:CreateTags"
+                  - "ec2:DescribeConversionTasks"
+                  - "ec2:DescribeExportTasks"
+                  - "ec2:DescribeExportImageTasks"
+                  - "ec2:DescribeImages"
+                  - "ec2:DescribeInstanceStatus"
+                  - "ec2:DescribeInstances"
+                  - "ec2:DescribeSnapshots"
+                  - "ec2:DescribeTags"
+                  - "ec2:ExportImage"
+                  - "ec2:ImportInstance"
+                  - "ec2:ImportVolume"
+                  - "ec2:StartInstances"
+                  - "ec2:StopInstances"
+                  - "ec2:TerminateInstances"
+                  - "ec2:ImportImage"
+                  - "ec2:RegisterImage"
+                  - "ec2:ImportSnapshot"
+                  - "ec2:DescribeImportImageTasks"
+                  - "ec2:DescribeImportSnapshotTasks"
+                  - "ec2:CancelImportTask"
+                Resource: "*"
+  VMBuilderEC2Profile: 
+    Type: "AWS::IAM::InstanceProfile"
+    Properties: 
+      Path: "/"
+      Roles: 
+        - Ref: "VMBuilderEC2Role"
+
+Outputs:
+  AWSBucketName:
+    Description: The S3 Bucket name.
+    Value: !Ref S3BucketName
+  Region:
+    Description: The AWS Region that the resources were created in.
+    Value: !Ref "AWS::Region"
+  EC2InstanceProfile:
+    Description: The EC2 Instance profile to use in the Builder instance
+    Value: !Ref VMBuilderEC2Profile
