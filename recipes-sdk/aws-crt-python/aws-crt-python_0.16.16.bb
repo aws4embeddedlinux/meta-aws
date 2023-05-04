@@ -21,11 +21,13 @@ DEPENDS += "\
         "
 
 BRANCH ?= "main"
+# nooelint: oelint.file.patchsignedoff
 SRC_URI = "\
            git://github.com/awslabs/aws-crt-python.git;protocol=https;branch=${BRANCH} \
+           file://fix-shared-linking.patch \
            file://run-ptest \
            "
-SRCREV = "80a1f21474096f6b54698a483ffe9b024ee43a3c"
+SRCREV = "11eb2a45de915623344754a2f3bfdc2197dc5e62"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
