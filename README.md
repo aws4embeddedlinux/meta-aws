@@ -32,6 +32,10 @@ Base dependencies:
 * networking-layer (meta-networking)
 * meta-python
 
+Dynamic additional dependencies:
+
+* virtualization-layer (meta-virtualization) for the [EC2 AMI creation feature](scripts/ec2-ami/README.md)
+
 ### Supported recipes for services, software, and SDKs
 
 These are the currently supported services, software, and SDKs you can use to build AWS solutions with many types of devices when building your distribution with the Yocto Project.
