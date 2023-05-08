@@ -1,4 +1,4 @@
-# The meta-aws-ewaol repository
+# The EC2 AMI generation feature
 The AWS EC2 AMI feature was taken from [meta-aws-ewaol](https://github.com/aws4embeddedlinux/meta-aws-ewaol). And turned into a more generic solution that will allow you by simple adding those lines to your local.conf to build an AWS EC2 AMI image that can be uploaded with a simple included script to your AWS account.
 
 ```
