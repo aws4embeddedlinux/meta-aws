@@ -6,9 +6,11 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=3eb31626add6ada64ff9ac772bd3c653"
 
 DEPENDS = "\
     aws-iot-device-sdk-cpp-v2 \
-    googletest \
     openssl \
     "
+# disabled googletest because of: https://github.com/awslabs/aws-iot-device-client/issues/404
+# use a older and build by this package version, will be downloaded in the do_configure step
+do_configure[network] = "1"
 
 PROVIDES = "aws/aws-iot-device-client"
 
@@ -26,7 +28,8 @@ SRCREV = "bb7ff67e6fc1e307ac55163c82770f411b77462e"
 
 S = "${WORKDIR}/git"
 
-inherit cmake ptest systemd
+inherit cmake systemd 
+# disabled ptest because of: https://github.com/awslabs/aws-iot-device-client/issues/404
 
 do_compile_ptest()  {
     cmake_runcmake_build --target test-aws-iot-device-client
@@ -46,7 +49,7 @@ do_install() {
 
 EXTRA_OECMAKE += "\
     -DBUILD_SDK=OFF \
-    -DBUILD_TEST_DEPS=OFF \
+    -DBUILD_TEST_DEPS=ON \
     -DBUILD_TESTING=OFF \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_VERBOSE_MAKEFILE=ON \
@@ -70,7 +73,7 @@ PACKAGECONFIG[dsn] = "-DEXCLUDE_SAMPLE_SHADOW=OFF,-DEXCLUDE_SAMPLE_SHADOW=ON,,"
 
 FILES:${PN} += "${base_sbindir}/sbin/aws-iot-device-client"
 FILES:${PN} += "${systemd_system_unitdir}/aws-iot-device-client.service"
-FILES:${PN} += "${sysconfdir}/aws-iot-device-client.json"
+FILES:${PN} += "${sysconfdir}/aws-iot-device-client.json"do_configure[network] = "1"
 
 RDEPENDS:${PN} = "\
     aws-iot-device-sdk-cpp-v2 \
