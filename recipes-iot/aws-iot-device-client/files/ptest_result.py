@@ -13,5 +13,5 @@ with open (sys.argv[1], 'rb') as json_file:
         for testsuite in data['testsuites']:
             for test in testsuite['testsuite']:
                 testname = test['name']
-                result = 'PASS' if not 'failures' in test else 'FAIL'
+                result = 'PASS: ' if not 'failures' in test else 'FAIL: '
                 print(f"{result} {test['name']}")
