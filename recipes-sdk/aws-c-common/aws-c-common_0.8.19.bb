@@ -15,6 +15,9 @@ SRC_URI = "\
 "
 SRCREV = "fda2104107ec4c189e154a062b71fb9b3c296856"
 
+# will match only x.x.x for auto upgrades, because: https://github.com/awslabs/aws-c-common/issues/1025
+UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>\d\.\d+(\.\d+)+)"
+
 S = "${WORKDIR}/git"
 
 inherit cmake ptest
