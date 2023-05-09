@@ -10,7 +10,7 @@ jobs:
   cherry_pick:
     strategy:
       matrix:
-        branch: [kirkstone, dunfell, langdale]
+        branch: [kirkstone, dunfell, mickledore]
     runs-on: ubuntu-22.04
     name: Cherry pick into release branches
     if: |
