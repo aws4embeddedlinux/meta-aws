@@ -1,7 +1,16 @@
-Index: git/setup.py
-===================================================================
---- git.orig/setup.py
-+++ git/setup.py
+From 31755304e95c071d914c188366a185d92058f8b0 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Thu, 4 May 2023 12:31:54 +0000
+Subject: [PATCH] aws-crt-python: upgrade 0.16.15 -> 0.16.16, readd shared
+
+---
+ setup.py | 10 ----------
+ 1 file changed, 10 deletions(-)
+
+diff --git a/setup.py b/setup.py
+index 0d91ed3..d7c6291 100644
+--- a/setup.py
++++ b/setup.py
 @@ -306,16 +306,6 @@ def awscrt_ext():
          extra_link_args += ['-framework', 'Security']
  
