@@ -15,7 +15,9 @@ DEPENDS += "\
 PROVIDES += "aws/amazon-kvs-producer-sdk-c"
 
 BRANCH ?= "master"
-SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-c.git;protocol=https;branch=${BRANCH}"
+SRC_URI = "\
+    git://github.com/awslabs/amazon-kinesis-video-streams-producer-c.git;protocol=https;branch=${BRANCH}\
+    "
 
 # this recipe should be released only together with amazon-kvs-producer-sdk-pic and amazon-kvs-producer-sdk-cpp
 UPSTREAM_VERSION_UNKNOWN = "1"
@@ -27,7 +29,9 @@ SRCREV = "79da5b6d6ad67560cc08530f967e9187a6d1c594"
 
 S = "${WORKDIR}/git"
 
-inherit cmake pkgconfig ptest
+inherit cmake pkgconfig 
+
+# ptest are disabled, cause running tests require a certificate
 
 PACKAGECONFIG ??= "\
      ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
