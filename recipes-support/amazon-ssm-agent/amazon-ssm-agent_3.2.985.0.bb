@@ -7,7 +7,7 @@ LIC_FILES_CHKSUM = "\
     "
 SRC_URI = "git://github.com/aws/amazon-ssm-agent.git;protocol=https;branch=mainline"
 
-SRCREV = "e83d4b550d507a26fac1c4481c3b71547aa8d5a0"
+SRCREV = "c7436dce6a915bcfdf55cf6823476628417b6976"
 
 S = "${WORKDIR}/git"
 
