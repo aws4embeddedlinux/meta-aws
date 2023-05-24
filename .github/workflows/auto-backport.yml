@@ -9,6 +9,7 @@ on:
 jobs:  
   cherry_pick:
     strategy:
+      fail-fast: false
       matrix:
         branch: [kirkstone, dunfell, mickledore]
     runs-on: ubuntu-22.04
