@@ -13,7 +13,7 @@ MACHINE = "aws-ec2-arm64"
 
 1. An AWS account and the necessary IAM rights to create EC2 instances, EBS snapshots, EBS volumes, S3 buckets, and IAM roles and policies.
 1. A VPC with appropriate subnets and routing required to access the build server.
-1. The resources created by deploying the [VMImport CloudFormation Template](scripts/ec2-ami/vmimport-cfn.yml) (roles, policies, S3 bucket for images).
+1. The resources created by deploying the [VMImport CloudFormation Template](vmimport-cfn.yml) (roles, policies, S3 bucket for images).
     1. Take note of the outputs of the stack deployment as they'll be needed in the following steps
 
 ### Build Dependencies
