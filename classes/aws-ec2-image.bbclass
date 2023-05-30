@@ -4,8 +4,7 @@
 
 inherit extrausers
 # Hardening: Locking the root password. Creating the user without password for ssh key-based login only
-# EXTRA_USERS_PARAMS = "usermod -L root; useradd -p '*' user"
-EXTRA_USERS_PARAMS = "useradd -p '*' user"
+EXTRA_USERS_PARAMS = "usermod -L root; useradd -p '*' user"
 
 EXTRA_IMAGE_FEATURES:append = " ssh-server-openssh"
 
