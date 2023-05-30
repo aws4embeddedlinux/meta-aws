@@ -20,6 +20,7 @@ BRANCH ?= "main"
 SRC_URI = "\
   git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https \
   file://boost-support-any.patch \
+  file://gcc13.patch \
   file://run-ptest \
   "
 SRCREV = "b6c31b442fa6d4c930e705d2853efd73dadff169"
