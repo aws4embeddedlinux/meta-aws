@@ -1,0 +1,12 @@
+#!/bin/sh
+
+aws-iot-fleetwise-edge config-0.json 2>&1 > test.log &
+sleep 30
+grep "AWS API ShutDown Completed" test.log
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: aws-iot-fleetwise startup test"
+else
+    echo "FAIL: aws-iot-fleetwise startup test"
+fi
