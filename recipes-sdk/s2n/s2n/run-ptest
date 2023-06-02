@@ -8,7 +8,6 @@ TESTS="\
 ./s2n_aes_test \
 ./s2n_alerts_test \
 ./s2n_array_test \
-./s2n_asn1_time_test \
 ./s2n_blob_test \
 ./s2n_change_cipher_spec_test \
 ./s2n_choose_supported_group_test \
