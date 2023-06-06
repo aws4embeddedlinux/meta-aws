@@ -1,7 +1,5 @@
-#!/bin/bash
+#!/bin/sh
+# Copyright (c) 2022 Amazon.com, Inc. or its affiliates.
+# SPDX-License-Identifier: MIT
 
-rm -f results.log
-
-find tests -executable -type f -exec {} \; >> results.log
-
-sed  -e '/OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: /' results.log
+find tests -executable -type f -exec bash -c '{} --gtest_output=json:result.json > /dev/null ;  python3 ptest_result.py result.json ' \;
