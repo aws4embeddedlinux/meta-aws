@@ -2,7 +2,7 @@
 # Copyright (c) 2022 Amazon.com, Inc. or its affiliates.
 # SPDX-License-Identifier: MIT
 
-cd build/tests/ && ctest --exclude-regex "assert_test|test_add_u64_saturating|test_add_size_saturating|ring_buffer_acquire_up_to_multi_threaded_test|ring_buffer_acquire_multi_threaded_test|test_stack_trace_decoding|test_memtrace_stacks" -j 16
+CTEST_PARALLEL_LEVEL=$(nproc) ctest --exclude-regex "assert_test|test_add_u64_saturating|test_add_size_saturating|ring_buffer_acquire_up_to_multi_threaded_test|ring_buffer_acquire_multi_threaded_test|test_stack_trace_decoding|test_memtrace_stacks" --test-dir build/tests/ --output-junit result.xml
 
 RETVAL=$?
 if [ $RETVAL -eq 0 ] ; then
