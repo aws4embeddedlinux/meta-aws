@@ -16,7 +16,9 @@ PACKAGES_DYNAMIC = "^${PN}-.*"
 SRC_URI = "\
     git://github.com/aws/aws-sdk-cpp.git;protocol=https;branch=main \
     file://0002-build-fix-building-without-external-dependencies.patch \
-    file://run-ptest"
+    file://run-ptest \
+    file://ptest_result.py \
+    "
 
 SRCREV = "ed688d518e1860a24b1614d7e200ff3e984c471c"
 
@@ -74,6 +76,7 @@ RRECOMMENDS:${PN}:class-native = ""
 do_install_ptest () {
     install -d ${D}${PTEST_PATH}/tests
     find ${B}/generated/tests -executable -type f -exec install -m 0755 "{}" ${D}${PTEST_PATH}/tests/ \;
+    install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
 }
 
 # this is related to this bug 
