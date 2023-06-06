@@ -1,24 +1,30 @@
 SUMMARY = "Amazon SSM Agent"
 DESCRIPTION = "An agent to enable remote management of your EC2 instances, on-premises servers, or virtual machines (VMs)."
 HOMEPAGE = "https://github.com/aws/amazon-ssm-agent"
+
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "\
     file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57 \
     "
-SRC_URI = "git://github.com/aws/amazon-ssm-agent.git;protocol=https;branch=mainline"
 
-SRCREV = "e83d4b550d507a26fac1c4481c3b71547aa8d5a0"
+SRC_URI = "\
+    git://github.com/aws/amazon-ssm-agent.git;protocol=https;branch=mainline \
+    file://run-ptest \
+    "
+
+SRCREV = "768015398c24d187a653a4441006d97f4a0c4f1b"
 
 S = "${WORKDIR}/git"
 
 GO_IMPORT = ""
 
-inherit go systemd
+inherit go systemd ptest
 
 SYSTEMD_AUTO_ENABLE = "enable"
 SYSTEMD_SERVICE:${PN} = "amazon-ssm-agent.service"
 
 # src folder will break devtool upgrade
+# nooelint: oelint.task.nopythonprefix
 python go_do_unpack() {
     src_uri = (d.getVar('SRC_URI') or "").split()
     if len(src_uri) == 0:
@@ -36,7 +42,7 @@ python go_do_unpack() {
 
 # src folder will break devtool upgrade
 go_do_configure() {
-# 	 ln -snf ${S}/src ${B}/
+#      ln -snf ${S}/src ${B}/
     ln -snf ${S} ${B}/
 }
 
@@ -82,8 +88,8 @@ do_install () {
 
     # TODO(glimsdal): This is hard coded in the SSM source. We should probably
     # patch the file or override the variable at link time.
-    install -d ${D}/etc/amazon/ssm
-    install -m 644 ${S}/seelog_unix.xml ${D}/etc/amazon/ssm/seelog.xml
+    install -d ${D}${sysconfdir}/amazon/ssm
+    install -m 644 ${S}/seelog_unix.xml ${D}${sysconfdir}/amazon/ssm/seelog.xml
     install -d ${D}${systemd_unitdir}/system/
     install -m 644 ${S}/packaging/linux/amazon-ssm-agent.service ${D}${systemd_unitdir}/system/amazon-ssm-agent.service
 }
