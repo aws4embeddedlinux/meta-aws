@@ -87,5 +87,7 @@ GGV2_TES_RALIAS  = ""
 with the addition of:
 ```
 GGV2_THING_GROUP = ""
-in which the devices will be part of after automatic provisioning.
+in which the devices will be part of after automatic provisioning and
+GGV2_FLEET_PROVISIONING_TEMPLATE_NAME = ""
+
 ```

@@ -110,6 +110,7 @@ do_install() {
         IOT_DATA_ENDPOINT=${GGV2_DATA_EP} \
         IOT_CRED_ENDPOINT=${GGV2_CRED_EP} \
         TE_ROLE_ALIAS=${GGV2_TES_RALIAS} \
+        FLEET_PROVISIONING_TEMPLATE_NAME=${GGV2_FLEET_PROVISIONING_TEMPLATE_NAME} \
         CLAIM_CERT_PATH=/${GG_BASENAME}/claim-certs/claim.cert.pem \
         CLAIM_KEY_PATH=/${GG_BASENAME}/claim-certs/claim.pkey.pem \
         ROOT_CA_PATH=/${GG_BASENAME}/claim-certs/claim.root.pem \

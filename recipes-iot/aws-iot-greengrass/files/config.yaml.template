@@ -12,7 +12,7 @@ services:
       iotDataEndpoint: "${IOT_DATA_ENDPOINT}"
       iotCredentialEndpoint: "${IOT_CRED_ENDPOINT}"
       iotRoleAlias: "${TE_ROLE_ALIAS}"
-      provisioningTemplate: "GreengrassFleetProvisioningTemplate"
+      provisioningTemplate: "${FLEET_PROVISIONING_TEMPLATE_NAME}"
       claimCertificatePath: "${CLAIM_CERT_PATH}"
       claimCertificatePrivateKeyPath: "${CLAIM_KEY_PATH}"
       rootCaPath: "${ROOT_CA_PATH}"
