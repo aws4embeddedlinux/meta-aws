@@ -9,6 +9,7 @@ BRANCH ?= "master"
 SRC_URI = "\
     git://github.com/awslabs/amazon-kinesis-video-streams-pic.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
+    file://ptest_result.py \
     "
 
 # this recipe should be released only together with amazon-kvs-producer-sdk-c and amazon-kvs-producer-sdk-cpp
@@ -58,8 +59,14 @@ FILES:${PN}-dev += "\
     ${libdir}/*.so \
     "
 
+RDEPENDS:${PN}-ptest += "\
+    bash \
+    python3 \
+"
+
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
+   install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
    cp -r ${B}/kvspic_test ${D}${PTEST_PATH}/tests/
 }
 
