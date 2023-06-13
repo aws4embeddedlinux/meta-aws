@@ -1,24 +1,36 @@
+From 53376d0c2e5f2682f99f8531bd276631d664dccb Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Wed, 31 May 2023 14:41:02 +0000
+Subject: [PATCH] aws-iot-fleetwise: add edge agent from gatesgarth
 
 Upstream-Status: Pending -> https://github.com/aws/aws-iot-fleetwise-edge/issues/47
 
+---
+ src/datamanagement/types/include/Geohash.h                       | 1 +
+ .../aws/iotcpp/test/src/AwsIotConnectivityModuleTest.cpp         | 1 +
+ src/platform/linux/logmanagement/include/ConsoleLogger.h         | 1 +
+ src/platform/linux/logmanagement/include/ILogger.h               | 1 +
+ .../linux/persistencymanagement/include/CacheAndPersist.h        | 1 +
+ .../linux/persistencymanagement/include/ICacheAndPersist.h       | 1 +
+ 6 files changed, 6 insertions(+)
 
 diff --git a/src/datamanagement/types/include/Geohash.h b/src/datamanagement/types/include/Geohash.h
-index d9b193a..e9188ba 100644
+index 3578e6c..7917cab 100644
 --- a/src/datamanagement/types/include/Geohash.h
 +++ b/src/datamanagement/types/include/Geohash.h
-@@ -4,6 +4,7 @@
- #pragma once
+@@ -5,6 +5,7 @@
  
+ #include <cstdint>
  #include <string>
 +#include <cstdint>
  
  namespace Aws
  {
 diff --git a/src/offboardconnectivity/implementation/aws/iotcpp/test/src/AwsIotConnectivityModuleTest.cpp b/src/offboardconnectivity/implementation/aws/iotcpp/test/src/AwsIotConnectivityModuleTest.cpp
-index d63e422..67beba1 100644
+index 1d76f65..711aee8 100644
 --- a/src/offboardconnectivity/implementation/aws/iotcpp/test/src/AwsIotConnectivityModuleTest.cpp
 +++ b/src/offboardconnectivity/implementation/aws/iotcpp/test/src/AwsIotConnectivityModuleTest.cpp
-@@ -19,6 +19,7 @@
+@@ -20,6 +20,7 @@
  #include <thread>
  #include <unistd.h>
  #include <vector>
@@ -27,11 +39,11 @@ index d63e422..67beba1 100644
  using namespace Aws::IoTFleetWise::OffboardConnectivityAwsIot;
  using namespace Aws::IoTFleetWise::OffboardConnectivityAwsIot::Testing;
 diff --git a/src/platform/linux/logmanagement/include/ConsoleLogger.h b/src/platform/linux/logmanagement/include/ConsoleLogger.h
-index 7d34335..fcbae9e 100644
+index fcdfdbc..0ffb7fd 100644
 --- a/src/platform/linux/logmanagement/include/ConsoleLogger.h
 +++ b/src/platform/linux/logmanagement/include/ConsoleLogger.h
-@@ -9,6 +9,7 @@
- #include "LogLevel.h"
+@@ -10,6 +10,7 @@
+ #include <cstdint>
  #include <functional>
  #include <string>
 +#include <cstdint>
@@ -39,11 +51,11 @@ index 7d34335..fcbae9e 100644
  namespace Aws
  {
 diff --git a/src/platform/linux/logmanagement/include/ILogger.h b/src/platform/linux/logmanagement/include/ILogger.h
-index a53cf81..ab6d508 100644
+index c75e5e0..20ca69d 100644
 --- a/src/platform/linux/logmanagement/include/ILogger.h
 +++ b/src/platform/linux/logmanagement/include/ILogger.h
-@@ -7,6 +7,7 @@
- #include "LogLevel.h"
+@@ -8,6 +8,7 @@
+ #include <cstdint>
  #include <functional>
  #include <string>
 +#include <cstdint>
@@ -51,10 +63,10 @@ index a53cf81..ab6d508 100644
  namespace Aws
  {
 diff --git a/src/platform/linux/persistencymanagement/include/CacheAndPersist.h b/src/platform/linux/persistencymanagement/include/CacheAndPersist.h
-index a3f0662..0c357fc 100644
+index e919a1f..a61944b 100644
 --- a/src/platform/linux/persistencymanagement/include/CacheAndPersist.h
 +++ b/src/platform/linux/persistencymanagement/include/CacheAndPersist.h
-@@ -8,6 +8,7 @@
+@@ -9,6 +9,7 @@
  #include <map>
  #include <string>
  #include <vector>
@@ -63,12 +75,12 @@ index a3f0662..0c357fc 100644
  // max buffer to be allocated for a read buffer
  // this matches the Max Send Size on the AWS IoT channel
 diff --git a/src/platform/linux/persistencymanagement/include/ICacheAndPersist.h b/src/platform/linux/persistencymanagement/include/ICacheAndPersist.h
-index 506c7c6..405d875 100644
+index 2c2ef6c..aabed22 100644
 --- a/src/platform/linux/persistencymanagement/include/ICacheAndPersist.h
 +++ b/src/platform/linux/persistencymanagement/include/ICacheAndPersist.h
-@@ -6,6 +6,7 @@
- // Includes
+@@ -7,6 +7,7 @@
  
+ #include <cstdint>
  #include <string>
 +#include <cstdint>
  
