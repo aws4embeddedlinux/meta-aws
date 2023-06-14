@@ -1,0 +1,10 @@
+--- greengrass.service
++++ greengrass.service
+@@ -8,6 +8,7 @@
+ RemainAfterExit=no
+ Restart=on-failure
+ RestartSec=10
++ExecStartPre=/bin/sh -c "/greengrass/v2/config/replace_board_id.sh /greengrass/v2/config/config.yaml"
+ ExecStart=/bin/sh /greengrass/v2/alts/current/distro/bin/loader
+ 
+ [Install]

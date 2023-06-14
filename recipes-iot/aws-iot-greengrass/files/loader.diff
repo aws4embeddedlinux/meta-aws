@@ -1,0 +1,11 @@
+--- loader
++++ loader
+@@ -29,7 +29,7 @@
+   fi
+ 
+   JVM_OPTIONS="$JVM_OPTIONS -Droot=$GG_ROOT"
+-  OPTIONS="--setup-system-service false"
++  OPTIONS="--setup-system-service false --trusted-plugin $GG_ROOT/plugins/trusted/aws.greengrass.FleetProvisioningByClaim.jar"
+   if [ ! -z "${CONFIG_FILE}" ]; then
+     OPTIONS="$OPTIONS --config $CONFIG_FILE"
+   fi
