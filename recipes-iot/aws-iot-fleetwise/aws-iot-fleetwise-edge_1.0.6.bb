@@ -17,7 +17,6 @@ DEPENDS = "\
 # nooelint: oelint.file.patchsignedoff
 SRC_URI = "\
            git://github.com/aws/aws-iot-fleetwise-edge.git;protocol=https;branch=main \
-           file://GCC13.patch \
            file://run-ptest \
            "
 
