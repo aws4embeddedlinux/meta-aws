@@ -1,0 +1,22 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      awsRegion: "${AWS_DEFAULT_REGION}"
+      runWithDefault:
+        posixUser: "${PROXY_USER}"
+  aws.greengrass.FleetProvisioningByClaim:
+    configuration:
+      rootPath: "/greengrass/v2"
+      awsRegion: "${AWS_DEFAULT_REGION}"
+      iotDataEndpoint: "${IOT_DATA_ENDPOINT}"
+      iotCredentialEndpoint: "${IOT_CRED_ENDPOINT}"
+      iotRoleAlias: "${TE_ROLE_ALIAS}"
+      provisioningTemplate: "GreengrassFleetProvisioningTemplate"
+      claimCertificatePath: "${CLAIM_CERT_PATH}"
+      claimCertificatePrivateKeyPath: "${CLAIM_KEY_PATH}"
+      rootCaPath: "${ROOT_CA_PATH}"
+      templateParameters:
+        ThingName: "${THING_NAME}_<unique>"
+        ThingGroupName: "${THING_GROUP_NAME}"
+---
