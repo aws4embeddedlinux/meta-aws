@@ -1,0 +1,30 @@
+From edc0786273d468a467da6d015d2b949c0346f15a Mon Sep 17 00:00:00 2001
+From: nateglims <glimsdal@amazon.com>
+Date: Tue, 20 Jun 2023 21:10:56 +0000
+Subject: [PATCH] aws-crt-python: remove static library search from setup.py
+
+---
+ setup.py | 10 ----------
+ 1 file changed, 10 deletions(-)
+
+diff --git a/setup.py b/setup.py
+index 0b106b2..d213345 100644
+--- a/setup.py
++++ b/setup.py
+@@ -318,16 +318,6 @@ def awscrt_ext():
+         extra_link_args += ['-framework', 'Security']
+ 
+     else:  # unix
+-        # linker will prefer shared libraries over static if it can find both.
+-        # force linker to choose static variant by using using
+-        # "-l:libaws-c-common.a" syntax instead of just "-laws-c-common".
+-        #
+-        # This helps AWS developers creating Lambda applications from Brazil.
+-        # In Brazil, both shared and static libs are available.
+-        # But Lambda requires all shared libs to be explicitly packaged up.
+-        # So it's simpler to link them in statically and have less runtime dependencies.
+-        libraries = [':lib{}.a'.format(x) for x in libraries]
+-
+         # OpenBSD doesn't have librt; functions are found in libc instead.
+         if not sys.platform.startswith('openbsd'):
+             libraries += ['rt']
