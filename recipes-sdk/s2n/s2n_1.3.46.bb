@@ -1,9 +1,31 @@
+# FIXME: the LIC_FILES_CHKSUM values have been updated by 'devtool upgrade'.
+# The following is the difference between the old and the new license text.
+# Please update the LICENSE value if needed, and summarize the changes in
+# the commit message via 'License-Update:' tag.
+# (example: 'License-Update: copyright years updated.')
+#
+# The changes:
+#
+# --- LICENSE
+# +++ LICENSE
+# @@ -205,7 +205,7 @@
+#  ============================================================================
+#      S2N SUBCOMPONENTS:
+#  
+# -    The s2n Project contains subcomponents with seperate copyright notices
+# +    The s2n Project contains subcomponents with separate copyright notices
+#      and license terms. Your use of the source code for these subcomponents is
+#      subject to the terms and conditions of the following licenses.
+#  
+# 
+#
+
 SUMMARY = "s2n"
 DESCRIPTION = "s2n is a C99 implementation of the TLS/SSL protocols that is designed to be simple, small, fast, and with security as a priority."
 HOMEPAGE = "https://github.com/aws/s2n-tls"
 LICENSE = "Apache-2.0"
 
-LIC_FILES_CHKSUM = "file://LICENSE;md5=26d85861cd0c0d05ab56ebff38882975"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=1423a53b96536406d47f23fa077ac57e"
 
 DEPENDS = "${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)}"
 
@@ -15,7 +37,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "b9c4d60de49193cea31f0acfbddc47cc66d41d2c"
+SRCREV = "e954ee5dc878c5c343d35574e7d07246a1e59314"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
