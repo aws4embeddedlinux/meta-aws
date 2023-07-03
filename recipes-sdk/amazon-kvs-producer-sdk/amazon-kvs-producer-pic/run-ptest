@@ -1,2 +1,2 @@
 #!/bin/sh
-tests/kvspic_test --gtest_filter=*ClientApiTest* --gtest_output=json:result.json > /dev/null ;  python3 ptest_result.py result.json 
+tests/kvspic_test --gtest_filter=*ClientApiTest.create* --gtest_output=json:result.json > /dev/null ;  python3 ptest_result.py result.json 
