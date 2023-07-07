@@ -24,7 +24,7 @@ BRANCH ?= "main"
 SRC_URI = "git://github.com/awslabs/aws-crt-python.git;protocol=https;branch=${BRANCH} \
            file://run-ptest \
            "
-SRCREV = "462596483dc088a66750d95258cddd62ff1d9091"
+SRCREV = "fc7074dc36eb634ccedac5cb0c92a93af71c7d41"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
