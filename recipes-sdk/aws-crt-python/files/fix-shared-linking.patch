@@ -1,7 +1,7 @@
-From edc0786273d468a467da6d015d2b949c0346f15a Mon Sep 17 00:00:00 2001
-From: nateglims <glimsdal@amazon.com>
-Date: Tue, 20 Jun 2023 21:10:56 +0000
-Subject: [PATCH] aws-crt-python: remove static library search from setup.py
+From 582223c42aee0cc850c5b785ecf0f389be3fe020 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Thu, 4 May 2023 12:31:54 +0000
+Subject: [PATCH] aws-crt-python: upgrade 0.16.15 -> 0.16.16, readd shared
 
 ---
  setup.py | 10 ----------
