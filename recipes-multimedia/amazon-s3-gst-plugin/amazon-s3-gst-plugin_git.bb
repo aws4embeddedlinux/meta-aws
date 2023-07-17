@@ -16,7 +16,7 @@ SRC_URI = "\
     file://fix-linking-of-aws-crt-cpp.patch \
     file://run-ptest \
     "
-SRCREV = "b8ecca63791e6a4f9559b47d32132144d2d191ab"
+SRCREV = "e9a3609d4402709e0fb855717ac7fa2df2ef2802"
 
 # this project do not use version tags, use latest commit
 UPSTREAM_CHECK_COMMITS = "1"
