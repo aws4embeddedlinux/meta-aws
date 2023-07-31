@@ -17,7 +17,7 @@ DEPENDS += "\
     aws-checksums \
     aws-crt-cpp \
     s2n \
-    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
+    openssl \
     "
 
 PROVIDES += "aws/aws-c-iot"
