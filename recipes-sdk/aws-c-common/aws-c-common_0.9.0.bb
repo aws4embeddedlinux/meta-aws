@@ -30,6 +30,9 @@ EXTRA_OECMAKE += "\
     -DBUILD_SHARED_LIBS=ON \
 "
 
+# enable PACKAGECONFIG = "static" to build static instead of shared libs
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
+
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
 RDEPENDS:${PN}-ptest += "cmake python3"
