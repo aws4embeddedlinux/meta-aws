@@ -27,8 +27,9 @@ OECMAKE_GENERATOR = "Unix Makefiles"
 EXTRA_OECMAKE += "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', '-DCMAKE_BUILD_TYPE=Debug -DALLOW_CROSS_COMPILED_TESTS=ON', '-DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release', d)} \
     -DCMAKE_INSTALL_PREFIX=$D/usr \
-    -DBUILD_SHARED_LIBS=ON \
 "
+# enable PACKAGECONFIG = "static" to build static instead of shared libs
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
