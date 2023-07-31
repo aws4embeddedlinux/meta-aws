@@ -11,7 +11,7 @@ DEPENDS += "\
     aws-c-compression \
     aws-c-io \
     s2n \
-    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
+    openssl \
     "
 
 PROVIDES += "aws/crt-c-http"
