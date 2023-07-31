@@ -1,0 +1,23 @@
+From aa17740b66d7a33d9259719cb143c1b97327b202 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Fri, 10 Mar 2023 12:46:05 +0000
+Subject: [PATCH] aws-iot-securetunneling-localproxy: support any boost version
+
+---
+ CMakeLists.txt | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 340e109..38f1af4 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -75,8 +75,7 @@ endif(BUILD_TESTS)
+ set(Boost_USE_STATIC_LIBS ON)
+ set(Boost_USE_DEBUG_RUNTIME OFF)
+ #set_property(GLOBAL PROPERTY Boost_USE_MULTITHREADED ON)
+-set(BOOST_PKG_VERSION "1.81.0" CACHE STRING "")
+-find_package(Boost ${BOOST_PKG_VERSION} REQUIRED COMPONENTS system log log_setup thread program_options date_time filesystem chrono)
++find_package(Boost REQUIRED COMPONENTS system log log_setup thread program_options date_time filesystem chrono)
+ include_directories(${Boost_INCLUDE_DIRS})
+ foreach(BOOST_LIB ${Boost_LIBRARIES})
+     string(REPLACE ${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_STATIC_LIBRARY_SUFFIX} BOOST_STATIC_LIB ${BOOST_LIB})

@@ -1,0 +1,54 @@
+From f6ba73eaede61841534623cdb01b69d793124f4b Mon Sep 17 00:00:00 2001
+From: tro <throos@amazon.de>
+Date: Tue, 30 May 2023 12:02:24 +0200
+Subject: [PATCH 1/2] Url.h: #include <cstdint>
+
+Upstream-Status: Pending -> https://github.com/aws-samples/aws-iot-securetunneling-localproxy/pull/136
+
+fix GCC 13 issue "'uint16_t' is defined in header '<cstdint>'; did you forget to '#include <cstdint>'? "
+---
+ src/Url.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/Url.h b/src/Url.h
+index 81fc932..fa084d3 100644
+--- a/src/Url.h
++++ b/src/Url.h
+@@ -3,6 +3,7 @@
+ #pragma once
+ 
+ #include <string>
++#include <cstdint>
+ namespace aws {
+     namespace iot {
+         namespace securedtunneling {
+-- 
+2.34.1
+
+
+From de8779630d14e4f4969c9b171d826acfa847822b Mon Sep 17 00:00:00 2001
+From: tro <throos@amazon.de>
+Date: Tue, 30 May 2023 12:10:36 +0200
+Subject: [PATCH 2/2] ProxySettings.h: add #include <cstdint>
+
+Upstream-Status: Pending -> https://github.com/aws-samples/aws-iot-securetunneling-localproxy/pull/136
+
+---
+ src/ProxySettings.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/ProxySettings.h b/src/ProxySettings.h
+index 9dc4e10..de3098a 100644
+--- a/src/ProxySettings.h
++++ b/src/ProxySettings.h
+@@ -2,6 +2,7 @@
+ // SPDX-License-Identifier: Apache-2.0
+ #pragma once
+ 
++#include <cstdint>
+ #include <boost/property_tree/ptree.hpp>
+ namespace aws { namespace iot { namespace securedtunneling { namespace settings {
+     using boost::property_tree::ptree;
+-- 
+2.34.1
+
