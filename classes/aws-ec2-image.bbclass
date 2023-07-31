@@ -25,4 +25,4 @@ VIRTUAL-RUNTIME_initscripts = "systemd-compat-units"
 VIRTUAL-RUNTIME_login_manager = "shadow-base"
 VIRTUAL-RUNTIME_dev_manager = "systemd"
 
-IMAGE_INSTALL:append = "cloud-init"
+IMAGE_INSTALL:append = " cloud-init"
