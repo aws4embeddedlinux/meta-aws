@@ -1,10 +1,41 @@
+# FIXME: the LIC_FILES_CHKSUM values have been updated by 'devtool upgrade'.
+# The following is the difference between the old and the new license text.
+# Please update the LICENSE value if needed, and summarize the changes in
+# the commit message via 'License-Update:' tag.
+# (example: 'License-Update: copyright years updated.')
+#
+# The changes:
+#
+# --- LICENSE
+# +++ LICENSE
+# @@ -219,7 +219,7 @@
+#  Licenses for support code
+#  -------------------------
+#   
+# -Parts of the TLS test suite are under the Go license. This code is not included
+# +Parts of the TLS test suite are under the Go license (BSD-3-Clause). This code is not included
+#  in BoringSSL (i.e. libcrypto and libssl) when compiled, however, so
+#  distributing code linked against BoringSSL does not trigger this license:
+#   
+# @@ -254,7 +254,7 @@
+#   
+#  BoringSSL uses the Chromium test infrastructure to run a continuous build,
+#  trybots etc. The scripts which manage this, and the script for generating build
+# -metadata, are under the Chromium license. Distributing code linked against
+# +metadata, are under the Chromium license (BSD-3-Clause). Distributing code linked against
+#  BoringSSL does not trigger this license.
+#   
+#  Copyright 2015 The Chromium Authors. All rights reserved.
+# 
+#
+
 SUMMARY = "AWS libcrypto (AWS-LC)"
 DESCRIPTION = "AWS-LC is a general-purpose cryptographic library maintained by the AWS Cryptography team for AWS and their customers. It іs based on code from the Google BoringSSL project and the OpenSSL project."
 
 HOMEPAGE = "https://github.com/awslabs/aws-lc"
 
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=006f3752e7de4899a9fc5a48db9d45a4"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=2c554710bb1c4067a60ae89090fcbc06"
 
 PROVIDES += "aws/lc"
 
@@ -14,7 +45,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "1dd5cf92e96edd4092bc307b14969dae5eaaa507"
+SRCREV = "05fc080291bd694c51394dea0cff62ad5d260832"
 
 S = "${WORKDIR}/git"
 
