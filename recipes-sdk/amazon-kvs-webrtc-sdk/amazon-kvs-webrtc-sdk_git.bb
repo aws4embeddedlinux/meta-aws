@@ -23,7 +23,7 @@ SRC_URI = "\
     git://github.com/awslabs/amazon-kinesis-video-streams-webrtc-sdk-c.git;protocol=https;branch=${BRANCH} \
 "
 
-SRCREV = "b820e2ea3d28c670da2fbc789face742cb949ef1"
+SRCREV = "b2b05c8982beed62e4c589d2890621bf98638153"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
