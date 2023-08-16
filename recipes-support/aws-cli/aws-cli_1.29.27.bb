@@ -9,7 +9,7 @@ SRC_URI = "\
     file://run-ptest \
 "
 
-SRCREV = "b12261c2e5b0eb2b292f3ad7bec6687f6bc730f6"
+SRCREV = "489a0aaf2fd25793fe6e4bd701f24b2ee6a9416c"
 
 # version 2.x has got library link issues - so stick to version 1.x for now
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>1\.\d+(\.\d+)+)"
