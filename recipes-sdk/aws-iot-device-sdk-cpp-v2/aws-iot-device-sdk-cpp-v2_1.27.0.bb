@@ -26,7 +26,6 @@ EXTRA_OECMAKE += "\
     -DBUILD_DEPS=OFF \
     -DBUILD_TESTING=OFF \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=$D/usr \
 "
 
 # Notify that libraries are not versioned

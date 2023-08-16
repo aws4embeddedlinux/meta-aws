@@ -26,7 +26,6 @@ CFLAGS:append = " -Wl,-Bsymbolic"
 OECMAKE_GENERATOR = "Unix Makefiles"
 EXTRA_OECMAKE += "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', '-DCMAKE_BUILD_TYPE=Debug -DALLOW_CROSS_COMPILED_TESTS=ON', '-DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release', d)} \
-    -DCMAKE_INSTALL_PREFIX=$D/usr \
     -DBUILD_SHARED_LIBS=ON \
 "
 

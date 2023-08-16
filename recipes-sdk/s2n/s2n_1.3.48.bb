@@ -57,7 +57,6 @@ PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=$D/usr \
 "
 # Fix "doesn't have GNU_HASH (didn't pass LDFLAGS?)" issue
 TARGET_CC_ARCH += "${LDFLAGS}"
