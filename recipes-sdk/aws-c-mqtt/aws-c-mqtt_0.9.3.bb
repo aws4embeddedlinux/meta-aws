@@ -32,8 +32,7 @@ inherit cmake ptest
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH=$D/usr \
-    -DCMAKE_INSTALL_PREFIX=$D/usr \
+    -DCMAKE_PREFIX_PATH=${STAGING_LIBDIR} \
 "
 
 PACKAGECONFIG ??= "\

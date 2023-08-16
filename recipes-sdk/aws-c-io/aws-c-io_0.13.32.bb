@@ -42,8 +42,7 @@ AWS_C_INSTALL = "$D/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH=$D/usr \
-    -DCMAKE_INSTALL_PREFIX=$D/usr \
+    -DCMAKE_PREFIX_PATH=${STAGING_LIBDIR} \
 "
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests

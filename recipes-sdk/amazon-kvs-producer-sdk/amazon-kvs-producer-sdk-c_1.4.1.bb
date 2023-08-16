@@ -64,7 +64,6 @@ EXTRA_OECMAKE += "\
     -DDEBUG_HEAP=OFF \
     -DALIGNED_MEMORY_MODEL=OFF \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=$D/usr \
 "
 
 # Notify that libraries are not versioned
