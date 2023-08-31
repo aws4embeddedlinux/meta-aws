@@ -14,13 +14,11 @@ PROVIDES += "aws/amazon-kvs-producer-sdk-cpp"
 
 BRANCH ?= "master"
 # nooelint: oelint.file.patchsignedoff
-SRC_URI = "\
-    git://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git;protocol=https;branch=${BRANCH} \
-    file://amazon-kvs-producer-sdk-cpp-deps.patch \
-    file://fix_kvs_gstreamer_sample.patch \
-    "
+SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git;protocol=https;branch=${BRANCH} \
+           file://amazon-kvs-producer-sdk-cpp-deps.patch \
+           "
 
-SRCREV = "70f74f14cf27b09f71dc1889f36eb6e04cdd90a8"
+SRCREV = "072ed19676df183e0f0477184b28051876b6abfb"
 
 S = "${WORKDIR}/git"
 
