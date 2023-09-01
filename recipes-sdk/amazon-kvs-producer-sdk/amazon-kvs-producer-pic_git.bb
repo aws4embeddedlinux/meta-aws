@@ -18,7 +18,7 @@ UPSTREAM_VERSION_UNKNOWN = "1"
 UPSTREAM_CHECK_GITTAGREGEX = "git_invalid_tag_regex"
 # this SRCREV commit id should not different than this:
 # https://github.com/awslabs/amazon-kinesis-video-streams-producer-c/blob/80c74ac9200b58427a8fcb7782a03b1774020983/CMake/Dependencies/libkvspic-CMakeLists.txt#L10
-SRCREV = "c8325887faa3a4a296c4367b281c778be69875b6"
+SRCREV = "d08be2e16303507d21b4cb376aecda98271687ad"
 
 S = "${WORKDIR}/git"
 
