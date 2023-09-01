@@ -1,8 +1,17 @@
-Index: git/CMakeLists.txt
-===================================================================
---- git.orig/CMakeLists.txt
-+++ git/CMakeLists.txt
-@@ -84,6 +84,7 @@ set(BUILD_COMMON_LWS
+From 333f9354e89892873d7f69674bf2501043f12576 Mon Sep 17 00:00:00 2001
+From: rpcme <rich@richelberger.com>
+Date: Sun, 16 Jan 2022 06:00:06 -0500
+Subject: [PATCH] add support for amazon kvs producer sdk cpp
+
+---
+ CMakeLists.txt | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c9b9103..0aa9a67 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -94,6 +94,7 @@ set(BUILD_COMMON_LWS
  set(BUILD_COMMON_CURL
      TRUE
      CACHE BOOL "Build ProducerC with CURL Support" FORCE)
@@ -10,7 +19,7 @@ Index: git/CMakeLists.txt
  set(DEPENDENCY_DOWNLOAD_PATH ${CMAKE_CURRENT_SOURCE_DIR}/dependency)
  if(NOT EXISTS ${DEPENDENCY_DOWNLOAD_PATH})
    file(MAKE_DIRECTORY ${DEPENDENCY_DOWNLOAD_PATH})
-@@ -91,6 +92,8 @@ endif()
+@@ -101,6 +102,8 @@ endif()
  fetch_repo(kvscproducer)
  add_subdirectory(${DEPENDENCY_DOWNLOAD_PATH}/libkvscproducer/kvscproducer-src EXCLUDE_FROM_ALL)
  
