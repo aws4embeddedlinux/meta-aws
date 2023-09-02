@@ -38,19 +38,16 @@ echo TARGET_ARCH=$TARGET_ARCH
 echo IMAGE_ROOTFS_SIZE=$IMAGE_ROOTFS_SIZE
 echo AMI_DISK_SIZE_GB=$AMI_DISK_SIZE_GB
 
-echo "Converting ${IMAGE_NAME}.wic.vhdx to raw format"
-qemu-img convert -f vhdx -O raw ${IMG_DIR}/${IMAGE_NAME}.wic.vhdx ${IMG_DIR}/${IMAGE_NAME}.rootfs.raw
-
-echo "Pushing image ${IMAGE_NAME}.rootfs.raw to s3://${IMPORT_BUCKET_NAME}"
-aws s3 cp ${IMG_DIR}/${IMAGE_NAME}.rootfs.raw s3://${IMPORT_BUCKET_NAME}
+echo "Pushing image ${IMAGE_NAME}.wic.vhdx to s3://${IMPORT_BUCKET_NAME}"
+aws s3 cp ${IMG_DIR}/${IMAGE_NAME}.wic.vhdx s3://${IMPORT_BUCKET_NAME}
 
 cat <<EOF > image-import.json
 {
     "Description": "ewaol docker image",
-    "Format": "raw",
+    "Format": "vhd",
     "UserBucket": {
         "S3Bucket": "${IMPORT_BUCKET_NAME}",
-        "S3Key": "${IMAGE_NAME}.rootfs.raw"
+        "S3Key": "${IMAGE_NAME}.wic.vhdx"
     }
 }
 EOF
