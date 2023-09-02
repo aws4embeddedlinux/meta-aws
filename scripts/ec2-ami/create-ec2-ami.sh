@@ -88,6 +88,7 @@ else
     echo "Architecture not supported"
     exit 1
 fi
+DESCRIPTION=$(echo "DISTRO=$DISTRO;DISTRO_CODENAME=$DISTRO_CODENAME;DISTRO_NAME=$DISTRO_NAME;DISTRO_VERSION=$DISTRO_VERSION;BUILDNAME=$BUILDNAME;TARGET_ARCH=$ARCHITECTURE;IMAGE_NAME=$IMAGE_NAME" | cut -c -255)
 
 cat <<EOF > register-ami.json
 {
@@ -103,7 +104,7 @@ cat <<EOF > register-ami.json
             }
         }
     ],
-    "Description": "DISTRO=$DISTRO;DISTRO_CODENAME=$DISTRO_CODENAME;DISTRO_NAME=$DISTRO_NAME;DISTRO_VERSION=$DISTRO_VERSION;BUILDNAME=$BUILDNAME;TARGET_ARCH=$ARCHITECTURE;IMAGE_NAME=$IMAGE_NAME",
+    "Description": "$DESCRIPTION",
     "RootDeviceName": "/dev/sda1",
     "BootMode": "uefi",
     "VirtualizationType": "hvm",
@@ -111,7 +112,7 @@ cat <<EOF > register-ami.json
 }
 EOF
 
-AMI_NAME="${IMAGE_NAME}-${DISTRO}-${DISTRO_CODENAME}-${DISTRO_VERSION}-${BUILDNAME}-${ARCHITECTURE}"
+AMI_NAME=$(echo "${IMAGE_NAME}-${DISTRO}-${DISTRO_CODENAME}-${DISTRO_VERSION}-${BUILDNAME}-${ARCHITECTURE}" | cut -c -128 | sed -e s/+/-/g)
 IMAGE_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} | jq -r '.Images[].ImageId')
 if [ "$IMAGE_ID" != "" ]; then
     echo "Deregistering existing image $IMAGE_ID"
