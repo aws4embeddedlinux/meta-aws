@@ -19,12 +19,11 @@ BRANCH ?= "main"
 # nooelint: oelint.file.patchsignedoff:Patch
 SRC_URI = "\
     git://github.com/awslabs/aws-iot-device-client.git;protocol=https;branch=${BRANCH} \
-    file://fix_jobs_warning_error.patch \
     file://run-ptest \
     file://ptest_result.py \
     "
 
-SRCREV = "bb7ff67e6fc1e307ac55163c82770f411b77462e"
+SRCREV = "95db8c94d96758f974e88716cc8b2e2bd849a6d2"
 
 S = "${WORKDIR}/git"
 
@@ -55,8 +54,11 @@ EXTRA_OECMAKE += "\
     -DCMAKE_VERBOSE_MAKEFILE=ON \
     -DCMAKE_CXX_FLAGS_RELEASE=-s \
 "
-# enable all modules by default
-PACKAGECONFIG ??= " dsn dsc ds st fp dd pubsub samples jobs "
+
+CXXFLAGS += "-Wno-ignored-attributes"
+
+# enable all modules by default, except st because of: https://github.com/awslabs/aws-iot-device-client/issues/411
+PACKAGECONFIG ??= " dsn dsc ds fp dd pubsub samples jobs "
 
 # enable PACKAGECONFIG = "static" to build static instead of shared
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
