@@ -1,7 +1,16 @@
-Index: git/CMake/Dependencies/libkvsCommonLws-CMakeLists.txt
-===================================================================
---- git.orig/CMake/Dependencies/libkvsCommonLws-CMakeLists.txt
-+++ git/CMake/Dependencies/libkvsCommonLws-CMakeLists.txt
+From 38bfabca177521d7c6bf476592bb05be7da2f413 Mon Sep 17 00:00:00 2001
+From: OpenEmbedded <oe.patch@oe>
+Date: Fri, 1 Sep 2023 00:34:07 +0000
+Subject: [PATCH] amazon-kvs-webrtc-sdk: upgrade git -> new
+
+---
+ .../libkvsCommonLws-CMakeLists.txt            | 36 ++++++++++---------
+ 1 file changed, 19 insertions(+), 17 deletions(-)
+
+diff --git a/CMake/Dependencies/libkvsCommonLws-CMakeLists.txt b/CMake/Dependencies/libkvsCommonLws-CMakeLists.txt
+index b68c3c638..c6bf682fc 100644
+--- a/CMake/Dependencies/libkvsCommonLws-CMakeLists.txt
++++ b/CMake/Dependencies/libkvsCommonLws-CMakeLists.txt
 @@ -4,20 +4,22 @@ project(libkvsCommonLws-download NONE)
  
  include(ExternalProject)
