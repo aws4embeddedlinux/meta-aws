@@ -18,7 +18,7 @@ SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cp
            file://amazon-kvs-producer-sdk-cpp-deps.patch \
            "
 
-SRCREV = "072ed19676df183e0f0477184b28051876b6abfb"
+SRCREV = "8e59b313950d4dbb1ecfb88e2108df87e3331c4e"
 
 S = "${WORKDIR}/git"
 
