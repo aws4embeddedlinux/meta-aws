@@ -1,4 +1,4 @@
-From 333f9354e89892873d7f69674bf2501043f12576 Mon Sep 17 00:00:00 2001
+From 29f76d9358e39561e35f12687efd7f96310c48ef Mon Sep 17 00:00:00 2001
 From: rpcme <rich@richelberger.com>
 Date: Sun, 16 Jan 2022 06:00:06 -0500
 Subject: [PATCH] add support for amazon kvs producer sdk cpp
@@ -8,7 +8,7 @@ Subject: [PATCH] add support for amazon kvs producer sdk cpp
  1 file changed, 3 insertions(+)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index c9b9103..0aa9a67 100644
+index ec001a7..470e069 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -94,6 +94,7 @@ set(BUILD_COMMON_LWS
