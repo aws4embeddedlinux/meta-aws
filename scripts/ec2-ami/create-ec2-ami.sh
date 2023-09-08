@@ -38,8 +38,8 @@ echo TARGET_ARCH=$TARGET_ARCH
 echo IMAGE_ROOTFS_SIZE=$IMAGE_ROOTFS_SIZE
 echo AMI_DISK_SIZE_GB=$AMI_DISK_SIZE_GB
 
-echo "Pushing image ${IMAGE_NAME}.wic.vhdx to s3://${IMPORT_BUCKET_NAME}"
-aws s3 cp ${IMG_DIR}/${IMAGE_NAME}.wic.vhdx s3://${IMPORT_BUCKET_NAME}
+echo "Pushing image ${IMAGE_NAME}.wic.vhd to s3://${IMPORT_BUCKET_NAME}"
+aws s3 cp ${IMG_DIR}/${IMAGE_NAME}.wic.vhd s3://${IMPORT_BUCKET_NAME}
 
 cat <<EOF > image-import.json
 {
@@ -47,7 +47,7 @@ cat <<EOF > image-import.json
     "Format": "vhd",
     "UserBucket": {
         "S3Bucket": "${IMPORT_BUCKET_NAME}",
-        "S3Key": "${IMAGE_NAME}.wic.vhdx"
+        "S3Key": "${IMAGE_NAME}.wic.vhd"
     }
 }
 EOF
