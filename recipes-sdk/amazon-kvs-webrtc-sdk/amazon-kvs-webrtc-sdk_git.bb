@@ -24,7 +24,7 @@ SRC_URI = "\
     file://disable_build_deps.patch \
 "
 
-SRCREV = "3416e6d7c103653162f28accfb06d4d0bee4864e"
+SRCREV = "15e60193456709a3786f7c0f237c49ea7bd9c81f"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
