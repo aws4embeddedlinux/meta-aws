@@ -13,7 +13,7 @@ SRC_URI = "\
     file://run-ptest \
     file://ptest_result.py \
 "
-SRCREV = "0129dc12fc08999cd16f77b0abe61efd1e4a592d"
+SRCREV = "997380c904671f88086847e8dc839bceab3d7821"
 
 # will match only x.x.x for auto upgrades, because: https://github.com/awslabs/aws-c-common/issues/1025
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>\d\.\d+(\.\d+)+)"
@@ -26,7 +26,6 @@ CFLAGS:append = " -Wl,-Bsymbolic"
 OECMAKE_GENERATOR = "Unix Makefiles"
 EXTRA_OECMAKE += "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', '-DCMAKE_BUILD_TYPE=Debug -DALLOW_CROSS_COMPILED_TESTS=ON', '-DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release', d)} \
-    -DCMAKE_INSTALL_PREFIX=$D/usr \
     -DBUILD_SHARED_LIBS=ON \
 "
 
