@@ -5,7 +5,6 @@ LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 DEPENDS += "\
-    amazon-kvs-producer-pic \
     amazon-kvs-producer-sdk-c \
     curl \
     gstreamer1.0 \
@@ -21,16 +20,15 @@ PROVIDES += "aws/amazon-kvs-webrtc-sdk"
 BRANCH = "master"
 SRC_URI = "\
     git://github.com/awslabs/amazon-kinesis-video-streams-webrtc-sdk-c.git;protocol=https;branch=${BRANCH} \
-    file://disable_build_deps.patch \
 "
 
-SRCREV = "3416e6d7c103653162f28accfb06d4d0bee4864e"
-
-UPSTREAM_CHECK_COMMITS = "1"
+SRCREV = "15e60193456709a3786f7c0f237c49ea7bd9c81f"
 
 S = "${WORKDIR}/git"
 
 inherit cmake pkgconfig
+
+do_configure[network] = "1"
 
 FILES:${PN} += "${libdir}"
 
