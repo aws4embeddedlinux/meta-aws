@@ -14,7 +14,9 @@ EXTRA_IMAGE_FEATURES:remove = "debug-tweaks"
 IMAGE_FSTYPES += " wic.vhd"
 DISTRO_FEATURES:append = " systemd"
 DISTRO_FEATURES:append = " virtualization"
-DISTRO_FEATURES:append = " usrmerge"
+
+# this will cause an error with cloud-init on image creation
+# DISTRO_FEATURES:append = " usrmerge"
 
 DISTRO_FEATURES:remove = " sysvinit"
 DISTRO_FEATURES_BACKFILL_CONSIDERED:append = " sysvinit"

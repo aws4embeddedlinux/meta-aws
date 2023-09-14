@@ -17,7 +17,7 @@ MACHINE_NAME=$4
 
 IMG_DIR="build/tmp/deploy/images/${MACHINE_NAME}"
 
-TESTDATA_JSON="${IMG_DIR}/${IMAGE_NAME}-${MACHINE_NAME}.rootfs.testdata.json"
+TESTDATA_JSON="${IMG_DIR}/${IMAGE_NAME}-${MACHINE_NAME}.testdata.json"
 
 DISTRO=$(jq -r '.DISTRO' $TESTDATA_JSON)
 DISTRO_CODENAME=$(jq -r '.DISTRO_CODENAME' $TESTDATA_JSON)
@@ -38,8 +38,8 @@ echo TARGET_ARCH=$TARGET_ARCH
 echo IMAGE_ROOTFS_SIZE=$IMAGE_ROOTFS_SIZE
 echo AMI_DISK_SIZE_GB=$AMI_DISK_SIZE_GB
 
-echo "Pushing image ${IMAGE_NAME}.wic.vhd to s3://${IMPORT_BUCKET_NAME}"
-aws s3 cp ${IMG_DIR}/${IMAGE_NAME}.wic.vhd s3://${IMPORT_BUCKET_NAME}
+echo "Pushing image ${IMAGE_NAME}.rootfs.wic.vhd to s3://${IMPORT_BUCKET_NAME}"
+aws s3 cp ${IMG_DIR}/${IMAGE_NAME}.rootfs.wic.vhd s3://${IMPORT_BUCKET_NAME}
 
 cat <<EOF > image-import.json
 {
@@ -47,7 +47,7 @@ cat <<EOF > image-import.json
     "Format": "vhd",
     "UserBucket": {
         "S3Bucket": "${IMPORT_BUCKET_NAME}",
-        "S3Key": "${IMAGE_NAME}.wic.vhd"
+        "S3Key": "${IMAGE_NAME}.rootfs.wic.vhd"
     }
 }
 EOF
