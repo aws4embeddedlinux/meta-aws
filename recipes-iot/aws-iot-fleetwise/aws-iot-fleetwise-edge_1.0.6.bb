@@ -47,6 +47,13 @@ PERSISTENCY_PATH ?= "/var/aws-iot-fleetwise/"
 TOPIC_PREFIX ?= "\$aws/iotfleetwise/"
 CONNECTION_TYPE ?= "iotCore"
 
+# Non-default parameters needed to be configured
+CERTIFICATE ?= "-----BEGIN-----\nXXXXX\n-----END-----\n"
+PRIVATE_KEY ?= "-----BEGIN-----\nXXXXX\n-----END-----\n"
+VEHICLE_NAME ?= "v1"
+ENDPOINT_URL ?= "xxx.iot.region.amazonaws.com"
+CAN_BUS ?= "vcan0"
+
 do_configure:append() {
 
     # Execute the script with arguments to generate the file
