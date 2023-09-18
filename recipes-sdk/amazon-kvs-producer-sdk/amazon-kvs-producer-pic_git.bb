@@ -22,7 +22,7 @@ SRCREV = "d08be2e16303507d21b4cb376aecda98271687ad"
 
 S = "${WORKDIR}/git"
 
-inherit cmake pkgconfig ptest
+inherit cmake pkgconfig
 
 PACKAGECONFIG ??= "\
      ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
