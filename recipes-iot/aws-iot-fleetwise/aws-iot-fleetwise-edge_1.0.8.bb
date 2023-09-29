@@ -18,11 +18,10 @@ DEPENDS = "\
 # nooelint: oelint.file.patchsignedoff
 SRC_URI = "\
            git://github.com/aws/aws-iot-fleetwise-edge.git;protocol=https;branch=main \
-           file://GCC13.patch \
            file://run-ptest \
            "
 
-SRCREV = "d0c4fad5110b27c22186f5d5b0d1d50512bcd33e"
+SRCREV = "0a882bde6ad75c143f96a89fa88c22932c244e5e"
 
 S = "${WORKDIR}/git"
 
@@ -76,7 +75,7 @@ do_configure:append() {
 
 do_install() {
     install -d ${D}${bindir}
-    install -m 0755 ${B}/src/executionmanagement/aws-iot-fleetwise-edge ${D}${bindir}
+    install -m 0755 ${B}/aws-iot-fleetwise-edge ${D}${bindir}
     install -m 0755 ${S}/tools/deploy/run-fwe.sh ${D}${bindir}
     install -d ${D}${systemd_system_unitdir}
     install -m 0755 ${S}/tools/deploy/fwe@.service ${D}${systemd_system_unitdir}
