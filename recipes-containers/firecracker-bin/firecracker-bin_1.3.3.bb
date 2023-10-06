@@ -44,3 +44,5 @@ do_install() {
     install -m 0755 ${S}/release-v${PV}-${TARGET_ARCH}/firecracker-v${PV}-${TARGET_ARCH} ${D}${bindir}/firecracker
 }
 
+# there are sporadic errors when enable debug split, but no value in this debug information
+INHIBIT_PACKAGE_DEBUG_SPLIT = "1"
