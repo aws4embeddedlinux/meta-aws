@@ -49,3 +49,6 @@ do_install_ptest() {
   install -d ${D}${bindir}
   install -m 0755 ${B}/bin/localproxytest ${D}${bindir}/localproxytest
 }
+
+# fix DSO missing from command line
+LDFLAGS += "-Wl,--copy-dt-needed-entries"
