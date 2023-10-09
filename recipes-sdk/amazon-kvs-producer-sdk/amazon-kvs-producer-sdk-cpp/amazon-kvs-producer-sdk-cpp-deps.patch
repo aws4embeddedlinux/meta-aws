@@ -3,6 +3,8 @@ From: rpcme <rich@richelberger.com>
 Date: Sun, 16 Jan 2022 06:00:06 -0500
 Subject: [PATCH] add support for amazon kvs producer sdk cpp
 
+Upstream-Status: Unknown
+
 ---
  CMakeLists.txt | 3 +++
  1 file changed, 3 insertions(+)

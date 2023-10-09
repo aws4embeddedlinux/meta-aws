@@ -9,6 +9,7 @@ main git repo to fix it.
 
 Signed-off-by: Bartosz Golaszewski <brgl@bgdev.pl>
 
+Upstream-Status: Unknown
 ---
  cmake/AwsFindPackage.cmake | 22 ++++++++++++++++++++++
  1 file changed, 22 insertions(+)
