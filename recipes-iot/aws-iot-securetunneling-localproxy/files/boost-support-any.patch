@@ -3,6 +3,8 @@ From: Thomas Roos <throos@amazon.de>
 Date: Fri, 10 Mar 2023 12:46:05 +0000
 Subject: [PATCH] aws-iot-securetunneling-localproxy: support any boost version
 
+Upstream-Status: Denied [Any version that compile should be good, team does only support a specific version]
+
 ---
  CMakeLists.txt | 3 +--
  1 file changed, 1 insertion(+), 2 deletions(-)
