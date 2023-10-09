@@ -1,0 +1,5 @@
+#!/bin/sh
+
+./webrtc_client_test --gtest_filter=DataChannelApiTest* --gtest_output=json:result.json
+
+python3 ptest_result.py result.json 
