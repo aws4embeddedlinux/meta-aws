@@ -1,4 +1,4 @@
-From 04e9d27675477cc00dcf6993b377425bca11720b Mon Sep 17 00:00:00 2001
+From e28799df491db497ec0ddbbdaa8017151a54e95b Mon Sep 17 00:00:00 2001
 From: Bartosz Golaszewski <brgl@bgdev.pl>
 Date: Mon, 7 Feb 2022 12:23:10 +0100
 Subject: [PATCH] build: fix building without external dependencies
@@ -8,6 +8,8 @@ cmake file is located in one of the external repos. Pull it into the
 main git repo to fix it.
 
 Signed-off-by: Bartosz Golaszewski <brgl@bgdev.pl>
+
+Upstream-Status: Unknown
 
 ---
  cmake/AwsFindPackage.cmake | 22 ++++++++++++++++++++++
