@@ -8,7 +8,7 @@ SRC_URI = "\
         git://github.com/aws/aws-iot-device-sdk-python-v2.git;protocol=https;branch=${BRANCH} \
         file://run-ptest\
         "
-SRCREV = "30d6fb27c9ba5b553d25fda5911d16279960f175"
+SRCREV = "06d680e940a7d32810093751dc649095c8ead131"
 
 S = "${WORKDIR}/git"
 
