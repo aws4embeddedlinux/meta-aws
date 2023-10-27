@@ -23,7 +23,7 @@ SRC_URI = "\
   file://gcc13.patch \
   file://run-ptest \
   "
-SRCREV = "b6c31b442fa6d4c930e705d2853efd73dadff169"
+SRCREV = "d3150e0ebc4ef022939deb1ab43de005254f5751"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
