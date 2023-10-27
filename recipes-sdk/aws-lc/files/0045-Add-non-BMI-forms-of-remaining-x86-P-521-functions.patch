@@ -1,0 +1,612 @@
+From c6c1e69106c3a5feca88aa5b5bdd293b4fab725b Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Wed, 9 Feb 2022 18:35:48 -0800
+Subject: [PATCH] Add non-BMI forms of remaining x86 P-521 functions
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/51d8a97b7dcbd298288717901a40a27f4f68ad32
+---
+ arm/p521/bignum_cmul_p521.S           |   2 +
+ arm/p521/bignum_mod_n521_9.S          |   2 +
+ arm/p521/bignum_triple_p521.S         |   2 +
+ x86_att/p521/bignum_cmul_p521_alt.S   | 201 ++++++++++++++++++++++++++
+ x86_att/p521/bignum_mod_n521_9_alt.S  | 153 ++++++++++++++++++++
+ x86_att/p521/bignum_triple_p521_alt.S | 162 +++++++++++++++++++++
+ 6 files changed, 522 insertions(+)
+ create mode 100644 x86_att/p521/bignum_cmul_p521_alt.S
+ create mode 100644 x86_att/p521/bignum_mod_n521_9_alt.S
+ create mode 100644 x86_att/p521/bignum_triple_p521_alt.S
+
+diff --git a/arm/p521/bignum_cmul_p521.S b/arm/p521/bignum_cmul_p521.S
+index 2da08bae2..697df144c 100644
+--- a/arm/p521/bignum_cmul_p521.S
++++ b/arm/p521/bignum_cmul_p521.S
+@@ -25,6 +25,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_cmul_p521
++        .globl  bignum_cmul_p521_alt
+         .text
+         .balign 4
+ 
+@@ -61,6 +62,7 @@
+ #define dd x15
+ 
+ bignum_cmul_p521:
++bignum_cmul_p521_alt:
+ 
+ // First do the multiply, getting [d9; ...; d0], and as this is done
+ // accumulate an AND "dd" of digits d7,...,d1 for later use
+diff --git a/arm/p521/bignum_mod_n521_9.S b/arm/p521/bignum_mod_n521_9.S
+index 8e3a1b97a..f15ac0cf8 100644
+--- a/arm/p521/bignum_mod_n521_9.S
++++ b/arm/p521/bignum_mod_n521_9.S
+@@ -26,6 +26,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_mod_n521_9
++        .globl  bignum_mod_n521_9_alt
+         .text
+         .balign 4
+ 
+@@ -61,6 +62,7 @@
+                 movk    nn, n3, lsl #48
+ 
+ bignum_mod_n521_9:
++bignum_mod_n521_9_alt:
+ 
+ // Load the top digit first into d8.
+ // The initial quotient estimate is q = h + 1 where x = 2^521 * h + t
+diff --git a/arm/p521/bignum_triple_p521.S b/arm/p521/bignum_triple_p521.S
+index 77bc5860c..835bd7864 100644
+--- a/arm/p521/bignum_triple_p521.S
++++ b/arm/p521/bignum_triple_p521.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_triple_p521
++        .globl  bignum_triple_p521_alt
+         .text
+         .balign 4
+ 
+@@ -45,6 +46,7 @@
+ 
+ 
+ bignum_triple_p521:
++bignum_triple_p521_alt:
+ 
+ // Pick out top bit to wrap to the zero position in the doubling step
+ 
+diff --git a/x86_att/p521/bignum_cmul_p521_alt.S b/x86_att/p521/bignum_cmul_p521_alt.S
+new file mode 100644
+index 000000000..2d54c18eb
+--- /dev/null
++++ b/x86_att/p521/bignum_cmul_p521_alt.S
+@@ -0,0 +1,201 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Multiply by a single word modulo p_521, z := (c * x) mod p_521, assuming
++// x reduced
++// Inputs c, x[9]; output z[9]
++//
++//    extern void bignum_cmul_p521_alt
++//     (uint64_t z[static 9], uint64_t c, uint64_t x[static 9]);
++//
++// Standard x86-64 ABI: RDI = z, RSI = c, RDX = x
++// ----------------------------------------------------------------------------
++
++
++        .globl  bignum_cmul_p521_alt
++        .text
++
++#define z %rdi
++
++// Temporarily moved here for initial multiply
++
++#define x %rcx
++
++// Likewise this is thrown away after initial multiply
++
++#define m %rsi
++
++#define c %rdx
++#define cshort %edx
++
++#define a %rax
++#define d %rdx
++
++#define dd %rax
++
++// Digits: last ones aliased to inputs that are no longer used then
++
++#define d0 %r8
++#define d1 %r9
++#define d2 %r10
++#define d3 %r11
++#define d4 %rbx
++#define d5 %rbp
++#define d6 %r12
++#define d7 %r13
++#define d8 %rcx
++#define d9 %rsi
++
++// Same as d9
++
++#define h d9
++
++bignum_cmul_p521_alt:
++
++// Save additional registers to use
++
++                pushq   %rbx
++                pushq   %rbp
++                pushq   %r12
++                pushq   %r13
++
++// Shuffle inputs (since we want %rdx for the high parts of products)
++
++                movq    %rdx, x
++
++// Multiply as [d9; ...; d0] = c * x.
++
++                movq    (x), a
++                mulq    m
++                movq    a, d0
++                movq    d, d1
++
++                movq    8(x), a
++                mulq    m
++                xorq    d2, d2
++                addq    a, d1
++                adcq    d, d2
++
++                movq    16(x), a
++                mulq    m
++                xorq    d3, d3
++                addq    a, d2
++                adcq    d, d3
++
++                movq    24(x), a
++                mulq    m
++                xorq    d4, d4
++                addq    a, d3
++                adcq    d, d4
++
++                movq    32(x), a
++                mulq    m
++                xorq    d5, d5
++                addq    a, d4
++                adcq    d, d5
++
++                movq    40(x), a
++                mulq    m
++                xorq    d6, d6
++                addq    a, d5
++                adcq    d, d6
++
++                movq    48(x), a
++                mulq    m
++                xorq    d7, d7
++                addq    a, d6
++                adcq    d, d7
++
++                movq    56(x), a
++                mulq    m
++                addq    a, d7
++                movq    64(x), a
++                movq    $0, d8
++                adcq    d, d8
++                mulq    m
++                xorq    d9, d9
++                addq    a, d8
++                adcq    d, d9
++
++// Create an AND "dd" of digits d7,...,d1, a computation we hope will
++// get nicely interleaved with the multiplication chain above, though
++// we can't do so directly as we are using the same register %rax.
++
++                movq    d1, dd
++                andq    d2, dd
++                andq    d3, dd
++                andq    d4, dd
++                andq    d5, dd
++                andq    d6, dd
++                andq    d7, dd
++
++// Extract the high part h==d9 and mask off the low part l = [d8;d7;...;d0]
++// but stuff d8 with 1 bits at the left to ease a comparison below
++
++                shldq   $55, d8, h
++                orq     $~0x1FF, d8
++
++// Decide whether h + l >= p_521 <=> h + l + 1 >= 2^521. Since this can only
++// happen if digits d7,...d1 are all 1s, we use the AND of them "dd" to
++// condense the carry chain, and since we stuffed 1 bits into d8 we get
++// the result in CF without an additional comparison. Hereafter we use c = 0.
++// Since x was assumed reduced, h cannot be maximal, so the "lea" is safe,
++// i.e. does not carry or wrap round.
++
++                leaq    1(h), c
++                addq    d0, c
++                movl    $0, cshort
++                adcq    c, dd
++                movq    d8, a
++                adcq    c, a
++
++// Now if CF is set we want (h + l) - p_521 = (h + l + 1) - 2^521
++// while otherwise we want just h + l. So mask h + l + CF to 521 bits.
++// This masking also gets rid of the stuffing with 1s we did above.
++// Write back the digits as they are generated.
++
++                adcq    h, d0
++                movq    d0, (z)
++                adcq    c, d1
++                movq    d1, 8(z)
++                adcq    c, d2
++                movq    d2, 16(z)
++                adcq    c, d3
++                movq    d3, 24(z)
++                adcq    c, d4
++                movq    d4, 32(z)
++                adcq    c, d5
++                movq    d5, 40(z)
++                adcq    c, d6
++                movq    d6, 48(z)
++                adcq    c, d7
++                movq    d7, 56(z)
++                adcq    c, d8
++                andq    $0x1FF, d8
++                movq    d8, 64(z)
++
++// Restore registers and return
++
++                popq    %r13
++                popq    %r12
++                popq    %rbp
++                popq    %rbx
++
++                ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/x86_att/p521/bignum_mod_n521_9_alt.S b/x86_att/p521/bignum_mod_n521_9_alt.S
+new file mode 100644
+index 000000000..76886d859
+--- /dev/null
++++ b/x86_att/p521/bignum_mod_n521_9_alt.S
+@@ -0,0 +1,153 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Reduce modulo group order, z := x mod n_521
++// Input x[9]; output z[9]
++//
++//    extern void bignum_mod_n521_9_alt
++//      (uint64_t z[static 9], uint64_t x[static 9]);
++//
++// Reduction is modulo the group order of the NIST curve P-521.
++//
++// Standard x86-64 ABI: RDI = z, RSI = x
++// ----------------------------------------------------------------------------
++
++
++        .globl  bignum_mod_n521_9_alt
++        .text
++
++#define z %rdi
++#define x %rsi
++
++#define q %rcx
++#define a %rax
++#define d %rdx
++
++#define c %rcx
++
++#define n0 %r8
++#define n1 %r9
++#define n2 %r10
++#define n3 %r11
++
++#define ashort %eax
++#define cshort %ecx
++#define qshort %edx
++
++bignum_mod_n521_9_alt:
++
++// Load the top digit, putting a bit-stuffed version in output buffer.
++// The initial quotient estimate is q = h + 1 where x = 2^521 * h + t
++// The last add also clears the CF and OF flags ready for the carry chain.
++
++        movq    64(x), q
++        movq    $~0x1FF, a
++        orq     q, a
++        movq    a, 64(z)
++        shrq    $9, q
++        addq    $1, q
++
++// Now load other digits and form r = x - q * n_521 = (q * r_521 + t) - 2^521,
++// which is stored in the output buffer. Thanks to the bit-stuffing at the
++// start, we get r' = (q * r_521 + t) + (2^576 - 2^521) = r + 2^576 as the
++// computed result including the top carry. Hence CF <=> r >= 0, while
++// r' == r (mod 2^521) because things below bit 521 are uncorrupted. We
++// keep the top word in the register c since we at least have that one free.
++
++        movq    $0x449048e16ec79bf7, %rax
++        mulq    q
++        movq    %rax, n0
++        movq    %rdx, n1
++
++        movq    $0xc44a36477663b851, %rax
++        mulq    q
++        xorq    n2, n2
++        addq    %rax, n1
++        adcq    %rdx, n2
++
++        movq    $0x8033feb708f65a2f, %rax
++        mulq    q
++        xorq    n3, n3
++        addq    %rax, n2
++        adcq    %rdx, n3
++
++        movq    $0xae79787c40d06994, %rax
++        mulq    q
++        imulq   $5, q
++        addq    %rax, n3
++        adcq    %rdx, q
++        sbbq    %rdx, %rdx
++        negq    %rdx
++
++// [%rdx;q;n3;n2;n1;n0] = q * r_521
++
++        xorl    %eax, %eax // %rax is used as a zero hereafter
++        addq    (x), n0
++        movq    n0, (z)
++        adcq    8(x), n1
++        movq    n1, 8(z)
++        adcq    16(x), n2
++        movq    n2, 16(z)
++        adcq    24(x), n3
++        movq    n3, 24(z)
++        adcq    32(x), q
++        movq    q, 32(z)
++        adcq    40(x), %rdx
++        movq    %rdx, 40(z)
++        movq    48(x), d
++        adcq    %rax, d
++        movq    d, 48(z)
++        movq    56(x), d
++        adcq    %rax, d
++        movq    d, 56(z)
++        movq    64(z), c
++        adcq    %rax, c
++
++// We already know r < n_521, but if it actually went negative then
++// we need to add back n_521 again. Use d as a bitmask for r < n_521,
++// and just subtract r_521 and mask rather than literally adding 2^521.
++// This also gets rid of the bit-stuffing above.
++
++        cmc
++        sbbq    d, d
++
++        movq    $0x449048e16ec79bf7, n0
++        andq    d, n0
++        movq    $0xc44a36477663b851, n1
++        andq    d, n1
++        movq    $0x8033feb708f65a2f, n2
++        andq    d, n2
++        movq    $0xae79787c40d06994, n3
++        andq    d, n3
++        andq    $5, d
++
++        subq    n0, (z)
++        sbbq    n1, 8(z)
++        sbbq    n2, 16(z)
++        sbbq    n3, 24(z)
++        sbbq    d, 32(z)
++        sbbq    %rax, 40(z)
++        sbbq    %rax, 48(z)
++        sbbq    %rax, 56(z)
++        sbbl    ashort, cshort
++        andl    $0x1FF, cshort
++        movq    c, 64(z)
++
++        ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/x86_att/p521/bignum_triple_p521_alt.S b/x86_att/p521/bignum_triple_p521_alt.S
+new file mode 100644
+index 000000000..42cb4a3d8
+--- /dev/null
++++ b/x86_att/p521/bignum_triple_p521_alt.S
+@@ -0,0 +1,162 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Triple modulo p_521, z := (3 * x) mod p_521, assuming x reduced
++// Input x[9]; output z[9]
++//
++//    extern void bignum_triple_p521_alt
++//     (uint64_t z[static 9], uint64_t x[static 9]);
++//
++// Standard x86-64 ABI: RDI = z, RSI = x
++// ----------------------------------------------------------------------------
++
++
++        .globl  bignum_triple_p521_alt
++        .text
++
++#define z %rdi
++#define x %rsi
++
++// Digits; d8 is safely also used for the multiplier 3
++
++#define d0 %r8
++#define d1 %r9
++#define d2 %r10
++#define d3 %r11
++#define d4 %rbx
++#define d5 %rbp
++#define d6 %r12
++#define d7 %rcx // Also used for multiplier m = 3
++#define d8 %rsi // Overwrites input pointer
++
++// Other variables
++
++#define m %rcx
++#define a %rax
++#define d %rdx
++
++bignum_triple_p521_alt:
++
++// Save additional registers to use
++
++                pushq   %rbx
++                pushq   %rbp
++                pushq   %r12
++
++// Let [d8;...;d0] = x' + x + 1 where x' is a rotation left by 1 bit
++// as a 521-bit quantity. This is == 3 * x + 1 (mod p_521) and keeps
++// in a more limited range so that the correction is easier. Mostly
++// we do just multiply by 3, except that 2 * bit_520 is stuffed in
++// at the bottom instead of the top, so the top two digits are a bit
++// more intricate.
++
++                movq    $3, m
++                movq    64(x), d0
++                shrq    $8, d0
++                incq    d0
++
++                movq    (x), a
++                mulq    m
++                xorq    d1, d1
++                addq    a, d0
++                adcq    d, d1
++
++                movq    8(x), a
++                mulq    m
++                xorq    d2, d2
++                addq    a, d1
++                adcq    d, d2
++
++                movq    16(x), a
++                mulq    m
++                xorq    d3, d3
++                addq    a, d2
++                adcq    d, d3
++
++                movq    24(x), a
++                mulq    m
++                xorq    d4, d4
++                addq    a, d3
++                adcq    d, d4
++
++                movq    32(x), a
++                mulq    m
++                xorq    d5, d5
++                addq    a, d4
++                adcq    d, d5
++
++                movq    40(x), a
++                mulq    m
++                xorq    d6, d6
++                addq    a, d5
++                adcq    d, d6
++
++                movq    48(x), a
++                mulq    m
++                movq    56(x), d7
++                movq    64(x), d8
++                addq    a, d6
++                adcq    $0, d
++
++                movq    $0xFF, a
++                andq    d8, a
++                leaq    (d8,a,2), d8
++
++                xorl    %eax, %eax
++                addq    d7, d
++                adcq    a, d8
++                addq    d7, d7
++                adcq    a, d8
++                addq    d, d7
++                adcq    a, d8
++
++// Now d8 >= 2^9 <=> x' + x + 1 >= 2^521 <=> x' + x >= p_521.
++// If that is the case we want (x' + x) - p_521 = (x' + x + 1) - 2^521
++// while otherwise we want just x' + x = (x' + x + 1) - 1.
++
++                cmpq    $0x200, d8
++
++                sbbq    a, d0
++                movq    d0, (z)
++                sbbq    a, d1
++                movq    d1, 8(z)
++                sbbq    a, d2
++                movq    d2, 16(z)
++                sbbq    a, d3
++                movq    d3, 24(z)
++                sbbq    a, d4
++                movq    d4, 32(z)
++                sbbq    a, d5
++                movq    d5, 40(z)
++                sbbq    a, d6
++                movq    d6, 48(z)
++                sbbq    a, d7
++                movq    d7, 56(z)
++                sbbq    a, d8
++                andq    $0x1FF, d8
++                movq    d8, 64(z)
++
++// Restore registers and return
++
++                popq    %r12
++                popq    %rbp
++                popq    %rbx
++
++                ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif

@@ -1,0 +1,55 @@
+From 52fa7e71a82d9533c2d5742f4ec5f2267212fbda Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 22 Feb 2023 11:48:54 -0500
+Subject: [PATCH] Fix Android tests with new recipe changes
+
+After
+https://chromium-review.googlesource.com/c/chromium/tools/build/+/4277422,
+the old ANDROID_NATIVE_API_LEVEL values are no longer in CMakeCache.txt.
+
+Change-Id: If0c724081ef99bf3bc2e714fe84b6d16925bd116
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57507
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit 92272956a6335e61f99b76b26b9bd677fb9c9706)
+---
+ BUILDING.md               | 2 +-
+ util/run_android_tests.go | 7 ++++---
+ 2 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/BUILDING.md b/BUILDING.md
+index bcd379062..a50c7e56f 100644
+--- a/BUILDING.md
++++ b/BUILDING.md
+@@ -104,8 +104,8 @@ Unpack the Android NDK somewhere and export `ANDROID_NDK` to point to the
+ directory. Then make a build directory as above and run CMake like this:
+ 
+     cmake -DANDROID_ABI=armeabi-v7a \
++          -DANDROID_PLATFORM=android-19 \
+           -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
+-          -DANDROID_NATIVE_API_LEVEL=16 \
+           -GNinja ..
+ 
+ Once you've run that, Ninja should produce Android-compatible binaries.  You
+diff --git a/util/run_android_tests.go b/util/run_android_tests.go
+index 057e346d9..50d9c51eb 100644
+--- a/util/run_android_tests.go
++++ b/util/run_android_tests.go
+@@ -231,13 +231,14 @@ func detectOptionsFromCMake() error {
+ 		fmt.Printf("Detected ABI %q from CMakeCache.txt.\n", *abi)
+ 	}
+ 	if *apiLevel == 0 {
+-		apiLevelStr, ok := cmakeVars["ANDROID_NATIVE_API_LEVEL"]
++		apiLevelStr, ok := cmakeVars["ANDROID_PLATFORM"]
+ 		if !ok {
+-			return errors.New("ANDROID_NATIVE_API_LEVEL not found in CMakeCache.txt")
++			return errors.New("ANDROID_PLATFORM not found in CMakeCache.txt")
+ 		}
++		apiLevelStr = strings.TrimPrefix(apiLevelStr, "android-")
+ 		var err error
+ 		if *apiLevel, err = strconv.Atoi(apiLevelStr); err != nil {
+-			return fmt.Errorf("error parsing ANDROID_NATIVE_API_LEVEL: %s", err)
++			return fmt.Errorf("error parsing ANDROID_PLATFORM: %s", err)
+ 		}
+ 		fmt.Printf("Detected API level %d from CMakeCache.txt.\n", *apiLevel)
+ 	}

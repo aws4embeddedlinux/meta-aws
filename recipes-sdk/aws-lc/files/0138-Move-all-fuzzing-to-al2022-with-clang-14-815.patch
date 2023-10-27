@@ -1,0 +1,392 @@
+From 65c2d882b26391d0d6171bc9d6183dd978aec4d5 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Tue, 21 Feb 2023 16:39:49 -0800
+Subject: [PATCH] Move all fuzzing to al2022 with clang 14 (#815)
+
+---
+ .../codebuild/github_ci_fuzzing_omnibus.yaml  |  16 +++++------
+ .../dependencies/build_cryptofuzz_modules.sh  |   5 ++--
+ .../dependencies/cryptofuzz_data.zip          | Bin 14957 -> 17176 bytes
+ .../amazonlinux-2022_base/Dockerfile          |   2 ++
+ .../Dockerfile                                |  26 ++++++++++--------
+ .../Dockerfile                                |   2 +-
+ .../docker_images/linux-aarch/build_images.sh |   2 +-
+ .../docker_images/linux-aarch/push_images.sh  |   2 +-
+ .../amazonlinux-2022_base/Dockerfile          |   2 ++
+ .../Dockerfile                                |  26 ++++++++++--------
+ .../Dockerfile                                |   2 +-
+ .../docker_images/linux-x86/build_images.sh   |   3 +-
+ .../ci/docker_images/linux-x86/push_images.sh |   2 +-
+ 13 files changed, 51 insertions(+), 39 deletions(-)
+ rename tests/ci/docker_images/{linux-x86/ubuntu-20.04_cryptofuzz => linux-aarch/amazonlinux-2022_clang-14x_cryptofuzz}/Dockerfile (52%)
+ rename tests/ci/docker_images/{linux-aarch/ubuntu-20.04_cryptofuzz => linux-x86/amazonlinux-2022_clang-14x_cryptofuzz}/Dockerfile (52%)
+
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_fuzzing_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_fuzzing_omnibus.yaml
+index 311d74186..f97706431 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_fuzzing_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_fuzzing_omnibus.yaml
+@@ -7,34 +7,34 @@ version: 0.2
+ batch:
+   build-list:
+ 
+-    - identifier: ubuntu2004_clang10_x86_64_fuzz
++    - identifier: al2022_clang14_x86_64_fuzz
+       buildspec: ./tests/ci/codebuild/linux-x86/run_fuzz_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-10x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_clang-14x_sanitizer_latest
+ 
+-    - identifier: ubuntu2004_clang10_arm_fuzz
++    - identifier: al2022_clang14_arm_fuzz
+       buildspec: ./tests/ci/codebuild/linux-x86/run_fuzz_tests.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-10x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_clang-14x_sanitizer_latest
+ 
+-    - identifier: ubuntu2004_clang10_x86_64_cryptofuzz
++    - identifier: al2022_clang14_x86_64_cryptofuzz
+       buildspec: ./tests/ci/codebuild/linux-x86/run_cryptofuzz.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_cryptofuzz_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_clang-14x_cryptofuzz_latest
+ 
+-    - identifier: ubuntu2004_clang10_arm_cryptofuzz
++    - identifier: al2022_clang14_arm_cryptofuzz
+       buildspec: ./tests/ci/codebuild/linux-x86/run_cryptofuzz.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_cryptofuzz_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_clang-14x_cryptofuzz_latest
+diff --git a/tests/ci/docker_images/dependencies/build_cryptofuzz_modules.sh b/tests/ci/docker_images/dependencies/build_cryptofuzz_modules.sh
+index 6544dfea8..f53cd5a6e 100755
+--- a/tests/ci/docker_images/dependencies/build_cryptofuzz_modules.sh
++++ b/tests/ci/docker_images/dependencies/build_cryptofuzz_modules.sh
+@@ -6,8 +6,9 @@ function env {
+   echo "export ${1}=\"${2}\"" >> "${FUZZ_ROOT}/fuzz_env.sh"
+ }
+ # Recommended flags from https://github.com/guidovranken/cryptofuzz/blob/master/docs/building.md
+-export CFLAGS="-fsanitize=address,undefined,fuzzer-no-link -O2 -g"
+-export CXXFLAGS="-fsanitize=address,undefined,fuzzer-no-link -D_GLIBCXX_DEBUG -O2 -g"
++# Remove-fsanitize=undefined which doesn't fail the build but creates additional noise in build output
++export CFLAGS="-fsanitize=address,fuzzer-no-link -O2 -g -Wno-gnu-designator"
++export CXXFLAGS="-fsanitize=address,fuzzer-no-link -D_GLIBCXX_DEBUG -O2 -g"
+ 
+ # Setup base of Cryptofuzz
+ cd "$FUZZ_ROOT"
+diff --git a/tests/ci/docker_images/dependencies/cryptofuzz_data.zip b/tests/ci/docker_images/dependencies/cryptofuzz_data.zip
+index 511d6be1007d216c6db3e8893f01359a12d4bbdc..2fd98997de387f4eaa00f5a2ec90fe042c491af0 100644
+GIT binary patch
+delta 5639
+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
+J<y-z={{_dY4|M<l
+
+delta 3748
+zcma)<Yit!o6vy{+`)*T;1^VEM;gz<u+MS)*nH?yv@_t010wPfC?#_<*fwT#)YD69?
+zX#y$e+5mwFrqF;$6Tt*%6M^~yVj;)}74;KF#6n0RA{vd(-j;NB+f8npl0y2=@64HV
+z=2!OZh}>KM^rHFEqzuLTh;3@9ihtAlN1hUMfnG?`m1xl$wKa7+Yil;tXDX4Tx76py
+zCVe>N>oHz-sQBr$cy@J5X??Ny8xUVp;@N!Nf{fb)t0vG9v2D#Uxx)d#kN^k`MpVZl
+zm|E)6CA}1n<aQ6rbsHnuu=`}@>Gz&_hyS5=B>g(SdOt30F3nf`)E}z5%f}01g+$c|
+zv24JxX;H_<4pJF4ErcA-3>^T(7-lL08Vgd#f&1?dp0woL#_7YJQ(yl5%BL?CR9_76
+z*8EhwTobGr5>FgWg*w(Sw>X3rwsdB5;2?+@1dub`qAGN366EE&?a}N>2VvLIb^mtV
+zS((4*3pA$oMD2r;6{)wb?QPT6E}QkD8sHya{~1;VdzQrKre;&<n1~V!s<uW9T?d$9
+zjtSI>i7?YRrbz40zmk*T{+yO-Jl@glv~JwHa%e-R8X4W0<{m8H;N1LpS8GiGkM_TQ
+z-)pyg$&_k@nX1aTIHt`^%Qm=0p=xO+(z%H&pi)~UW`BHRB;AeWq=O3&e|vZO&gNwo
+z9zQ(Vy5K<5^<h~7?(R8r(>(4(>DZ7#gf&Y?lwr-JjOc{w2E``ePy-ZDgE7$pE69ya
+zsLIN@kXB@DJzL$?b+;t%ao)w`u=zU9&+PNS-ktYOwL4|n_{{$E>K)~o5%NZ~E#F!1
+z<!1L~b*kGsCWzWhH#Fv8q=^O5Ey5YM3`BJZb(>*T4;Gy}|Lm=Hd|>UV^DTvYIxi_>
+zrf!Wkv~Rh*?Al-YYX$LZ`!f96ZY8(Q3{EWpng&c;*O-C03b1XcSZoJ1#L^lDCMJj2
+zG-=4xmYulX*0qQ~L@8rGxiZN*^G*4q*0;NFhivKOx))lCL>IiteeyP#5UQ#sRzo}t
+z7#pU}xZ{|%gE3?(HmOcEv9kkhjd&Zh?#Q*~+1bxFu84%L$}6jHZuX#t3^fVmfDub~
+zEU~s4#RdTkaWSNZjWj}mNeI$Vu>CReRMs)k@yrPe^Ol~hZ%hB`P{@XCI`qMf5<#SW
+zRQJ@>;K0OOK6s>WSkA2)F;{NUw93i>hAi7{8j|PBt?Rh@YMEe7ka%xS?$6tvHOiOU
+z&C@oNi_FZvoUQ>N9uE_X$Aasog>9$;%V6RzG)%a7<d|h+!f3ENxo%6!U|LP{ivGJy
+z?`B$XK~2(5*fBP29Fnaq^8z>H&a3EO^S<<$ujZ<{!g1bN<;NES8&GPBvQ>z<1F30>
+zLADWf9GjaCKsIs^LH0m3XA^7s=Qn;_U%KkM?cZnR<}dyw>>0?P(|$g%KyGa`Sh4q@
+ztG<fU57(CkDt3pb_RqDXWV>~#eW$&&t)c4JBOJXmT2T&LijpgYdbM)6HxY9hYinY=
+zYimybGvx2l<0FGcMl(c92J&}){NEKNN4YmmQCv__kiK+Da*xj42+1uT84c6-lc=H`
+z*|s<y1&O;n4B>aRjCjz4NL<_!qDVf4U(Yh4$sL6YLE@^G2);h~1uPS$4)R(I61Q;}
+z!Y^4Fai<57xN*Y}exJ&SUD5a{5|?Wj!f#F)QJ&->JdLJ?h5hQ3!{5fkAaRd|A^c91
+z5u20aEl6CDVF<tWWJGaF9Fe#K!w`PS$%sq6h=h$7hVUCrMyyGVU!>4m=tcUqCWkZ9
+z;^B!y!oz;I$>EQB!a{U1+4mIq1t*6Wx@tusNL+SOV|)a^#$>{uf-pm_%=d)&H74iw
+zX2i!Lai>Y8`4E0z$%u+ffhctAq9vjA`K2X?Z+qba&tL<F`&+9g91$WqvTawE+gX`c
+bCQ9}c*6;t4$tj+$hKbK6A+!$fcN67*U#)~H
+
+diff --git a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_base/Dockerfile b/tests/ci/docker_images/linux-aarch/amazonlinux-2022_base/Dockerfile
+index 058fff8e6..f50b10641 100644
+--- a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_base/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/amazonlinux-2022_base/Dockerfile
+@@ -7,6 +7,8 @@ SHELL ["/bin/bash", "-c"]
+ ENV GOROOT=/usr/local/go
+ ENV PATH="$GOROOT/bin:$PATH"
+ 
++ENV DEPENDENCIES_DIR=/home/dependencies
++
+ # Install Valgrind for Valgrind test target even though it is not needed for the base test target.
+ RUN set -ex && \
+     yum -y update && yum install -y \
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-20.04_cryptofuzz/Dockerfile b/tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile
+similarity index 52%
+rename from tests/ci/docker_images/linux-x86/ubuntu-20.04_cryptofuzz/Dockerfile
+rename to tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile
+index dfae10e99..187e66b16 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-20.04_cryptofuzz/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile
+@@ -1,22 +1,26 @@
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ # SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+-FROM ubuntu-20.04:clang-10x
++FROM amazonlinux-2022-aarch:clang-14x
+ 
+ SHELL ["/bin/bash", "-c"]
+ 
+ RUN set -ex && \
+-    apt-get update && \
+-    apt-get -y --no-install-recommends upgrade && \
+-    apt-get -y --no-install-recommends install \
++    yum -y update && yum install -y \
+     make \
+-    libboost-all-dev \
+-    unzip && \
+-    apt-get autoremove --purge -y && \
+-    apt-get clean && \
+-    apt-get autoclean && \
+-    rm -rf /var/lib/apt/lists/* && \
+-    rm -rf /tmp/*
++    automake \
++    autoconf \
++    libtool \
++    boost-devel \
++    unzip \
++    llvm \
++    llvm-devel \
++    lld && \
++    yum clean packages && \
++    yum clean metadata && \
++    yum clean all && \
++    rm -rf /tmp/* && \
++    rm -rf /var/cache/yum
+ 
+ ENV FUZZ_ROOT=${DEPENDENCIES_DIR}
+ ENV MODULE_ROOT="${FUZZ_ROOT}/modules"
+diff --git a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x_sanitizer/Dockerfile b/tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x_sanitizer/Dockerfile
+index b3d80ce4a..9f52dfcca 100644
+--- a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x_sanitizer/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x_sanitizer/Dockerfile
+@@ -5,11 +5,11 @@ FROM amazonlinux-2022-aarch:clang-14x
+ 
+ SHELL ["/bin/bash", "-c"]
+ 
+-ENV DEPENDENCIES_DIR=/home/dependencies
+ ENV LLVM_PROJECT_HOME=${DEPENDENCIES_DIR}/llvm-project
+ 
+ RUN set -ex && \
+     yum -y update && yum install -y \
++    compiler-rt \
+     llvm \
+     llvm-devel \
+     lld && \
+diff --git a/tests/ci/docker_images/linux-aarch/build_images.sh b/tests/ci/docker_images/linux-aarch/build_images.sh
+index c2c390058..8062522d8 100755
+--- a/tests/ci/docker_images/linux-aarch/build_images.sh
++++ b/tests/ci/docker_images/linux-aarch/build_images.sh
+@@ -15,6 +15,7 @@ docker build -t amazonlinux-2022-aarch:base -f amazonlinux-2022_base/Dockerfile
+ docker build -t amazonlinux-2022-aarch:gcc-11x amazonlinux-2022_gcc-11x
+ docker build -t amazonlinux-2022-aarch:clang-14x amazonlinux-2022_clang-14x
+ docker build -t amazonlinux-2022-aarch:clang-14x-sanitizer amazonlinux-2022_clang-14x_sanitizer
++docker build -t amazonlinux-2022-aarch:cryptofuzz -f amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile ../dependencies
+ docker build -t ubuntu-20.04-aarch:base -f ubuntu-20.04_base/Dockerfile ../dependencies
+ docker build -t ubuntu-20.04-aarch:gcc-7x ubuntu-20.04_gcc-7x
+ docker build -t ubuntu-20.04-aarch:gcc-8x ubuntu-20.04_gcc-8x
+@@ -26,4 +27,3 @@ docker build -t ubuntu-20.04-aarch:clang-7x-bm-framework ubuntu-20.04_clang-7x-b
+ docker build -t ubuntu-22.04-aarch:base -f ubuntu-22.04_base/Dockerfile ../dependencies
+ docker build -t ubuntu-22.04-aarch:gcc-11x ubuntu-22.04_gcc-11x
+ docker build -t ubuntu-22.04-aarch:gcc-12x ubuntu-22.04_gcc-12x
+-docker build -t ubuntu-20.04-aarch:cryptofuzz -f ubuntu-20.04_cryptofuzz/Dockerfile ../dependencies
+diff --git a/tests/ci/docker_images/linux-aarch/push_images.sh b/tests/ci/docker_images/linux-aarch/push_images.sh
+index c352f85f2..f559afe77 100755
+--- a/tests/ci/docker_images/linux-aarch/push_images.sh
++++ b/tests/ci/docker_images/linux-aarch/push_images.sh
+@@ -20,6 +20,7 @@ tag_and_push_img 'amazonlinux-2-aarch:clang-7x' "${ECS_REPO}:amazonlinux-2_clang
+ tag_and_push_img 'amazonlinux-2022-aarch:gcc-11x' "${ECS_REPO}:amazonlinux-2022_gcc-11x"
+ tag_and_push_img 'amazonlinux-2022-aarch:clang-14x' "${ECS_REPO}:amazonlinux-2022_clang-14x"
+ tag_and_push_img 'amazonlinux-2022-aarch:clang-14x-sanitizer' "${ECS_REPO}:amazonlinux-2022_clang-14x_sanitizer"
++tag_and_push_img 'amazonlinux-2022-aarch:cryptofuzz' "${ECS_REPO}:amazonlinux-2022_clang-14x_cryptofuzz"
+ tag_and_push_img 'ubuntu-20.04-aarch:gcc-7x' "${ECS_REPO}:ubuntu-20.04_gcc-7x"
+ tag_and_push_img 'ubuntu-20.04-aarch:gcc-8x' "${ECS_REPO}:ubuntu-20.04_gcc-8x"
+ tag_and_push_img 'ubuntu-20.04-aarch:clang-7x' "${ECS_REPO}:ubuntu-20.04_clang-7x"
+@@ -27,6 +28,5 @@ tag_and_push_img 'ubuntu-20.04-aarch:clang-8x' "${ECS_REPO}:ubuntu-20.04_clang-8
+ tag_and_push_img 'ubuntu-20.04-aarch:clang-9x' "${ECS_REPO}:ubuntu-20.04_clang-9x"
+ tag_and_push_img 'ubuntu-20.04-aarch:clang-10x' "${ECS_REPO}:ubuntu-20.04_clang-10x"
+ tag_and_push_img 'ubuntu-20.04-aarch:clang-7x-bm-framework' "${ECS_REPO}:ubuntu-20.04_clang-7x-bm-framework"
+-tag_and_push_img 'ubuntu-20.04-aarch:cryptofuzz' "${ECS_REPO}:ubuntu-20.04_cryptofuzz"
+ tag_and_push_img 'ubuntu-22.04-aarch:gcc-11x' "${ECS_REPO}:ubuntu-22.04_gcc-11x"
+ tag_and_push_img 'ubuntu-22.04-aarch:gcc-12x' "${ECS_REPO}:ubuntu-22.04_gcc-12x"
+diff --git a/tests/ci/docker_images/linux-x86/amazonlinux-2022_base/Dockerfile b/tests/ci/docker_images/linux-x86/amazonlinux-2022_base/Dockerfile
+index 86dcf258a..9504e8e6d 100644
+--- a/tests/ci/docker_images/linux-x86/amazonlinux-2022_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/amazonlinux-2022_base/Dockerfile
+@@ -8,6 +8,8 @@ ENV GOROOT=/usr/local/go
+ ENV PATH="$GOROOT/bin:$PATH"
+ ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
+ 
++ENV DEPENDENCIES_DIR=/home/dependencies
++
+ # See https://github.com/google/sanitizers/wiki/MemorySanitizerLibcxxHowTo
+ # Install Valgrind for Valgrind test target even though it is not needed for the base test target.
+ RUN set -ex && \
+diff --git a/tests/ci/docker_images/linux-aarch/ubuntu-20.04_cryptofuzz/Dockerfile b/tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile
+similarity index 52%
+rename from tests/ci/docker_images/linux-aarch/ubuntu-20.04_cryptofuzz/Dockerfile
+rename to tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile
+index 835cbd8de..42e28ed0f 100644
+--- a/tests/ci/docker_images/linux-aarch/ubuntu-20.04_cryptofuzz/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile
+@@ -1,22 +1,26 @@
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ # SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+-FROM ubuntu-20.04-aarch:clang-10x
++FROM amazonlinux-2022:clang-14x
+ 
+ SHELL ["/bin/bash", "-c"]
+ 
+ RUN set -ex && \
+-    apt-get update && \
+-    apt-get -y --no-install-recommends upgrade && \
+-    apt-get -y --no-install-recommends install \
++    yum -y update && yum install -y \
+     make \
+-    libboost-all-dev \
+-    unzip && \
+-    apt-get autoremove --purge -y && \
+-    apt-get clean && \
+-    apt-get autoclean && \
+-    rm -rf /var/lib/apt/lists/* && \
+-    rm -rf /tmp/*
++    automake \
++    autoconf \
++    libtool \
++    boost-devel \
++    unzip \
++    llvm \
++    llvm-devel \
++    lld && \
++    yum clean packages && \
++    yum clean metadata && \
++    yum clean all && \
++    rm -rf /tmp/* && \
++    rm -rf /var/cache/yum
+ 
+ ENV FUZZ_ROOT=${DEPENDENCIES_DIR}
+ ENV MODULE_ROOT="${FUZZ_ROOT}/modules"
+diff --git a/tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x_sanitizer/Dockerfile b/tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x_sanitizer/Dockerfile
+index 2193b38fd..a0197b790 100644
+--- a/tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x_sanitizer/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x_sanitizer/Dockerfile
+@@ -5,11 +5,11 @@ FROM amazonlinux-2022:clang-14x
+ 
+ SHELL ["/bin/bash", "-c"]
+ 
+-ENV DEPENDENCIES_DIR=/home/dependencies
+ ENV LLVM_PROJECT_HOME=${DEPENDENCIES_DIR}/llvm-project
+ 
+ RUN set -ex && \
+     yum -y update && yum install -y \
++    compiler-rt \
+     llvm \
+     llvm-devel \
+     lld && \
+diff --git a/tests/ci/docker_images/linux-x86/build_images.sh b/tests/ci/docker_images/linux-x86/build_images.sh
+index d3696ed76..e255afbd5 100755
+--- a/tests/ci/docker_images/linux-x86/build_images.sh
++++ b/tests/ci/docker_images/linux-x86/build_images.sh
+@@ -24,7 +24,6 @@ docker build -t ubuntu-20.04:clang-9x ubuntu-20.04_clang-9x
+ docker build -t ubuntu-20.04:clang-10x ubuntu-20.04_clang-10x
+ docker build -t ubuntu-20.04:android -f ubuntu-20.04_android/Dockerfile ../
+ docker build -t ubuntu-20.04:clang-7x-bm-framework ubuntu-20.04_clang-7x-bm-framework
+-docker build -t ubuntu-20.04:cryptofuzz -f ubuntu-20.04_cryptofuzz/Dockerfile ../dependencies
+ docker build -t ubuntu-22.04:base -f ubuntu-22.04_base/Dockerfile ../dependencies
+ docker build -t ubuntu-22.04:gcc-11x ubuntu-22.04_gcc-11x
+ docker build -t ubuntu-22.04:gcc-12x ubuntu-22.04_gcc-12x
+@@ -36,10 +35,10 @@ docker build -t amazonlinux-2022:base -f amazonlinux-2022_base/Dockerfile ../dep
+ docker build -t amazonlinux-2022:gcc-11x amazonlinux-2022_gcc-11x
+ docker build -t amazonlinux-2022:clang-14x amazonlinux-2022_clang-14x
+ docker build -t amazonlinux-2022:clang-14x-sanitizer amazonlinux-2022_clang-14x_sanitizer
++docker build -t amazonlinux-2022:cryptofuzz -f amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile ../dependencies
+ docker build -t ubuntu-16.04:gcc-5x -f ubuntu-16.04_gcc-5x/Dockerfile ../dependencies
+ docker build -t centos-7:gcc-4x -f centos-7_gcc-4x/Dockerfile ../dependencies
+ docker build -t fedora-31:clang-9x -f fedora-31_clang-9x/Dockerfile ../dependencies
+-
+ ###########################################################
+ # Build images defined in aws-lc-verification GitHub repo #
+ ###########################################################
+diff --git a/tests/ci/docker_images/linux-x86/push_images.sh b/tests/ci/docker_images/linux-x86/push_images.sh
+index ef725f5cb..694ca5405 100755
+--- a/tests/ci/docker_images/linux-x86/push_images.sh
++++ b/tests/ci/docker_images/linux-x86/push_images.sh
+@@ -24,7 +24,6 @@ tag_and_push_img 'ubuntu-20.04:clang-9x' "${ECS_REPO}:ubuntu-20.04_clang-9x"
+ tag_and_push_img 'ubuntu-20.04:clang-10x' "${ECS_REPO}:ubuntu-20.04_clang-10x"
+ tag_and_push_img 'ubuntu-20.04:android' "${ECS_REPO}:ubuntu-20.04_android"
+ tag_and_push_img 'ubuntu-20.04:clang-7x-bm-framework' "${ECS_REPO}:ubuntu-20.04_clang-7x-bm-framework"
+-tag_and_push_img 'ubuntu-20.04:cryptofuzz' "${ECS_REPO}:ubuntu-20.04_cryptofuzz"
+ tag_and_push_img 'ubuntu-20.04:clang-10x_formal-verification' "${ECS_REPO}:ubuntu-20.04_clang-10x_formal-verification"
+ tag_and_push_img 'ubuntu-20.04:gcc-7x' "${ECS_REPO}:ubuntu-20.04_gcc-7x"
+ tag_and_push_img 'ubuntu-20.04:gcc-8x' "${ECS_REPO}:ubuntu-20.04_gcc-8x"
+@@ -37,5 +36,6 @@ tag_and_push_img 'amazonlinux-2:gcc-7x-intel-sde' "${ECS_REPO}:amazonlinux-2_gcc
+ tag_and_push_img 'amazonlinux-2022:gcc-11x' "${ECS_REPO}:amazonlinux-2022_gcc-11x"
+ tag_and_push_img 'amazonlinux-2022:clang-14x' "${ECS_REPO}:amazonlinux-2022_clang-14x"
+ tag_and_push_img 'amazonlinux-2022:clang-14x-sanitizer' "${ECS_REPO}:amazonlinux-2022_clang-14x_sanitizer"
++tag_and_push_img 'amazonlinux-2022:cryptofuzz' "${ECS_REPO}:amazonlinux-2022_clang-14x_cryptofuzz"
+ tag_and_push_img 'fedora-31:clang-9x' "${ECS_REPO}:fedora-31_clang-9x"
+ tag_and_push_img 'ubuntu-10.04_gcc-4.1x' "${ECS_REPO}:ubuntu-10.04_gcc-4.1x"

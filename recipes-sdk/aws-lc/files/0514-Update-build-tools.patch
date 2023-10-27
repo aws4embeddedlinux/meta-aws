@@ -1,0 +1,58 @@
+From a1072826961dc09ef14ed6278838fa180ad43a58 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 11 May 2023 10:22:35 -0400
+Subject: [PATCH] Update build tools
+
+Change-Id: I1a4914cc4859ed1e0797a046a1abec8921c4a9cf
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59746
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit 4137759c20c7d72b5c48bce4d00d687926d279e6)
+---
+ util/bot/DEPS            | 8 ++++----
+ util/bot/update_clang.py | 4 ++--
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/util/bot/DEPS b/util/bot/DEPS
+index 777f7c301..4404fe1ca 100644
+--- a/util/bot/DEPS
++++ b/util/bot/DEPS
+@@ -25,9 +25,9 @@ vars = {
+   #  cipd describe PACKAGE_NAME -version latest
+ 
+   # infra/3pp/tools/cmake/linux-amd64
+-  'cmake_version': 'version:2@3.25.2.chromium.6',
++  'cmake_version': 'version:2@3.26.3.chromium.7',
+   # infra/3pp/tools/go/linux-amd64
+-  'go_version': 'version:2@1.20',
++  'go_version': 'version:2@1.20.4',
+   # infra/3pp/tools/perl/windows-amd64
+   'perl_version': 'version:2@5.32.1.1',
+ 
+@@ -36,8 +36,8 @@ vars = {
+   'android_sdk_platform-tools_version': 'RSI3iwryh7URLGRgJHsCvUxj092woTPnKt4pwFcJ6L8C',
+   'android_ndk_revision': '8388a2be5421311dc75c5f937aae13d821a27f3d',
+   'libfuzzer_revision': 'debe7d2d1982e540fbd6bd78604bf001753f9e74',
+-  'libcxx_revision': '7f648d9b44c2876dfc4329256a6c0750e1e77c7f',
+-  'libcxxabi_revision': 'b74d7716111d7eda5c03cb8f5dfc940e1c2c0030',
++  'libcxx_revision': 'f8279b01085b800724f5c5629dc365b9f040dc53',
++  'libcxxabi_revision': 'd5e79e117ce9adfdcfdc5dde56ee8cddd7742854',
+   'ninja_version': 'version:2@1.11.1.chromium.6',
+ }
+ 
+diff --git a/util/bot/update_clang.py b/util/bot/update_clang.py
+index 92ff3ac60..185e975fb 100644
+--- a/util/bot/update_clang.py
++++ b/util/bot/update_clang.py
+@@ -28,8 +28,8 @@ except ImportError:
+ # CLANG_REVISION and CLANG_SUB_REVISION determine the build of clang
+ # to use. These should be synced with tools/clang/scripts/update.py in
+ # Chromium.
+-CLANG_REVISION = 'llvmorg-16-init-17653-g39da55e8'
+-CLANG_SUB_REVISION = 3
++CLANG_REVISION = 'llvmorg-17-init-10134-g3da83fba'
++CLANG_SUB_REVISION = 1
+ 
+ PACKAGE_VERSION = '%s-%s' % (CLANG_REVISION, CLANG_SUB_REVISION)
+ 

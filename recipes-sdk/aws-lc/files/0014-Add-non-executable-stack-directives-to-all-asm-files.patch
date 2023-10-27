@@ -1,0 +1,443 @@
+From 4ed2dbb15dc4cbdd6a6a821a80e44c2288959b70 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Thu, 22 Jul 2021 16:16:59 -0700
+Subject: [PATCH] Add non-executable stack directives to all asm files
+
+This appends the following additional directive at the end of each
+assembler file, so that the .o produced doesn't appear to need
+executable stack:
+
+  #if defined(__linux__) && defined(__ELF__)
+  .section .note.GNU-stack,"",%progbits
+  #endif
+
+This follows the guidance here:
+
+  https://wiki.gentoo.org/wiki/Hardened/GNU_stack_quickstart#Patching
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/bac30724f87c03e8851c119fd583d3e429e8027e
+---
+ arm/fastmul/bignum_emontredc_8n.S | 4 ++++
+ arm/fastmul/bignum_kmul_16_32.S   | 4 ++++
+ arm/fastmul/bignum_ksqr_16_32.S   | 4 ++++
+ arm/fastmul/bignum_ksqr_32_64.S   | 4 ++++
+ arm/generic/bignum_ge.S           | 4 ++++
+ arm/generic/bignum_mul.S          | 4 ++++
+ arm/generic/bignum_optsub.S       | 4 ++++
+ arm/p384/bignum_add_p384.S        | 4 ++++
+ arm/p384/bignum_bigendian_6.S     | 4 ++++
+ arm/p384/bignum_cmul_p384.S       | 4 ++++
+ arm/p384/bignum_deamont_p384.S    | 4 ++++
+ arm/p384/bignum_demont_p384.S     | 4 ++++
+ arm/p384/bignum_double_p384.S     | 4 ++++
+ arm/p384/bignum_half_p384.S       | 4 ++++
+ arm/p384/bignum_mod_n384.S        | 4 ++++
+ arm/p384/bignum_mod_n384_6.S      | 4 ++++
+ arm/p384/bignum_mod_p384.S        | 3 +++
+ arm/p384/bignum_mod_p384_6.S      | 4 ++++
+ arm/p384/bignum_montmul_p384.S    | 4 ++++
+ arm/p384/bignum_montsqr_p384.S    | 4 ++++
+ arm/p384/bignum_mux_6.S           | 4 ++++
+ arm/p384/bignum_neg_p384.S        | 4 ++++
+ arm/p384/bignum_nonzero_6.S       | 4 ++++
+ arm/p384/bignum_optneg_p384.S     | 4 ++++
+ arm/p384/bignum_sub_p384.S        | 4 ++++
+ arm/p384/bignum_tomont_p384.S     | 4 ++++
+ arm/p384/bignum_triple_p384.S     | 4 ++++
+ arm/p521/bignum_add_p521.S        | 4 ++++
+ arm/p521/bignum_double_p521.S     | 4 +++-
+ arm/p521/bignum_half_p521.S       | 4 ++++
+ arm/p521/bignum_sub_p521.S        | 4 ++++
+ arm/p521/bignum_triple_p521.S     | 4 ++++
+ 32 files changed, 126 insertions(+), 1 deletion(-)
+
+diff --git a/arm/fastmul/bignum_emontredc_8n.S b/arm/fastmul/bignum_emontredc_8n.S
+index 6b7d4b34b..feb4b9181 100644
+--- a/arm/fastmul/bignum_emontredc_8n.S
++++ b/arm/fastmul/bignum_emontredc_8n.S
+@@ -385,3 +385,7 @@ end:
+                 ldp     x19, x20, [sp], #16
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/fastmul/bignum_kmul_16_32.S b/arm/fastmul/bignum_kmul_16_32.S
+index 12a61fc4e..e1acfc8ba 100644
+--- a/arm/fastmul/bignum_kmul_16_32.S
++++ b/arm/fastmul/bignum_kmul_16_32.S
+@@ -783,3 +783,7 @@ local_mul_8_16:
+         stp     x20, x21, [x0, #96]
+         stp     x22, x23, [x0, #112]
+         ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/fastmul/bignum_ksqr_16_32.S b/arm/fastmul/bignum_ksqr_16_32.S
+index d27b22579..ad1a9dcef 100644
+--- a/arm/fastmul/bignum_ksqr_16_32.S
++++ b/arm/fastmul/bignum_ksqr_16_32.S
+@@ -545,3 +545,7 @@ local_sqr_8_16:
+         adc     x3, x3, xzr
+         stp     x2, x3, [x0, #112]
+         ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/fastmul/bignum_ksqr_32_64.S b/arm/fastmul/bignum_ksqr_32_64.S
+index 96f0206ac..2a20b8766 100644
+--- a/arm/fastmul/bignum_ksqr_32_64.S
++++ b/arm/fastmul/bignum_ksqr_32_64.S
+@@ -750,3 +750,7 @@ local_sqr_8_16:
+         adc     x3, x3, xzr
+         stp     x2, x3, [x0, #112]
+         ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/generic/bignum_ge.S b/arm/generic/bignum_ge.S
+index 8d8188a28..5c9ad9d09 100644
+--- a/arm/generic/bignum_ge.S
++++ b/arm/generic/bignum_ge.S
+@@ -92,3 +92,7 @@ ytoploop:
+ 
+                 cset    x0, cs
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/generic/bignum_mul.S b/arm/generic/bignum_mul.S
+index 4678ca87c..872f218cb 100644
+--- a/arm/generic/bignum_mul.S
++++ b/arm/generic/bignum_mul.S
+@@ -117,3 +117,7 @@ innerend:
+ 
+ end:
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/generic/bignum_optsub.S b/arm/generic/bignum_optsub.S
+index 14271fcad..6f8baccc2 100644
+--- a/arm/generic/bignum_optsub.S
++++ b/arm/generic/bignum_optsub.S
+@@ -73,3 +73,7 @@ loop:
+ 
+ end:
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_add_p384.S b/arm/p384/bignum_add_p384.S
+index 16a3d22d7..86aa9afab 100644
+--- a/arm/p384/bignum_add_p384.S
++++ b/arm/p384/bignum_add_p384.S
+@@ -96,3 +96,7 @@ bignum_add_p384:
+                 stp     d4, d5, [z, #32]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_bigendian_6.S b/arm/p384/bignum_bigendian_6.S
+index 5bdcb8440..642aa3706 100644
+--- a/arm/p384/bignum_bigendian_6.S
++++ b/arm/p384/bignum_bigendian_6.S
+@@ -98,3 +98,7 @@ bignum_tobytes_6:
+                 str     c, [z, #8*2]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_cmul_p384.S b/arm/p384/bignum_cmul_p384.S
+index 673870050..0a643bb17 100644
+--- a/arm/p384/bignum_cmul_p384.S
++++ b/arm/p384/bignum_cmul_p384.S
+@@ -140,3 +140,7 @@ bignum_cmul_p384:
+                 stp     d4, d5, [z, #32]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_deamont_p384.S b/arm/p384/bignum_deamont_p384.S
+index 76d33645c..7e491555f 100644
+--- a/arm/p384/bignum_deamont_p384.S
++++ b/arm/p384/bignum_deamont_p384.S
+@@ -145,3 +145,7 @@ bignum_deamont_p384:
+                 stp     d4, d5, [z, #32]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_demont_p384.S b/arm/p384/bignum_demont_p384.S
+index b6f8f09eb..cb855b713 100644
+--- a/arm/p384/bignum_demont_p384.S
++++ b/arm/p384/bignum_demont_p384.S
+@@ -116,3 +116,7 @@ bignum_demont_p384:
+                 stp     d4, d5, [z, #32]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_double_p384.S b/arm/p384/bignum_double_p384.S
+index 484d1b6e6..52e788e48 100644
+--- a/arm/p384/bignum_double_p384.S
++++ b/arm/p384/bignum_double_p384.S
+@@ -90,3 +90,7 @@ bignum_double_p384:
+                 stp     d4, d5, [z, #32]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_half_p384.S b/arm/p384/bignum_half_p384.S
+index c1b19bb74..665f4c8e4 100644
+--- a/arm/p384/bignum_half_p384.S
++++ b/arm/p384/bignum_half_p384.S
+@@ -88,3 +88,7 @@ bignum_half_p384:
+ // Return
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_mod_n384.S b/arm/p384/bignum_mod_n384.S
+index 098e9cbd4..7ea63cb5a 100644
+--- a/arm/p384/bignum_mod_n384.S
++++ b/arm/p384/bignum_mod_n384.S
+@@ -204,3 +204,7 @@ short:
+                 beq     writeback
+                 ldr     m4, [x, #32]
+                 b       writeback
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_mod_n384_6.S b/arm/p384/bignum_mod_n384_6.S
+index 4db84e1d7..3bba98a51 100644
+--- a/arm/p384/bignum_mod_n384_6.S
++++ b/arm/p384/bignum_mod_n384_6.S
+@@ -94,3 +94,7 @@ bignum_mod_n384_6:
+                 stp     n4, n5, [z, #32]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_mod_p384.S b/arm/p384/bignum_mod_p384.S
+index 70fd88c43..e9154d0dc 100644
+--- a/arm/p384/bignum_mod_p384.S
++++ b/arm/p384/bignum_mod_p384.S
+@@ -176,3 +176,6 @@ short:
+                 ldr     m4, [x, #32]
+                 b       writeback
+ 
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_mod_p384_6.S b/arm/p384/bignum_mod_p384_6.S
+index 9c7861f33..88097a617 100644
+--- a/arm/p384/bignum_mod_p384_6.S
++++ b/arm/p384/bignum_mod_p384_6.S
+@@ -85,3 +85,7 @@ bignum_mod_p384_6:
+                 stp     n4, n5, [z, #32]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_montmul_p384.S b/arm/p384/bignum_montmul_p384.S
+index df62e3bef..560679812 100644
+--- a/arm/p384/bignum_montmul_p384.S
++++ b/arm/p384/bignum_montmul_p384.S
+@@ -422,3 +422,7 @@ bignum_montmul_p384:
+                 ldp     x19, x20, [sp], #16
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_montsqr_p384.S b/arm/p384/bignum_montsqr_p384.S
+index 098d1ac68..0119580eb 100644
+--- a/arm/p384/bignum_montsqr_p384.S
++++ b/arm/p384/bignum_montsqr_p384.S
+@@ -379,3 +379,7 @@ bignum_montsqr_p384:
+                 stp     r4, r5, [x0, #32]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_mux_6.S b/arm/p384/bignum_mux_6.S
+index b376c0951..78b68ee86 100644
+--- a/arm/p384/bignum_mux_6.S
++++ b/arm/p384/bignum_mux_6.S
+@@ -50,3 +50,7 @@ bignum_mux_6:
+                 .endr
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_neg_p384.S b/arm/p384/bignum_neg_p384.S
+index 1537b347b..6c1dd2537 100644
+--- a/arm/p384/bignum_neg_p384.S
++++ b/arm/p384/bignum_neg_p384.S
+@@ -86,3 +86,7 @@ bignum_neg_p384:
+ // Return
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_nonzero_6.S b/arm/p384/bignum_nonzero_6.S
+index 19b670d8d..aeb47b683 100644
+--- a/arm/p384/bignum_nonzero_6.S
++++ b/arm/p384/bignum_nonzero_6.S
+@@ -50,3 +50,7 @@ bignum_nonzero_6:
+                 cset    x0, ne
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_optneg_p384.S b/arm/p384/bignum_optneg_p384.S
+index bf4be841e..8aece823e 100644
+--- a/arm/p384/bignum_optneg_p384.S
++++ b/arm/p384/bignum_optneg_p384.S
+@@ -100,3 +100,7 @@ bignum_optneg_p384:
+ // Return
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_sub_p384.S b/arm/p384/bignum_sub_p384.S
+index c26d968ae..81028f908 100644
+--- a/arm/p384/bignum_sub_p384.S
++++ b/arm/p384/bignum_sub_p384.S
+@@ -83,3 +83,7 @@ bignum_sub_p384:
+                 stp     d4, d5, [z, #32]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_tomont_p384.S b/arm/p384/bignum_tomont_p384.S
+index 618cc5233..d7d690820 100644
+--- a/arm/p384/bignum_tomont_p384.S
++++ b/arm/p384/bignum_tomont_p384.S
+@@ -132,3 +132,7 @@ bignum_tomont_p384:
+                 stp     d5, d6, [x0, #32]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p384/bignum_triple_p384.S b/arm/p384/bignum_triple_p384.S
+index b7ebe01db..55a852213 100644
+--- a/arm/p384/bignum_triple_p384.S
++++ b/arm/p384/bignum_triple_p384.S
+@@ -129,3 +129,7 @@ bignum_triple_p384:
+                 stp     d4, d5, [z, #32]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p521/bignum_add_p521.S b/arm/p521/bignum_add_p521.S
+index 0d95e8d4c..862331d23 100644
+--- a/arm/p521/bignum_add_p521.S
++++ b/arm/p521/bignum_add_p521.S
+@@ -97,3 +97,7 @@ bignum_add_p521:
+                 str     d8, [z, #64]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p521/bignum_double_p521.S b/arm/p521/bignum_double_p521.S
+index ba0abb3eb..5ed66cc4c 100644
+--- a/arm/p521/bignum_double_p521.S
++++ b/arm/p521/bignum_double_p521.S
+@@ -33,7 +33,6 @@
+ #define h x3
+ #define l x4
+ 
+-
+ bignum_double_p521:
+ 
+ // We can decide whether 2 * x >= p_521 just by 2 * x >= 2^521, which
+@@ -61,3 +60,6 @@ bignum_double_p521:
+ 
+                 ret
+ 
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p521/bignum_half_p521.S b/arm/p521/bignum_half_p521.S
+index e3363f1fb..1377b0a53 100644
+--- a/arm/p521/bignum_half_p521.S
++++ b/arm/p521/bignum_half_p521.S
+@@ -76,3 +76,7 @@ bignum_half_p521:
+ // Return
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p521/bignum_sub_p521.S b/arm/p521/bignum_sub_p521.S
+index 960a3a5f1..dcef31867 100644
+--- a/arm/p521/bignum_sub_p521.S
++++ b/arm/p521/bignum_sub_p521.S
+@@ -90,3 +90,7 @@ bignum_sub_p521:
+                 str     d8, [z, #64]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p521/bignum_triple_p521.S b/arm/p521/bignum_triple_p521.S
+index 2e2c3ef6b..e5cf122a9 100644
+--- a/arm/p521/bignum_triple_p521.S
++++ b/arm/p521/bignum_triple_p521.S
+@@ -114,3 +114,7 @@ bignum_triple_p521:
+                 str     d8, [z, #64]
+ 
+                 ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif

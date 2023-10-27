@@ -1,0 +1,1083 @@
+From bd75ca5535bbe79a6a0ca5a8adbd575580ebe8df Mon Sep 17 00:00:00 2001
+From: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+Date: Wed, 16 Aug 2023 19:41:00 -0400
+Subject: [PATCH] Upstream merge 2023 08 09 (#1152)
+
+---
+ SANDBOXING.md                                 |   6 +-
+ crypto/CMakeLists.txt                         |   1 +
+ crypto/fipsmodule/cpucap/cpu_aarch64_apple.c  |   3 +
+ crypto/fipsmodule/hkdf/hkdf.c                 |   2 +-
+ crypto/fipsmodule/rand/rand.c                 |  25 +-
+ crypto/internal.h                             |   8 +
+ crypto/rand_extra/rand_test.cc                |  38 ++-
+ crypto/refcount_lock.c                        |   4 +-
+ crypto/refcount_win.c                         |  89 +++++++
+ crypto/stack/stack.c                          |   7 +
+ include/openssl/stack.h                       |   3 +-
+ include/openssl/x509.h                        |  26 +-
+ ssl/ssl_test.cc                               |  75 ++++++
+ util/fipstools/acvp/acvptool/acvp.go          |   6 +-
+ .../acvp/acvptool/subprocess/subprocess.go    | 184 +++++++++++++-
+ .../acvp/acvptool/subprocess/tls13.go         | 240 ++++++++++++++++++
+ 16 files changed, 674 insertions(+), 43 deletions(-)
+ create mode 100644 crypto/refcount_win.c
+ create mode 100644 util/fipstools/acvp/acvptool/subprocess/tls13.go
+
+diff --git a/SANDBOXING.md b/SANDBOXING.md
+index b1a32df51..cb17720be 100644
+--- a/SANDBOXING.md
++++ b/SANDBOXING.md
+@@ -90,8 +90,10 @@ addition to the operations above.
+ 
+ On Linux ARM platforms, BoringSSL depends on OS APIs to query CPU capabilities.
+ 32-bit and 64-bit ARM both depend on the `getauxval` function. 32-bit ARM, to
+-work around bugs in older Android devices, may additionally read `/proc/cpuinfo`
+-and `/proc/self/auxv`.
++work around bugs in older Android devices, may additionally read
++`/proc/cpuinfo`.
++
++On 64-bit Apple ARM platforms, BoringSSL needs to query `hw.optional.*` sysctls.
+ 
+ If querying CPU capabilities fails, BoringSSL will still function, but may not
+ perform as well.
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index a82b1cb59..e5a7fdde1 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -431,6 +431,7 @@ add_library(
+   rc4/rc4.c
+   refcount_c11.c
+   refcount_lock.c
++  refcount_win.c
+   rsa_extra/rsa_asn1.c
+   rsa_extra/rsassa_pss_asn1.c
+   rsa_extra/rsa_print.c
+diff --git a/crypto/fipsmodule/cpucap/cpu_aarch64_apple.c b/crypto/fipsmodule/cpucap/cpu_aarch64_apple.c
+index c62a21ba8..7a93bdb3c 100644
+--- a/crypto/fipsmodule/cpucap/cpu_aarch64_apple.c
++++ b/crypto/fipsmodule/cpucap/cpu_aarch64_apple.c
+@@ -86,6 +86,9 @@ void OPENSSL_cpuid_setup(void) {
+   // available in macOS 12. For compatibility with macOS 11, we also support
+   // the old names. The old names don't have values for features like FEAT_AES,
+   // so instead we detect them statically above.
++  //
++  // If querying new sysctls, update the Chromium sandbox definition. See
++  // https://crrev.com/c/4415225.
+   if (has_hw_feature("hw.optional.arm.FEAT_SHA512") ||
+       has_hw_feature("hw.optional.armv8_2_sha512")) {
+     OPENSSL_armcap_P |= ARMV8_SHA512;
+diff --git a/crypto/fipsmodule/hkdf/hkdf.c b/crypto/fipsmodule/hkdf/hkdf.c
+index f9821d45c..f2af32274 100644
+--- a/crypto/fipsmodule/hkdf/hkdf.c
++++ b/crypto/fipsmodule/hkdf/hkdf.c
+@@ -123,7 +123,7 @@ int HKDF_expand(uint8_t *out_key, size_t out_len, const EVP_MD *digest,
+     }
+ 
+     todo = digest_len;
+-    if (done + todo > out_len) {
++    if (todo > out_len - done) {
+       todo = out_len - done;
+     }
+     OPENSSL_memcpy(out_key + done, previous, todo);
+diff --git a/crypto/fipsmodule/rand/rand.c b/crypto/fipsmodule/rand/rand.c
+index 8de4fadda..797e51b43 100644
+--- a/crypto/fipsmodule/rand/rand.c
++++ b/crypto/fipsmodule/rand/rand.c
+@@ -52,14 +52,14 @@
+ // This might be a bit of a leap of faith, esp on Windows, but there's nothing
+ // that we can do about it.)
+ 
+-// When in FIPS mode we use the CPU Jitter entropy source to seed our DRBG.  
++// When in FIPS mode we use the CPU Jitter entropy source to seed our DRBG.
+ // This entropy source is very slow and can incur a cost anywhere between 10-60ms
+-// depending on configuration and CPU.  Increasing to 2^24 will amortize the 
+-// penalty over more requests.  This is the same value used in OpenSSL 3.0  
++// depending on configuration and CPU.  Increasing to 2^24 will amortize the
++// penalty over more requests.  This is the same value used in OpenSSL 3.0
+ // and meets the requirements defined in SP 800-90B for a max reseed of interval (2^48)
+ //
+ // CPU Jitter:  https://www.chronox.de/jent/doc/CPU-Jitter-NPTRNG.html
+-// 
++//
+ // kReseedInterval is the number of generate calls made to CTR-DRBG before
+ // reseeding.
+ 
+@@ -94,6 +94,9 @@ struct rand_thread_state {
+   // calls is the number of generate calls made on |drbg| since it was last
+   // (re)seeded. This is bound by |kReseedInterval|.
+   unsigned calls;
++  // fork_unsafe_buffering is non-zero iff, when |drbg| was last (re)seeded,
++  // fork-unsafe buffering was enabled.
++  int fork_unsafe_buffering;
+ 
+ #if defined(BORINGSSL_FIPS)
+   // next and prev form a NULL-terminated, double-linked list of all states in
+@@ -375,6 +378,7 @@ void RAND_bytes_with_additional_data(uint8_t *out, size_t out_len,
+   }
+ 
+   const uint64_t fork_generation = CRYPTO_get_fork_generation();
++  const int fork_unsafe_buffering = rand_fork_unsafe_buffering_enabled();
+ 
+   // Additional data is mixed into every CTR-DRBG call to protect, as best we
+   // can, against forks & VM clones. We do not over-read this information and
+@@ -389,7 +393,7 @@ void RAND_bytes_with_additional_data(uint8_t *out, size_t out_len,
+     // entropy is used. This can be expensive (one read per |RAND_bytes| call)
+     // and so is disabled when we have fork detection, or if the application has
+     // promised not to fork.
+-    if (fork_generation != 0 || rand_fork_unsafe_buffering_enabled()) {
++    if (fork_generation != 0 || fork_unsafe_buffering) {
+       OPENSSL_memset(additional_data, 0, sizeof(additional_data));
+     } else if (!have_rdrand()) {
+       // No alternative so block for OS entropy.
+@@ -441,6 +445,7 @@ void RAND_bytes_with_additional_data(uint8_t *out, size_t out_len,
+     }
+     state->calls = 0;
+     state->fork_generation = fork_generation;
++    state->fork_unsafe_buffering = fork_unsafe_buffering;
+ 
+ #if defined(BORINGSSL_FIPS)
+     if (state != &stack_state) {
+@@ -460,7 +465,14 @@ void RAND_bytes_with_additional_data(uint8_t *out, size_t out_len,
+   }
+ 
+   if (state->calls >= kReseedInterval ||
+-      state->fork_generation != fork_generation) {
++      // If we've forked since |state| was last seeded, reseed.
++      state->fork_generation != fork_generation ||
++      // If |state| was seeded from a state with different fork-safety
++      // preferences, reseed. Suppose |state| was fork-safe, then forked into
++      // two children, but each of the children never fork and disable fork
++      // safety. The children must reseed to avoid working from the same PRNG
++      // state.
++      state->fork_unsafe_buffering != fork_unsafe_buffering) {
+     uint8_t seed[CTR_DRBG_ENTROPY_LEN];
+     int want_additional_input;
+     rand_get_seed(state, seed, &want_additional_input);
+@@ -487,6 +499,7 @@ void RAND_bytes_with_additional_data(uint8_t *out, size_t out_len,
+     }
+     state->calls = 0;
+     state->fork_generation = fork_generation;
++    state->fork_unsafe_buffering = fork_unsafe_buffering;
+     OPENSSL_cleanse(seed, CTR_DRBG_ENTROPY_LEN);
+     OPENSSL_cleanse(add_data_for_reseed, CTR_DRBG_ENTROPY_LEN);
+   } else {
+diff --git a/crypto/internal.h b/crypto/internal.h
+index 52cfbbac7..8098e8fd4 100644
+--- a/crypto/internal.h
++++ b/crypto/internal.h
+@@ -494,6 +494,14 @@ OPENSSL_EXPORT void CRYPTO_once(CRYPTO_once_t *once, void (*init)(void));
+ #define OPENSSL_C11_ATOMIC
+ #endif
+ 
++// Older MSVC does not support C11 atomics, so we fallback to the Windows APIs.
++// This can be removed once we can rely on
++// https://devblogs.microsoft.com/cppblog/c11-atomics-in-visual-studio-2022-version-17-5-preview-2/
++#if !defined(OPENSSL_C11_ATOMIC) && defined(OPENSSL_THREADS) && \
++    defined(OPENSSL_WINDOWS)
++#define OPENSSL_WINDOWS_ATOMIC
++#endif
++
+ // CRYPTO_REFCOUNT_MAX is the value at which the reference count saturates.
+ #define CRYPTO_REFCOUNT_MAX 0xffffffff
+ 
+diff --git a/crypto/rand_extra/rand_test.cc b/crypto/rand_extra/rand_test.cc
+index 61da75033..697572fd6 100644
+--- a/crypto/rand_extra/rand_test.cc
++++ b/crypto/rand_extra/rand_test.cc
+@@ -66,7 +66,7 @@ TEST(RandTest, NotObviouslyBroken) {
+ 
+ #if !defined(OPENSSL_WINDOWS) && !defined(OPENSSL_IOS) && \
+     !defined(OPENSSL_FUCHSIA) && !defined(BORINGSSL_UNSAFE_DETERMINISTIC_MODE)
+-static bool ForkAndRand(bssl::Span<uint8_t> out) {
++static bool ForkAndRand(bssl::Span<uint8_t> out, bool fork_unsafe_buffering) {
+   int pipefds[2];
+   if (pipe(pipefds) < 0) {
+     perror("pipe");
+@@ -86,6 +86,9 @@ static bool ForkAndRand(bssl::Span<uint8_t> out) {
+   if (child == 0) {
+     // This is the child. Generate entropy and write it to the parent.
+     close(pipefds[0]);
++    if (fork_unsafe_buffering) {
++      RAND_enable_fork_unsafe_buffering(-1);
++    }
+     RAND_bytes(out.data(), out.size());
+     while (!out.empty()) {
+       ssize_t ret = write(pipefds[1], out.data(), out.size());
+@@ -148,18 +151,27 @@ TEST(RandTest, Fork) {
+   // intentionally uses smaller buffers than the others, to minimize the chance
+   // of sneaking by with a large enough buffer that we've since reseeded from
+   // the OS.
+-  uint8_t buf1[16], buf2[16], buf3[16];
+-  ASSERT_TRUE(ForkAndRand(buf1));
+-  ASSERT_TRUE(ForkAndRand(buf2));
+-  RAND_bytes(buf3, sizeof(buf3));
+-
+-  // All should be different.
+-  EXPECT_NE(Bytes(buf1), Bytes(buf2));
+-  EXPECT_NE(Bytes(buf2), Bytes(buf3));
+-  EXPECT_NE(Bytes(buf1), Bytes(buf3));
+-  EXPECT_NE(Bytes(buf1), Bytes(kZeros));
+-  EXPECT_NE(Bytes(buf2), Bytes(kZeros));
+-  EXPECT_NE(Bytes(buf3), Bytes(kZeros));
++  //
++  // All child processes should have different PRNGs, including the ones that
++  // disavow fork-safety. Although they are produced by fork, they themselves do
++  // not fork after that call.
++  uint8_t bufs[5][16];
++  ASSERT_TRUE(ForkAndRand(bufs[0], /*fork_unsafe_buffering=*/false));
++  ASSERT_TRUE(ForkAndRand(bufs[1], /*fork_unsafe_buffering=*/false));
++  ASSERT_TRUE(ForkAndRand(bufs[2], /*fork_unsafe_buffering=*/true));
++  ASSERT_TRUE(ForkAndRand(bufs[3], /*fork_unsafe_buffering=*/true));
++  RAND_bytes(bufs[4], sizeof(bufs[4]));
++
++  // All should be different and non-zero.
++  for (const auto &buf : bufs) {
++    EXPECT_NE(Bytes(buf), Bytes(kZeros));
++  }
++  for (size_t i = 0; i < OPENSSL_ARRAY_SIZE(bufs); i++) {
++    for (size_t j = 0; j < i; j++) {
++      EXPECT_NE(Bytes(bufs[i]), Bytes(bufs[j]))
++          << "buffers " << i << " and " << j << " matched";
++    }
++  }
+ }
+ #endif  // !OPENSSL_WINDOWS && !OPENSSL_IOS &&
+         // !OPENSSL_FUCHSIA && !BORINGSSL_UNSAFE_DETERMINISTIC_MODE
+diff --git a/crypto/refcount_lock.c b/crypto/refcount_lock.c
+index f6484a8d8..63cbb5140 100644
+--- a/crypto/refcount_lock.c
++++ b/crypto/refcount_lock.c
+@@ -19,7 +19,7 @@
+ #include <openssl/type_check.h>
+ 
+ 
+-#if !defined(OPENSSL_C11_ATOMIC)
++#if !defined(OPENSSL_C11_ATOMIC) && !defined(OPENSSL_WINDOWS_ATOMIC)
+ 
+ OPENSSL_STATIC_ASSERT((CRYPTO_refcount_t)-1 == CRYPTO_REFCOUNT_MAX,
+                       CRYPTO_REFCOUNT_MAX_is_incorrect)
+@@ -50,4 +50,4 @@ int CRYPTO_refcount_dec_and_test_zero(CRYPTO_refcount_t *count) {
+   return ret;
+ }
+ 
+-#endif  // OPENSSL_C11_ATOMIC
++#endif  // !OPENSSL_C11_ATOMIC && !OPENSSL_WINDOWS_ATOMICS
+diff --git a/crypto/refcount_win.c b/crypto/refcount_win.c
+new file mode 100644
+index 000000000..7a2740bc2
+--- /dev/null
++++ b/crypto/refcount_win.c
+@@ -0,0 +1,89 @@
++/* Copyright (c) 2023, Google Inc.
++ *
++ * Permission to use, copy, modify, and/or distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
++ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
++ * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
++ * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
++
++#include "internal.h"
++
++#if defined(OPENSSL_WINDOWS_ATOMIC)
++
++#include <windows.h>
++
++
++// See comment above the typedef of CRYPTO_refcount_t about these tests.
++static_assert(alignof(CRYPTO_refcount_t) == alignof(LONG),
++              "CRYPTO_refcount_t does not match LONG alignment");
++static_assert(sizeof(CRYPTO_refcount_t) == sizeof(LONG),
++              "CRYPTO_refcount_t does not match LONG size");
++
++static_assert((CRYPTO_refcount_t)-1 == CRYPTO_REFCOUNT_MAX,
++              "CRYPTO_REFCOUNT_MAX is incorrect");
++
++static uint32_t atomic_load_u32(volatile LONG *ptr) {
++  // This is not ideal because it still writes to a cacheline. MSVC is not able
++  // to optimize this to a true atomic read, and Windows does not provide an
++  // InterlockedLoad function.
++  //
++  // The Windows documentation [1] does say "Simple reads and writes to
++  // properly-aligned 32-bit variables are atomic operations", but this is not
++  // phrased in terms of the C11 and C++11 memory models, and indeed a read or
++  // write seems to produce slightly different code on MSVC than a sequentially
++  // consistent std::atomic::load in C++. Moreover, it is unclear if non-MSVC
++  // compilers on Windows provide the same guarantees. Thus we avoid relying on
++  // this and instead still use an interlocked function. This is still
++  // preferable a global mutex, and eventually this code will be replaced by
++  // [2]. Additionally, on clang-cl, we'll use the |OPENSSL_C11_ATOMIC| path.
++  //
++  // [1] https://learn.microsoft.com/en-us/windows/win32/sync/interlocked-variable-access
++  // [2] https://devblogs.microsoft.com/cppblog/c11-atomics-in-visual-studio-2022-version-17-5-preview-2/
++  return (uint32_t)InterlockedCompareExchange(ptr, 0, 0);
++}
++
++static int atomic_compare_exchange_u32(volatile LONG *ptr, uint32_t *expected32,
++                                       uint32_t desired) {
++  LONG expected = (LONG)*expected32;
++  LONG actual = InterlockedCompareExchange(ptr, (LONG)desired, expected);
++  *expected32 = (uint32_t)actual;
++  return actual == expected;
++}
++
++void CRYPTO_refcount_inc(CRYPTO_refcount_t *in_count) {
++  volatile LONG *count = (volatile LONG *)in_count;
++  uint32_t expected = atomic_load_u32(count);
++
++  while (expected != CRYPTO_REFCOUNT_MAX) {
++    const uint32_t new_value = expected + 1;
++    if (atomic_compare_exchange_u32(count, &expected, new_value)) {
++      break;
++    }
++  }
++}
++
++int CRYPTO_refcount_dec_and_test_zero(CRYPTO_refcount_t *in_count) {
++  volatile LONG *count = (volatile LONG *)in_count;
++  uint32_t expected = atomic_load_u32(count);
++
++  for (;;) {
++    if (expected == 0) {
++      abort();
++    } else if (expected == CRYPTO_REFCOUNT_MAX) {
++      return 0;
++    } else {
++      const uint32_t new_value = expected - 1;
++      if (atomic_compare_exchange_u32(count, &expected, new_value)) {
++        return new_value == 0;
++      }
++    }
++  }
++}
++
++#endif  // OPENSSL_WINDOWS_ATOMIC
+diff --git a/crypto/stack/stack.c b/crypto/stack/stack.c
+index 7f60b2ea7..c81afcbb7 100644
+--- a/crypto/stack/stack.c
++++ b/crypto/stack/stack.c
+@@ -57,7 +57,9 @@
+ #include <openssl/stack.h>
+ 
+ #include <assert.h>
++#include <limits.h>
+ 
++#include <openssl/err.h>
+ #include <openssl/mem.h>
+ 
+ #include "../internal.h"
+@@ -161,6 +163,11 @@ size_t sk_insert(_STACK *sk, void *p, size_t where) {
+     return 0;
+   }
+ 
++  if (sk->num >= INT_MAX) {
++    OPENSSL_PUT_ERROR(CRYPTO, ERR_R_OVERFLOW);
++    return 0;
++  }
++
+   if (sk->num_alloc <= sk->num + 1) {
+     // Attempt to double the size of the array.
+     size_t new_alloc = sk->num_alloc << 1;
+diff --git a/include/openssl/stack.h b/include/openssl/stack.h
+index f5712f062..e2b9d3187 100644
+--- a/include/openssl/stack.h
++++ b/include/openssl/stack.h
+@@ -140,7 +140,8 @@ STACK_OF(SAMPLE) *sk_SAMPLE_new(sk_SAMPLE_cmp_func comp);
+ // NULL on allocation failure.
+ STACK_OF(SAMPLE) *sk_SAMPLE_new_null(void);
+ 
+-// sk_SAMPLE_num returns the number of elements in |sk|.
++// sk_SAMPLE_num returns the number of elements in |sk|. It is safe to cast this
++// value to |int|. |sk| is guaranteed to have at most |INT_MAX| elements.
+ size_t sk_SAMPLE_num(const STACK_OF(SAMPLE) *sk);
+ 
+ // sk_SAMPLE_zero resets |sk| to the empty state but does nothing to free the
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index 3c0e0a32e..ad59544f0 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -2785,6 +2785,11 @@ OPENSSL_EXPORT void X509_STORE_set_verify(X509_STORE *ctx,
+ OPENSSL_EXPORT void X509_STORE_CTX_set_verify(X509_STORE_CTX *ctx,
+                                               X509_STORE_CTX_verify_fn verify);
+ OPENSSL_EXPORT X509_STORE_CTX_verify_fn X509_STORE_get_verify(X509_STORE *ctx);
++
++// X509_STORE_set_verify_cb acts like |X509_STORE_CTX_set_verify_cb| but sets
++// the verify callback for any |X509_STORE_CTX| created from this |X509_STORE|
++//
++// Do not use this funciton. see |X509_STORE_CTX_set_verify_cb|.
+ OPENSSL_EXPORT void X509_STORE_set_verify_cb(
+     X509_STORE *ctx, X509_STORE_CTX_verify_cb verify_cb);
+ #define X509_STORE_set_verify_cb_func(ctx, func) \
+@@ -2935,8 +2940,27 @@ OPENSSL_EXPORT void X509_STORE_CTX_set_time(X509_STORE_CTX *ctx,
+ OPENSSL_EXPORT void X509_STORE_CTX_set_time_posix(X509_STORE_CTX *ctx,
+                                                   unsigned long flags,
+                                                   int64_t t);
++
++// X509_STORE_CTX_set_verify_cb configures a callback function for |ctx| that is
++// called multiple times during |X509_verify_cert|. The callback returns zero to
++// fail verification and non-zero to proceed. Typically, it will return |ok|,
++// which preserves the default behavior. Returning one when |ok| is zero will
++// proceed past some error. The callback may inspect |ctx| and the error queue
++// to attempt to determine the current stage of certificate verification, but
++// this is often unreliable.
++//
++// WARNING: Do not use this function. It is extremely fragile and unpredictable.
++// This callback exposes implementation details of certificate verification,
++// which change as the library evolves. Attempting to use it for security checks
++// can introduce vulnerabilities if making incorrect assumptions about when the
++// callback is called. Additionally, overriding |ok| may leave |ctx| in an
++// inconsistent state and break invariants.
++//
++// Instead, customize certificate verification by configuring options on the
++// |X509_STORE_CTX| before verification, or applying additional checks after
++// |X509_verify_cert| completes successfully.
+ OPENSSL_EXPORT void X509_STORE_CTX_set_verify_cb(
+-    X509_STORE_CTX *ctx, int (*verify_cb)(int, X509_STORE_CTX *));
++    X509_STORE_CTX *ctx, int (*verify_cb)(int ok, X509_STORE_CTX *ctx));
+ 
+ OPENSSL_EXPORT X509_VERIFY_PARAM *X509_STORE_CTX_get0_param(
+     X509_STORE_CTX *ctx);
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index fb901654b..b233b0fc6 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -6810,6 +6810,81 @@ TEST_P(SSLVersionTest, SessionPropertiesThreads) {
+   EXPECT_EQ(SSL_CTX_sess_hits(server_ctx_.get()), 2);
+   EXPECT_EQ(SSL_CTX_sess_hits(client_ctx_.get()), 2);
+ }
++
++static void SetValueOnFree(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
++                          int index, long argl, void *argp) {
++  if (ptr != nullptr) {
++    *static_cast<long *>(ptr) = argl;
++  }
++}
++
++// Test that one thread can register ex_data while another thread is destroying
++// an object that uses it.
++TEST(SSLTest, ExDataThreads) {
++  static bool already_run = false;
++  if (already_run) {
++    GTEST_SKIP() << "This test consumes process-global resources and can only "
++                    "be run once in a process. It is not compatible with "
++                    "--gtest_repeat.";
++  }
++  already_run = true;
++
++  bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
++  ASSERT_TRUE(ctx);
++
++  // Register an initial index, so the threads can exercise having any ex_data.
++  int first_index =
++      SSL_get_ex_new_index(-1, nullptr, nullptr, nullptr, SetValueOnFree);
++  ASSERT_GE(first_index, 0);
++
++  // Callers may register indices concurrently with using other indices. This
++  // may happen if one part of an application is initializing while another part
++  // is already running.
++  static constexpr int kNumIndices = 3;
++  static constexpr int kNumSSLs = 10;
++  int index[kNumIndices];
++  long values[kNumSSLs];
++  std::fill(std::begin(values), std::end(values), -2);
++  std::vector<std::thread> threads;
++  for (size_t i = 0; i < kNumIndices; i++) {
++    threads.emplace_back([&, i] {
++      index[i] = SSL_get_ex_new_index(static_cast<long>(i), nullptr, nullptr,
++                                      nullptr, SetValueOnFree);
++      ASSERT_GE(index[i], 0);
++    });
++  }
++  for (size_t i = 0; i < kNumSSLs; i++) {
++    threads.emplace_back([&, i] {
++      bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
++      ASSERT_TRUE(ssl);
++      ASSERT_TRUE(SSL_set_ex_data(ssl.get(), first_index, &values[i]));
++    });
++  }
++  for (auto &thread : threads) {
++    thread.join();
++  }
++
++  // Each of the SSL threads should have set their flag via ex_data.
++  for (size_t i = 0; i < kNumSSLs; i++) {
++    EXPECT_EQ(values[i], -1);
++  }
++
++  // Each of the newly-registered indices should be distinct and work correctly.
++  static_assert(kNumIndices <= kNumSSLs, "values buffer too small");
++  std::fill(std::begin(values), std::end(values), -2);
++  bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
++  ASSERT_TRUE(ssl);
++  for (size_t i = 0; i < kNumIndices; i++) {
++    for (size_t j = 0; j < i; j++) {
++      EXPECT_NE(index[i], index[j]);
++    }
++    ASSERT_TRUE(SSL_set_ex_data(ssl.get(), index[i], &values[i]));
++  }
++  ssl = nullptr;
++  for (size_t i = 0; i < kNumIndices; i++) {
++    EXPECT_EQ(values[i], static_cast<long>(i));
++  }
++}
+ #endif  // OPENSSL_THREADS
+ 
+ TEST_P(SSLVersionTest, SimpleVerifiedChain) {
+diff --git a/util/fipstools/acvp/acvptool/acvp.go b/util/fipstools/acvp/acvptool/acvp.go
+index 2e1883d56..714523411 100644
+--- a/util/fipstools/acvp/acvptool/acvp.go
++++ b/util/fipstools/acvp/acvptool/acvp.go
+@@ -570,14 +570,14 @@ func main() {
+ 		}
+ 		os.Stdout.Write(regcapBytes)
+ 		os.Stdout.WriteString("\n")
+-		os.Exit(0)
++		return
+ 	}
+ 
+ 	if len(*jsonInputFile) > 0 {
+ 		if err := processFile(*jsonInputFile, supportedAlgos, middle); err != nil {
+ 			log.Fatalf("failed to process input file: %s", err)
+ 		}
+-		os.Exit(0)
++		return
+ 	}
+ 
+ 	var config Config
+@@ -783,7 +783,7 @@ func main() {
+ 
+ 	if len(*fetchFlag) > 0 {
+ 		io.WriteString(fetchOutputTee, "]\n")
+-		os.Exit(0)
++		return
+ 	}
+ 
+ 	if ok, err := getResultsWithRetry(server, url); err != nil {
+diff --git a/util/fipstools/acvp/acvptool/subprocess/subprocess.go b/util/fipstools/acvp/acvptool/subprocess/subprocess.go
+index c4a37b2ee..2deeff7de 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/subprocess.go
++++ b/util/fipstools/acvp/acvptool/subprocess/subprocess.go
+@@ -30,6 +30,9 @@ import (
+ // that don't call a server.
+ type Transactable interface {
+ 	Transact(cmd string, expectedResults int, args ...[]byte) ([][]byte, error)
++	TransactAsync(cmd string, expectedResults int, args [][]byte, callback func([][]byte) error)
++	Barrier(callback func()) error
++	Flush() error
+ }
+ 
+ // Subprocess is a "middle" layer that interacts with a FIPS module via running
+@@ -39,6 +42,24 @@ type Subprocess struct {
+ 	stdin      io.WriteCloser
+ 	stdout     io.ReadCloser
+ 	primitives map[string]primitive
++	// supportsFlush is true if the modulewrapper indicated that it wants to receive flush commands.
++	supportsFlush bool
++	// pendingReads is a queue of expected responses. `readerRoutine` reads each response and calls the callback in the matching pendingRead.
++	pendingReads chan pendingRead
++	// readerFinished is a channel that is closed if `readerRoutine` has finished (e.g. because of a read error).
++	readerFinished chan struct{}
++}
++
++// pendingRead represents an expected response from the modulewrapper.
++type pendingRead struct {
++	// barrierCallback is called as soon as this pendingRead is the next in the queue, before any read from the modulewrapper.
++	barrierCallback func()
++
++	// callback is called with the result from the modulewrapper. If this is nil then no read is performed.
++	callback func(result [][]byte) error
++	// cmd is the command that requested this read for logging purposes.
++	cmd                string
++	expectedNumResults int
+ }
+ 
+ // New returns a new Subprocess middle layer that runs the given binary.
+@@ -61,13 +82,18 @@ func New(path string) (*Subprocess, error) {
+ 	return NewWithIO(cmd, stdin, stdout), nil
+ }
+ 
++// maxPending is the maximum number of requests that can be in the pipeline.
++const maxPending = 4096
++
+ // NewWithIO returns a new Subprocess middle layer with the given ReadCloser and
+ // WriteCloser. The returned Subprocess will call Wait on the Cmd when closed.
+ func NewWithIO(cmd *exec.Cmd, in io.WriteCloser, out io.ReadCloser) *Subprocess {
+ 	m := &Subprocess{
+-		cmd:    cmd,
+-		stdin:  in,
+-		stdout: out,
++		cmd:            cmd,
++		stdin:          in,
++		stdout:         out,
++		pendingReads:   make(chan pendingRead, maxPending),
++		readerFinished: make(chan struct{}),
+ 	}
+ 
+ 	m.primitives = map[string]primitive{
+@@ -107,6 +133,7 @@ func NewWithIO(cmd *exec.Cmd, in io.WriteCloser, out io.ReadCloser) *Subprocess
+ 		"hmacDRBG":          &drbg{"hmacDRBG", map[string]bool{"SHA-1": true, "SHA2-224": true, "SHA2-256": true, "SHA2-384": true, "SHA2-512": true}},
+ 		"KDF":               &kdfPrimitive{},
+ 		"KDA":               &hkdf{},
++		"TLS-v1.3":          &tls13{},
+ 		"CMAC-AES":          &keyedMACPrimitive{"CMAC-AES"},
+ 		"RSA":               &rsa{},
+ 		"kdf-components":    &kdfComp{"kdf-components"},
+@@ -117,6 +144,7 @@ func NewWithIO(cmd *exec.Cmd, in io.WriteCloser, out io.ReadCloser) *Subprocess
+ 	}
+ 	m.primitives["ECDSA"] = &ecdsa{"ECDSA", map[string]bool{"P-224": true, "P-256": true, "P-384": true, "P-521": true}, m.primitives}
+ 
++	go m.readerRoutine()
+ 	return m
+ }
+ 
+@@ -125,10 +153,58 @@ func (m *Subprocess) Close() {
+ 	m.stdout.Close()
+ 	m.stdin.Close()
+ 	m.cmd.Wait()
++	close(m.pendingReads)
++	<-m.readerFinished
++}
++
++func (m *Subprocess) flush() error {
++	if !m.supportsFlush {
++		return nil
++	}
++
++	const cmd = "flush"
++	buf := make([]byte, 8, 8+len(cmd))
++	binary.LittleEndian.PutUint32(buf, 1)
++	binary.LittleEndian.PutUint32(buf[4:], uint32(len(cmd)))
++	buf = append(buf, []byte(cmd)...)
++
++	if _, err := m.stdin.Write(buf); err != nil {
++		return err
++	}
++	return nil
+ }
+ 
+-// Transact performs a single request--response pair with the subprocess.
+-func (m *Subprocess) Transact(cmd string, expectedResults int, args ...[]byte) ([][]byte, error) {
++func (m *Subprocess) enqueueRead(pending pendingRead) error {
++	select {
++	case <-m.readerFinished:
++		panic("attempted to enqueue request after the reader failed")
++	default:
++	}
++
++	select {
++	case m.pendingReads <- pending:
++		break
++	default:
++		// `pendingReads` is full. Ensure that the modulewrapper will process
++		// some outstanding requests to free up space in the queue.
++		if err := m.flush(); err != nil {
++			return err
++		}
++		m.pendingReads <- pending
++	}
++
++	return nil
++}
++
++// TransactAsync performs a single request--response pair with the subprocess.
++// The callback will run at some future point, in a separate goroutine. All
++// callbacks will, however, be run in the order that TransactAsync was called.
++// Use Flush to wait for all outstanding callbacks.
++func (m *Subprocess) TransactAsync(cmd string, expectedNumResults int, args [][]byte, callback func(result [][]byte) error) {
++	if err := m.enqueueRead(pendingRead{nil, callback, cmd, expectedNumResults}); err != nil {
++		panic(err)
++	}
++
+ 	argLength := len(cmd)
+ 	for _, arg := range args {
+ 		argLength += len(arg)
+@@ -146,22 +222,93 @@ func (m *Subprocess) Transact(cmd string, expectedResults int, args ...[]byte) (
+ 	}
+ 
+ 	if _, err := m.stdin.Write(buf); err != nil {
+-		return nil, fmt.Errorf("Failed to write buff: %s", err)
++		panic(err)
++	}
++}
++
++// Flush tells the subprocess to complete all outstanding requests and waits
++// for all outstanding TransactAsync callbacks to complete.
++func (m *Subprocess) Flush() error {
++	if m.supportsFlush {
++		m.flush()
++	}
++
++	done := make(chan struct{})
++	if err := m.enqueueRead(pendingRead{barrierCallback: func() {
++		close(done)
++	}}); err != nil {
++		return err
+ 	}
+ 
+-	buf = buf[:4]
++	<-done
++	return nil
++}
++
++// Barrier runs callback after all outstanding TransactAsync callbacks have
++// been run.
++func (m *Subprocess) Barrier(callback func()) error {
++	return m.enqueueRead(pendingRead{barrierCallback: callback})
++}
++
++func (m *Subprocess) Transact(cmd string, expectedNumResults int, args ...[]byte) ([][]byte, error) {
++	done := make(chan struct{})
++	var result [][]byte
++	m.TransactAsync(cmd, expectedNumResults, args, func(r [][]byte) error {
++		result = r
++		close(done)
++		return nil
++	})
++
++	if err := m.flush(); err != nil {
++		return nil, err
++	}
++
++	select {
++	case <-done:
++		return result, nil
++	case <-m.readerFinished:
++		panic("was still waiting for a result when the reader finished")
++	}
++}
++
++func (m *Subprocess) readerRoutine() {
++	defer close(m.readerFinished)
++
++	for pendingRead := range m.pendingReads {
++		if pendingRead.barrierCallback != nil {
++			pendingRead.barrierCallback()
++		}
++
++		if pendingRead.callback == nil {
++			continue
++		}
++
++		result, err := m.readResult(pendingRead.cmd, pendingRead.expectedNumResults)
++		if err != nil {
++			panic(fmt.Errorf("failed to read from subprocess: %w", err))
++		}
++
++		if err := pendingRead.callback(result); err != nil {
++			panic(fmt.Errorf("result from subprocess was rejected: %w", err))
++		}
++	}
++}
++
++func (m *Subprocess) readResult(cmd string, expectedNumResults int) ([][]byte, error) {
++	buf := make([]byte, 4)
++
+ 	if _, err := io.ReadFull(m.stdout, buf); err != nil {
+-		return nil, fmt.Errorf("Failed to read the length of sections section: %s", err)
++		return nil, err
+ 	}
+ 
+ 	numResults := binary.LittleEndian.Uint32(buf)
+-	if int(numResults) != expectedResults {
+-		return nil, fmt.Errorf("expected %d results from %q but got %d", expectedResults, cmd, numResults)
++	if int(numResults) != expectedNumResults {
++		return nil, fmt.Errorf("expected %d results from %q but got %d", expectedNumResults, cmd, numResults)
+ 	}
+ 
+ 	buf = make([]byte, 4*numResults)
+ 	if _, err := io.ReadFull(m.stdout, buf); err != nil {
+-		return nil, fmt.Errorf("Failed to read the length of each section: %s", err)
++		return nil, err
+ 	}
+ 
+ 	var resultsLength uint64
+@@ -175,7 +322,7 @@ func (m *Subprocess) Transact(cmd string, expectedResults int, args ...[]byte) (
+ 
+ 	results := make([]byte, resultsLength)
+ 	if _, err := io.ReadFull(m.stdout, results); err != nil {
+-		return nil, fmt.Errorf("Failed to read total results: %s", err)
++		return nil, err
+ 	}
+ 
+ 	ret := make([][]byte, 0, numResults)
+@@ -198,16 +345,25 @@ func (m *Subprocess) Config() ([]byte, error) {
+ 		return nil, err
+ 	}
+ 	var config []struct {
+-		Algorithm string `json:"algorithm"`
++		Algorithm string   `json:"algorithm"`
++		Features  []string `json:"features"`
+ 	}
+ 	if err := json.Unmarshal(results[0], &config); err != nil {
+ 		return nil, errors.New("failed to parse config response from wrapper: " + err.Error())
+ 	}
+ 	for _, algo := range config {
+-		if _, ok := m.primitives[algo.Algorithm]; !ok {
++		if algo.Algorithm == "acvptool" {
++			for _, feature := range algo.Features {
++				switch feature {
++				case "batch":
++					m.supportsFlush = true
++				}
++			}
++		} else if _, ok := m.primitives[algo.Algorithm]; !ok {
+ 			return nil, fmt.Errorf("wrapper config advertises support for unknown algorithm %q", algo.Algorithm)
+ 		}
+ 	}
++
+ 	return results[0], nil
+ }
+ 
+diff --git a/util/fipstools/acvp/acvptool/subprocess/tls13.go b/util/fipstools/acvp/acvptool/subprocess/tls13.go
+new file mode 100644
+index 000000000..0a853f250
+--- /dev/null
++++ b/util/fipstools/acvp/acvptool/subprocess/tls13.go
+@@ -0,0 +1,240 @@
++// Copyright (c) 2023, Google Inc.
++//
++// Permission to use, copy, modify, and/or distribute this software for any
++// purpose with or without fee is hereby granted, provided that the above
++// copyright notice and this permission notice appear in all copies.
++//
++// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
++// SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
++// OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
++// CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++
++package subprocess
++
++import (
++	"crypto/sha256"
++	"crypto/sha512"
++	"encoding/hex"
++	"encoding/json"
++	"fmt"
++)
++
++// The following structures reflect the JSON of TLS 1.3 tests. See
++// https://pages.nist.gov/ACVP/draft-hammett-acvp-kdf-tls-v1.3.html
++
++type tls13TestVectorSet struct {
++	Groups []tls13TestGroup `json:"testGroups"`
++}
++
++type tls13TestGroup struct {
++	ID       uint64      `json:"tgId"`
++	HashFunc string      `json:"hmacAlg"`
++	Tests    []tls13Test `json:"tests"`
++}
++
++type tls13Test struct {
++	ID uint64 `json:"tcId"`
++	// Although ACVP refers to these as client and server randoms, these
++	// fields are misnamed and really contain portions of the handshake
++	// transcript. Concatenated in order, they give the transcript up to
++	// the named message. In case of HelloRetryRequest, ClientHelloHex
++	// includes up to the second ClientHello.
++	ClientHelloHex    string `json:"helloClientRandom"`
++	ServerHelloHex    string `json:"helloServerRandom"`
++	ServerFinishedHex string `json:"finishedServerRandom"`
++	ClientFinishedHex string `json:"finishedClientRandom"`
++	DHEInputHex       string `json:"dhe"`
++	PSKInputHex       string `json:"psk"`
++}
++
++type tls13TestGroupResponse struct {
++	ID    uint64              `json:"tgId"`
++	Tests []tls13TestResponse `json:"tests"`
++}
++
++type tls13TestResponse struct {
++	ID                                uint64 `json:"tcId"`
++	ClientEarlyTrafficSecretHex       string `json:"clientEarlyTrafficSecret"`
++	EarlyExporterMasterSecretHex      string `json:"earlyExporterMasterSecret"`
++	ClientHandshakeTrafficSecretHex   string `json:"clientHandshakeTrafficSecret"`
++	ServerHandshakeTrafficSecretHex   string `json:"serverHandshakeTrafficSecret"`
++	ClientApplicationTrafficSecretHex string `json:"clientApplicationTrafficSecret"`
++	ServerApplicationTrafficSecretHex string `json:"serverApplicationTrafficSecret"`
++	ExporterMasterSecretHex           string `json:"exporterMasterSecret"`
++	ResumptionMasterSecretHex         string `json:"resumptionMasterSecret"`
++}
++
++type tls13 struct{}
++
++func (k *tls13) Process(vectorSet []byte, m Transactable) (any, error) {
++	var parsed tls13TestVectorSet
++	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
++		return nil, err
++	}
++
++	var respGroups []tls13TestGroupResponse
++	for _, group := range parsed.Groups {
++		groupResp := tls13TestGroupResponse{ID: group.ID}
++
++		for _, test := range group.Tests {
++			testResp := tls13TestResponse{ID: test.ID}
++
++			clientHello, err := hex.DecodeString(test.ClientHelloHex)
++			if err != nil {
++				return nil, err
++			}
++			serverHello, err := hex.DecodeString(test.ServerHelloHex)
++			if err != nil {
++				return nil, err
++			}
++			serverFinished, err := hex.DecodeString(test.ServerFinishedHex)
++			if err != nil {
++				return nil, err
++			}
++			clientFinished, err := hex.DecodeString(test.ClientFinishedHex)
++			if err != nil {
++				return nil, err
++			}
++
++			// See https://www.rfc-editor.org/rfc/rfc8446#section-7.1
++			var hashLen int
++			var emptyHash []byte
++			switch group.HashFunc {
++			case "SHA2-256":
++				hashLen = 256 / 8
++				digest := sha256.Sum256(nil)
++				emptyHash = digest[:]
++			case "SHA2-384":
++				hashLen = 384 / 8
++				digest := sha512.Sum384(nil)
++				emptyHash = digest[:]
++			default:
++				return nil, fmt.Errorf("hash function %q is not supported for TLS v1.3", group.HashFunc)
++			}
++			hashLenBytes := uint32le(uint32(hashLen))
++
++			psk, err := hex.DecodeString(test.PSKInputHex)
++			if err != nil {
++				return nil, err
++			}
++			if len(psk) == 0 {
++				psk = make([]byte, hashLen)
++			}
++
++			dhe, err := hex.DecodeString(test.DHEInputHex)
++			if err != nil {
++				return nil, err
++			}
++			if len(dhe) == 0 {
++				dhe = make([]byte, hashLen)
++			}
++
++			zeros := make([]byte, hashLen)
++			earlySecret, err := m.Transact("HKDFExtract/"+group.HashFunc, 1, psk, zeros)
++			if err != nil {
++				return nil, fmt.Errorf("HKDFExtract operation failed: %s", err)
++			}
++
++			hashedToClientHello, err := m.Transact(group.HashFunc, 1, clientHello)
++			if err != nil {
++				return nil, fmt.Errorf("%q operation failed: %s", group.HashFunc, err)
++			}
++			hashedToServerHello, err := m.Transact(group.HashFunc, 1, concat(clientHello, serverHello))
++			if err != nil {
++				return nil, fmt.Errorf("%q operation failed: %s", group.HashFunc, err)
++			}
++			hashedToServerFinished, err := m.Transact(group.HashFunc, 1, concat(clientHello, serverHello, serverFinished))
++			if err != nil {
++				return nil, fmt.Errorf("%q operation failed: %s", group.HashFunc, err)
++			}
++			hashedMessages, err := m.Transact(group.HashFunc, 1, concat(clientHello, serverHello, serverFinished, clientFinished))
++			if err != nil {
++				return nil, fmt.Errorf("%q operation failed: %s", group.HashFunc, err)
++			}
++
++			clientEarlyTrafficSecret, err := m.Transact("HKDFExpandLabel/"+group.HashFunc, 1, hashLenBytes, earlySecret[0], []byte("c e traffic"), hashedToClientHello[0])
++			if err != nil {
++				return nil, fmt.Errorf("HKDFExpandLabel operation failed: %s", err)
++			}
++			testResp.ClientEarlyTrafficSecretHex = hex.EncodeToString(clientEarlyTrafficSecret[0])
++
++			earlyExporter, err := m.Transact("HKDFExpandLabel/"+group.HashFunc, 1, hashLenBytes, earlySecret[0], []byte("e exp master"), hashedToClientHello[0])
++			if err != nil {
++				return nil, fmt.Errorf("HKDFExpandLabel operation failed: %s", err)
++			}
++			testResp.EarlyExporterMasterSecretHex = hex.EncodeToString(earlyExporter[0])
++
++			derivedSecret, err := m.Transact("HKDFExpandLabel/"+group.HashFunc, 1, hashLenBytes, earlySecret[0], []byte("derived"), emptyHash[:])
++			if err != nil {
++				return nil, fmt.Errorf("HKDFExpandLabel operation failed: %s", err)
++			}
++
++			handshakeSecret, err := m.Transact("HKDFExtract/"+group.HashFunc, 1, dhe, derivedSecret[0])
++			if err != nil {
++				return nil, fmt.Errorf("HKDFExtract operation failed: %s", err)
++			}
++
++			clientHandshakeTrafficSecret, err := m.Transact("HKDFExpandLabel/"+group.HashFunc, 1, hashLenBytes, handshakeSecret[0], []byte("c hs traffic"), hashedToServerHello[0])
++			if err != nil {
++				return nil, fmt.Errorf("HKDFExpandLabel operation failed: %s", err)
++			}
++			testResp.ClientHandshakeTrafficSecretHex = hex.EncodeToString(clientHandshakeTrafficSecret[0])
++
++			serverHandshakeTrafficSecret, err := m.Transact("HKDFExpandLabel/"+group.HashFunc, 1, hashLenBytes, handshakeSecret[0], []byte("s hs traffic"), hashedToServerHello[0])
++			if err != nil {
++				return nil, fmt.Errorf("HKDFExpandLabel operation failed: %s", err)
++			}
++			testResp.ServerHandshakeTrafficSecretHex = hex.EncodeToString(serverHandshakeTrafficSecret[0])
++
++			derivedSecret, err = m.Transact("HKDFExpandLabel/"+group.HashFunc, 1, hashLenBytes, handshakeSecret[0], []byte("derived"), emptyHash[:])
++			if err != nil {
++				return nil, fmt.Errorf("HKDFExpandLabel operation failed: %s", err)
++			}
++
++			masterSecret, err := m.Transact("HKDFExtract/"+group.HashFunc, 1, zeros, derivedSecret[0])
++			if err != nil {
++				return nil, fmt.Errorf("HKDFExtract operation failed: %s", err)
++			}
++
++			clientAppTrafficSecret, err := m.Transact("HKDFExpandLabel/"+group.HashFunc, 1, hashLenBytes, masterSecret[0], []byte("c ap traffic"), hashedToServerFinished[0])
++			if err != nil {
++				return nil, fmt.Errorf("HKDFExpandLabel operation failed: %s", err)
++			}
++			testResp.ClientApplicationTrafficSecretHex = hex.EncodeToString(clientAppTrafficSecret[0])
++
++			serverAppTrafficSecret, err := m.Transact("HKDFExpandLabel/"+group.HashFunc, 1, hashLenBytes, masterSecret[0], []byte("s ap traffic"), hashedToServerFinished[0])
++			if err != nil {
++				return nil, fmt.Errorf("HKDFExpandLabel operation failed: %s", err)
++			}
++			testResp.ServerApplicationTrafficSecretHex = hex.EncodeToString(serverAppTrafficSecret[0])
++
++			exporterSecret, err := m.Transact("HKDFExpandLabel/"+group.HashFunc, 1, hashLenBytes, masterSecret[0], []byte("exp master"), hashedToServerFinished[0])
++			if err != nil {
++				return nil, fmt.Errorf("HKDFExpandLabel operation failed: %s", err)
++			}
++			testResp.ExporterMasterSecretHex = hex.EncodeToString(exporterSecret[0])
++
++			resumptionSecret, err := m.Transact("HKDFExpandLabel/"+group.HashFunc, 1, hashLenBytes, masterSecret[0], []byte("res master"), hashedMessages[0])
++			if err != nil {
++				return nil, fmt.Errorf("HKDFExpandLabel operation failed: %s", err)
++			}
++			testResp.ResumptionMasterSecretHex = hex.EncodeToString(resumptionSecret[0])
++
++			groupResp.Tests = append(groupResp.Tests, testResp)
++		}
++		respGroups = append(respGroups, groupResp)
++	}
++
++	return respGroups, nil
++}
++
++func concat(slices ...[]byte) []byte {
++	var ret []byte
++	for _, slice := range slices {
++		ret = append(ret, slice...)
++	}
++	return ret
++}
+\ No newline at end of file

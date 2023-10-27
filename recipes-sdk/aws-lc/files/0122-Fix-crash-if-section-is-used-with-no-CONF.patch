@@ -1,0 +1,68 @@
+From 1f282f838f57160a4a981bb7e470b07c344c7407 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 29 Dec 2022 22:02:28 -0500
+Subject: [PATCH] Fix crash if '@section' is used with no CONF.
+
+Our NCONF_get_section doesn't silently handle NULLs, so add a check to
+the caller.
+
+Change-Id: I133d10c7a5dec22469a80b78cb45f479f128ada2
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56106
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 871704b873e356b9eee354b70bf0f11cf234a1f7)
+---
+ crypto/x509/x509_test.cc | 5 ++---
+ crypto/x509v3/v3_conf.c  | 4 ++++
+ include/openssl/x509v3.h | 6 +++---
+ 3 files changed, 9 insertions(+), 6 deletions(-)
+
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 270d891c9..306c2f2c6 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -5262,9 +5262,8 @@ TEST(X509Test, ExtensionFromConf) {
+        {0x30, 0x0f, 0x06, 0x03, 0x55, 0x1d, 0x13, 0x01, 0x01, 0xff, 0x04, 0x05,
+         0x30, 0x03, 0x01, 0x01, 0xff}},
+ 
+-      // TODO(davidben): Enable this test. There is a missing NULL check, so it
+-      // crashes right now.
+-      // {"basicConstraints", "critical,@section", nullptr, {}},
++      // If no config is provided, this should fail.
++      {"basicConstraints", "critical,@section", nullptr, {}},
+ 
+       // The "DER:" prefix just specifies an arbitrary byte string. Colons
+       // separators are ignored.
+diff --git a/crypto/x509v3/v3_conf.c b/crypto/x509v3/v3_conf.c
+index b4cff9d45..922291dae 100644
+--- a/crypto/x509v3/v3_conf.c
++++ b/crypto/x509v3/v3_conf.c
+@@ -136,6 +136,10 @@ static X509_EXTENSION *do_ext_nconf(const CONF *conf, const X509V3_CTX *ctx,
+   // Now get internal extension representation based on type
+   if (method->v2i) {
+     if (*value == '@') {
++      if (conf == NULL) {
++        OPENSSL_PUT_ERROR(X509V3, X509V3_R_NO_CONFIG_DATABASE);
++        return NULL;
++      }
+       nval = NCONF_get_section(conf, value + 1);
+     } else {
+       nval_owned = X509V3_parse_list(value);
+diff --git a/include/openssl/x509v3.h b/include/openssl/x509v3.h
+index 9472cf079..e1f7191c2 100644
+--- a/include/openssl/x509v3.h
++++ b/include/openssl/x509v3.h
+@@ -627,10 +627,10 @@ OPENSSL_EXPORT void X509V3_set_nconf(X509V3_CTX *ctx, const CONF *conf);
+ // value specified by |value|. It returns a newly-allocated |X509_EXTENSION|
+ // object on success, or NULL on error. |conf| and |ctx| specify additional
+ // information referenced by some formats. |conf| may be NULL, in which case
+-// features which use it will be disabled or crash.
++// features which use it will be disabled.
+ //
+-// TODO(davidben): Fix the crashes. Also allow |ctx| to be NULL. One caller
+-// seems to do it, even though it doesn't really work.
++// TODO(davidben): Allow |ctx| to be NULL. One caller seems to do it, even
++// though it doesn't really work.
+ OPENSSL_EXPORT X509_EXTENSION *X509V3_EXT_nconf(const CONF *conf,
+                                                 const X509V3_CTX *ctx,
+                                                 const char *name,

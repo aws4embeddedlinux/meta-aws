@@ -1,0 +1,872 @@
+From c31d55fc44184eda1f4a617eb92fb7568a18d23a Mon Sep 17 00:00:00 2001
+From: Justin W Smith <justsmth@amazon.com>
+Date: Wed, 8 Jun 2022 18:25:39 +0000
+Subject: [PATCH] Re-make x86_att
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/e5d0f812eddbbaf6036a3fb5768ada768cdaac38
+---
+ x86_att/p384/bignum_add_p384.S         | 1 +
+ x86_att/p384/bignum_bigendian_6.S      | 1 +
+ x86_att/p384/bignum_cmul_p384.S        | 1 +
+ x86_att/p384/bignum_cmul_p384_alt.S    | 1 +
+ x86_att/p384/bignum_deamont_p384.S     | 1 +
+ x86_att/p384/bignum_deamont_p384_alt.S | 1 +
+ x86_att/p384/bignum_demont_p384.S      | 1 +
+ x86_att/p384/bignum_demont_p384_alt.S  | 1 +
+ x86_att/p384/bignum_double_p384.S      | 1 +
+ x86_att/p384/bignum_half_p384.S        | 1 +
+ x86_att/p384/bignum_littleendian_6.S   | 1 +
+ x86_att/p384/bignum_mod_n384.S         | 2 +-
+ x86_att/p384/bignum_mod_n384_6.S       | 2 +-
+ x86_att/p384/bignum_mod_n384_alt.S     | 2 +-
+ x86_att/p384/bignum_mod_p384.S         | 2 +-
+ x86_att/p384/bignum_mod_p384_6.S       | 2 +-
+ x86_att/p384/bignum_mod_p384_alt.S     | 2 +-
+ x86_att/p384/bignum_montmul_p384.S     | 2 +-
+ x86_att/p384/bignum_montmul_p384_alt.S | 2 +-
+ x86_att/p384/bignum_montsqr_p384.S     | 2 +-
+ x86_att/p384/bignum_montsqr_p384_alt.S | 2 +-
+ x86_att/p384/bignum_mux_6.S            | 2 +-
+ x86_att/p384/bignum_neg_p384.S         | 2 +-
+ x86_att/p384/bignum_nonzero_6.S        | 2 +-
+ x86_att/p384/bignum_optneg_p384.S      | 2 +-
+ x86_att/p384/bignum_sub_p384.S         | 2 +-
+ x86_att/p384/bignum_tomont_p384.S      | 2 +-
+ x86_att/p384/bignum_tomont_p384_alt.S  | 2 +-
+ x86_att/p384/bignum_triple_p384.S      | 2 +-
+ x86_att/p384/bignum_triple_p384_alt.S  | 2 +-
+ x86_att/p521/bignum_add_p521.S         | 2 +-
+ x86_att/p521/bignum_cmul_p521.S        | 2 +-
+ x86_att/p521/bignum_cmul_p521_alt.S    | 2 +-
+ x86_att/p521/bignum_deamont_p521.S     | 2 +-
+ x86_att/p521/bignum_demont_p521.S      | 2 +-
+ x86_att/p521/bignum_double_p521.S      | 2 +-
+ x86_att/p521/bignum_fromlebytes_p521.S | 2 +-
+ x86_att/p521/bignum_half_p521.S        | 2 +-
+ x86_att/p521/bignum_mod_n521_9.S       | 2 +-
+ x86_att/p521/bignum_mod_n521_9_alt.S   | 2 +-
+ x86_att/p521/bignum_mod_p521_9.S       | 2 +-
+ x86_att/p521/bignum_montmul_p521.S     | 2 +-
+ x86_att/p521/bignum_montmul_p521_alt.S | 2 +-
+ x86_att/p521/bignum_montsqr_p521.S     | 2 +-
+ x86_att/p521/bignum_montsqr_p521_alt.S | 2 +-
+ x86_att/p521/bignum_mul_p521.S         | 2 +-
+ x86_att/p521/bignum_mul_p521_alt.S     | 2 +-
+ x86_att/p521/bignum_neg_p521.S         | 2 +-
+ x86_att/p521/bignum_optneg_p521.S      | 2 +-
+ x86_att/p521/bignum_sqr_p521.S         | 2 +-
+ x86_att/p521/bignum_sqr_p521_alt.S     | 2 +-
+ x86_att/p521/bignum_sub_p521.S         | 2 +-
+ x86_att/p521/bignum_tolebytes_p521.S   | 2 +-
+ x86_att/p521/bignum_tomont_p521.S      | 2 +-
+ x86_att/p521/bignum_triple_p521.S      | 2 +-
+ x86_att/p521/bignum_triple_p521_alt.S  | 2 +-
+ 56 files changed, 56 insertions(+), 45 deletions(-)
+
+diff --git a/x86_att/p384/bignum_add_p384.S b/x86_att/p384/bignum_add_p384.S
+index 3a2be9c5e..e527de6fb 100644
+--- a/x86_att/p384/bignum_add_p384.S
++++ b/x86_att/p384/bignum_add_p384.S
+@@ -26,6 +26,7 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_p384)
+         .text
+diff --git a/x86_att/p384/bignum_bigendian_6.S b/x86_att/p384/bignum_bigendian_6.S
+index 44da1b75b..287e1bd39 100644
+--- a/x86_att/p384/bignum_bigendian_6.S
++++ b/x86_att/p384/bignum_bigendian_6.S
+@@ -38,6 +38,7 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_bigendian_6)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_bigendian_6)
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_frombebytes_6)
+diff --git a/x86_att/p384/bignum_cmul_p384.S b/x86_att/p384/bignum_cmul_p384.S
+index bd4afcd54..4f03a1bd1 100644
+--- a/x86_att/p384/bignum_cmul_p384.S
++++ b/x86_att/p384/bignum_cmul_p384.S
+@@ -27,6 +27,7 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_cmul_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_cmul_p384)
+         .text
+diff --git a/x86_att/p384/bignum_cmul_p384_alt.S b/x86_att/p384/bignum_cmul_p384_alt.S
+index f390c461f..ff4b38658 100644
+--- a/x86_att/p384/bignum_cmul_p384_alt.S
++++ b/x86_att/p384/bignum_cmul_p384_alt.S
+@@ -27,6 +27,7 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_cmul_p384_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_cmul_p384_alt)
+         .text
+diff --git a/x86_att/p384/bignum_deamont_p384.S b/x86_att/p384/bignum_deamont_p384.S
+index 39648d329..f029a18f4 100644
+--- a/x86_att/p384/bignum_deamont_p384.S
++++ b/x86_att/p384/bignum_deamont_p384.S
+@@ -29,6 +29,7 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_deamont_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_deamont_p384)
+         .text
+diff --git a/x86_att/p384/bignum_deamont_p384_alt.S b/x86_att/p384/bignum_deamont_p384_alt.S
+index e6aa8f537..63b660f70 100644
+--- a/x86_att/p384/bignum_deamont_p384_alt.S
++++ b/x86_att/p384/bignum_deamont_p384_alt.S
+@@ -29,6 +29,7 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_deamont_p384_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_deamont_p384_alt)
+         .text
+diff --git a/x86_att/p384/bignum_demont_p384.S b/x86_att/p384/bignum_demont_p384.S
+index 9ccaece15..75124a9e2 100644
+--- a/x86_att/p384/bignum_demont_p384.S
++++ b/x86_att/p384/bignum_demont_p384.S
+@@ -29,6 +29,7 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_demont_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_demont_p384)
+         .text
+diff --git a/x86_att/p384/bignum_demont_p384_alt.S b/x86_att/p384/bignum_demont_p384_alt.S
+index b4084025d..1b4832bf0 100644
+--- a/x86_att/p384/bignum_demont_p384_alt.S
++++ b/x86_att/p384/bignum_demont_p384_alt.S
+@@ -29,6 +29,7 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_demont_p384_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_demont_p384_alt)
+         .text
+diff --git a/x86_att/p384/bignum_double_p384.S b/x86_att/p384/bignum_double_p384.S
+index cb83e6e02..b7b2e5795 100644
+--- a/x86_att/p384/bignum_double_p384.S
++++ b/x86_att/p384/bignum_double_p384.S
+@@ -26,6 +26,7 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_double_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_double_p384)
+         .text
+diff --git a/x86_att/p384/bignum_half_p384.S b/x86_att/p384/bignum_half_p384.S
+index 7e353c356..eba732251 100644
+--- a/x86_att/p384/bignum_half_p384.S
++++ b/x86_att/p384/bignum_half_p384.S
+@@ -26,6 +26,7 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_half_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_half_p384)
+         .text
+diff --git a/x86_att/p384/bignum_littleendian_6.S b/x86_att/p384/bignum_littleendian_6.S
+index e632a3849..670bca913 100644
+--- a/x86_att/p384/bignum_littleendian_6.S
++++ b/x86_att/p384/bignum_littleendian_6.S
+@@ -37,6 +37,7 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_littleendian_6)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_littleendian_6)
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_fromlebytes_6)
+diff --git a/x86_att/p384/bignum_mod_n384.S b/x86_att/p384/bignum_mod_n384.S
+index fcb812335..a03c07c76 100644
+--- a/x86_att/p384/bignum_mod_n384.S
++++ b/x86_att/p384/bignum_mod_n384.S
+@@ -28,9 +28,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n384)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_mod_n384_6.S b/x86_att/p384/bignum_mod_n384_6.S
+index d3048f01b..8a0d199b2 100644
+--- a/x86_att/p384/bignum_mod_n384_6.S
++++ b/x86_att/p384/bignum_mod_n384_6.S
+@@ -28,9 +28,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n384_6)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n384_6)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_mod_n384_alt.S b/x86_att/p384/bignum_mod_n384_alt.S
+index d4cf45f54..0bb52c398 100644
+--- a/x86_att/p384/bignum_mod_n384_alt.S
++++ b/x86_att/p384/bignum_mod_n384_alt.S
+@@ -28,9 +28,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n384_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n384_alt)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_mod_p384.S b/x86_att/p384/bignum_mod_p384.S
+index 3ee2ee316..934275f27 100644
+--- a/x86_att/p384/bignum_mod_p384.S
++++ b/x86_att/p384/bignum_mod_p384.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_p384)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_mod_p384_6.S b/x86_att/p384/bignum_mod_p384_6.S
+index 03955a234..f898e0b00 100644
+--- a/x86_att/p384/bignum_mod_p384_6.S
++++ b/x86_att/p384/bignum_mod_p384_6.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_p384_6)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_p384_6)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_mod_p384_alt.S b/x86_att/p384/bignum_mod_p384_alt.S
+index d1e8ccb9b..e3ec6346b 100644
+--- a/x86_att/p384/bignum_mod_p384_alt.S
++++ b/x86_att/p384/bignum_mod_p384_alt.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_p384_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_p384_alt)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_montmul_p384.S b/x86_att/p384/bignum_montmul_p384.S
+index 5744e7126..3ea3100dd 100644
+--- a/x86_att/p384/bignum_montmul_p384.S
++++ b/x86_att/p384/bignum_montmul_p384.S
+@@ -30,9 +30,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montmul_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montmul_p384)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_montmul_p384_alt.S b/x86_att/p384/bignum_montmul_p384_alt.S
+index cadb5d345..3efcaced8 100644
+--- a/x86_att/p384/bignum_montmul_p384_alt.S
++++ b/x86_att/p384/bignum_montmul_p384_alt.S
+@@ -30,9 +30,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montmul_p384_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montmul_p384_alt)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_montsqr_p384.S b/x86_att/p384/bignum_montsqr_p384.S
+index 05b9681f7..71901599a 100644
+--- a/x86_att/p384/bignum_montsqr_p384.S
++++ b/x86_att/p384/bignum_montsqr_p384.S
+@@ -29,9 +29,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montsqr_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montsqr_p384)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_montsqr_p384_alt.S b/x86_att/p384/bignum_montsqr_p384_alt.S
+index 08d421ecb..652184c69 100644
+--- a/x86_att/p384/bignum_montsqr_p384_alt.S
++++ b/x86_att/p384/bignum_montsqr_p384_alt.S
+@@ -29,9 +29,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montsqr_p384_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montsqr_p384_alt)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_mux_6.S b/x86_att/p384/bignum_mux_6.S
+index 29ac9e24f..0bf97ff12 100644
+--- a/x86_att/p384/bignum_mux_6.S
++++ b/x86_att/p384/bignum_mux_6.S
+@@ -29,9 +29,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mux_6)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mux_6)
+-
+         .text
+ 
+ #define p %rdi
+diff --git a/x86_att/p384/bignum_neg_p384.S b/x86_att/p384/bignum_neg_p384.S
+index b1941b3a1..8be796ba4 100644
+--- a/x86_att/p384/bignum_neg_p384.S
++++ b/x86_att/p384/bignum_neg_p384.S
+@@ -25,9 +25,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_neg_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_neg_p384)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_nonzero_6.S b/x86_att/p384/bignum_nonzero_6.S
+index 4888fa518..d03e82bba 100644
+--- a/x86_att/p384/bignum_nonzero_6.S
++++ b/x86_att/p384/bignum_nonzero_6.S
+@@ -25,9 +25,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_nonzero_6)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_nonzero_6)
+-
+         .text
+ 
+ #define x %rdi
+diff --git a/x86_att/p384/bignum_optneg_p384.S b/x86_att/p384/bignum_optneg_p384.S
+index aafce2b72..77cf1f649 100644
+--- a/x86_att/p384/bignum_optneg_p384.S
++++ b/x86_att/p384/bignum_optneg_p384.S
+@@ -27,9 +27,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_optneg_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_optneg_p384)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_sub_p384.S b/x86_att/p384/bignum_sub_p384.S
+index e2c477689..bfd4fa2b6 100644
+--- a/x86_att/p384/bignum_sub_p384.S
++++ b/x86_att/p384/bignum_sub_p384.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sub_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sub_p384)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_tomont_p384.S b/x86_att/p384/bignum_tomont_p384.S
+index 73351c221..e17ef46dc 100644
+--- a/x86_att/p384/bignum_tomont_p384.S
++++ b/x86_att/p384/bignum_tomont_p384.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tomont_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tomont_p384)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_tomont_p384_alt.S b/x86_att/p384/bignum_tomont_p384_alt.S
+index eccb5ba16..b81d58350 100644
+--- a/x86_att/p384/bignum_tomont_p384_alt.S
++++ b/x86_att/p384/bignum_tomont_p384_alt.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tomont_p384_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tomont_p384_alt)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_triple_p384.S b/x86_att/p384/bignum_triple_p384.S
+index 7cdf2399b..356e20b31 100644
+--- a/x86_att/p384/bignum_triple_p384.S
++++ b/x86_att/p384/bignum_triple_p384.S
+@@ -29,9 +29,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_triple_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_triple_p384)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p384/bignum_triple_p384_alt.S b/x86_att/p384/bignum_triple_p384_alt.S
+index 52e6614a8..d8e0506a6 100644
+--- a/x86_att/p384/bignum_triple_p384_alt.S
++++ b/x86_att/p384/bignum_triple_p384_alt.S
+@@ -29,9 +29,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_triple_p384_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_triple_p384_alt)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_add_p521.S b/x86_att/p521/bignum_add_p521.S
+index 149d0df0a..080e98807 100644
+--- a/x86_att/p521/bignum_add_p521.S
++++ b/x86_att/p521/bignum_add_p521.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_cmul_p521.S b/x86_att/p521/bignum_cmul_p521.S
+index 118910535..ce8dded8d 100644
+--- a/x86_att/p521/bignum_cmul_p521.S
++++ b/x86_att/p521/bignum_cmul_p521.S
+@@ -27,9 +27,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_cmul_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_cmul_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_cmul_p521_alt.S b/x86_att/p521/bignum_cmul_p521_alt.S
+index 640a1de89..335d8e5cf 100644
+--- a/x86_att/p521/bignum_cmul_p521_alt.S
++++ b/x86_att/p521/bignum_cmul_p521_alt.S
+@@ -27,9 +27,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_cmul_p521_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_cmul_p521_alt)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_deamont_p521.S b/x86_att/p521/bignum_deamont_p521.S
+index a118267d0..de4f767fb 100644
+--- a/x86_att/p521/bignum_deamont_p521.S
++++ b/x86_att/p521/bignum_deamont_p521.S
+@@ -29,9 +29,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_deamont_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_deamont_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_demont_p521.S b/x86_att/p521/bignum_demont_p521.S
+index b99c6298c..5e8c2c740 100644
+--- a/x86_att/p521/bignum_demont_p521.S
++++ b/x86_att/p521/bignum_demont_p521.S
+@@ -29,9 +29,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_demont_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_demont_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_double_p521.S b/x86_att/p521/bignum_double_p521.S
+index 33fe1e5a9..ea904c8bc 100644
+--- a/x86_att/p521/bignum_double_p521.S
++++ b/x86_att/p521/bignum_double_p521.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_double_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_double_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_fromlebytes_p521.S b/x86_att/p521/bignum_fromlebytes_p521.S
+index 3226f4383..1c28af57a 100644
+--- a/x86_att/p521/bignum_fromlebytes_p521.S
++++ b/x86_att/p521/bignum_fromlebytes_p521.S
+@@ -30,9 +30,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_fromlebytes_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_fromlebytes_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_half_p521.S b/x86_att/p521/bignum_half_p521.S
+index 505474f5f..47fa3e6f4 100644
+--- a/x86_att/p521/bignum_half_p521.S
++++ b/x86_att/p521/bignum_half_p521.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_half_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_half_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_mod_n521_9.S b/x86_att/p521/bignum_mod_n521_9.S
+index 1bb43aa31..d17c19674 100644
+--- a/x86_att/p521/bignum_mod_n521_9.S
++++ b/x86_att/p521/bignum_mod_n521_9.S
+@@ -28,9 +28,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n521_9)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n521_9)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_mod_n521_9_alt.S b/x86_att/p521/bignum_mod_n521_9_alt.S
+index 9421f4ab0..3da8d997b 100644
+--- a/x86_att/p521/bignum_mod_n521_9_alt.S
++++ b/x86_att/p521/bignum_mod_n521_9_alt.S
+@@ -28,9 +28,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n521_9_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n521_9_alt)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_mod_p521_9.S b/x86_att/p521/bignum_mod_p521_9.S
+index ef8cc7d5f..96d218065 100644
+--- a/x86_att/p521/bignum_mod_p521_9.S
++++ b/x86_att/p521/bignum_mod_p521_9.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_p521_9)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_p521_9)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_montmul_p521.S b/x86_att/p521/bignum_montmul_p521.S
+index f6a74b378..be232ea29 100644
+--- a/x86_att/p521/bignum_montmul_p521.S
++++ b/x86_att/p521/bignum_montmul_p521.S
+@@ -31,9 +31,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montmul_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montmul_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_montmul_p521_alt.S b/x86_att/p521/bignum_montmul_p521_alt.S
+index 05caf6342..763145875 100644
+--- a/x86_att/p521/bignum_montmul_p521_alt.S
++++ b/x86_att/p521/bignum_montmul_p521_alt.S
+@@ -31,9 +31,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montmul_p521_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montmul_p521_alt)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_montsqr_p521.S b/x86_att/p521/bignum_montsqr_p521.S
+index 689472385..2d9acc752 100644
+--- a/x86_att/p521/bignum_montsqr_p521.S
++++ b/x86_att/p521/bignum_montsqr_p521.S
+@@ -31,9 +31,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montsqr_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montsqr_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_montsqr_p521_alt.S b/x86_att/p521/bignum_montsqr_p521_alt.S
+index 84adf6bdb..84f1af05b 100644
+--- a/x86_att/p521/bignum_montsqr_p521_alt.S
++++ b/x86_att/p521/bignum_montsqr_p521_alt.S
+@@ -31,9 +31,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montsqr_p521_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montsqr_p521_alt)
+-
+         .text
+ 
+ // Input arguments
+diff --git a/x86_att/p521/bignum_mul_p521.S b/x86_att/p521/bignum_mul_p521.S
+index 3c8fa48ea..e25129c05 100644
+--- a/x86_att/p521/bignum_mul_p521.S
++++ b/x86_att/p521/bignum_mul_p521.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mul_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mul_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_mul_p521_alt.S b/x86_att/p521/bignum_mul_p521_alt.S
+index bc986e4a8..d05a7cb0b 100644
+--- a/x86_att/p521/bignum_mul_p521_alt.S
++++ b/x86_att/p521/bignum_mul_p521_alt.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mul_p521_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mul_p521_alt)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_neg_p521.S b/x86_att/p521/bignum_neg_p521.S
+index eed3614de..d6eb82575 100644
+--- a/x86_att/p521/bignum_neg_p521.S
++++ b/x86_att/p521/bignum_neg_p521.S
+@@ -25,9 +25,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_neg_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_neg_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_optneg_p521.S b/x86_att/p521/bignum_optneg_p521.S
+index 80bb33ffb..e910140ad 100644
+--- a/x86_att/p521/bignum_optneg_p521.S
++++ b/x86_att/p521/bignum_optneg_p521.S
+@@ -27,9 +27,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_optneg_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_optneg_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_sqr_p521.S b/x86_att/p521/bignum_sqr_p521.S
+index 74b88a28e..6e2d9b556 100644
+--- a/x86_att/p521/bignum_sqr_p521.S
++++ b/x86_att/p521/bignum_sqr_p521.S
+@@ -25,9 +25,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sqr_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sqr_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_sqr_p521_alt.S b/x86_att/p521/bignum_sqr_p521_alt.S
+index 44cf65b54..c2fae3c25 100644
+--- a/x86_att/p521/bignum_sqr_p521_alt.S
++++ b/x86_att/p521/bignum_sqr_p521_alt.S
+@@ -25,9 +25,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sqr_p521_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sqr_p521_alt)
+-
+         .text
+ 
+ // Input arguments
+diff --git a/x86_att/p521/bignum_sub_p521.S b/x86_att/p521/bignum_sub_p521.S
+index 3ce8104b3..bcd9ed4a4 100644
+--- a/x86_att/p521/bignum_sub_p521.S
++++ b/x86_att/p521/bignum_sub_p521.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sub_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sub_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_tolebytes_p521.S b/x86_att/p521/bignum_tolebytes_p521.S
+index 5d2bc9a65..7fb403239 100644
+--- a/x86_att/p521/bignum_tolebytes_p521.S
++++ b/x86_att/p521/bignum_tolebytes_p521.S
+@@ -30,9 +30,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tolebytes_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tolebytes_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_tomont_p521.S b/x86_att/p521/bignum_tomont_p521.S
+index fa0507659..df8f27734 100644
+--- a/x86_att/p521/bignum_tomont_p521.S
++++ b/x86_att/p521/bignum_tomont_p521.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tomont_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tomont_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_triple_p521.S b/x86_att/p521/bignum_triple_p521.S
+index 9380372ce..484dab04c 100644
+--- a/x86_att/p521/bignum_triple_p521.S
++++ b/x86_att/p521/bignum_triple_p521.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_triple_p521)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_triple_p521)
+-
+         .text
+ 
+ #define z %rdi
+diff --git a/x86_att/p521/bignum_triple_p521_alt.S b/x86_att/p521/bignum_triple_p521_alt.S
+index 5f23a3a44..9e25a2c85 100644
+--- a/x86_att/p521/bignum_triple_p521_alt.S
++++ b/x86_att/p521/bignum_triple_p521_alt.S
+@@ -26,9 +26,9 @@
+ 
+ #include "_internal_s2n_bignum.h"
+ 
++
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_triple_p521_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_triple_p521_alt)
+-
+         .text
+ 
+ #define z %rdi

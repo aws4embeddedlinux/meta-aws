@@ -1,0 +1,36 @@
+From 4bf6ebe3abdb8c36033677d3e2417b7684c24319 Mon Sep 17 00:00:00 2001
+From: Piotr Sikora <piotr@aviatrix.com>
+Date: Wed, 16 Aug 2023 17:34:00 +0200
+Subject: [PATCH] Add -DBUILD_TOOL=OFF to CMake. (#1148)
+
+There is no need to build the bssl tool when building
+libcrypto/libssl as a dependency.
+
+Signed-off-by: Piotr Sikora <piotr@aviatrix.com>
+---
+ CMakeLists.txt | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index cd4012618..a449128d4 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -18,6 +18,7 @@ endif()
+ 
+ option(BUILD_TESTING "Build all test targets for AWS-LC" ON)
+ option(BUILD_LIBSSL "Build libssl for AWS-LC" ON)
++option(BUILD_TOOL "Build bssl tool for AWS-LC" ON)
+ option(ENABLE_DILITHIUM "Enable Dilithium signatures in the EVP API" OFF)
+ option(DISABLE_PERL "Disable Perl for AWS-LC" OFF)
+ option(DISABLE_GO "Disable Go for AWS-LC" OFF)
+@@ -860,7 +861,9 @@ endif()
+ add_subdirectory(crypto)
+ if(BUILD_LIBSSL)
+   add_subdirectory(ssl)
+-  add_subdirectory(tool)
++  if(BUILD_TOOL)
++    add_subdirectory(tool)
++  endif()
+ endif()
+ add_subdirectory(util/fipstools)
+ 

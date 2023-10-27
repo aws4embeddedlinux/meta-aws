@@ -1,0 +1,751 @@
+From 6704d7f793fb95fb4421fcf78f74117df8d10a27 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Thu, 16 Feb 2023 16:41:23 -0800
+Subject: [PATCH] Add bash script to install common depednecies, update version
+ of Go everywhere to 1.20.1 (#811)
+
+---
+ .../build_cryptofuzz_modules.sh               |   0
+ .../{ => dependencies}/cryptofuzz_data.zip    | Bin
+ .../install_common_dependencies.sh            |  21 ++++++++++++++++
+ .../amazonlinux-2022_base/Dockerfile          |   9 ++++---
+ .../linux-aarch/amazonlinux-2_base/Dockerfile |   9 ++++---
+ .../docker_images/linux-aarch/build_images.sh |  13 +++++-----
+ .../linux-aarch/ubuntu-20.04_base/Dockerfile  |  13 ++++------
+ .../linux-aarch/ubuntu-22.04_base/Dockerfile  |  13 ++++------
+ .../amazonlinux-2022_base/Dockerfile          |  11 +++++----
+ .../linux-x86/amazonlinux-2_base/Dockerfile   |   9 ++++---
+ .../docker_images/linux-x86/build_images.sh   |  23 +++++++++---------
+ .../linux-x86/centos-7_gcc-4x/Dockerfile      |  14 ++++-------
+ .../linux-x86/centos-8_gcc-8x/Dockerfile      |   8 +++---
+ .../linux-x86/fedora-31_clang-9x/Dockerfile   |   8 ++++--
+ .../linux-x86/ubuntu-16.04_gcc-5x/Dockerfile  |  11 ++++-----
+ .../linux-x86/ubuntu-18.04_base/Dockerfile    |  10 +++-----
+ .../linux-x86/ubuntu-20.04_android/Dockerfile |  18 +++++---------
+ .../linux-x86/ubuntu-20.04_base/Dockerfile    |  14 ++++-------
+ .../linux-x86/ubuntu-22.04_base/Dockerfile    |  13 ++++------
+ tests/ci/docker_images/rust/build_images.sh   |   6 ++---
+ .../docker_images/rust/linux-386/Dockerfile   |   6 ++++-
+ .../docker_images/rust/linux-arm64/Dockerfile |   7 +++++-
+ .../rust/linux-x86_64/Dockerfile              |   6 ++++-
+ .../windows/windows_base/Dockerfile           |   2 +-
+ 24 files changed, 134 insertions(+), 110 deletions(-)
+ rename tests/ci/docker_images/{ => dependencies}/build_cryptofuzz_modules.sh (100%)
+ rename tests/ci/docker_images/{ => dependencies}/cryptofuzz_data.zip (100%)
+ create mode 100755 tests/ci/docker_images/dependencies/install_common_dependencies.sh
+
+diff --git a/tests/ci/docker_images/build_cryptofuzz_modules.sh b/tests/ci/docker_images/dependencies/build_cryptofuzz_modules.sh
+similarity index 100%
+rename from tests/ci/docker_images/build_cryptofuzz_modules.sh
+rename to tests/ci/docker_images/dependencies/build_cryptofuzz_modules.sh
+diff --git a/tests/ci/docker_images/cryptofuzz_data.zip b/tests/ci/docker_images/dependencies/cryptofuzz_data.zip
+similarity index 100%
+rename from tests/ci/docker_images/cryptofuzz_data.zip
+rename to tests/ci/docker_images/dependencies/cryptofuzz_data.zip
+diff --git a/tests/ci/docker_images/dependencies/install_common_dependencies.sh b/tests/ci/docker_images/dependencies/install_common_dependencies.sh
+new file mode 100755
+index 000000000..ad6e4c278
+--- /dev/null
++++ b/tests/ci/docker_images/dependencies/install_common_dependencies.sh
+@@ -0,0 +1,21 @@
++#!/bin/bash
++set -exo pipefail
++
++PLATFORM=$(uname -m)
++
++# Install golang
++mkdir "$GOROOT"
++GO_VERSION=1.20.1
++if [[ "$PLATFORM" == *x86* ]]; then
++  GO_ARCHIVE="go${GO_VERSION}.linux-amd64.tar.gz"
++else
++  GO_ARCHIVE="go${GO_VERSION}.linux-arm64.tar.gz"
++fi
++wget "https://dl.google.com/go/${GO_ARCHIVE}"
++tar -xvf $GO_ARCHIVE
++mv go/* "$GOROOT"
++rm $GO_ARCHIVE
++# Common Go configuration
++go env -w GO111MODULE=on
++go env -w GOPROXY=https://proxy.golang.org,direct
++go env -w GOFLAGS=-buildvcs=false
+\ No newline at end of file
+diff --git a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_base/Dockerfile b/tests/ci/docker_images/linux-aarch/amazonlinux-2022_base/Dockerfile
+index 53fa5b4ec..058fff8e6 100644
+--- a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_base/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/amazonlinux-2022_base/Dockerfile
+@@ -4,6 +4,8 @@
+ FROM arm64v8/amazonlinux:2022
+ 
+ SHELL ["/bin/bash", "-c"]
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+ # Install Valgrind for Valgrind test target even though it is not needed for the base test target.
+ RUN set -ex && \
+@@ -11,10 +13,10 @@ RUN set -ex && \
+     cmake3 \
+     ninja-build \
+     perl \
+-    golang \
+     which \
+     git \
+     ca-certificates \
++    tar \
+     wget \
+     valgrind \
+     unzip && \
+@@ -29,6 +31,5 @@ RUN set -ex && \
+     rm -rf /tmp/* && \
+     rm -rf /var/cache/yum
+ 
+-ENV GO111MODULE=on
+-# Avoid "Use -buildvcs=false to disable VCS stamping." errors due to newer versions of Go
+-ENV GOFLAGS="-buildvcs=false"
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-aarch/amazonlinux-2_base/Dockerfile b/tests/ci/docker_images/linux-aarch/amazonlinux-2_base/Dockerfile
+index 62364f042..86777a502 100644
+--- a/tests/ci/docker_images/linux-aarch/amazonlinux-2_base/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/amazonlinux-2_base/Dockerfile
+@@ -7,6 +7,9 @@ SHELL ["/bin/bash", "-c"]
+ 
+ ENV DEPENDENCIES_DIR=/home/dependencies
+ ENV LLVM_PROJECT_HOME=${DEPENDENCIES_DIR}/llvm-project
++ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+ # llvm, llvm-devel, libcxx, and libcxxabi are needed for the sanitizer tests.
+ # 11.1.0 is the latest stable release as of 2021-02-16.
+@@ -18,12 +21,12 @@ RUN set -ex && \
+     cmake3 \
+     ninja-build \
+     perl \
+-    golang \
+     which \
+     git \
+     ca-certificates \
+     wget \
+     llvm \
++    tar \
+     llvm-devel \
+     valgrind \
+     unzip && \
+@@ -42,5 +45,5 @@ RUN set -ex && \
+     rm -rf /tmp/* && \
+     rm -rf /var/cache/yum
+ 
+-ENV GO111MODULE=on
+-ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-aarch/build_images.sh b/tests/ci/docker_images/linux-aarch/build_images.sh
+index 5760350a9..c2c390058 100755
+--- a/tests/ci/docker_images/linux-aarch/build_images.sh
++++ b/tests/ci/docker_images/linux-aarch/build_images.sh
+@@ -6,14 +6,16 @@
+ TOKEN=$(curl "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)
+ curl --head -H "Authorization: Bearer $TOKEN" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest
+ 
+-docker build -t amazonlinux-2-aarch:base amazonlinux-2_base
++# Every "base" image needs to build with the dependencies directory as the context so it has access to the install
++# dependencies scripts
++docker build -t amazonlinux-2-aarch:base -f amazonlinux-2_base/Dockerfile ../dependencies
+ docker build -t amazonlinux-2-aarch:gcc-7x amazonlinux-2_gcc-7x
+ docker build -t amazonlinux-2-aarch:clang-7x amazonlinux-2_clang-7x
+-docker build -t amazonlinux-2022-aarch:base amazonlinux-2022_base
++docker build -t amazonlinux-2022-aarch:base -f amazonlinux-2022_base/Dockerfile ../dependencies
+ docker build -t amazonlinux-2022-aarch:gcc-11x amazonlinux-2022_gcc-11x
+ docker build -t amazonlinux-2022-aarch:clang-14x amazonlinux-2022_clang-14x
+ docker build -t amazonlinux-2022-aarch:clang-14x-sanitizer amazonlinux-2022_clang-14x_sanitizer
+-docker build -t ubuntu-20.04-aarch:base ubuntu-20.04_base
++docker build -t ubuntu-20.04-aarch:base -f ubuntu-20.04_base/Dockerfile ../dependencies
+ docker build -t ubuntu-20.04-aarch:gcc-7x ubuntu-20.04_gcc-7x
+ docker build -t ubuntu-20.04-aarch:gcc-8x ubuntu-20.04_gcc-8x
+ docker build -t ubuntu-20.04-aarch:clang-7x ubuntu-20.04_clang-7x
+@@ -21,8 +23,7 @@ docker build -t ubuntu-20.04-aarch:clang-8x ubuntu-20.04_clang-8x
+ docker build -t ubuntu-20.04-aarch:clang-9x ubuntu-20.04_clang-9x
+ docker build -t ubuntu-20.04-aarch:clang-10x ubuntu-20.04_clang-10x
+ docker build -t ubuntu-20.04-aarch:clang-7x-bm-framework ubuntu-20.04_clang-7x-bm-framework
+-docker build -t ubuntu-22.04-aarch:base ubuntu-22.04_base
++docker build -t ubuntu-22.04-aarch:base -f ubuntu-22.04_base/Dockerfile ../dependencies
+ docker build -t ubuntu-22.04-aarch:gcc-11x ubuntu-22.04_gcc-11x
+ docker build -t ubuntu-22.04-aarch:gcc-12x ubuntu-22.04_gcc-12x
+-# This passes in the Dockerfile in the folder but uses the parent directory for the context so it has access to cryptofuzz_data.zip
+-docker build -t ubuntu-20.04-aarch:cryptofuzz -f ubuntu-20.04_cryptofuzz/Dockerfile ../
++docker build -t ubuntu-20.04-aarch:cryptofuzz -f ubuntu-20.04_cryptofuzz/Dockerfile ../dependencies
+diff --git a/tests/ci/docker_images/linux-aarch/ubuntu-20.04_base/Dockerfile b/tests/ci/docker_images/linux-aarch/ubuntu-20.04_base/Dockerfile
+index 5928d40c0..965d8c7e0 100644
+--- a/tests/ci/docker_images/linux-aarch/ubuntu-20.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/ubuntu-20.04_base/Dockerfile
+@@ -9,6 +9,9 @@ ENV DEBIAN_FRONTEND=noninteractive
+ 
+ ENV DEPENDENCIES_DIR=/home/dependencies
+ ENV LLVM_PROJECT_HOME=${DEPENDENCIES_DIR}/llvm-project
++ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+ # llvm, llvm-dev, libcxx, and libcxxabi are needed for the sanitizer tests.
+ # 11.1.0 is the latest stable release as of 2021-02-16.
+@@ -42,10 +45,6 @@ RUN set -ex && \
+     cd ${DEPENDENCIES_DIR} && \
+     git clone https://github.com/llvm/llvm-project.git --branch llvmorg-11.1.0  --depth 1 && \
+     cd llvm-project && rm -rf $(ls -A | grep -Ev "(libcxx|libcxxabi)") && \
+-    cd /tmp && \
+-    wget https://dl.google.com/go/go1.15.2.linux-arm64.tar.gz && \
+-    tar -xvf go1.15.2.linux-arm64.tar.gz && \
+-    mv go /usr/local && \
+     apt-get --purge remove -y curl unzip && \
+     apt-get autoremove --purge -y && \
+     apt-get clean && \
+@@ -53,7 +52,5 @@ RUN set -ex && \
+     rm -rf /var/lib/apt/lists/* && \
+     rm -rf /tmp/*
+ 
+-ENV GOROOT=/usr/local/go
+-ENV PATH="$GOROOT/bin:$PATH"
+-ENV GO111MODULE=on
+-ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-aarch/ubuntu-22.04_base/Dockerfile b/tests/ci/docker_images/linux-aarch/ubuntu-22.04_base/Dockerfile
+index 9558dd5a3..20cf8f48b 100644
+--- a/tests/ci/docker_images/linux-aarch/ubuntu-22.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/ubuntu-22.04_base/Dockerfile
+@@ -9,6 +9,9 @@ ENV DEBIAN_FRONTEND=noninteractive
+ 
+ ENV DEPENDENCIES_DIR=/home/dependencies
+ ENV LLVM_PROJECT_HOME=${DEPENDENCIES_DIR}/llvm-project
++ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+ # llvm, llvm-dev, libcxx, and libcxxabi are needed for the sanitizer tests.
+ # 11.1.0 is the latest stable release as of 2021-02-16.
+@@ -42,10 +45,6 @@ RUN set -ex && \
+     cd ${DEPENDENCIES_DIR} && \
+     git clone https://github.com/llvm/llvm-project.git --branch llvmorg-11.1.0  --depth 1 && \
+     cd llvm-project && rm -rf $(ls -A | grep -Ev "(libcxx|libcxxabi)") && \
+-    cd /tmp && \
+-    wget https://dl.google.com/go/go1.15.2.linux-arm64.tar.gz && \
+-    tar -xvf go1.15.2.linux-arm64.tar.gz && \
+-    mv go /usr/local && \
+     apt-get --purge remove -y curl unzip && \
+     apt-get autoremove --purge -y && \
+     apt-get clean && \
+@@ -53,7 +52,5 @@ RUN set -ex && \
+     rm -rf /var/lib/apt/lists/* && \
+     rm -rf /tmp/*
+ 
+-ENV GOROOT=/usr/local/go
+-ENV GO111MODULE=on
+-ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
+-ENV PATH="$GOROOT/bin:$PATH"
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-x86/amazonlinux-2022_base/Dockerfile b/tests/ci/docker_images/linux-x86/amazonlinux-2022_base/Dockerfile
+index 1b0fe0d8d..86dcf258a 100644
+--- a/tests/ci/docker_images/linux-x86/amazonlinux-2022_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/amazonlinux-2022_base/Dockerfile
+@@ -4,6 +4,9 @@
+ FROM amazonlinux:2022
+ 
+ SHELL ["/bin/bash", "-c"]
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
++ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
+ 
+ # See https://github.com/google/sanitizers/wiki/MemorySanitizerLibcxxHowTo
+ # Install Valgrind for Valgrind test target even though it is not needed for the base test target.
+@@ -12,11 +15,11 @@ RUN set -ex && \
+     cmake3 \
+     ninja-build \
+     perl \
+-    golang \
+     which \
+     git \
+     ca-certificates \
+     wget \
++    tar \
+     # valgrind is just the application and core resources.
+     valgrind \
+     # valgrind/memcheck.h is provided by the valgrind-devel package on AL2. see P63119011.
+@@ -33,7 +36,5 @@ RUN set -ex && \
+     rm -rf /tmp/* && \
+     rm -rf /var/cache/yum
+ 
+-ENV GO111MODULE=on
+-# Avoid "Use -buildvcs=false to disable VCS stamping." errors due to newer versions of Go
+-ENV GOFLAGS="-buildvcs=false"
+-ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-x86/amazonlinux-2_base/Dockerfile b/tests/ci/docker_images/linux-x86/amazonlinux-2_base/Dockerfile
+index 9d168e33c..5c4f1410a 100644
+--- a/tests/ci/docker_images/linux-x86/amazonlinux-2_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/amazonlinux-2_base/Dockerfile
+@@ -7,6 +7,9 @@ SHELL ["/bin/bash", "-c"]
+ 
+ ENV DEPENDENCIES_DIR=/home/dependencies
+ ENV LLVM_PROJECT_HOME=${DEPENDENCIES_DIR}/llvm-project
++ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+ # llvm, llvm-devel, libcxx, and libcxxabi are needed for the sanitizer tests.
+ # 11.1.0 is the latest stable release as of 2021-02-16.
+@@ -18,11 +21,11 @@ RUN set -ex && \
+     cmake3 \
+     ninja-build \
+     perl \
+-    golang \
+     which \
+     git \
+     ca-certificates \
+     wget \
++    tar \
+     llvm \
+     llvm-devel \
+     # valgrind is just the application and core resources.
+@@ -45,5 +48,5 @@ RUN set -ex && \
+     rm -rf /tmp/* && \
+     rm -rf /var/cache/yum
+ 
+-ENV GO111MODULE=on
+-ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-x86/build_images.sh b/tests/ci/docker_images/linux-x86/build_images.sh
+index 658bc714f..d3696ed76 100755
+--- a/tests/ci/docker_images/linux-x86/build_images.sh
++++ b/tests/ci/docker_images/linux-x86/build_images.sh
+@@ -10,34 +10,35 @@
+ TOKEN=$(curl "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)
+ curl --head -H "Authorization: Bearer $TOKEN" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest
+ 
+-docker build -t ubuntu-18.04:base ubuntu-18.04_base
++# Every "base" image needs to build with the dependencies directory as the context so it has access to the install
++# dependencies scripts
++docker build -t ubuntu-18.04:base -f ubuntu-18.04_base/Dockerfile ../dependencies
+ docker build -t ubuntu-18.04:gcc-7x ubuntu-18.04_gcc-7x
+ docker build -t ubuntu-18.04:clang-6x ubuntu-18.04_clang-6x
+-docker build -t ubuntu-20.04:base ubuntu-20.04_base
++docker build -t ubuntu-20.04:base -f ubuntu-20.04_base/Dockerfile ../dependencies
+ docker build -t ubuntu-20.04:gcc-7x ubuntu-20.04_gcc-7x
+ docker build -t ubuntu-20.04:gcc-8x ubuntu-20.04_gcc-8x
+ docker build -t ubuntu-20.04:clang-7x ubuntu-20.04_clang-7x
+ docker build -t ubuntu-20.04:clang-8x ubuntu-20.04_clang-8x
+ docker build -t ubuntu-20.04:clang-9x ubuntu-20.04_clang-9x
+ docker build -t ubuntu-20.04:clang-10x ubuntu-20.04_clang-10x
+-docker build -t ubuntu-20.04:android ubuntu-20.04_android
++docker build -t ubuntu-20.04:android -f ubuntu-20.04_android/Dockerfile ../
+ docker build -t ubuntu-20.04:clang-7x-bm-framework ubuntu-20.04_clang-7x-bm-framework
+-# This passes in the Dockerfile in the folder but uses the parent directory for the context so it has access to cryptofuzz_data.zip
+-docker build -t ubuntu-20.04:cryptofuzz -f ubuntu-20.04_cryptofuzz/Dockerfile ../
+-docker build -t ubuntu-22.04:base ubuntu-22.04_base
++docker build -t ubuntu-20.04:cryptofuzz -f ubuntu-20.04_cryptofuzz/Dockerfile ../dependencies
++docker build -t ubuntu-22.04:base -f ubuntu-22.04_base/Dockerfile ../dependencies
+ docker build -t ubuntu-22.04:gcc-11x ubuntu-22.04_gcc-11x
+ docker build -t ubuntu-22.04:gcc-12x ubuntu-22.04_gcc-12x
+-docker build -t amazonlinux-2:base amazonlinux-2_base
++docker build -t amazonlinux-2:base -f amazonlinux-2_base/Dockerfile ../dependencies
+ docker build -t amazonlinux-2:gcc-7x amazonlinux-2_gcc-7x
+ docker build -t amazonlinux-2:gcc-7x-intel-sde amazonlinux-2_gcc-7x-intel-sde
+ docker build -t amazonlinux-2:clang-7x amazonlinux-2_clang-7x
+-docker build -t amazonlinux-2022:base amazonlinux-2022_base
++docker build -t amazonlinux-2022:base -f amazonlinux-2022_base/Dockerfile ../dependencies
+ docker build -t amazonlinux-2022:gcc-11x amazonlinux-2022_gcc-11x
+ docker build -t amazonlinux-2022:clang-14x amazonlinux-2022_clang-14x
+ docker build -t amazonlinux-2022:clang-14x-sanitizer amazonlinux-2022_clang-14x_sanitizer
+-docker build -t ubuntu-16.04:gcc-5x ubuntu-16.04_gcc-5x
+-docker build -t centos-7:gcc-4x centos-7_gcc-4x
+-docker build -t fedora-31:clang-9x fedora-31_clang-9x
++docker build -t ubuntu-16.04:gcc-5x -f ubuntu-16.04_gcc-5x/Dockerfile ../dependencies
++docker build -t centos-7:gcc-4x -f centos-7_gcc-4x/Dockerfile ../dependencies
++docker build -t fedora-31:clang-9x -f fedora-31_clang-9x/Dockerfile ../dependencies
+ 
+ ###########################################################
+ # Build images defined in aws-lc-verification GitHub repo #
+diff --git a/tests/ci/docker_images/linux-x86/centos-7_gcc-4x/Dockerfile b/tests/ci/docker_images/linux-x86/centos-7_gcc-4x/Dockerfile
+index f99dd3ee1..e319b22ad 100644
+--- a/tests/ci/docker_images/linux-x86/centos-7_gcc-4x/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/centos-7_gcc-4x/Dockerfile
+@@ -4,10 +4,9 @@
+ FROM centos:7
+ 
+ SHELL ["/bin/bash", "-c"]
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+-# We manually install go 1.14.10 because of the version of git
+-# for CentOS 7 is too old to support the `--unshallow` option
+-# https://github.com/golang/go/issues/38373
+ RUN set -ex && \
+     yum -y update && \
+     yum --enablerepo=extras install epel-release -y && \
+@@ -30,10 +29,6 @@ RUN set -ex && \
+     unzip awscliv2.zip && \
+     ./aws/install --bin-dir /usr/bin && \
+     rm -rf awscliv2.zip aws/ && \
+-    cd /tmp && \
+-    wget https://golang.org/dl/go1.14.10.linux-amd64.tar.gz && \
+-    tar -xvf go1.14.10.linux-amd64.tar.gz && \
+-    mv go /usr/local && \
+     yum clean packages && \
+     yum clean metadata && \
+     yum clean all && \
+@@ -42,5 +37,6 @@ RUN set -ex && \
+ 
+ ENV CC=gcc
+ ENV CXX=g++
+-ENV GOROOT=/usr/local/go
+-ENV PATH="$GOROOT/bin:$PATH"
+\ No newline at end of file
++
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-x86/centos-8_gcc-8x/Dockerfile b/tests/ci/docker_images/linux-x86/centos-8_gcc-8x/Dockerfile
+index 291fd3423..dc4490d23 100644
+--- a/tests/ci/docker_images/linux-x86/centos-8_gcc-8x/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/centos-8_gcc-8x/Dockerfile
+@@ -4,6 +4,8 @@
+ FROM centos:8
+ 
+ SHELL ["/bin/bash", "-c"]
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+ RUN set -ex && \
+     sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-* && \
+@@ -21,7 +23,6 @@ RUN set -ex && \
+     cmake3 \
+     ninja-build \
+     perl \
+-    golang \
+     wget \
+     unzip && \
+     # Based on https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html
+@@ -37,5 +38,6 @@ RUN set -ex && \
+ 
+ ENV CC=gcc
+ ENV CXX=g++
+-ENV GOROOT=/usr/local/go
+-ENV PATH="$GOROOT/bin:$PATH"
+\ No newline at end of file
++
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+\ No newline at end of file
+diff --git a/tests/ci/docker_images/linux-x86/fedora-31_clang-9x/Dockerfile b/tests/ci/docker_images/linux-x86/fedora-31_clang-9x/Dockerfile
+index b25e88a5f..0d6c8a6da 100644
+--- a/tests/ci/docker_images/linux-x86/fedora-31_clang-9x/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/fedora-31_clang-9x/Dockerfile
+@@ -4,6 +4,8 @@
+ FROM fedora:31
+ 
+ SHELL ["/bin/bash", "-c"]
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+ RUN set -ex
+ 
+@@ -13,7 +15,7 @@ RUN dnf -y install \
+     ninja-build \
+     perl \
+     git \
+-    golang \
++    wget \
+     --setopt=install_weak_deps=False --best && \
+     dnf -y autoremove && \
+     dnf clean all && \
+@@ -21,4 +23,6 @@ RUN dnf -y install \
+ 
+ ENV CC=clang-9
+ ENV CXX=clang++-9
+-ENV GO111MODULE=on
++
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+\ No newline at end of file
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-16.04_gcc-5x/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-16.04_gcc-5x/Dockerfile
+index 3ec958e99..1fe87c81f 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-16.04_gcc-5x/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-16.04_gcc-5x/Dockerfile
+@@ -4,6 +4,8 @@
+ FROM ubuntu:16.04
+ 
+ SHELL ["/bin/bash", "-c"]
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+ RUN set -ex && \
+     dpkg --add-architecture i386 && \
+@@ -20,10 +22,6 @@ RUN set -ex && \
+     perl \
+     ca-certificates \
+     wget && \
+-    cd /tmp && \
+-    wget https://dl.google.com/go/go1.13.12.linux-amd64.tar.gz && \
+-    tar -xvf go1.13.12.linux-amd64.tar.gz && \
+-    mv go /usr/local && \
+     apt-get autoremove --purge -y && \
+     apt-get clean && \
+     apt-get autoclean && \
+@@ -32,5 +30,6 @@ RUN set -ex && \
+ 
+ ENV CC=gcc-5
+ ENV CXX=g++-5
+-ENV GOROOT=/usr/local/go
+-ENV PATH="$GOROOT/bin:$PATH"
++
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-18.04_base/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-18.04_base/Dockerfile
+index 633ffee25..9989c28c9 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-18.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-18.04_base/Dockerfile
+@@ -4,6 +4,8 @@
+ FROM ubuntu:18.04
+ 
+ SHELL ["/bin/bash", "-c"]
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+ RUN set -ex && \
+     apt-get update && \
+@@ -15,15 +17,11 @@ RUN set -ex && \
+     perl \
+     ca-certificates \
+     wget && \
+-    cd /tmp && \
+-    wget https://dl.google.com/go/go1.13.12.linux-amd64.tar.gz && \
+-    tar -xvf go1.13.12.linux-amd64.tar.gz && \
+-    mv go /usr/local && \
+     apt-get autoremove --purge -y && \
+     apt-get clean && \
+     apt-get autoclean && \
+     rm -rf /var/lib/apt/lists/* && \
+     rm -rf /tmp/*
+ 
+-ENV GOROOT=/usr/local/go
+-ENV PATH="$GOROOT/bin:$PATH"
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-20.04_android/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-20.04_android/Dockerfile
+index d9c481462..1039ca483 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-20.04_android/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-20.04_android/Dockerfile
+@@ -11,7 +11,8 @@ ENV DEBIAN_FRONTEND=noninteractive
+ ENV ANDROID_SDK_URL commandlinetools-linux-8092744_latest
+ ENV ANDROID_HOME /opt/sdk
+ ENV GRADLE_VERSION gradle-5.6.4
+-
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ # ------------------------------------------------------
+ # --- Android SDK
+ 
+@@ -27,11 +28,6 @@ RUN set -ex && \
+     libunwind-dev \
+     wget \
+     unzip && \
+-# install go dependencies
+-    cd /tmp && \
+-    wget https://dl.google.com/go/go1.13.12.linux-amd64.tar.gz && \
+-    tar -xvf go1.13.12.linux-amd64.tar.gz && \
+-    mv go /usr/local && \
+ # install android-sdk from url source
+     mkdir /opt/sdk && \
+     mkdir /opt/sdk/cmdline-tools && \
+@@ -53,14 +49,12 @@ RUN set -ex && \
+     cd /opt && \
+     wget -q https://services.gradle.org/distributions/${GRADLE_VERSION}-all.zip && \
+     rm -rf /opt/cmdline-tools-tmp && \
+-    rm -rf /tmp/* 
++    rm -rf /tmp/*
+ # Preinstall gradle dependencies, so they don't need to be redownloaded in the CI.
+-COPY . /tmp/triggerGradleDownloads/
++COPY linux-x86/ubuntu-20.04_android /tmp/triggerGradleDownloads/
+ RUN  cd /tmp/triggerGradleDownloads && \
+      ./gradlew --no-daemon --refresh-dependencies androidDependencies lint && \
+      rm -rf /tmp/triggerGradleDownloads
+ 
+-
+-ENV GOROOT=/usr/local/go
+-ENV GO111MODULE=on
+-ENV PATH="$GOROOT/bin:$PATH"
+\ No newline at end of file
++COPY dependencies/install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-20.04_base/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-20.04_base/Dockerfile
+index 31fab6c7b..288bfadb2 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-20.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-20.04_base/Dockerfile
+@@ -6,9 +6,11 @@ FROM ubuntu:20.04
+ SHELL ["/bin/bash", "-c"]
+ 
+ ENV DEBIAN_FRONTEND=noninteractive
+-
+ ENV DEPENDENCIES_DIR=/home/dependencies
+ ENV LLVM_PROJECT_HOME=${DEPENDENCIES_DIR}/llvm-project
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
++ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
+ 
+ # llvm, llvm-dev, libcxx, and libcxxabi are needed for the sanitizer tests.
+ # 11.1.0 is the latest stable release as of 2021-02-16.
+@@ -42,10 +44,6 @@ RUN set -ex && \
+     cd ${DEPENDENCIES_DIR} && \
+     git clone https://github.com/llvm/llvm-project.git --branch llvmorg-11.1.0  --depth 1 && \
+     cd llvm-project && rm -rf $(ls -A | grep -Ev "(libcxx|libcxxabi)") && \
+-    cd /tmp && \
+-    wget https://dl.google.com/go/go1.13.12.linux-amd64.tar.gz && \
+-    tar -xvf go1.13.12.linux-amd64.tar.gz && \
+-    mv go /usr/local && \
+     apt-get --purge remove -y curl unzip && \
+     apt-get autoremove --purge -y && \
+     apt-get clean && \
+@@ -53,7 +51,5 @@ RUN set -ex && \
+     rm -rf /var/lib/apt/lists/* && \
+     rm -rf /tmp/*
+ 
+-ENV GOROOT=/usr/local/go
+-ENV GO111MODULE=on
+-ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
+-ENV PATH="$GOROOT/bin:$PATH"
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+index ba67759b7..57efc2e99 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+@@ -9,6 +9,9 @@ ENV DEBIAN_FRONTEND=noninteractive
+ 
+ ENV DEPENDENCIES_DIR=/home/dependencies
+ ENV LLVM_PROJECT_HOME=${DEPENDENCIES_DIR}/llvm-project
++ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+ # llvm, llvm-dev, libcxx, and libcxxabi are needed for the sanitizer tests.
+ # 11.1.0 is the latest stable release as of 2021-02-16.
+@@ -42,10 +45,6 @@ RUN set -ex && \
+     cd ${DEPENDENCIES_DIR} && \
+     git clone https://github.com/llvm/llvm-project.git --branch llvmorg-11.1.0  --depth 1 && \
+     cd llvm-project && rm -rf $(ls -A | grep -Ev "(libcxx|libcxxabi)") && \
+-    cd /tmp && \
+-    wget https://dl.google.com/go/go1.13.12.linux-amd64.tar.gz && \
+-    tar -xvf go1.13.12.linux-amd64.tar.gz && \
+-    mv go /usr/local && \
+     apt-get --purge remove -y curl unzip && \
+     apt-get autoremove --purge -y && \
+     apt-get clean && \
+@@ -53,7 +52,5 @@ RUN set -ex && \
+     rm -rf /var/lib/apt/lists/* && \
+     rm -rf /tmp/*
+ 
+-ENV GOROOT=/usr/local/go
+-ENV GO111MODULE=on
+-ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
+-ENV PATH="$GOROOT/bin:$PATH"
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/rust/build_images.sh b/tests/ci/docker_images/rust/build_images.sh
+index 94b548519..76c37b1b4 100755
+--- a/tests/ci/docker_images/rust/build_images.sh
++++ b/tests/ci/docker_images/rust/build_images.sh
+@@ -19,6 +19,6 @@
+ TOKEN=$(curl "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)
+ curl --head -H "Authorization: Bearer $TOKEN" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest
+ 
+-docker build -t rust:linux-386 linux-386 --load
+-docker build -t rust:linux-arm64 linux-arm64 --load
+-docker build -t rust:linux-x86_64 linux-x86_64 --load
++docker build -t rust:linux-386 -f linux-386/Dockerfile --load ../dependencies
++docker build -t rust:linux-arm64 -f linux-arm64/Dockerfile --load ../dependencies
++docker build -t rust:linux-x86_64 -f linux-x86_64/Dockerfile --load ../dependencies
+diff --git a/tests/ci/docker_images/rust/linux-386/Dockerfile b/tests/ci/docker_images/rust/linux-386/Dockerfile
+index e1dc9b27c..69538fd2c 100644
+--- a/tests/ci/docker_images/rust/linux-386/Dockerfile
++++ b/tests/ci/docker_images/rust/linux-386/Dockerfile
+@@ -4,9 +4,11 @@
+ FROM --platform=linux/386 rust:latest
+ 
+ SHELL ["/bin/bash", "-c"]
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+ RUN apt-get update && \
+-    apt-get -y install clang cmake golang && \
++    apt-get -y install clang cmake && \
+     rustup update && \
+     rustup component add rustfmt clippy && \
+     apt-get autoremove --purge -y && \
+@@ -15,3 +17,5 @@ RUN apt-get update && \
+     rm -rf /var/lib/apt/lists/* && \
+     rm -rf /tmp/*
+ 
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/rust/linux-arm64/Dockerfile b/tests/ci/docker_images/rust/linux-arm64/Dockerfile
+index b838fced1..36e0549c1 100644
+--- a/tests/ci/docker_images/rust/linux-arm64/Dockerfile
++++ b/tests/ci/docker_images/rust/linux-arm64/Dockerfile
+@@ -8,9 +8,11 @@
+ FROM --platform=linux/arm64 rust:latest
+ 
+ SHELL ["/bin/bash", "-c"]
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+ RUN apt-get update && \
+-    apt-get -y install clang cmake golang && \
++    apt-get -y install clang cmake && \
+     rustup update && \
+     rustup toolchain install nightly && \
+     rustup default nightly && \
+@@ -27,3 +29,6 @@ ENV CARGO_UNSTABLE_SPARSE_REGISTRY=true
+ # Static FIPS build only supports clang.
+ ENV CC=clang
+ ENV CXX=clang++
++
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/rust/linux-x86_64/Dockerfile b/tests/ci/docker_images/rust/linux-x86_64/Dockerfile
+index b3323199d..25ac0b075 100644
+--- a/tests/ci/docker_images/rust/linux-x86_64/Dockerfile
++++ b/tests/ci/docker_images/rust/linux-x86_64/Dockerfile
+@@ -4,9 +4,11 @@
+ FROM --platform=linux/amd64 rust:latest
+ 
+ SHELL ["/bin/bash", "-c"]
++ENV GOROOT=/usr/local/go
++ENV PATH="$GOROOT/bin:$PATH"
+ 
+ RUN apt-get update && \
+-    apt-get -y install clang cmake golang && \
++    apt-get -y install clang cmake && \
+     rustup update && \
+     rustup component add rustfmt clippy && \
+     apt-get autoremove --purge -y && \
+@@ -15,3 +17,5 @@ RUN apt-get update && \
+     rm -rf /var/lib/apt/lists/* && \
+     rm -rf /tmp/*
+ 
++COPY install_common_dependencies.sh /
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/windows/windows_base/Dockerfile b/tests/ci/docker_images/windows/windows_base/Dockerfile
+index 5e05af12f..51c53fe85 100644
+--- a/tests/ci/docker_images/windows/windows_base/Dockerfile
++++ b/tests/ci/docker_images/windows/windows_base/Dockerfile
+@@ -16,7 +16,7 @@ RUN choco install git --version 2.23.0 -y && `
+ choco install ninja --version 1.9.0.20190208 -y && `
+ choco install strawberryperl --version 5.32.0.1 -y && `
+ choco install nasm --version 2.14.02 -y && `
+-choco install golang --version 1.13.1 -y && `
++choco install golang --version 1.20.1 -y && `
+ choco install cmake --version 3.15.4 --installargs 'ADD_CMAKE_TO_PATH=""System""' -y
+ 
+ # Remove Strawberryperl's GCC from path because it override's MSVC's C.

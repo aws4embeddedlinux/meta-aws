@@ -1,0 +1,212 @@
+From 91969573ebdce121a5785ed7e19ea89d1dd35619 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Tue, 6 Jun 2023 12:03:06 -0700
+Subject: [PATCH] Split up integration test ci dimension (#1036)
+
+To prevent regressions from occurring in our downstream support, we add
+important integration test dimensions to our CI so we are always
+building it and executing tests. In the past, we have been adding these
+new integration tests to the aws-lc-ci-linux-x86 Codebuild CI batch. As
+we work on more SHIM work, there will be more integration dimensions we
+need to add. These integration tests doesn't quite make sense to place
+in aws-lc-ci-linux-x86 long term, so we should create a new Codebuild
+batch called aws-lc-ci-integrations to place these tests. Our
+integration tests for mysql, part of OpenSSH, postgres, s2n, etc. should
+all be placed here.
+---
+ tests/ci/cdk/app.py                           |  2 ++
+ tests/ci/cdk/cdk.context.json                 | 11 -------
+ .../github_ci_integration_omnibus.yaml        | 31 +++++++++++++++++++
+ .../github_ci_linux_x86_omnibus.yaml          | 24 --------------
+ tests/ci/cdk/run-cdk.sh                       |  4 +++
+ .../openssh_integration.yml                   |  2 +-
+ .../postgres_integration.yml                  |  2 +-
+ .../s2n_integration.yml                       |  2 +-
+ .../run_openssh_integration.sh                |  0
+ .../run_postgres_integration.sh               |  0
+ .../{ => integration}/run_s2n_integration.sh  |  0
+ 11 files changed, 40 insertions(+), 38 deletions(-)
+ delete mode 100644 tests/ci/cdk/cdk.context.json
+ create mode 100644 tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+ rename tests/ci/codebuild/{linux-x86 => integration}/openssh_integration.yml (79%)
+ rename tests/ci/codebuild/{linux-x86 => integration}/postgres_integration.yml (89%)
+ rename tests/ci/codebuild/{linux-x86 => integration}/s2n_integration.yml (80%)
+ rename tests/ci/{ => integration}/run_openssh_integration.sh (100%)
+ rename tests/ci/{ => integration}/run_postgres_integration.sh (100%)
+ rename tests/ci/{ => integration}/run_s2n_integration.sh (100%)
+
+diff --git a/tests/ci/cdk/app.py b/tests/ci/cdk/app.py
+index 16684dbb9..01322e69d 100644
+--- a/tests/ci/cdk/app.py
++++ b/tests/ci/cdk/app.py
+@@ -40,6 +40,8 @@ x86_build_spec_file = "cdk/codebuild/github_ci_linux_x86_omnibus.yaml"
+ AwsLcGitHubCIStack(app, "aws-lc-ci-linux-x86", x86_build_spec_file, env=env)
+ arm_build_spec_file = "cdk/codebuild/github_ci_linux_arm_omnibus.yaml"
+ AwsLcGitHubCIStack(app, "aws-lc-ci-linux-arm", arm_build_spec_file, env=env)
++integration_build_spec_file = "cdk/codebuild/github_ci_integration_omnibus.yaml"
++AwsLcGitHubCIStack(app, "aws-lc-ci-integration", integration_build_spec_file, env=env)
+ win_x86_build_spec_file = "cdk/codebuild/github_ci_windows_x86_omnibus.yaml"
+ AwsLcGitHubCIStack(app, "aws-lc-ci-windows-x86", win_x86_build_spec_file, env=env)
+ fuzz_build_spec_file = "cdk/codebuild/github_ci_fuzzing_omnibus.yaml"
+diff --git a/tests/ci/cdk/cdk.context.json b/tests/ci/cdk/cdk.context.json
+deleted file mode 100644
+index a409f9dd7..000000000
+--- a/tests/ci/cdk/cdk.context.json
++++ /dev/null
+@@ -1,11 +0,0 @@
+-{
+-  "acknowledged-issue-numbers": [
+-    19836
+-  ],
+-  "availability-zones:account=620771051181:region=us-west-2": [
+-    "us-west-2a",
+-    "us-west-2b",
+-    "us-west-2c",
+-    "us-west-2d"
+-  ]
+-}
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+new file mode 100644
+index 000000000..f5197ecaf
+--- /dev/null
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+@@ -0,0 +1,31 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++version: 0.2
++
++# Doc for batch https://docs.aws.amazon.com/codebuild/latest/userguide/batch-build-buildspec.html#build-spec.batch.build-list
++batch:
++  build-list:
++    - identifier: s2n_integration
++      buildspec: ./tests/ci/codebuild/integration/s2n_integration.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_SMALL
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-9x_latest
++
++    - identifier: openssh_integration
++      buildspec: ./tests/ci/codebuild/integration/openssh_integration.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_SMALL
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_sanitizer_latest
++
++    - identifier: postgres_integration
++      buildspec: ./tests/ci/codebuild/integration/postgres_integration.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_MEDIUM
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+index 2b5b40057..e4f33f04c 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+@@ -345,30 +345,6 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_sanitizer_latest
+ 
+-    - identifier: s2n_integration
+-      buildspec: ./tests/ci/codebuild/linux-x86/s2n_integration.yml
+-      env:
+-        type: LINUX_CONTAINER
+-        privileged-mode: false
+-        compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-9x_latest
+-
+-    - identifier: openssh_integration
+-      buildspec: ./tests/ci/codebuild/linux-x86/openssh_integration.yml
+-      env:
+-        type: LINUX_CONTAINER
+-        privileged-mode: false
+-        compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_sanitizer_latest
+-
+-    - identifier: postgres_integration
+-      buildspec: ./tests/ci/codebuild/linux-x86/postgres_integration.yml
+-      env:
+-        type: LINUX_CONTAINER
+-        privileged-mode: false
+-        compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
+-
+     - identifier: install_shared_and_static
+       buildspec: ./tests/ci/codebuild/linux-x86/install_shared_and_static.yml
+       env:
+diff --git a/tests/ci/cdk/run-cdk.sh b/tests/ci/cdk/run-cdk.sh
+index eefbb0345..696930d96 100755
+--- a/tests/ci/cdk/run-cdk.sh
++++ b/tests/ci/cdk/run-cdk.sh
+@@ -276,6 +276,7 @@ Options:
+                                                 After image build, AWS resources are cleaned up.
+                                    'diff': compares the specified stack with the deployed stack.
+                                    'synth': synthesizes and prints the CloudFormation template for the stacks.
++                                   'bootstrap': Bootstraps the CDK stack. This is needed before deployment or updating the CI.
+ EOF
+ }
+ 
+@@ -389,6 +390,9 @@ function main() {
+   diff)
+     cdk diff aws-lc-ci-*
+     ;;
++  bootstrap)
++    cdk bootstrap
++    ;;
+   *)
+     echo "--action is required. Use '--help' to see allowed actions."
+     exit 1
+diff --git a/tests/ci/codebuild/linux-x86/openssh_integration.yml b/tests/ci/codebuild/integration/openssh_integration.yml
+similarity index 79%
+rename from tests/ci/codebuild/linux-x86/openssh_integration.yml
+rename to tests/ci/codebuild/integration/openssh_integration.yml
+index 89e9b587b..8502458d5 100644
+--- a/tests/ci/codebuild/linux-x86/openssh_integration.yml
++++ b/tests/ci/codebuild/integration/openssh_integration.yml
+@@ -10,4 +10,4 @@ env:
+ phases:
+   build:
+     commands:
+-      - ./tests/ci/run_openssh_integration.sh
++      - ./tests/ci/integration/run_openssh_integration.sh
+diff --git a/tests/ci/codebuild/linux-x86/postgres_integration.yml b/tests/ci/codebuild/integration/postgres_integration.yml
+similarity index 89%
+rename from tests/ci/codebuild/linux-x86/postgres_integration.yml
+rename to tests/ci/codebuild/integration/postgres_integration.yml
+index 0ce57964e..8b83d5760 100644
+--- a/tests/ci/codebuild/linux-x86/postgres_integration.yml
++++ b/tests/ci/codebuild/integration/postgres_integration.yml
+@@ -18,4 +18,4 @@ phases:
+   build:
+     run-as: postgres
+     commands:
+-      - ./tests/ci/run_postgres_integration.sh
++      - ./tests/ci/integration/run_postgres_integration.sh
+diff --git a/tests/ci/codebuild/linux-x86/s2n_integration.yml b/tests/ci/codebuild/integration/s2n_integration.yml
+similarity index 80%
+rename from tests/ci/codebuild/linux-x86/s2n_integration.yml
+rename to tests/ci/codebuild/integration/s2n_integration.yml
+index 40e40c3e7..4ed3be743 100644
+--- a/tests/ci/codebuild/linux-x86/s2n_integration.yml
++++ b/tests/ci/codebuild/integration/s2n_integration.yml
+@@ -10,4 +10,4 @@ env:
+ phases:
+   build:
+     commands:
+-      - ./tests/ci/run_s2n_integration.sh
++      - ./tests/ci/integration/run_s2n_integration.sh
+diff --git a/tests/ci/run_openssh_integration.sh b/tests/ci/integration/run_openssh_integration.sh
+similarity index 100%
+rename from tests/ci/run_openssh_integration.sh
+rename to tests/ci/integration/run_openssh_integration.sh
+diff --git a/tests/ci/run_postgres_integration.sh b/tests/ci/integration/run_postgres_integration.sh
+similarity index 100%
+rename from tests/ci/run_postgres_integration.sh
+rename to tests/ci/integration/run_postgres_integration.sh
+diff --git a/tests/ci/run_s2n_integration.sh b/tests/ci/integration/run_s2n_integration.sh
+similarity index 100%
+rename from tests/ci/run_s2n_integration.sh
+rename to tests/ci/integration/run_s2n_integration.sh

@@ -1,0 +1,32 @@
+From 7c3d25bd050c5693f3909ea9665b0de5cb8b9b81 Mon Sep 17 00:00:00 2001
+From: Adam Langley <agl@google.com>
+Date: Fri, 17 Feb 2023 23:40:02 +0000
+Subject: [PATCH] acvp: write updated tests without `.bz2` suffix
+
+Go has a bzip2 decoder but not an encoder (because I only needed a
+decoder when I wrote the package). Thus when updated ACVP tests are
+written they aren't compressed. This change removes the `.bz2` suffix
+from paths when writing updated tests, which makes it easier to compress
+them.
+
+Change-Id: I9de6a1845cdf1cddca2e5d253b97262b023393f6
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57466
+Auto-Submit: Adam Langley <agl@google.com>
+Reviewed-by: David Benjamin <davidben@google.com>
+(cherry picked from commit f39826d9f5248ee66e9a32ac0513d81349c969af)
+---
+ util/fipstools/acvp/acvptool/test/check_expected.go | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/util/fipstools/acvp/acvptool/test/check_expected.go b/util/fipstools/acvp/acvptool/test/check_expected.go
+index fc2e0c7d2..51e7a73a1 100644
+--- a/util/fipstools/acvp/acvptool/test/check_expected.go
++++ b/util/fipstools/acvp/acvptool/test/check_expected.go
+@@ -199,6 +199,7 @@ func doTest(test invocation) error {
+ }
+ 
+ func writeUpdate(path string, contents []byte) {
++	path = strings.TrimSuffix(path, ".bz2")
+ 	if err := os.WriteFile(path, contents, 0644); err != nil {
+ 		log.Printf("Failed to create missing file %q: %s", path, err)
+ 	} else {

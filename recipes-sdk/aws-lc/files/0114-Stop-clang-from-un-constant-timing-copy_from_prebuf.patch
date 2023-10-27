@@ -1,0 +1,116 @@
+From b3dac1012c365fefa99d1817d36429298555aa0d Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 1 Feb 2023 23:40:18 -0500
+Subject: [PATCH] Stop clang from un-constant-timing copy_from_prebuf.
+
+Newer versions of clang figure out that copy_from_prebuf (used in builds
+that aren't x86_64 with assembly optimizations) has a bunch of no-op
+iterations and insert a branch. Add a value barrier to stop it. This was
+caught by our valgrind-based constant-time validation.
+
+As part of this, I noticed that OPENSSL_NO_ASM builds turn off value
+barriers. This is because the value barriers use an empty inline asm
+block. While this is technically correct, it's probably unnecessary.
+
+The clang|gcc check means we know GCC-style inline assembly is
+supported.  Disabling inline asm is used by sanitizers to shut off
+unintrumentable code, but there's no uninstrumentable code in the empty
+string. It's also used by consumers who haven't figured out how to
+integrate an assembler into their build system, but that also doesn't
+apply. So just remove the condition on the value barriers so
+OPENSSL_NO_ASM also get mitigations.
+
+Update-Note: It is possible the above is wrong and some OPENSSL_NO_ASM
+relied on value barriers being disabled. If so, this will break that
+build and we'll need to reconsider.
+
+Change-Id: I6e3ea3ee705bef3afcf42d3532b17aaabbbcc60b
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56827
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 53b876a4d15da0145495ec3a17521a2690fe5978)
+---
+ crypto/curve25519/curve25519.c        | 4 ----
+ crypto/fipsmodule/bn/exponentiation.c | 6 +++++-
+ crypto/fipsmodule/ec/p256.c           | 4 ----
+ crypto/internal.h                     | 6 +++---
+ 4 files changed, 8 insertions(+), 12 deletions(-)
+
+diff --git a/crypto/curve25519/curve25519.c b/crypto/curve25519/curve25519.c
+index 66c8c579e..72cbe9350 100644
+--- a/crypto/curve25519/curve25519.c
++++ b/crypto/curve25519/curve25519.c
+@@ -37,10 +37,6 @@
+ // Various pre-computed constants.
+ #include "./curve25519_tables.h"
+ 
+-#if defined(OPENSSL_NO_ASM)
+-#define FIAT_25519_NO_ASM
+-#endif
+-
+ #if defined(BORINGSSL_CURVE25519_64BIT)
+ #include "../../third_party/fiat/curve25519_64.h"
+ #else
+diff --git a/crypto/fipsmodule/bn/exponentiation.c b/crypto/fipsmodule/bn/exponentiation.c
+index 827b57b31..7eb95d8d6 100644
+--- a/crypto/fipsmodule/bn/exponentiation.c
++++ b/crypto/fipsmodule/bn/exponentiation.c
+@@ -851,7 +851,11 @@ static int copy_from_prebuf(BIGNUM *b, int top, const BN_ULONG *table, int idx,
+   OPENSSL_memset(b->d, 0, sizeof(BN_ULONG) * top);
+   const int width = 1 << window;
+   for (int i = 0; i < width; i++, table += top) {
+-    BN_ULONG mask = constant_time_eq_int(i, idx);
++    // Use a value barrier to prevent Clang from adding a branch when |i != idx|
++    // and making this copy not constant time. Clang is still allowed to learn
++    // that |mask| is constant across the inner loop, so this won't inhibit any
++    // vectorization it might do.
++    BN_ULONG mask = value_barrier_w(constant_time_eq_int(i, idx));
+     for (int j = 0; j < top; j++) {
+       b->d[j] |= table[j] & mask;
+     }
+diff --git a/crypto/fipsmodule/ec/p256.c b/crypto/fipsmodule/ec/p256.c
+index 7b46523b1..6b028120d 100644
+--- a/crypto/fipsmodule/ec/p256.c
++++ b/crypto/fipsmodule/ec/p256.c
+@@ -31,10 +31,6 @@
+ #include "../delocate.h"
+ #include "./internal.h"
+ 
+-#if defined(OPENSSL_NO_ASM)
+-#define FIAT_P256_NO_ASM
+-#endif
+-
+ #if defined(BORINGSSL_HAS_UINT128)
+ #define BORINGSSL_NISTP256_64BIT 1
+ #include "../../../third_party/fiat/p256_64.h"
+diff --git a/crypto/internal.h b/crypto/internal.h
+index 1b10f2c78..f2dcbba79 100644
+--- a/crypto/internal.h
++++ b/crypto/internal.h
+@@ -282,7 +282,7 @@ typedef uint32_t crypto_word_t;
+ // always has the same output for a given input. This allows it to eliminate
+ // dead code, move computations across loops, and vectorize.
+ static inline crypto_word_t value_barrier_w(crypto_word_t a) {
+-#if !defined(OPENSSL_NO_ASM) && (defined(__GNUC__) || defined(__clang__))
++#if defined(__GNUC__) || defined(__clang__)
+   __asm__("" : "+r"(a) : /* no inputs */);
+ #endif
+   return a;
+@@ -290,7 +290,7 @@ static inline crypto_word_t value_barrier_w(crypto_word_t a) {
+ 
+ // value_barrier_u32 behaves like |value_barrier_w| but takes a |uint32_t|.
+ static inline uint32_t value_barrier_u32(uint32_t a) {
+-#if !defined(OPENSSL_NO_ASM) && (defined(__GNUC__) || defined(__clang__))
++#if defined(__GNUC__) || defined(__clang__)
+   __asm__("" : "+r"(a) : /* no inputs */);
+ #endif
+   return a;
+@@ -298,7 +298,7 @@ static inline uint32_t value_barrier_u32(uint32_t a) {
+ 
+ // value_barrier_u64 behaves like |value_barrier_w| but takes a |uint64_t|.
+ static inline uint64_t value_barrier_u64(uint64_t a) {
+-#if !defined(OPENSSL_NO_ASM) && (defined(__GNUC__) || defined(__clang__))
++#if defined(__GNUC__) || defined(__clang__)
+   __asm__("" : "+r"(a) : /* no inputs */);
+ #endif
+   return a;

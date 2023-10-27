@@ -1,0 +1,705 @@
+From 809ac0bfbd72659f37f129e8a31961732162b741 Mon Sep 17 00:00:00 2001
+From: Steven Valdez <svaldez@google.com>
+Date: Thu, 26 Jan 2023 10:26:33 -0800
+Subject: [PATCH] Remove old Trust Token redeem API.
+
+This removes TRUST_TOKEN_ISSUER_redeem and renames
+TRUST_TOKEN_ISSUER_redeem_raw to TRUST_TOKEN_ISSUER_redeem.
+
+Change-Id: Ifc07c73a6827ea21b5f2b0469d4bed4d9bf8fa84
+Update-Note: Callers of TRUST_TOKEN_ISSUER_redeem_raw should remove the _raw.
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56365
+Reviewed-by: David Benjamin <davidben@google.com>
+Commit-Queue: Steven Valdez <svaldez@google.com>
+Auto-Submit: Steven Valdez <svaldez@google.com>
+
+(cherry picked from commit 80a243e07ef77156af66efa7d22ac35aba44c1b3)
+---
+ crypto/trust_token/trust_token.c       | 261 +------------------------
+ crypto/trust_token/trust_token_test.cc | 230 +---------------------
+ include/openssl/trust_token.h          |  28 +--
+ tool/speed.cc                          |  43 ++--
+ 4 files changed, 31 insertions(+), 531 deletions(-)
+
+diff --git a/crypto/trust_token/trust_token.c b/crypto/trust_token/trust_token.c
+index 2a0bacb2d..51b40ad1c 100644
+--- a/crypto/trust_token/trust_token.c
++++ b/crypto/trust_token/trust_token.c
+@@ -624,12 +624,12 @@ err:
+ }
+ 
+ 
+-int TRUST_TOKEN_ISSUER_redeem_raw(const TRUST_TOKEN_ISSUER *ctx,
+-                                  uint32_t *out_public, uint8_t *out_private,
+-                                  TRUST_TOKEN **out_token,
+-                                  uint8_t **out_client_data,
+-                                  size_t *out_client_data_len,
+-                                  const uint8_t *request, size_t request_len) {
++int TRUST_TOKEN_ISSUER_redeem(const TRUST_TOKEN_ISSUER *ctx,
++                              uint32_t *out_public, uint8_t *out_private,
++                              TRUST_TOKEN **out_token,
++                              uint8_t **out_client_data,
++                              size_t *out_client_data_len,
++                              const uint8_t *request, size_t request_len) {
+   return trust_token_issuer_redeem_impl(ctx, out_public, out_private, out_token,
+                                         out_client_data, out_client_data_len,
+                                         request, request_len, 0, NULL, 0);
+@@ -645,49 +645,6 @@ int TRUST_TOKEN_ISSUER_redeem_over_message(
+                                         request, request_len, 1, msg, msg_len);
+ }
+ 
+-// https://tools.ietf.org/html/rfc7049#section-2.1
+-static int add_cbor_int_with_type(CBB *cbb, uint8_t major_type,
+-                                  uint64_t value) {
+-  if (value <= 23) {
+-    return CBB_add_u8(cbb, (uint8_t)value | major_type);
+-  }
+-  if (value <= 0xff) {
+-    return CBB_add_u8(cbb, 0x18 | major_type) &&
+-           CBB_add_u8(cbb, (uint8_t)value);
+-  }
+-  if (value <= 0xffff) {
+-    return CBB_add_u8(cbb, 0x19 | major_type) &&
+-           CBB_add_u16(cbb, (uint16_t)value);
+-  }
+-  if (value <= 0xffffffff) {
+-    return CBB_add_u8(cbb, 0x1a | major_type) &&
+-           CBB_add_u32(cbb, (uint32_t)value);
+-  }
+-  return CBB_add_u8(cbb, 0x1b | major_type) && CBB_add_u64(cbb, value);
+-}
+-
+-// https://tools.ietf.org/html/rfc7049#section-2.1
+-static int add_cbor_int(CBB *cbb, uint64_t value) {
+-  return add_cbor_int_with_type(cbb, 0, value);
+-}
+-
+-// https://tools.ietf.org/html/rfc7049#section-2.1
+-static int add_cbor_bytes(CBB *cbb, const uint8_t *data, size_t len) {
+-  return add_cbor_int_with_type(cbb, 0x40, len) &&
+-         CBB_add_bytes(cbb, data, len);
+-}
+-
+-// https://tools.ietf.org/html/rfc7049#section-2.1
+-static int add_cbor_text(CBB *cbb, const char *data, size_t len) {
+-  return add_cbor_int_with_type(cbb, 0x60, len) &&
+-         CBB_add_bytes(cbb, (const uint8_t *)data, len);
+-}
+-
+-// https://tools.ietf.org/html/rfc7049#section-2.1
+-static int add_cbor_map(CBB *cbb, uint8_t size) {
+-  return add_cbor_int_with_type(cbb, 0xa0, size);
+-}
+-
+ static uint8_t get_metadata_obfuscator(const uint8_t *key, size_t key_len,
+                                        const uint8_t *client_data,
+                                        size_t client_data_len) {
+@@ -700,212 +657,6 @@ static uint8_t get_metadata_obfuscator(const uint8_t *key, size_t key_len,
+   return metadata_obfuscator[0] >> 7;
+ }
+ 
+-int TRUST_TOKEN_ISSUER_redeem(const TRUST_TOKEN_ISSUER *ctx, uint8_t **out,
+-                              size_t *out_len, TRUST_TOKEN **out_token,
+-                              uint8_t **out_client_data,
+-                              size_t *out_client_data_len,
+-                              uint64_t *out_redemption_time,
+-                              const uint8_t *request, size_t request_len,
+-                              uint64_t lifetime) {
+-  CBS request_cbs, token_cbs;
+-  CBS_init(&request_cbs, request, request_len);
+-  if (!CBS_get_u16_length_prefixed(&request_cbs, &token_cbs)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_DECODE_ERROR);
+-    return 0;
+-  }
+-
+-  uint32_t public_metadata = 0;
+-  uint8_t private_metadata = 0;
+-
+-  CBS token_copy = token_cbs;
+-
+-  // Parse the token. If there is an error, treat it as an invalid token.
+-  if (!CBS_get_u32(&token_cbs, &public_metadata)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_INVALID_TOKEN);
+-    return 0;
+-  }
+-
+-  const struct trust_token_issuer_key_st *key =
+-      trust_token_issuer_get_key(ctx, public_metadata);
+-  uint8_t nonce[TRUST_TOKEN_NONCE_SIZE];
+-  if (key == NULL || !ctx->method->read(&key->key, nonce, &private_metadata,
+-                                        CBS_data(&token_cbs),
+-                                        CBS_len(&token_cbs), 0, NULL, 0)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_INVALID_TOKEN);
+-    return 0;
+-  }
+-
+-  int ok = 0;
+-  CBB response, srr;
+-  uint8_t *srr_buf = NULL, *sig_buf = NULL, *client_data_buf = NULL;
+-  size_t srr_len = 0, sig_len = 0, client_data_len = 0;
+-  EVP_MD_CTX md_ctx;
+-  EVP_MD_CTX_init(&md_ctx);
+-  CBB_zero(&srr);
+-  if (!CBB_init(&response, 0)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+-    goto err;
+-  }
+-
+-  CBS client_data;
+-  uint64_t redemption_time = 0;
+-  if (!CBS_get_u16_length_prefixed(&request_cbs, &client_data) ||
+-      (ctx->method->has_srr && !CBS_get_u64(&request_cbs, &redemption_time))) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_DECODE_ERROR);
+-    goto err;
+-  }
+-
+-  const uint8_t kTokenHashDSTLabel[] = "TrustTokenV0 TokenHash";
+-  uint8_t token_hash[SHA256_DIGEST_LENGTH];
+-  SHA256_CTX sha_ctx;
+-  SHA256_Init(&sha_ctx);
+-  SHA256_Update(&sha_ctx, kTokenHashDSTLabel, sizeof(kTokenHashDSTLabel));
+-  SHA256_Update(&sha_ctx, CBS_data(&token_copy), CBS_len(&token_copy));
+-  SHA256_Final(token_hash, &sha_ctx);
+-
+-  uint8_t metadata_obfuscator = get_metadata_obfuscator(
+-      ctx->metadata_key, ctx->metadata_key_len, token_hash, sizeof(token_hash));
+-
+-  // The SRR is constructed as per the format described in
+-  // https://docs.google.com/document/d/1TNnya6B8pyomDK2F1R9CL3dY10OAmqWlnCxsWyOBDVQ/edit#heading=h.7mkzvhpqb8l5
+-
+-  // The V2 protocol is intended to be used with
+-  // |TRUST_TOKEN_ISSUER_redeem_raw|. However, we temporarily support it with
+-  // |TRUST_TOKEN_ISSUER_redeem| to ease the transition for existing issuer
+-  // callers. Those callers' consumers currently expect an expiry-timestamp
+-  // field, so we fill in a placeholder value.
+-  //
+-  // TODO(svaldez): After the existing issues have migrated to
+-  // |TRUST_TOKEN_ISSUER_redeem_raw| remove this logic.
+-  uint64_t expiry_time = 0;
+-  if (ctx->method->has_srr) {
+-    expiry_time = redemption_time + lifetime;
+-  }
+-
+-  static const char kClientDataLabel[] = "client-data";
+-  static const char kExpiryTimestampLabel[] = "expiry-timestamp";
+-  static const char kMetadataLabel[] = "metadata";
+-  static const char kPrivateLabel[] = "private";
+-  static const char kPublicLabel[] = "public";
+-  static const char kTokenHashLabel[] = "token-hash";
+-
+-  // CBOR requires map keys to be sorted by length then sorted lexically.
+-  // https://tools.ietf.org/html/rfc7049#section-3.9
+-  assert(strlen(kMetadataLabel) < strlen(kTokenHashLabel));
+-  assert(strlen(kTokenHashLabel) < strlen(kClientDataLabel));
+-  assert(strlen(kClientDataLabel) < strlen(kExpiryTimestampLabel));
+-  assert(strlen(kPublicLabel) < strlen(kPrivateLabel));
+-
+-  size_t map_entries = 4;
+-
+-  if (!CBB_init(&srr, 0) ||
+-      !add_cbor_map(&srr, map_entries) ||  // SRR map
+-      !add_cbor_text(&srr, kMetadataLabel, strlen(kMetadataLabel)) ||
+-      !add_cbor_map(&srr, 2) ||  // Metadata map
+-      !add_cbor_text(&srr, kPublicLabel, strlen(kPublicLabel)) ||
+-      !add_cbor_int(&srr, public_metadata) ||
+-      !add_cbor_text(&srr, kPrivateLabel, strlen(kPrivateLabel)) ||
+-      !add_cbor_int(&srr, private_metadata ^ metadata_obfuscator) ||
+-      !add_cbor_text(&srr, kTokenHashLabel, strlen(kTokenHashLabel)) ||
+-      !add_cbor_bytes(&srr, token_hash, sizeof(token_hash)) ||
+-      !add_cbor_text(&srr, kClientDataLabel, strlen(kClientDataLabel)) ||
+-      !CBB_add_bytes(&srr, CBS_data(&client_data), CBS_len(&client_data)) ||
+-      !add_cbor_text(&srr, kExpiryTimestampLabel,
+-                     strlen(kExpiryTimestampLabel)) ||
+-      !add_cbor_int(&srr, expiry_time) ||
+-      !CBB_finish(&srr, &srr_buf, &srr_len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+-    goto err;
+-  }
+-
+-  if (!EVP_DigestSignInit(&md_ctx, NULL, NULL, NULL, ctx->srr_key) ||
+-      !EVP_DigestSign(&md_ctx, NULL, &sig_len, srr_buf, srr_len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_SRR_SIGNATURE_ERROR);
+-    goto err;
+-  }
+-
+-  // Merge SRR and Signature into single string.
+-  // TODO(svaldez): Expose API to construct this from the caller.
+-  if (!ctx->method->has_srr) {
+-    static const char kSRRHeader[] = "body=:";
+-    static const char kSRRSplit[] = ":, signature=:";
+-    static const char kSRREnd[] = ":";
+-
+-    size_t srr_b64_len, sig_b64_len;
+-    if (!EVP_EncodedLength(&srr_b64_len, srr_len) ||
+-        !EVP_EncodedLength(&sig_b64_len, sig_len)) {
+-      goto err;
+-    }
+-
+-    sig_buf = OPENSSL_malloc(sig_len);
+-    uint8_t *srr_b64_buf = OPENSSL_malloc(srr_b64_len);
+-    uint8_t *sig_b64_buf = OPENSSL_malloc(sig_b64_len);
+-    if (!sig_buf ||
+-        !srr_b64_buf ||
+-        !sig_b64_buf ||
+-        !EVP_DigestSign(&md_ctx, sig_buf, &sig_len, srr_buf, srr_len) ||
+-        !CBB_add_bytes(&response, (const uint8_t *)kSRRHeader,
+-                       strlen(kSRRHeader)) ||
+-        !CBB_add_bytes(&response, srr_b64_buf,
+-                       EVP_EncodeBlock(srr_b64_buf, srr_buf, srr_len)) ||
+-        !CBB_add_bytes(&response, (const uint8_t *)kSRRSplit,
+-                       strlen(kSRRSplit)) ||
+-        !CBB_add_bytes(&response, sig_b64_buf,
+-                       EVP_EncodeBlock(sig_b64_buf, sig_buf, sig_len)) ||
+-        !CBB_add_bytes(&response, (const uint8_t *)kSRREnd, strlen(kSRREnd))) {
+-      OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+-      OPENSSL_free(srr_b64_buf);
+-      OPENSSL_free(sig_b64_buf);
+-      goto err;
+-    }
+-
+-    OPENSSL_free(srr_b64_buf);
+-    OPENSSL_free(sig_b64_buf);
+-  } else {
+-    CBB child;
+-    uint8_t *ptr;
+-    if (!CBB_add_u16_length_prefixed(&response, &child) ||
+-        !CBB_add_bytes(&child, srr_buf, srr_len) ||
+-        !CBB_add_u16_length_prefixed(&response, &child) ||
+-        !CBB_reserve(&child, &ptr, sig_len) ||
+-        !EVP_DigestSign(&md_ctx, ptr, &sig_len, srr_buf, srr_len) ||
+-        !CBB_did_write(&child, sig_len) ||
+-        !CBB_flush(&response)) {
+-      OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+-      goto err;
+-    }
+-  }
+-
+-  if (!CBS_stow(&client_data, &client_data_buf, &client_data_len) ||
+-      !CBB_finish(&response, out, out_len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+-    goto err;
+-  }
+-
+-  TRUST_TOKEN *token = TRUST_TOKEN_new(nonce, TRUST_TOKEN_NONCE_SIZE);
+-  if (token == NULL) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+-    goto err;
+-  }
+-  *out_token = token;
+-  *out_client_data = client_data_buf;
+-  *out_client_data_len = client_data_len;
+-  *out_redemption_time = redemption_time;
+-
+-  ok = 1;
+-
+-err:
+-  CBB_cleanup(&response);
+-  CBB_cleanup(&srr);
+-  OPENSSL_free(srr_buf);
+-  OPENSSL_free(sig_buf);
+-  EVP_MD_CTX_cleanup(&md_ctx);
+-  if (!ok) {
+-    OPENSSL_free(client_data_buf);
+-  }
+-  return ok;
+-}
+-
+ int TRUST_TOKEN_decode_private_metadata(const TRUST_TOKEN_METHOD *method,
+                                         uint8_t *out_value, const uint8_t *key,
+                                         size_t key_len, const uint8_t *nonce,
+diff --git a/crypto/trust_token/trust_token_test.cc b/crypto/trust_token/trust_token_test.cc
+index d0ad26a78..8652e87a2 100644
+--- a/crypto/trust_token/trust_token_test.cc
++++ b/crypto/trust_token/trust_token_test.cc
+@@ -421,9 +421,9 @@ TEST_P(TrustTokenProtocolTest, InvalidToken) {
+           issuer.get(), &public_value, &private_value, &rtoken, &client_data,
+           &client_data_len, redeem_msg, msg_len, kMessage, sizeof(kMessage)));
+     } else {
+-      ASSERT_FALSE(TRUST_TOKEN_ISSUER_redeem_raw(
+-          issuer.get(), &public_value, &private_value, &rtoken,
+-          &client_data, &client_data_len, redeem_msg, msg_len));
++      ASSERT_FALSE(TRUST_TOKEN_ISSUER_redeem(
++          issuer.get(), &public_value, &private_value, &rtoken, &client_data,
++          &client_data_len, redeem_msg, msg_len));
+     }
+     bssl::UniquePtr<uint8_t> free_redeem_resp(redeem_resp);
+   }
+@@ -553,82 +553,13 @@ TEST_P(TrustTokenProtocolTest, TruncatedRedemptionRequest) {
+           issuer.get(), &public_value, &private_value, &rtoken, &client_data,
+           &client_data_len, redeem_msg, msg_len, kMessage, sizeof(kMessage)));
+     } else {
+-      ASSERT_FALSE(TRUST_TOKEN_ISSUER_redeem_raw(
+-          issuer.get(), &public_value, &private_value, &rtoken,
+-          &client_data, &client_data_len, redeem_msg, msg_len));
++      ASSERT_FALSE(TRUST_TOKEN_ISSUER_redeem(
++          issuer.get(), &public_value, &private_value, &rtoken, &client_data,
++          &client_data_len, redeem_msg, msg_len));
+     }
+   }
+ }
+ 
+-TEST_P(TrustTokenProtocolTest, TruncatedRedemptionResponse) {
+-  ASSERT_NO_FATAL_FAILURE(SetupContexts());
+-
+-  // Token issuances derived from messages aren't supported by the old-style
+-  // redemption record response.
+-  if (use_message()) {
+-    return;
+-  }
+-
+-  uint8_t *issue_msg = NULL, *issue_resp = NULL;
+-  size_t msg_len, resp_len;
+-  if (use_message()) {
+-    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
+-        client.get(), &issue_msg, &msg_len, 10, kMessage, sizeof(kMessage)));
+-  } else {
+-    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
+-                                                  &msg_len, 10));
+-  }
+-  bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+-  size_t tokens_issued;
+-  ASSERT_TRUE(TRUST_TOKEN_ISSUER_issue(
+-      issuer.get(), &issue_resp, &resp_len, &tokens_issued, issue_msg, msg_len,
+-      /*public_metadata=*/KeyID(0), /*private_metadata=*/0,
+-      /*max_issuance=*/10));
+-  bssl::UniquePtr<uint8_t> free_msg(issue_resp);
+-  size_t key_index;
+-  bssl::UniquePtr<STACK_OF(TRUST_TOKEN)> tokens(
+-      TRUST_TOKEN_CLIENT_finish_issuance(client.get(), &key_index, issue_resp,
+-                                         resp_len));
+-  ASSERT_TRUE(tokens);
+-
+-  for (TRUST_TOKEN *token : tokens.get()) {
+-    const uint8_t kClientData[] = "\x70TEST CLIENT DATA";
+-    uint64_t kRedemptionTime = 0;
+-
+-    uint8_t *redeem_msg = NULL, *redeem_resp = NULL;
+-    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_redemption(
+-        client.get(), &redeem_msg, &msg_len, token, kClientData,
+-        sizeof(kClientData) - 1, kRedemptionTime));
+-    bssl::UniquePtr<uint8_t> free_redeem_msg(redeem_msg);
+-    TRUST_TOKEN *rtoken;
+-    uint8_t *client_data;
+-    size_t client_data_len;
+-    uint64_t redemption_time;
+-    ASSERT_TRUE(TRUST_TOKEN_ISSUER_redeem(
+-        issuer.get(), &redeem_resp, &resp_len, &rtoken, &client_data,
+-        &client_data_len, &redemption_time, redeem_msg, msg_len, 600));
+-    bssl::UniquePtr<uint8_t> free_redeem_resp(redeem_resp);
+-    bssl::UniquePtr<uint8_t> free_client_data(client_data);
+-    bssl::UniquePtr<TRUST_TOKEN> free_rtoken(rtoken);
+-
+-    ASSERT_EQ(redemption_time, kRedemptionTime);
+-    ASSERT_EQ(Bytes(kClientData, sizeof(kClientData) - 1),
+-              Bytes(client_data, client_data_len));
+-    resp_len = 10;
+-
+-    // If the protocol doesn't use SRRs, TRUST_TOKEN_CLIENT_finish_redemtpion
+-    // leaves all SRR validation to the caller.
+-    uint8_t *srr = NULL, *sig = NULL;
+-    size_t srr_len, sig_len;
+-    bool expect_failure = !method()->has_srr;
+-    ASSERT_EQ(expect_failure, TRUST_TOKEN_CLIENT_finish_redemption(
+-                                  client.get(), &srr, &srr_len, &sig, &sig_len,
+-                                  redeem_resp, resp_len));
+-    bssl::UniquePtr<uint8_t> free_srr(srr);
+-    bssl::UniquePtr<uint8_t> free_sig(sig);
+-  }
+-}
+-
+ TEST_P(TrustTokenProtocolTest, IssuedWithBadKeyID) {
+   client.reset(TRUST_TOKEN_CLIENT_new(method(), client_max_batchsize));
+   ASSERT_TRUE(client);
+@@ -709,149 +640,6 @@ class TrustTokenMetadataTest
+ TEST_P(TrustTokenMetadataTest, SetAndGetMetadata) {
+   ASSERT_NO_FATAL_FAILURE(SetupContexts());
+ 
+-  // Token issuances derived from messages aren't supported by the old-style
+-  // redemption record response.
+-  if (use_message()) {
+-    return;
+-  }
+-
+-  uint8_t *issue_msg = NULL, *issue_resp = NULL;
+-  size_t msg_len, resp_len;
+-  if (use_message()) {
+-    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
+-        client.get(), &issue_msg, &msg_len, 10, kMessage, sizeof(kMessage)));
+-  } else {
+-    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
+-                                                  &msg_len, 10));
+-  }
+-  bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+-  size_t tokens_issued;
+-  bool result = TRUST_TOKEN_ISSUER_issue(
+-      issuer.get(), &issue_resp, &resp_len, &tokens_issued, issue_msg, msg_len,
+-      public_metadata(), private_metadata(), /*max_issuance=*/1);
+-  if (!method()->has_private_metadata && private_metadata()) {
+-    ASSERT_FALSE(result);
+-    return;
+-  }
+-  ASSERT_TRUE(result);
+-  bssl::UniquePtr<uint8_t> free_msg(issue_resp);
+-  size_t key_index;
+-  bssl::UniquePtr<STACK_OF(TRUST_TOKEN)> tokens(
+-      TRUST_TOKEN_CLIENT_finish_issuance(client.get(), &key_index, issue_resp,
+-                                         resp_len));
+-  ASSERT_TRUE(tokens);
+-
+-  for (TRUST_TOKEN *token : tokens.get()) {
+-    const uint8_t kClientData[] = "\x70TEST CLIENT DATA";
+-    uint64_t kRedemptionTime = (method()->has_srr ? 13374242 : 0);
+-
+-    const uint8_t kExpectedSRRV1[] =
+-        "\xa4\x68\x6d\x65\x74\x61\x64\x61\x74\x61\xa2\x66\x70\x75\x62\x6c\x69"
+-        "\x63\x00\x67\x70\x72\x69\x76\x61\x74\x65\x00\x6a\x74\x6f\x6b\x65\x6e"
+-        "\x2d\x68\x61\x73\x68\x58\x20\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+-        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+-        "\x00\x00\x00\x00\x00\x6b\x63\x6c\x69\x65\x6e\x74\x2d\x64\x61\x74\x61"
+-        "\x70\x54\x45\x53\x54\x20\x43\x4c\x49\x45\x4e\x54\x20\x44\x41\x54\x41"
+-        "\x70\x65\x78\x70\x69\x72\x79\x2d\x74\x69\x6d\x65\x73\x74\x61\x6d\x70"
+-        "\x1a\x00\xcc\x15\x7a";
+-
+-    const uint8_t kExpectedSRRV2[] =
+-        "\xa4\x68\x6d\x65\x74\x61\x64\x61\x74\x61\xa2\x66\x70\x75\x62\x6c\x69"
+-        "\x63\x00\x67\x70\x72\x69\x76\x61\x74\x65\x00\x6a\x74\x6f\x6b\x65\x6e"
+-        "\x2d\x68\x61\x73\x68\x58\x20\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+-        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+-        "\x00\x00\x00\x00\x00\x6b\x63\x6c\x69\x65\x6e\x74\x2d\x64\x61\x74\x61"
+-        "\x70\x54\x45\x53\x54\x20\x43\x4c\x49\x45\x4e\x54\x20\x44\x41\x54\x41"
+-        "\x70\x65\x78\x70\x69\x72\x79\x2d\x74\x69\x6d\x65\x73\x74\x61\x6d\x70"
+-        "\x00";
+-
+-    const uint8_t *expected_srr = kExpectedSRRV1;
+-    size_t expected_srr_len = sizeof(kExpectedSRRV1) - 1;
+-    if (!method()->has_srr) {
+-      expected_srr = kExpectedSRRV2;
+-      expected_srr_len = sizeof(kExpectedSRRV2) - 1;
+-    }
+-
+-    uint8_t *redeem_msg = NULL, *redeem_resp = NULL;
+-    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_redemption(
+-        client.get(), &redeem_msg, &msg_len, token, kClientData,
+-        sizeof(kClientData) - 1, kRedemptionTime));
+-    bssl::UniquePtr<uint8_t> free_redeem_msg(redeem_msg);
+-    TRUST_TOKEN *rtoken;
+-    uint8_t *client_data;
+-    size_t client_data_len;
+-    uint64_t redemption_time;
+-    ASSERT_TRUE(TRUST_TOKEN_ISSUER_redeem(
+-        issuer.get(), &redeem_resp, &resp_len, &rtoken, &client_data,
+-        &client_data_len, &redemption_time, redeem_msg, msg_len, 600));
+-    bssl::UniquePtr<uint8_t> free_redeem_resp(redeem_resp);
+-    bssl::UniquePtr<uint8_t> free_client_data(client_data);
+-    bssl::UniquePtr<TRUST_TOKEN> free_rtoken(rtoken);
+-
+-    ASSERT_EQ(redemption_time, kRedemptionTime);
+-    ASSERT_EQ(Bytes(kClientData, sizeof(kClientData) - 1),
+-              Bytes(client_data, client_data_len));
+-
+-    uint8_t *srr = NULL, *sig = NULL;
+-    size_t srr_len, sig_len;
+-    ASSERT_TRUE(TRUST_TOKEN_CLIENT_finish_redemption(
+-        client.get(), &srr, &srr_len, &sig, &sig_len, redeem_resp, resp_len));
+-    bssl::UniquePtr<uint8_t> free_srr(srr);
+-    bssl::UniquePtr<uint8_t> free_sig(sig);
+-
+-    if (!method()->has_srr) {
+-      size_t b64_len;
+-      ASSERT_TRUE(EVP_EncodedLength(&b64_len, expected_srr_len));
+-      b64_len -= 1;
+-      const char kSRRHeader[] = "body=:";
+-      ASSERT_LT(sizeof(kSRRHeader) - 1 + b64_len, srr_len);
+-
+-      ASSERT_EQ(Bytes(kSRRHeader, sizeof(kSRRHeader) - 1),
+-                Bytes(srr, sizeof(kSRRHeader) - 1));
+-      uint8_t *decoded_srr =
+-          (uint8_t *)OPENSSL_malloc(expected_srr_len + 2);
+-      ASSERT_TRUE(decoded_srr);
+-      ASSERT_LE(
+-          int(expected_srr_len),
+-          EVP_DecodeBlock(decoded_srr, srr + sizeof(kSRRHeader) - 1, b64_len));
+-      srr = decoded_srr;
+-      srr_len = expected_srr_len;
+-      free_srr.reset(srr);
+-    }
+-
+-    const uint8_t kTokenHashDSTLabel[] = "TrustTokenV0 TokenHash";
+-    uint8_t token_hash[SHA256_DIGEST_LENGTH];
+-    SHA256_CTX sha_ctx;
+-    SHA256_Init(&sha_ctx);
+-    SHA256_Update(&sha_ctx, kTokenHashDSTLabel, sizeof(kTokenHashDSTLabel));
+-    SHA256_Update(&sha_ctx, token->data, token->len);
+-    SHA256_Final(token_hash, &sha_ctx);
+-
+-    // Check the token hash is in the SRR.
+-    ASSERT_EQ(Bytes(token_hash), Bytes(srr + 41, sizeof(token_hash)));
+-
+-    uint8_t decode_private_metadata;
+-    ASSERT_TRUE(TRUST_TOKEN_decode_private_metadata(
+-        method(), &decode_private_metadata, metadata_key,
+-        sizeof(metadata_key), token_hash, sizeof(token_hash), srr[27]));
+-    ASSERT_EQ(srr[18], public_metadata());
+-    ASSERT_EQ(decode_private_metadata, private_metadata());
+-
+-    // Clear out the metadata bits.
+-    srr[18] = 0;
+-    srr[27] = 0;
+-
+-    // Clear out the token hash.
+-    OPENSSL_memset(srr + 41, 0, sizeof(token_hash));
+-
+-    ASSERT_EQ(Bytes(expected_srr, expected_srr_len),
+-              Bytes(srr, srr_len));
+-  }
+-}
+-
+-TEST_P(TrustTokenMetadataTest, RawSetAndGetMetadata) {
+-  ASSERT_NO_FATAL_FAILURE(SetupContexts());
+-
+   uint8_t *issue_msg = NULL, *issue_resp = NULL;
+   size_t msg_len, resp_len;
+   if (use_message()) {
+@@ -898,9 +686,9 @@ TEST_P(TrustTokenMetadataTest, RawSetAndGetMetadata) {
+           issuer.get(), &public_value, &private_value, &rtoken, &client_data,
+           &client_data_len, redeem_msg, msg_len, kMessage, sizeof(kMessage)));
+     } else {
+-      ASSERT_TRUE(TRUST_TOKEN_ISSUER_redeem_raw(
+-          issuer.get(), &public_value, &private_value, &rtoken,
+-          &client_data, &client_data_len, redeem_msg, msg_len));
++      ASSERT_TRUE(TRUST_TOKEN_ISSUER_redeem(
++          issuer.get(), &public_value, &private_value, &rtoken, &client_data,
++          &client_data_len, redeem_msg, msg_len));
+     }
+     bssl::UniquePtr<uint8_t> free_client_data(client_data);
+     bssl::UniquePtr<TRUST_TOKEN> free_rtoken(rtoken);
+diff --git a/include/openssl/trust_token.h b/include/openssl/trust_token.h
+index aef4e500b..03ce4b820 100644
+--- a/include/openssl/trust_token.h
++++ b/include/openssl/trust_token.h
+@@ -248,28 +248,6 @@ OPENSSL_EXPORT int TRUST_TOKEN_ISSUER_issue(
+     uint32_t public_metadata, uint8_t private_metadata, size_t max_issuance);
+ 
+ // TRUST_TOKEN_ISSUER_redeem ingests a |request| for token redemption and
+-// verifies the token. If the token is valid, a RR is produced with a lifetime
+-// of |lifetime| (in seconds), signing over the requested data from the request
+-// and the value of the token, storing the result into a newly-allocated buffer
+-// and setting |*out| to that buffer and |*out_len| to its length. The extracted
+-// |TRUST_TOKEN| is stored into a newly-allocated buffer and stored in
+-// |*out_token|. The extracted client data is stored into a newly-allocated
+-// buffer and stored in |*out_client_data|. In TrustTokenV1, the extracted
+-// redemption time is stored in |*out_redemption_time|. The caller takes
+-// ownership of each output buffer and must call |OPENSSL_free| when done. It
+-// returns one on success or zero on error.
+-//
+-// The caller must keep track of all values of |*out_token| seen globally before
+-// returning the SRR to the client. If the value has been reused, the caller
+-// must discard the SRR and report an error to the caller. Returning an SRR with
+-// replayed values allows an attacker to double-spend tokens.
+-OPENSSL_EXPORT int TRUST_TOKEN_ISSUER_redeem(
+-    const TRUST_TOKEN_ISSUER *ctx, uint8_t **out, size_t *out_len,
+-    TRUST_TOKEN **out_token, uint8_t **out_client_data,
+-    size_t *out_client_data_len, uint64_t *out_redemption_time,
+-    const uint8_t *request, size_t request_len, uint64_t lifetime);
+-
+-// TRUST_TOKEN_ISSUER_redeem_raw ingests a |request| for token redemption and
+ // verifies the token. The public metadata is stored in |*out_public|. The
+ // private metadata (if any) is stored in |*out_private|. The extracted
+ // |TRUST_TOKEN| is stored into a newly-allocated buffer and stored in
+@@ -282,11 +260,15 @@ OPENSSL_EXPORT int TRUST_TOKEN_ISSUER_redeem(
+ // returning a response to the client. If the value has been reused, the caller
+ // must report an error to the client. Returning a response with replayed values
+ // allows an attacker to double-spend tokens.
+-OPENSSL_EXPORT int TRUST_TOKEN_ISSUER_redeem_raw(
++OPENSSL_EXPORT int TRUST_TOKEN_ISSUER_redeem(
+     const TRUST_TOKEN_ISSUER *ctx, uint32_t *out_public, uint8_t *out_private,
+     TRUST_TOKEN **out_token, uint8_t **out_client_data,
+     size_t *out_client_data_len, const uint8_t *request, size_t request_len);
+ 
++// TRUST_TOKEN_ISSUER_redeem_raw is a legacy alias for
++// |TRUST_TOKEN_ISSUER_redeem|.
++#define TRUST_TOKEN_ISSUER_redeem_raw TRUST_TOKEN_ISSUER_redeem
++
+ // TRUST_TOKEN_ISSUER_redeem_over_message ingests a |request| for token
+ // redemption and a message and verifies the token and that it is derived from
+ // the provided |msg|. The public metadata is stored in
+diff --git a/tool/speed.cc b/tool/speed.cc
+index 9db47861e..b9d9e85c5 100644
+--- a/tool/speed.cc
++++ b/tool/speed.cc
+@@ -888,7 +888,7 @@ static bool SpeedHash(const EVP_MD *md, const std::string &name,
+ static bool SpeedHmacChunk(const EVP_MD *md, std::string name,
+                            size_t chunk_len) {
+   // OpenSSL 1.0.x doesn't have a function that creates a new,
+-  // properly initialized HMAC pointer so we need to create 
++  // properly initialized HMAC pointer so we need to create
+   // the pointer and then do the initialization logic ourselves
+ #if defined(OPENSSL_1_0_BENCHMARK)
+   BM_NAMESPACE::UniquePtr<HMAC_CTX> ctx(new HMAC_CTX);
+@@ -1761,17 +1761,14 @@ static bool SpeedTrustToken(std::string name, const TRUST_TOKEN_METHOD *method,
+   BM_NAMESPACE::UniquePtr<uint8_t> free_redeem_msg(redeem_msg);
+ 
+   if (!TimeFunction(&results, [&]() -> bool {
+-        uint8_t *redeem_resp = NULL;
+-        size_t redeem_resp_len;
+-        TRUST_TOKEN *rtoken = NULL;
++        uint32_t public_value;
++        uint8_t private_value;
++        TRUST_TOKEN *rtoken;
+         uint8_t *client_data = NULL;
+         size_t client_data_len;
+-        uint64_t redemption_time;
+         int ok = TRUST_TOKEN_ISSUER_redeem(
+-            issuer.get(), &redeem_resp, &redeem_resp_len, &rtoken, &client_data,
+-            &client_data_len, &redemption_time, redeem_msg, redeem_msg_len,
+-            /*lifetime=*/600);
+-        OPENSSL_free(redeem_resp);
++            issuer.get(), &public_value, &private_value, &rtoken, &client_data,
++            &client_data_len, redeem_msg, redeem_msg_len);
+         OPENSSL_free(client_data);
+         TRUST_TOKEN_free(rtoken);
+         return ok;
+@@ -1781,38 +1778,20 @@ static bool SpeedTrustToken(std::string name, const TRUST_TOKEN_METHOD *method,
+   }
+   results.Print(name + " redeem");
+ 
+-  uint8_t *redeem_resp = NULL;
+-  size_t redeem_resp_len;
+-  TRUST_TOKEN *rtoken = NULL;
++  uint32_t public_value;
++  uint8_t private_value;
++  TRUST_TOKEN *rtoken;
+   uint8_t *client_data = NULL;
+   size_t client_data_len;
+-  uint64_t redemption_time;
+-  if (!TRUST_TOKEN_ISSUER_redeem(issuer.get(), &redeem_resp, &redeem_resp_len,
++  if (!TRUST_TOKEN_ISSUER_redeem(issuer.get(), &public_value, &private_value,
+                                  &rtoken, &client_data, &client_data_len,
+-                                 &redemption_time, redeem_msg, redeem_msg_len,
+-                                 /*lifetime=*/600)) {
++                                 redeem_msg, redeem_msg_len)) {
+     fprintf(stderr, "TRUST_TOKEN_ISSUER_redeem failed.\n");
+     return false;
+   }
+-  BM_NAMESPACE::UniquePtr<uint8_t> free_redeem_resp(redeem_resp);
+   BM_NAMESPACE::UniquePtr<uint8_t> free_client_data(client_data);
+   BM_NAMESPACE::UniquePtr<TRUST_TOKEN> free_rtoken(rtoken);
+ 
+-  if (!TimeFunction(&results, [&]() -> bool {
+-        uint8_t *srr = NULL, *sig = NULL;
+-        size_t srr_len, sig_len;
+-        int ok = TRUST_TOKEN_CLIENT_finish_redemption(
+-            client.get(), &srr, &srr_len, &sig, &sig_len, redeem_resp,
+-            redeem_resp_len);
+-        OPENSSL_free(srr);
+-        OPENSSL_free(sig);
+-        return ok;
+-      })) {
+-    fprintf(stderr, "TRUST_TOKEN_CLIENT_finish_redemption failed.\n");
+-    return false;
+-  }
+-  results.Print(name + " finish_redemption");
+-
+   return true;
+ }
+ #endif

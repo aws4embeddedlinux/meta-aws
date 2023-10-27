@@ -1,0 +1,28 @@
+From 6ab637cf51c4524c505ecfe77f6512b42e2fb52a Mon Sep 17 00:00:00 2001
+From: Justin Smith <justsmth@amazon.com>
+Date: Mon, 23 May 2022 10:01:59 -0400
+Subject: [PATCH] Use .hidden directive on non-Apple platforms
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/02b7710be1e1552c5135b9a9affeaba280491051
+---
+ include/_internal_s2n_bignum.h | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/include/_internal_s2n_bignum.h b/include/_internal_s2n_bignum.h
+index c7bdf160a..c7cedb633 100644
+--- a/include/_internal_s2n_bignum.h
++++ b/include/_internal_s2n_bignum.h
+@@ -7,7 +7,11 @@
+ 
+ #define S2N_BN_SYM_VISIBILITY_DIRECTIVE(name) .globl S2N_BN_SYMBOL(name)
+ #ifdef S2N_BN_HIDE_SYMBOLS
+-#   define S2N_BN_SYM_PRIVACY_DIRECTIVE(name) .private_extern S2N_BN_SYMBOL(name)
++#   ifdef __APPLE__
++#      define S2N_BN_SYM_PRIVACY_DIRECTIVE(name) .private_extern S2N_BN_SYMBOL(name)
++#   else
++#      define S2N_BN_SYM_PRIVACY_DIRECTIVE(name) .hidden S2N_BN_SYMBOL(name)
++#   endif
+ #else
+ #   define S2N_BN_SYM_PRIVACY_DIRECTIVE(name)  /* NO-OP: S2N_BN_SYM_PRIVACY_DIRECTIVE */
+ #endif
+\ No newline at end of file

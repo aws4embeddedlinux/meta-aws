@@ -1,0 +1,107 @@
+From 75013eb197698556c32577601125212110e7f6c6 Mon Sep 17 00:00:00 2001
+From: Bob Beck <bbe@google.com>
+Date: Mon, 30 Jan 2023 12:17:39 -0700
+Subject: [PATCH] Introduce a locale-independent version of isdigit
+
+While information is contradictory on this subject, investigation
+of several implementaions and Posix appears to indicate that it
+is possible to change the behaviour of isdigit() with locale.
+
+Change-Id: I6ba9ecbb5563d04d41c54dd071e86b2354483f77
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56625
+Reviewed-by: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit f86a63c87cee3935254b3f5298712ca6cff1a589)
+---
+ crypto/bn_extra/convert.c | 2 +-
+ crypto/bytestring/cbs.c   | 6 +++---
+ crypto/mem.c              | 4 ++++
+ include/openssl/mem.h     | 4 ++++
+ ssl/test/test_config.cc   | 2 +-
+ 5 files changed, 13 insertions(+), 5 deletions(-)
+
+diff --git a/crypto/bn_extra/convert.c b/crypto/bn_extra/convert.c
+index 6e930fc69..e31de1f06 100644
+--- a/crypto/bn_extra/convert.c
++++ b/crypto/bn_extra/convert.c
+@@ -310,7 +310,7 @@ err:
+ }
+ 
+ int BN_dec2bn(BIGNUM **outp, const char *in) {
+-  return bn_x2bn(outp, in, decode_dec, isdigit);
++  return bn_x2bn(outp, in, decode_dec, OPENSSL_isdigit);
+ }
+ 
+ int BN_asc2bn(BIGNUM **outp, const char *in) {
+diff --git a/crypto/bytestring/cbs.c b/crypto/bytestring/cbs.c
+index f5a42f0ca..d9c94f956 100644
+--- a/crypto/bytestring/cbs.c
++++ b/crypto/bytestring/cbs.c
+@@ -237,7 +237,7 @@ int CBS_get_u64_decimal(CBS *cbs, uint64_t *out) {
+   int seen_digit = 0;
+   while (CBS_len(cbs) != 0) {
+     uint8_t c = CBS_data(cbs)[0];
+-    if (!isdigit(c)) {
++    if (!OPENSSL_isdigit(c)) {
+       break;
+     }
+     CBS_skip(cbs, 1);
+@@ -758,13 +758,13 @@ static int cbs_get_two_digits(CBS *cbs, int *out) {
+   if (!CBS_get_u8(cbs, &first_digit)) {
+     return 0;
+   }
+-  if (!isdigit(first_digit)) {
++  if (!OPENSSL_isdigit(first_digit)) {
+     return 0;
+   }
+   if (!CBS_get_u8(cbs, &second_digit)) {
+     return 0;
+   }
+-  if (!isdigit(second_digit)) {
++  if (!OPENSSL_isdigit(second_digit)) {
+     return 0;
+   }
+   *out = (first_digit - '0') * 10 + (second_digit - '0');
+diff --git a/crypto/mem.c b/crypto/mem.c
+index a7997d8ab..4e4725932 100644
+--- a/crypto/mem.c
++++ b/crypto/mem.c
+@@ -377,6 +377,10 @@ char *OPENSSL_strdup(const char *s) {
+   return ret;
+ }
+ 
++int OPENSSL_isdigit(int c) {
++  return c >= '0' && c <= '9';
++}
++
+ int OPENSSL_tolower(int c) {
+   if (c >= 'A' && c <= 'Z') {
+     return c + ('a' - 'A');
+diff --git a/include/openssl/mem.h b/include/openssl/mem.h
+index 9b1140a10..a5ddf3407 100644
+--- a/include/openssl/mem.h
++++ b/include/openssl/mem.h
+@@ -111,6 +111,10 @@ OPENSSL_EXPORT char *OPENSSL_strdup(const char *s);
+ // OPENSSL_strnlen has the same behaviour as strnlen(3).
+ OPENSSL_EXPORT size_t OPENSSL_strnlen(const char *s, size_t len);
+ 
++// OPENSSL_isdigit is a locale-independent version of isdigit(3), It
++// only recognizes '0' through '9' as digits.
++OPENSSL_EXPORT int OPENSSL_isdigit(int c);
++
+ // OPENSSL_tolower is a locale-independent version of tolower(3). It only
+ // lowercases ASCII values. Other values are returned as-is.
+ OPENSSL_EXPORT int OPENSSL_tolower(int c);
+diff --git a/ssl/test/test_config.cc b/ssl/test/test_config.cc
+index 7cafd0199..c3aea3fe2 100644
+--- a/ssl/test/test_config.cc
++++ b/ssl/test/test_config.cc
+@@ -63,7 +63,7 @@ bool StringToInt(T *out, const char *str) {
+ 
+   // |strtoull| allows leading '-' with wraparound. Additionally, both
+   // functions accept empty strings and leading whitespace.
+-  if (!isdigit(static_cast<unsigned char>(*str)) &&
++  if (!OPENSSL_isdigit(static_cast<unsigned char>(*str)) &&
+       (!std::is_signed<T>::value || *str != '-')) {
+     return false;
+   }

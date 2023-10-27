@@ -1,0 +1,54 @@
+From a106ff03b938be738cfe0e6696e67b3acdaa4e60 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Tue, 9 May 2023 18:02:37 -0700
+Subject: [PATCH] add fixes pointed out by static analysis (#995)
+
+This bug was discovered and resolved using Coverity Static Analysis
+Security Testing (SAST) by Synopsys, Inc.
+---
+ crypto/err/err.c | 2 ++
+ ssl/ssl_test.cc  | 4 ++--
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/err/err.c b/crypto/err/err.c
+index e00de8f92..e019ded63 100644
+--- a/crypto/err/err.c
++++ b/crypto/err/err.c
+@@ -703,6 +703,7 @@ static void err_add_error_vdata(unsigned num, va_list args) {
+     }
+     size_t substr_len = strlen(substr);
+     if (SIZE_MAX - total_size < substr_len) {
++      va_end(args_copy);
+       return; // Would overflow.
+     }
+     total_size += substr_len;
+@@ -742,6 +743,7 @@ void ERR_add_error_dataf(const char *format, ...) {
+ 
+   va_start(ap, format);
+   if (OPENSSL_vasprintf_internal(&buf, format, ap, /*system_malloc=*/1) == -1) {
++    va_end(ap);
+     return;
+   }
+   va_end(ap);
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index 50b8c16d3..d714850ba 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -1615,7 +1615,7 @@ static bssl::UniquePtr<EVP_PKEY> GetTestKey() {
+ 
+ static bssl::UniquePtr<SSL_CTX> CreateContextWithTestCertificate(
+     const SSL_METHOD *method) {
+-  bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
++  bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(method));
+   bssl::UniquePtr<X509> cert = GetTestCertificate();
+   bssl::UniquePtr<EVP_PKEY> key = GetTestKey();
+   if (!ctx || !cert || !key ||
+@@ -1629,7 +1629,7 @@ static bssl::UniquePtr<SSL_CTX> CreateContextWithTestCertificate(
+ static bssl::UniquePtr<SSL_CTX> CreateContextWithCertificate(
+     const SSL_METHOD *method, bssl::UniquePtr<X509> cert,
+     bssl::UniquePtr<EVP_PKEY> key) {
+-  bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
++  bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(method));
+   if (!ctx || !cert || !key ||
+       !SSL_CTX_use_certificate(ctx.get(), cert.get()) ||
+       !SSL_CTX_use_PrivateKey(ctx.get(), key.get())) {

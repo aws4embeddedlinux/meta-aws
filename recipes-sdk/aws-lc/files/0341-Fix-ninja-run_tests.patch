@@ -1,0 +1,46 @@
+From 9e87594e11a89338795e4b72513193a83359d2fe Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 27 Feb 2023 16:36:24 -0500
+Subject: [PATCH] Fix ninja run_tests
+
+https://boringssl-review.googlesource.com/c/boringssl/+/57645 wasn't
+quite right. The cd to run ssl/test/runner affects the subsequent
+commands. Fix this by running the Go tests first. They're very fast
+compared to the others anyway.
+
+Change-Id: Id5ea54a9787173eb3ed80e9db2c9ecfe064a93b0
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57688
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit e3a5face899e16183f1d207d7327baac57454935)
+---
+ CMakeLists.txt | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 2d6de163b..8e3ed51ce 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -952,18 +952,18 @@ if(BUILD_TESTING)
+ 
+       add_custom_target(
+           run_tests
++          COMMAND ${GO_EXECUTABLE} test ${GO_TESTS}
+           COMMAND ${GO_EXECUTABLE} run util/all_tests.go -build-dir
+                  ${PROJECT_BINARY_DIR}
+-          COMMAND ${GO_EXECUTABLE} test ${GO_TESTS}
+           WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+           DEPENDS all_tests run_ssl_runner_tests
+           ${MAYBE_USES_TERMINAL})
+     else()
+       add_custom_target(
+           run_tests
++          COMMAND ${GO_EXECUTABLE} test ${GO_TESTS}
+           COMMAND ${GO_EXECUTABLE} run util/all_tests.go -build-dir
+                   ${PROJECT_BINARY_DIR} -ssl-tests=false
+-          COMMAND ${GO_EXECUTABLE} test ${GO_TESTS}
+           WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+           DEPENDS all_tests fips_specific_tests_if_any
+           ${MAYBE_USES_TERMINAL}

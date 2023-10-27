@@ -1,0 +1,54 @@
+From d9c420fe6b66ae1e45bf19d3d69bec2684e1b527 Mon Sep 17 00:00:00 2001
+From: wangjiale3 <wangjiale3@xiaomi.corp-partner.google.com>
+Date: Fri, 31 Mar 2023 16:45:06 +0800
+Subject: [PATCH] RESOURCE_LEAK in method STACK_OF(TRUST_TOKEN) *voprf_unblind
+ before return 0
+
+Change-Id: I4288988f3742f14b15f80a3023b716392a667631
+Signed-off-by: wangjiale3 <wangjiale3@xiaomi.corp-partner.google.com>
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58485
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: David Benjamin <davidben@google.com>
+(cherry picked from commit 9a56503c1571940af2d4b5bce04e0ae143e8f8b6)
+---
+ crypto/trust_token/voprf.c | 18 ++++++++----------
+ 1 file changed, 8 insertions(+), 10 deletions(-)
+
+diff --git a/crypto/trust_token/voprf.c b/crypto/trust_token/voprf.c
+index adf02a78d..49a324ef2 100644
+--- a/crypto/trust_token/voprf.c
++++ b/crypto/trust_token/voprf.c
+@@ -563,25 +563,23 @@ static STACK_OF(TRUST_TOKEN) *voprf_unblind(
+     return NULL;
+   }
+ 
+-  int ok = 0;
+-  STACK_OF(TRUST_TOKEN) *ret = sk_TRUST_TOKEN_new_null();
+-  if (ret == NULL) {
+-    return NULL;
+-  }
+-
+   if (count > ((size_t)-1) / sizeof(EC_RAW_POINT) ||
+       count > ((size_t)-1) / sizeof(EC_SCALAR)) {
+     OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_OVERFLOW);
+-    return 0;
++    return NULL;
+   }
++
++  int ok = 0;
++  STACK_OF(TRUST_TOKEN) *ret = sk_TRUST_TOKEN_new_null();
+   EC_RAW_POINT *BTs = OPENSSL_malloc(count * sizeof(EC_RAW_POINT));
+   EC_RAW_POINT *Zs = OPENSSL_malloc(count * sizeof(EC_RAW_POINT));
+   EC_SCALAR *es = OPENSSL_malloc(count * sizeof(EC_SCALAR));
+   CBB batch_cbb;
+   CBB_zero(&batch_cbb);
+-  if (!BTs ||
+-      !Zs ||
+-      !es ||
++  if (ret == NULL ||
++      BTs == NULL ||
++      Zs == NULL ||
++      es == NULL ||
+       !CBB_init(&batch_cbb, 0) ||
+       !cbb_add_point(&batch_cbb, method->group, &key->pubs)) {
+     goto err;

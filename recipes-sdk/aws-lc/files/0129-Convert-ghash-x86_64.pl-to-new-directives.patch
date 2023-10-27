@@ -1,0 +1,681 @@
+From 92f24529f1f3d56b6849149ad88713571b773a5a Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 4 Feb 2019 00:35:23 +0000
+Subject: [PATCH] Convert ghash-x86_64.pl to new directives.
+
+The ABI test already uses CHECK_ABI_SEH, so this is covered under tests.
+As part of the conversion, we no longer rely on the assembler generating
+a specific encoding and can just write the code normally.
+
+Bug: 259
+Change-Id: I47cbf81073237f2b95971a782848b85d230b6bf6
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56127
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+(cherry picked from commit ae1546b6f3bf1ad7eb24b491c914eb202b5547d3)
+---
+ crypto/fipsmodule/modes/asm/ghash-x86_64.pl   | 142 +++++-----
+ .../crypto/fipsmodule/ghash-x86_64.S          |   6 +
+ .../crypto/fipsmodule/ghash-x86_64.S          |   6 +
+ .../crypto/fipsmodule/ghash-x86_64.asm        | 247 +++++++++++++-----
+ 4 files changed, 249 insertions(+), 152 deletions(-)
+
+diff --git a/crypto/fipsmodule/modes/asm/ghash-x86_64.pl b/crypto/fipsmodule/modes/asm/ghash-x86_64.pl
+index f3e27d5f6..f76ed1639 100644
+--- a/crypto/fipsmodule/modes/asm/ghash-x86_64.pl
++++ b/crypto/fipsmodule/modes/asm/ghash-x86_64.pl
+@@ -209,13 +209,14 @@ $code.=<<___;
+ .align	16
+ gcm_init_clmul:
+ .cfi_startproc
++.seh_startproc
+ .L_init_clmul:
+ ___
+ $code.=<<___ if ($win64);
+-.LSEH_begin_gcm_init_clmul:
+-	# I can't trust assembler to use specific encoding:-(
+-	.byte	0x48,0x83,0xec,0x18		#sub	$0x18,%rsp
+-	.byte	0x0f,0x29,0x34,0x24		#movaps	%xmm6,(%rsp)
++	sub	\$0x18,%rsp
++.seh_allocstack	0x18
++	movaps	%xmm6,(%rsp)
++.seh_savexmm128	%xmm6, 0
+ ___
+ $code.=<<___;
+ 	movdqu		($Xip),$Hkey
+@@ -274,11 +275,11 @@ ___
+ $code.=<<___ if ($win64);
+ 	movaps	(%rsp),%xmm6
+ 	lea	0x18(%rsp),%rsp
+-.LSEH_end_gcm_init_clmul:
+ ___
+ $code.=<<___;
+ 	ret
+ .cfi_endproc
++.seh_endproc
+ .size	gcm_init_clmul,.-gcm_init_clmul
+ ___
+ }
+@@ -342,23 +343,33 @@ $code.=<<___;
+ .align	32
+ gcm_ghash_clmul:
+ .cfi_startproc
++.seh_startproc
+ .L_ghash_clmul:
+ ___
+ $code.=<<___ if ($win64);
+ 	lea	-0x88(%rsp),%rax
+-.LSEH_begin_gcm_ghash_clmul:
+-	# I can't trust assembler to use specific encoding:-(
+-	.byte	0x48,0x8d,0x60,0xe0		#lea	-0x20(%rax),%rsp
+-	.byte	0x0f,0x29,0x70,0xe0		#movaps	%xmm6,-0x20(%rax)
+-	.byte	0x0f,0x29,0x78,0xf0		#movaps	%xmm7,-0x10(%rax)
+-	.byte	0x44,0x0f,0x29,0x00		#movaps	%xmm8,0(%rax)
+-	.byte	0x44,0x0f,0x29,0x48,0x10	#movaps	%xmm9,0x10(%rax)
+-	.byte	0x44,0x0f,0x29,0x50,0x20	#movaps	%xmm10,0x20(%rax)
+-	.byte	0x44,0x0f,0x29,0x58,0x30	#movaps	%xmm11,0x30(%rax)
+-	.byte	0x44,0x0f,0x29,0x60,0x40	#movaps	%xmm12,0x40(%rax)
+-	.byte	0x44,0x0f,0x29,0x68,0x50	#movaps	%xmm13,0x50(%rax)
+-	.byte	0x44,0x0f,0x29,0x70,0x60	#movaps	%xmm14,0x60(%rax)
+-	.byte	0x44,0x0f,0x29,0x78,0x70	#movaps	%xmm15,0x70(%rax)
++	lea	-0x20(%rax),%rsp
++.seh_allocstack	0x20+0x88
++	movaps	%xmm6,-0x20(%rax)
++.seh_savexmm128	%xmm6, 0x20-0x20
++	movaps	%xmm7,-0x10(%rax)
++.seh_savexmm128	%xmm7, 0x20-0x10
++	movaps	%xmm8,0(%rax)
++.seh_savexmm128	%xmm8, 0x20+0
++	movaps	%xmm9,0x10(%rax)
++.seh_savexmm128	%xmm9, 0x20+0x10
++	movaps	%xmm10,0x20(%rax)
++.seh_savexmm128	%xmm10, 0x20+0x20
++	movaps	%xmm11,0x30(%rax)
++.seh_savexmm128	%xmm11, 0x20+0x30
++	movaps	%xmm12,0x40(%rax)
++.seh_savexmm128	%xmm12, 0x20+0x40
++	movaps	%xmm13,0x50(%rax)
++.seh_savexmm128	%xmm13, 0x20+0x50
++	movaps	%xmm14,0x60(%rax)
++.seh_savexmm128	%xmm14, 0x20+0x60
++	movaps	%xmm15,0x70(%rax)
++.seh_savexmm128	%xmm15, 0x20+0x70
+ ___
+ $code.=<<___;
+ 	movdqa		.Lbswap_mask(%rip),$T3
+@@ -686,11 +697,11 @@ $code.=<<___ if ($win64);
+ 	movaps	0x80(%rsp),%xmm14
+ 	movaps	0x90(%rsp),%xmm15
+ 	lea	0xa8(%rsp),%rsp
+-.LSEH_end_gcm_ghash_clmul:
+ ___
+ $code.=<<___;
+ 	ret
+ .cfi_endproc
++.seh_endproc
+ .size	gcm_ghash_clmul,.-gcm_ghash_clmul
+ ___
+ }
+@@ -707,10 +718,11 @@ my ($Htbl,$Xip)=@_4args;
+ my $HK="%xmm6";
+ 
+ $code.=<<___ if ($win64);
+-.LSEH_begin_gcm_init_avx:
+-	# I can't trust assembler to use specific encoding:-(
+-	.byte	0x48,0x83,0xec,0x18		#sub	$0x18,%rsp
+-	.byte	0x0f,0x29,0x34,0x24		#movaps	%xmm6,(%rsp)
++.seh_startproc
++	sub	\$0x18,%rsp
++.seh_allocstack	0x18
++	movaps	%xmm6,(%rsp)
++.seh_savexmm128	%xmm6, 0
+ ___
+ $code.=<<___;
+ 	vzeroupper
+@@ -825,10 +837,10 @@ ___
+ $code.=<<___ if ($win64);
+ 	movaps	(%rsp),%xmm6
+ 	lea	0x18(%rsp),%rsp
+-.LSEH_end_gcm_init_avx:
+ ___
+ $code.=<<___;
+ 	ret
++.seh_endproc
+ .cfi_endproc
+ .size	gcm_init_avx,.-gcm_init_avx
+ ___
+@@ -866,20 +878,30 @@ my ($Xlo,$Xhi,$Xmi,
+     $Xi,$Xo,$Tred,$bswap,$Ii,$Ij) = map("%xmm$_",(0..15));
+ 
+ $code.=<<___ if ($win64);
++.seh_startproc
+ 	lea	-0x88(%rsp),%rax
+-.LSEH_begin_gcm_ghash_avx:
+-	# I can't trust assembler to use specific encoding:-(
+-	.byte	0x48,0x8d,0x60,0xe0		#lea	-0x20(%rax),%rsp
+-	.byte	0x0f,0x29,0x70,0xe0		#movaps	%xmm6,-0x20(%rax)
+-	.byte	0x0f,0x29,0x78,0xf0		#movaps	%xmm7,-0x10(%rax)
+-	.byte	0x44,0x0f,0x29,0x00		#movaps	%xmm8,0(%rax)
+-	.byte	0x44,0x0f,0x29,0x48,0x10	#movaps	%xmm9,0x10(%rax)
+-	.byte	0x44,0x0f,0x29,0x50,0x20	#movaps	%xmm10,0x20(%rax)
+-	.byte	0x44,0x0f,0x29,0x58,0x30	#movaps	%xmm11,0x30(%rax)
+-	.byte	0x44,0x0f,0x29,0x60,0x40	#movaps	%xmm12,0x40(%rax)
+-	.byte	0x44,0x0f,0x29,0x68,0x50	#movaps	%xmm13,0x50(%rax)
+-	.byte	0x44,0x0f,0x29,0x70,0x60	#movaps	%xmm14,0x60(%rax)
+-	.byte	0x44,0x0f,0x29,0x78,0x70	#movaps	%xmm15,0x70(%rax)
++	lea	-0x20(%rax),%rsp
++.seh_allocstack	0x20+0x88
++	movaps	%xmm6,-0x20(%rax)
++.seh_savexmm128	%xmm6, 0x20-0x20
++	movaps	%xmm7,-0x10(%rax)
++.seh_savexmm128	%xmm7, 0x20-0x10
++	movaps	%xmm8,0(%rax)
++.seh_savexmm128	%xmm8, 0x20+0
++	movaps	%xmm9,0x10(%rax)
++.seh_savexmm128	%xmm9, 0x20+0x10
++	movaps	%xmm10,0x20(%rax)
++.seh_savexmm128	%xmm10, 0x20+0x20
++	movaps	%xmm11,0x30(%rax)
++.seh_savexmm128	%xmm11, 0x20+0x30
++	movaps	%xmm12,0x40(%rax)
++.seh_savexmm128	%xmm12, 0x20+0x40
++	movaps	%xmm13,0x50(%rax)
++.seh_savexmm128	%xmm13, 0x20+0x50
++	movaps	%xmm14,0x60(%rax)
++.seh_savexmm128	%xmm14, 0x20+0x60
++	movaps	%xmm15,0x70(%rax)
++.seh_savexmm128	%xmm15, 0x20+0x70
+ ___
+ $code.=<<___;
+ 	vzeroupper
+@@ -1265,11 +1287,11 @@ $code.=<<___ if ($win64);
+ 	movaps	0x80(%rsp),%xmm14
+ 	movaps	0x90(%rsp),%xmm15
+ 	lea	0xa8(%rsp),%rsp
+-.LSEH_end_gcm_ghash_avx:
+ ___
+ $code.=<<___;
+ 	ret
+ .cfi_endproc
++.seh_endproc
+ .size	gcm_ghash_avx,.-gcm_ghash_avx
+ ___
+ } else {
+@@ -1294,50 +1316,6 @@ $code.=<<___;
+ .align	64
+ ___
+ 
+-if ($win64) {
+-$code.=<<___;
+-.section	.pdata
+-.align	4
+-	.rva	.LSEH_begin_gcm_init_clmul
+-	.rva	.LSEH_end_gcm_init_clmul
+-	.rva	.LSEH_info_gcm_init_clmul
+-
+-	.rva	.LSEH_begin_gcm_ghash_clmul
+-	.rva	.LSEH_end_gcm_ghash_clmul
+-	.rva	.LSEH_info_gcm_ghash_clmul
+-___
+-$code.=<<___	if ($avx);
+-	.rva	.LSEH_begin_gcm_init_avx
+-	.rva	.LSEH_end_gcm_init_avx
+-	.rva	.LSEH_info_gcm_init_clmul
+-
+-	.rva	.LSEH_begin_gcm_ghash_avx
+-	.rva	.LSEH_end_gcm_ghash_avx
+-	.rva	.LSEH_info_gcm_ghash_clmul
+-___
+-$code.=<<___;
+-.section	.xdata
+-.align	8
+-.LSEH_info_gcm_init_clmul:
+-	.byte	0x01,0x08,0x03,0x00
+-	.byte	0x08,0x68,0x00,0x00	#movaps	0x00(rsp),xmm6
+-	.byte	0x04,0x22,0x00,0x00	#sub	rsp,0x18
+-.LSEH_info_gcm_ghash_clmul:
+-	.byte	0x01,0x33,0x16,0x00
+-	.byte	0x33,0xf8,0x09,0x00	#movaps 0x90(rsp),xmm15
+-	.byte	0x2e,0xe8,0x08,0x00	#movaps 0x80(rsp),xmm14
+-	.byte	0x29,0xd8,0x07,0x00	#movaps 0x70(rsp),xmm13
+-	.byte	0x24,0xc8,0x06,0x00	#movaps 0x60(rsp),xmm12
+-	.byte	0x1f,0xb8,0x05,0x00	#movaps 0x50(rsp),xmm11
+-	.byte	0x1a,0xa8,0x04,0x00	#movaps 0x40(rsp),xmm10
+-	.byte	0x15,0x98,0x03,0x00	#movaps 0x30(rsp),xmm9
+-	.byte	0x10,0x88,0x02,0x00	#movaps 0x20(rsp),xmm8
+-	.byte	0x0c,0x78,0x01,0x00	#movaps 0x10(rsp),xmm7
+-	.byte	0x08,0x68,0x00,0x00	#movaps 0x00(rsp),xmm6
+-	.byte	0x04,0x01,0x15,0x00	#sub	rsp,0xa8
+-___
+-}
+-
+ $code =~ s/\`([^\`]*)\`/eval($1)/gem;
+ 
+ print $code;
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/ghash-x86_64.S b/generated-src/linux-x86_64/crypto/fipsmodule/ghash-x86_64.S
+index 146dcf4ac..5072e9d3b 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/ghash-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/ghash-x86_64.S
+@@ -20,6 +20,7 @@
+ .align	16
+ gcm_init_clmul:
+ .cfi_startproc	
++
+ .L_init_clmul:
+ 	movdqu	(%rsi),%xmm2
+ 	pshufd	$78,%xmm2,%xmm2
+@@ -172,6 +173,7 @@ gcm_init_clmul:
+ 	movdqu	%xmm4,80(%rdi)
+ 	.byte	0xf3,0xc3
+ .cfi_endproc	
++
+ .size	gcm_init_clmul,.-gcm_init_clmul
+ .globl	gcm_gmult_clmul
+ .hidden gcm_gmult_clmul
+@@ -233,6 +235,7 @@ gcm_gmult_clmul:
+ .align	32
+ gcm_ghash_clmul:
+ .cfi_startproc	
++
+ .L_ghash_clmul:
+ 	movdqa	.Lbswap_mask(%rip),%xmm10
+ 
+@@ -613,6 +616,7 @@ gcm_ghash_clmul:
+ 	movdqu	%xmm0,(%rdi)
+ 	.byte	0xf3,0xc3
+ .cfi_endproc	
++
+ .size	gcm_ghash_clmul,.-gcm_ghash_clmul
+ .globl	gcm_init_avx
+ .hidden gcm_init_avx
+@@ -722,6 +726,7 @@ gcm_init_avx:
+ 
+ 	vzeroupper
+ 	.byte	0xf3,0xc3
++
+ .cfi_endproc	
+ .size	gcm_init_avx,.-gcm_init_avx
+ .globl	gcm_gmult_avx
+@@ -1111,6 +1116,7 @@ gcm_ghash_avx:
+ 	vzeroupper
+ 	.byte	0xf3,0xc3
+ .cfi_endproc	
++
+ .size	gcm_ghash_avx,.-gcm_ghash_avx
+ .align	64
+ .Lbswap_mask:
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/ghash-x86_64.S b/generated-src/mac-x86_64/crypto/fipsmodule/ghash-x86_64.S
+index 9f4cb04cb..99d114a2d 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/ghash-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/ghash-x86_64.S
+@@ -19,6 +19,7 @@
+ .p2align	4
+ _gcm_init_clmul:
+ 
++
+ L$_init_clmul:
+ 	movdqu	(%rsi),%xmm2
+ 	pshufd	$78,%xmm2,%xmm2
+@@ -172,6 +173,7 @@ L$_init_clmul:
+ 	.byte	0xf3,0xc3
+ 
+ 
++
+ .globl	_gcm_gmult_clmul
+ .private_extern _gcm_gmult_clmul
+ 
+@@ -232,6 +234,7 @@ L$_gmult_clmul:
+ .p2align	5
+ _gcm_ghash_clmul:
+ 
++
+ L$_ghash_clmul:
+ 	movdqa	L$bswap_mask(%rip),%xmm10
+ 
+@@ -613,6 +616,7 @@ L$done:
+ 	.byte	0xf3,0xc3
+ 
+ 
++
+ .globl	_gcm_init_avx
+ .private_extern _gcm_init_avx
+ 
+@@ -723,6 +727,7 @@ L$init_start_avx:
+ 	.byte	0xf3,0xc3
+ 
+ 
++
+ .globl	_gcm_gmult_avx
+ .private_extern _gcm_gmult_avx
+ 
+@@ -1111,6 +1116,7 @@ L$tail_no_xor_avx:
+ 	.byte	0xf3,0xc3
+ 
+ 
++
+ .p2align	6
+ L$bswap_mask:
+ .byte	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm
+index 592571d33..9eee449c4 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm
+@@ -18,11 +18,12 @@ global	gcm_init_clmul
+ ALIGN	16
+ gcm_init_clmul:
+ 
++$L$SEH_begin_gcm_init_clmul_1:
+ $L$_init_clmul:
+-$L$SEH_begin_gcm_init_clmul:
+-
+-	DB	0x48,0x83,0xec,0x18
+-	DB	0x0f,0x29,0x34,0x24
++	sub	rsp,0x18
++$L$SEH_prolog_gcm_init_clmul_2:
++	movaps	XMMWORD[rsp],xmm6
++$L$SEH_prolog_gcm_init_clmul_3:
+ 	movdqu	xmm2,XMMWORD[rdx]
+ 	pshufd	xmm2,xmm2,78
+ 
+@@ -174,9 +175,9 @@ DB	102,15,58,15,227,8
+ 	movdqu	XMMWORD[80+rcx],xmm4
+ 	movaps	xmm6,XMMWORD[rsp]
+ 	lea	rsp,[24+rsp]
+-$L$SEH_end_gcm_init_clmul:
+ 	DB	0F3h,0C3h		;repret
+ 
++$L$SEH_end_gcm_init_clmul_4:
+ 
+ global	gcm_gmult_clmul
+ 
+@@ -236,21 +237,31 @@ global	gcm_ghash_clmul
+ ALIGN	32
+ gcm_ghash_clmul:
+ 
++$L$SEH_begin_gcm_ghash_clmul_1:
+ $L$_ghash_clmul:
+ 	lea	rax,[((-136))+rsp]
+-$L$SEH_begin_gcm_ghash_clmul:
+-
+-	DB	0x48,0x8d,0x60,0xe0
+-	DB	0x0f,0x29,0x70,0xe0
+-	DB	0x0f,0x29,0x78,0xf0
+-	DB	0x44,0x0f,0x29,0x00
+-	DB	0x44,0x0f,0x29,0x48,0x10
+-	DB	0x44,0x0f,0x29,0x50,0x20
+-	DB	0x44,0x0f,0x29,0x58,0x30
+-	DB	0x44,0x0f,0x29,0x60,0x40
+-	DB	0x44,0x0f,0x29,0x68,0x50
+-	DB	0x44,0x0f,0x29,0x70,0x60
+-	DB	0x44,0x0f,0x29,0x78,0x70
++	lea	rsp,[((-32))+rax]
++$L$SEH_prolog_gcm_ghash_clmul_2:
++	movaps	XMMWORD[(-32)+rax],xmm6
++$L$SEH_prolog_gcm_ghash_clmul_3:
++	movaps	XMMWORD[(-16)+rax],xmm7
++$L$SEH_prolog_gcm_ghash_clmul_4:
++	movaps	XMMWORD[rax],xmm8
++$L$SEH_prolog_gcm_ghash_clmul_5:
++	movaps	XMMWORD[16+rax],xmm9
++$L$SEH_prolog_gcm_ghash_clmul_6:
++	movaps	XMMWORD[32+rax],xmm10
++$L$SEH_prolog_gcm_ghash_clmul_7:
++	movaps	XMMWORD[48+rax],xmm11
++$L$SEH_prolog_gcm_ghash_clmul_8:
++	movaps	XMMWORD[64+rax],xmm12
++$L$SEH_prolog_gcm_ghash_clmul_9:
++	movaps	XMMWORD[80+rax],xmm13
++$L$SEH_prolog_gcm_ghash_clmul_10:
++	movaps	XMMWORD[96+rax],xmm14
++$L$SEH_prolog_gcm_ghash_clmul_11:
++	movaps	XMMWORD[112+rax],xmm15
++$L$SEH_prolog_gcm_ghash_clmul_12:
+ 	movdqa	xmm10,XMMWORD[$L$bswap_mask]
+ 
+ 	movdqu	xmm0,XMMWORD[rcx]
+@@ -639,19 +650,20 @@ DB	102,65,15,56,0,194
+ 	movaps	xmm14,XMMWORD[128+rsp]
+ 	movaps	xmm15,XMMWORD[144+rsp]
+ 	lea	rsp,[168+rsp]
+-$L$SEH_end_gcm_ghash_clmul:
+ 	DB	0F3h,0C3h		;repret
+ 
++$L$SEH_end_gcm_ghash_clmul_13:
+ 
+ global	gcm_init_avx
+ 
+ ALIGN	32
+ gcm_init_avx:
+ 
+-$L$SEH_begin_gcm_init_avx:
+-
+-	DB	0x48,0x83,0xec,0x18
+-	DB	0x0f,0x29,0x34,0x24
++$L$SEH_begin_gcm_init_avx_1:
++	sub	rsp,0x18
++$L$SEH_prolog_gcm_init_avx_2:
++	movaps	XMMWORD[rsp],xmm6
++$L$SEH_prolog_gcm_init_avx_3:
+ 	vzeroupper
+ 
+ 	vmovdqu	xmm2,XMMWORD[rdx]
+@@ -755,8 +767,8 @@ $L$init_start_avx:
+ 	vzeroupper
+ 	movaps	xmm6,XMMWORD[rsp]
+ 	lea	rsp,[24+rsp]
+-$L$SEH_end_gcm_init_avx:
+ 	DB	0F3h,0C3h		;repret
++$L$SEH_end_gcm_init_avx_4:
+ 
+ 
+ global	gcm_gmult_avx
+@@ -772,20 +784,30 @@ global	gcm_ghash_avx
+ ALIGN	32
+ gcm_ghash_avx:
+ 
++$L$SEH_begin_gcm_ghash_avx_1:
+ 	lea	rax,[((-136))+rsp]
+-$L$SEH_begin_gcm_ghash_avx:
+-
+-	DB	0x48,0x8d,0x60,0xe0
+-	DB	0x0f,0x29,0x70,0xe0
+-	DB	0x0f,0x29,0x78,0xf0
+-	DB	0x44,0x0f,0x29,0x00
+-	DB	0x44,0x0f,0x29,0x48,0x10
+-	DB	0x44,0x0f,0x29,0x50,0x20
+-	DB	0x44,0x0f,0x29,0x58,0x30
+-	DB	0x44,0x0f,0x29,0x60,0x40
+-	DB	0x44,0x0f,0x29,0x68,0x50
+-	DB	0x44,0x0f,0x29,0x70,0x60
+-	DB	0x44,0x0f,0x29,0x78,0x70
++	lea	rsp,[((-32))+rax]
++$L$SEH_prolog_gcm_ghash_avx_2:
++	movaps	XMMWORD[(-32)+rax],xmm6
++$L$SEH_prolog_gcm_ghash_avx_3:
++	movaps	XMMWORD[(-16)+rax],xmm7
++$L$SEH_prolog_gcm_ghash_avx_4:
++	movaps	XMMWORD[rax],xmm8
++$L$SEH_prolog_gcm_ghash_avx_5:
++	movaps	XMMWORD[16+rax],xmm9
++$L$SEH_prolog_gcm_ghash_avx_6:
++	movaps	XMMWORD[32+rax],xmm10
++$L$SEH_prolog_gcm_ghash_avx_7:
++	movaps	XMMWORD[48+rax],xmm11
++$L$SEH_prolog_gcm_ghash_avx_8:
++	movaps	XMMWORD[64+rax],xmm12
++$L$SEH_prolog_gcm_ghash_avx_9:
++	movaps	XMMWORD[80+rax],xmm13
++$L$SEH_prolog_gcm_ghash_avx_10:
++	movaps	XMMWORD[96+rax],xmm14
++$L$SEH_prolog_gcm_ghash_avx_11:
++	movaps	XMMWORD[112+rax],xmm15
++$L$SEH_prolog_gcm_ghash_avx_12:
+ 	vzeroupper
+ 
+ 	vmovdqu	xmm10,XMMWORD[rcx]
+@@ -1167,9 +1189,9 @@ $L$tail_no_xor_avx:
+ 	movaps	xmm14,XMMWORD[128+rsp]
+ 	movaps	xmm15,XMMWORD[144+rsp]
+ 	lea	rsp,[168+rsp]
+-$L$SEH_end_gcm_ghash_avx:
+ 	DB	0F3h,0C3h		;repret
+ 
++$L$SEH_end_gcm_ghash_avx_13:
+ 
+ ALIGN	64
+ $L$bswap_mask:
+@@ -1187,37 +1209,122 @@ ALIGN	64
+ ALIGN	64
+ section	.pdata rdata align=4
+ ALIGN	4
+-	DD	$L$SEH_begin_gcm_init_clmul wrt ..imagebase
+-	DD	$L$SEH_end_gcm_init_clmul wrt ..imagebase
+-	DD	$L$SEH_info_gcm_init_clmul wrt ..imagebase
+-
+-	DD	$L$SEH_begin_gcm_ghash_clmul wrt ..imagebase
+-	DD	$L$SEH_end_gcm_ghash_clmul wrt ..imagebase
+-	DD	$L$SEH_info_gcm_ghash_clmul wrt ..imagebase
+-	DD	$L$SEH_begin_gcm_init_avx wrt ..imagebase
+-	DD	$L$SEH_end_gcm_init_avx wrt ..imagebase
+-	DD	$L$SEH_info_gcm_init_clmul wrt ..imagebase
+-
+-	DD	$L$SEH_begin_gcm_ghash_avx wrt ..imagebase
+-	DD	$L$SEH_end_gcm_ghash_avx wrt ..imagebase
+-	DD	$L$SEH_info_gcm_ghash_clmul wrt ..imagebase
++	DD	$L$SEH_begin_gcm_init_clmul_1 wrt ..imagebase
++	DD	$L$SEH_end_gcm_init_clmul_4 wrt ..imagebase
++	DD	$L$SEH_info_gcm_init_clmul_0 wrt ..imagebase
++
++	DD	$L$SEH_begin_gcm_ghash_clmul_1 wrt ..imagebase
++	DD	$L$SEH_end_gcm_ghash_clmul_13 wrt ..imagebase
++	DD	$L$SEH_info_gcm_ghash_clmul_0 wrt ..imagebase
++
++	DD	$L$SEH_begin_gcm_init_avx_1 wrt ..imagebase
++	DD	$L$SEH_end_gcm_init_avx_4 wrt ..imagebase
++	DD	$L$SEH_info_gcm_init_avx_0 wrt ..imagebase
++
++	DD	$L$SEH_begin_gcm_ghash_avx_1 wrt ..imagebase
++	DD	$L$SEH_end_gcm_ghash_avx_13 wrt ..imagebase
++	DD	$L$SEH_info_gcm_ghash_avx_0 wrt ..imagebase
++
++
+ section	.xdata rdata align=8
+-ALIGN	8
+-$L$SEH_info_gcm_init_clmul:
+-	DB	0x01,0x08,0x03,0x00
+-	DB	0x08,0x68,0x00,0x00
+-	DB	0x04,0x22,0x00,0x00
+-$L$SEH_info_gcm_ghash_clmul:
+-	DB	0x01,0x33,0x16,0x00
+-	DB	0x33,0xf8,0x09,0x00
+-	DB	0x2e,0xe8,0x08,0x00
+-	DB	0x29,0xd8,0x07,0x00
+-	DB	0x24,0xc8,0x06,0x00
+-	DB	0x1f,0xb8,0x05,0x00
+-	DB	0x1a,0xa8,0x04,0x00
+-	DB	0x15,0x98,0x03,0x00
+-	DB	0x10,0x88,0x02,0x00
+-	DB	0x0c,0x78,0x01,0x00
+-	DB	0x08,0x68,0x00,0x00
+-	DB	0x04,0x01,0x15,0x00
++ALIGN	4
++$L$SEH_info_gcm_init_clmul_0:
++	DB	1
++	DB	$L$SEH_prolog_gcm_init_clmul_3-$L$SEH_begin_gcm_init_clmul_1
++	DB	3
++	DB	0
++	DB	$L$SEH_prolog_gcm_init_clmul_3-$L$SEH_begin_gcm_init_clmul_1
++	DB	104
++	DW	0
++	DB	$L$SEH_prolog_gcm_init_clmul_2-$L$SEH_begin_gcm_init_clmul_1
++	DB	34
++
++$L$SEH_info_gcm_ghash_clmul_0:
++	DB	1
++	DB	$L$SEH_prolog_gcm_ghash_clmul_12-$L$SEH_begin_gcm_ghash_clmul_1
++	DB	22
++	DB	0
++	DB	$L$SEH_prolog_gcm_ghash_clmul_12-$L$SEH_begin_gcm_ghash_clmul_1
++	DB	248
++	DW	9
++	DB	$L$SEH_prolog_gcm_ghash_clmul_11-$L$SEH_begin_gcm_ghash_clmul_1
++	DB	232
++	DW	8
++	DB	$L$SEH_prolog_gcm_ghash_clmul_10-$L$SEH_begin_gcm_ghash_clmul_1
++	DB	216
++	DW	7
++	DB	$L$SEH_prolog_gcm_ghash_clmul_9-$L$SEH_begin_gcm_ghash_clmul_1
++	DB	200
++	DW	6
++	DB	$L$SEH_prolog_gcm_ghash_clmul_8-$L$SEH_begin_gcm_ghash_clmul_1
++	DB	184
++	DW	5
++	DB	$L$SEH_prolog_gcm_ghash_clmul_7-$L$SEH_begin_gcm_ghash_clmul_1
++	DB	168
++	DW	4
++	DB	$L$SEH_prolog_gcm_ghash_clmul_6-$L$SEH_begin_gcm_ghash_clmul_1
++	DB	152
++	DW	3
++	DB	$L$SEH_prolog_gcm_ghash_clmul_5-$L$SEH_begin_gcm_ghash_clmul_1
++	DB	136
++	DW	2
++	DB	$L$SEH_prolog_gcm_ghash_clmul_4-$L$SEH_begin_gcm_ghash_clmul_1
++	DB	120
++	DW	1
++	DB	$L$SEH_prolog_gcm_ghash_clmul_3-$L$SEH_begin_gcm_ghash_clmul_1
++	DB	104
++	DW	0
++	DB	$L$SEH_prolog_gcm_ghash_clmul_2-$L$SEH_begin_gcm_ghash_clmul_1
++	DB	1
++	DW	21
++
++$L$SEH_info_gcm_init_avx_0:
++	DB	1
++	DB	$L$SEH_prolog_gcm_init_avx_3-$L$SEH_begin_gcm_init_avx_1
++	DB	3
++	DB	0
++	DB	$L$SEH_prolog_gcm_init_avx_3-$L$SEH_begin_gcm_init_avx_1
++	DB	104
++	DW	0
++	DB	$L$SEH_prolog_gcm_init_avx_2-$L$SEH_begin_gcm_init_avx_1
++	DB	34
++
++$L$SEH_info_gcm_ghash_avx_0:
++	DB	1
++	DB	$L$SEH_prolog_gcm_ghash_avx_12-$L$SEH_begin_gcm_ghash_avx_1
++	DB	22
++	DB	0
++	DB	$L$SEH_prolog_gcm_ghash_avx_12-$L$SEH_begin_gcm_ghash_avx_1
++	DB	248
++	DW	9
++	DB	$L$SEH_prolog_gcm_ghash_avx_11-$L$SEH_begin_gcm_ghash_avx_1
++	DB	232
++	DW	8
++	DB	$L$SEH_prolog_gcm_ghash_avx_10-$L$SEH_begin_gcm_ghash_avx_1
++	DB	216
++	DW	7
++	DB	$L$SEH_prolog_gcm_ghash_avx_9-$L$SEH_begin_gcm_ghash_avx_1
++	DB	200
++	DW	6
++	DB	$L$SEH_prolog_gcm_ghash_avx_8-$L$SEH_begin_gcm_ghash_avx_1
++	DB	184
++	DW	5
++	DB	$L$SEH_prolog_gcm_ghash_avx_7-$L$SEH_begin_gcm_ghash_avx_1
++	DB	168
++	DW	4
++	DB	$L$SEH_prolog_gcm_ghash_avx_6-$L$SEH_begin_gcm_ghash_avx_1
++	DB	152
++	DW	3
++	DB	$L$SEH_prolog_gcm_ghash_avx_5-$L$SEH_begin_gcm_ghash_avx_1
++	DB	136
++	DW	2
++	DB	$L$SEH_prolog_gcm_ghash_avx_4-$L$SEH_begin_gcm_ghash_avx_1
++	DB	120
++	DW	1
++	DB	$L$SEH_prolog_gcm_ghash_avx_3-$L$SEH_begin_gcm_ghash_avx_1
++	DB	104
++	DW	0
++	DB	$L$SEH_prolog_gcm_ghash_avx_2-$L$SEH_begin_gcm_ghash_avx_1
++	DB	1
++	DW	21
+ %endif

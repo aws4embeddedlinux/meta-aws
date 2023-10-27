@@ -1,0 +1,66 @@
+From 78178e58a030a60353f7b87801b7d27fed64d08b Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Fri, 31 Mar 2023 17:48:25 -0700
+Subject: [PATCH] Remove remaining branches in bn/generic.c (#919)
+
+This is a follow up to cc3e7ce which skipped some of these changes. I verified with this change bn/generic.c matches the upstream file before their latest commit.
+---
+ crypto/fipsmodule/bn/generic.c | 22 ++++++----------------
+ 1 file changed, 6 insertions(+), 16 deletions(-)
+
+diff --git a/crypto/fipsmodule/bn/generic.c b/crypto/fipsmodule/bn/generic.c
+index 0439a8b99..bf4971f16 100644
+--- a/crypto/fipsmodule/bn/generic.c
++++ b/crypto/fipsmodule/bn/generic.c
+@@ -667,7 +667,7 @@ BN_ULONG bn_add_words(BN_ULONG *r, const BN_ULONG *a, const BN_ULONG *b,
+ BN_ULONG bn_sub_words(BN_ULONG *r, const BN_ULONG *a, const BN_ULONG *b,
+                       size_t n) {
+   BN_ULONG t1, t2;
+-  int c = 0;
++  BN_ULONG c = 0;
+ 
+   if (n == 0) {
+     return (BN_ULONG)0;
+@@ -677,27 +677,19 @@ BN_ULONG bn_sub_words(BN_ULONG *r, const BN_ULONG *a, const BN_ULONG *b,
+     t1 = a[0];
+     t2 = b[0];
+     r[0] = t1 - t2 - c;
+-    if (t1 != t2) {
+-      c = (t1 < t2);
+-    }
++    c = (t1 < t2) | ((t1 == t2) & c);
+     t1 = a[1];
+     t2 = b[1];
+     r[1] = t1 - t2 - c;
+-    if (t1 != t2) {
+-      c = (t1 < t2);
+-    }
++    c = (t1 < t2) | ((t1 == t2) & c);
+     t1 = a[2];
+     t2 = b[2];
+     r[2] = t1 - t2 - c;
+-    if (t1 != t2) {
+-      c = (t1 < t2);
+-    }
++    c = (t1 < t2) | ((t1 == t2) & c);
+     t1 = a[3];
+     t2 = b[3];
+     r[3] = t1 - t2 - c;
+-    if (t1 != t2) {
+-      c = (t1 < t2);
+-    }
++    c = (t1 < t2) | ((t1 == t2) & c);
+     a += 4;
+     b += 4;
+     r += 4;
+@@ -707,9 +699,7 @@ BN_ULONG bn_sub_words(BN_ULONG *r, const BN_ULONG *a, const BN_ULONG *b,
+     t1 = a[0];
+     t2 = b[0];
+     r[0] = t1 - t2 - c;
+-    if (t1 != t2) {
+-      c = (t1 < t2);
+-    }
++    c = (t1 < t2) | ((t1 == t2) & c);
+     a++;
+     b++;
+     r++;

@@ -1,0 +1,201 @@
+From c92cc0899ad31da52a111672d2be60ed67c95abc Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 2 May 2023 15:38:28 -0400
+Subject: [PATCH] Remove H from GCM128_KEY
+
+This was originally removed in
+https://boringssl-review.googlesource.com/12477, but restored in
+https://boringssl-review.googlesource.com/c/boringssl/+/13122, which
+also restored a comment the assembly code secretly relies on the struct
+layout.
+
+Our comment references the MOVBE-based assembly, which could mean either
+the stitched AES+GCM code, or the GHASH-only code. I don't see an
+obvious place where the GHASH-only code does this. The stitched ones
+(both x86_64 and aarch64, counter to the comment) did this, but the
+preceding CLs fix this. I think we can now remove this comment.
+
+In OpenSSL, this comment dates to
+d8d958323bb116bf9f88137ba46948dcb1691a77 in upstream. That commit also
+removed a field, so we can assume no assembly prior to that change
+relied on that layout.
+
+That commit immediately preceded
+1e86318091817459351a19e72f7d12959e9ec570, which was likely the
+motivation. At the time, gcm_gmult_neon had some code with a comment
+"point at H in GCM128_CTX". At the time, Htable wasn't even filled in,
+and the function relied on H being 16 bytes before Htable.
+gcm_ghash_neon also relies on them being reachable from Xi.
+
+This code changed in f8cee9d08181f9e966ef01d3b69ba78b6cb7c8a8 and, at a
+glance, the file doesn't seem to be making this assumption anymore. I
+think, prior to that change, Htable wasn't filled in for the NEON code
+at all.
+
+With all this now resolved, remove the comment and unused copy of H in
+GCM128_KEY.
+
+AWS-LC:
+- Adjust the context offsets in `aesni-gcm-avx512.pl`
+
+Change-Id: I4eb16cfff5dd41a59a0231a998d5502057336215
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59526
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit e7c3f473b97cfd575b9d347caabb4a28917bd168)
+---
+ .../fipsmodule/modes/asm/aesni-gcm-avx512.pl  |  2 +-
+ crypto/fipsmodule/modes/gcm.c                 | 13 +++++-------
+ crypto/fipsmodule/modes/gcm_test.cc           |  1 -
+ crypto/fipsmodule/modes/internal.h            | 20 +++++++------------
+ crypto/fipsmodule/modes/polyval.c             |  3 +--
+ include/openssl/aead.h                        |  2 +-
+ 6 files changed, 15 insertions(+), 26 deletions(-)
+
+diff --git a/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl b/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl
+index 2ffcb647d..7890aaef8 100644
+--- a/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl
++++ b/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl
+@@ -159,7 +159,7 @@ my $CTX_OFFSET_EK0       = (16 * 2);          #  ; (EK0) Encrypted Y0 counter (s
+ my $CTX_OFFSET_AadLen    = (16 * 3);          #  ; (len.u[0]) Length of AAD which has been input
+ my $CTX_OFFSET_InLen     = ((16 * 3) + 8);    #  ; (len.u[1]) Length of input data which will be encrypted or decrypted
+ my $CTX_OFFSET_AadHash   = (16 * 4);          #  ; (Xi) Current hash
+-my $CTX_OFFSET_HTable    = (16 * 6);          #  ; (Htable) Precomputed table (allows 16 values)
++my $CTX_OFFSET_HTable    = (16 * 5);          #  ; (Htable) Precomputed table (allows 16 values)
+ 
+ # ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ # ;;; Helper functions
+diff --git a/crypto/fipsmodule/modes/gcm.c b/crypto/fipsmodule/modes/gcm.c
+index 1bf91bc4f..01fd62f21 100644
+--- a/crypto/fipsmodule/modes/gcm.c
++++ b/crypto/fipsmodule/modes/gcm.c
+@@ -225,15 +225,13 @@ static size_t hw_gcm_decrypt(const uint8_t *in, uint8_t *out, size_t len,
+ #endif  // HW_GCM && AARCH64
+ 
+ void CRYPTO_ghash_init(gmult_func *out_mult, ghash_func *out_hash,
+-                       u128 *out_key, u128 out_table[16], int *out_is_avx,
++                       u128 out_table[16], int *out_is_avx,
+                        const uint8_t gcm_key[16]) {
+   *out_is_avx = 0;
+ 
+   // H is stored in host byte order.
+   uint64_t H[2] = {CRYPTO_load_u64_be(gcm_key),
+                    CRYPTO_load_u64_be(gcm_key + 8)};
+-  out_key->hi = H[0];
+-  out_key->lo = H[1];
+ 
+ #if defined(GHASH_ASM_X86_64)
+   if (crypto_gcm_avx512_enabled()) {
+@@ -313,14 +311,13 @@ void CRYPTO_gcm128_init_key(GCM128_KEY *gcm_key, const AES_KEY *aes_key,
+   (*block)(ghash_key, ghash_key, aes_key);
+ 
+   int is_avx;
+-  CRYPTO_ghash_init(&gcm_key->gmult, &gcm_key->ghash, &gcm_key->H,
+-                    gcm_key->Htable, &is_avx, ghash_key);
++  CRYPTO_ghash_init(&gcm_key->gmult, &gcm_key->ghash, gcm_key->Htable, &is_avx,
++                    ghash_key);
+ 
+ #if defined(OPENSSL_AARCH64) && defined(GHASH_ASM_ARM)
+-    gcm_key->use_hw_gcm_crypt = (gcm_pmull_capable() && block_is_hwaes) ? 1 :
+-      0;
++  gcm_key->use_hw_gcm_crypt = (gcm_pmull_capable() && block_is_hwaes) ? 1 : 0;
+ #else
+-    gcm_key->use_hw_gcm_crypt = (is_avx && block_is_hwaes) ? 1 : 0;
++  gcm_key->use_hw_gcm_crypt = (is_avx && block_is_hwaes) ? 1 : 0;
+ #endif
+ }
+ 
+diff --git a/crypto/fipsmodule/modes/gcm_test.cc b/crypto/fipsmodule/modes/gcm_test.cc
+index 8c5ccc7bf..92f25f80f 100644
+--- a/crypto/fipsmodule/modes/gcm_test.cc
++++ b/crypto/fipsmodule/modes/gcm_test.cc
+@@ -197,7 +197,6 @@ TEST(GCMTest, ABI) {
+         // aes_gcm_*_avx512 makes assumptions about |GCM128_CONTEXT|'s layout.
+         GCM128_CONTEXT gcm;
+         memset(&gcm, 0, sizeof(gcm));
+-        memcpy(&gcm.gcm_key.H, kH, sizeof(kH));
+         memcpy(&gcm.gcm_key.Htable, Htable, sizeof(Htable));
+         memcpy(&gcm.Xi, X, sizeof(X));
+         uint8_t iv[16] = {0};
+diff --git a/crypto/fipsmodule/modes/internal.h b/crypto/fipsmodule/modes/internal.h
+index 9c40d220c..f2563d6bf 100644
+--- a/crypto/fipsmodule/modes/internal.h
++++ b/crypto/fipsmodule/modes/internal.h
+@@ -128,12 +128,10 @@ typedef void (*ghash_func)(uint64_t Xi[2], const u128 Htable[16],
+                            const uint8_t *inp, size_t len);
+ 
+ typedef struct gcm128_key_st {
+-  // Note the MOVBE-based, x86-64, GHASH assembly requires |H| and |Htable| to
+-  // be the first two elements of this struct. Additionally, some assembly
+-  // routines require a 16-byte-aligned |Htable| when hashing data, but not
++  // |gcm_*_ssse3| require a 16-byte-aligned |Htable| when hashing data, but not
+   // initialization. |GCM128_KEY| is not itself aligned to simplify embedding in
+   // |EVP_AEAD_CTX|, but |Htable|'s offset must be a multiple of 16.
+-  u128 H;
++  // TODO(crbug.com/boringssl/604): Revisit this.
+   u128 Htable[16];
+   gmult_func gmult;
+   ghash_func ghash;
+@@ -156,10 +154,8 @@ typedef struct {
+     crypto_word_t t[16 / sizeof(crypto_word_t)];
+   } Yi, EKi, EK0, len, Xi;
+ 
+-  // Note that the order of |Xi| and |gcm_key| is fixed by the MOVBE-based,
+-  // x86-64, GHASH assembly. Additionally, some assembly routines require
+-  // |gcm_key| to be 16-byte aligned. |GCM128_KEY| is not itself aligned to
+-  // simplify embedding in |EVP_AEAD_CTX|.
++  // |gcm_*_ssse3| require |Htable| to be 16-byte-aligned.
++  // TODO(crbug.com/boringssl/604): Revisit this.
+   alignas(16) GCM128_KEY gcm_key;
+ 
+   unsigned mres, ares;
+@@ -192,7 +188,7 @@ int crypto_gcm_avx512_enabled(void);
+ // accelerated) functions for performing operations in the GHASH field. If the
+ // AVX implementation was used |*out_is_avx| will be true.
+ void CRYPTO_ghash_init(gmult_func *out_mult, ghash_func *out_hash,
+-                       u128 *out_key, u128 out_table[16], int *out_is_avx,
++                       u128 out_table[16], int *out_is_avx,
+                        const uint8_t gcm_key[16]);
+ 
+ // CRYPTO_gcm128_init_key initialises |gcm_key| to use |block| (typically AES)
+@@ -463,11 +459,9 @@ typedef union {
+ } polyval_block;
+ 
+ struct polyval_ctx {
+-  // Note that the order of |S|, |H| and |Htable| is fixed by the MOVBE-based,
+-  // x86-64, GHASH assembly. Additionally, some assembly routines require
+-  // |Htable| to be 16-byte aligned.
+   polyval_block S;
+-  u128 H;
++  // |gcm_*_ssse3| require |Htable| to be 16-byte-aligned.
++  // TODO(crbug.com/boringssl/604): Revisit this.
+   alignas(16) u128 Htable[16];
+   gmult_func gmult;
+   ghash_func ghash;
+diff --git a/crypto/fipsmodule/modes/polyval.c b/crypto/fipsmodule/modes/polyval.c
+index 833c75dc0..a637188cd 100644
+--- a/crypto/fipsmodule/modes/polyval.c
++++ b/crypto/fipsmodule/modes/polyval.c
+@@ -56,8 +56,7 @@ void CRYPTO_POLYVAL_init(struct polyval_ctx *ctx, const uint8_t key[16]) {
+   reverse_and_mulX_ghash(&H);
+ 
+   int is_avx;
+-  CRYPTO_ghash_init(&ctx->gmult, &ctx->ghash, &ctx->H, ctx->Htable, &is_avx,
+-                    H.c);
++  CRYPTO_ghash_init(&ctx->gmult, &ctx->ghash, ctx->Htable, &is_avx, H.c);
+   OPENSSL_memset(&ctx->S, 0, sizeof(ctx->S));
+ }
+ 
+diff --git a/include/openssl/aead.h b/include/openssl/aead.h
+index d4fc124fe..2ee26097f 100644
+--- a/include/openssl/aead.h
++++ b/include/openssl/aead.h
+@@ -211,7 +211,7 @@ OPENSSL_EXPORT size_t EVP_AEAD_max_tag_len(const EVP_AEAD *aead);
+ // AEAD operations.
+ 
+ union evp_aead_ctx_st_state {
+-  uint8_t opaque[580];
++  uint8_t opaque[564];
+   uint64_t alignment;
+   void *ptr;
+ };

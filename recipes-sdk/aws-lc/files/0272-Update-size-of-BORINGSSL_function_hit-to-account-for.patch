@@ -1,0 +1,23 @@
+From 0d725cc062a695261931ea9cc339c2d0f97ee575 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Thu, 6 Apr 2023 19:17:25 -0700
+Subject: [PATCH] Update size of BORINGSSL_function_hit to account for new
+ aes_gcm_encrypt_avx512 (#934)
+
+---
+ crypto/fipsmodule/cpucap/cpucap.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/crypto/fipsmodule/cpucap/cpucap.c b/crypto/fipsmodule/cpucap/cpucap.c
+index 21f5a32a4..4a2c7751c 100644
+--- a/crypto/fipsmodule/cpucap/cpucap.c
++++ b/crypto/fipsmodule/cpucap/cpucap.c
+@@ -79,7 +79,7 @@ HIDDEN uint32_t OPENSSL_armcap_P = 0;
+ 
+ #if defined(BORINGSSL_DISPATCH_TEST)
+ // This value must be explicitly initialized to zero. See similar comment above.
+-HIDDEN uint8_t BORINGSSL_function_hit[7] = {0};
++HIDDEN uint8_t BORINGSSL_function_hit[8] = {0};
+ #endif
+ 
+ // This variable is used only for testing purposes to ensure that the library

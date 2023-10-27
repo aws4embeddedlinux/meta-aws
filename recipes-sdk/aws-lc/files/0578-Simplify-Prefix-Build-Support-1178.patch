@@ -1,0 +1,3692 @@
+From ebe0892bf1c5b344da16582f239ff9c2cc9e356e Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Wed, 13 Sep 2023 14:28:07 -0700
+Subject: [PATCH] Simplify Prefix Build Support (#1178)
+
+---
+ CMakeLists.txt                                | 69 +++++++++++--------
+ crypto/CMakeLists.txt                         | 20 ++++--
+ crypto/fipsmodule/CMakeLists.txt              | 24 ++++---
+ crypto/hrss/asm/poly_rq_mul.S                 |  4 +-
+ crypto/perlasm/arm-xlate.pl                   |  4 +-
+ crypto/perlasm/ppc-xlate.pl                   |  4 +-
+ crypto/perlasm/x86_64-xlate.pl                |  8 +--
+ crypto/perlasm/x86asm.pl                      |  8 +--
+ crypto/poly1305/poly1305_arm_asm.S            |  4 +-
+ crypto/test/CMakeLists.txt                    |  3 +
+ fuzz/CMakeLists.txt                           |  1 +
+ .../ios-aarch64/crypto/chacha/chacha-armv8.S  |  4 +-
+ .../cipher_extra/chacha20_poly1305_armv8.S    |  4 +-
+ .../crypto/fipsmodule/aesv8-armx.S            |  4 +-
+ .../fipsmodule/aesv8-gcm-armv8-unroll8.S      |  4 +-
+ .../crypto/fipsmodule/aesv8-gcm-armv8.S       |  4 +-
+ .../crypto/fipsmodule/armv8-mont.S            |  4 +-
+ .../ios-aarch64/crypto/fipsmodule/bn-armv8.S  |  4 +-
+ .../crypto/fipsmodule/ghash-neon-armv8.S      |  4 +-
+ .../crypto/fipsmodule/ghashv8-armx.S          |  4 +-
+ .../crypto/fipsmodule/keccak1600-armv8.S      |  4 +-
+ .../ios-aarch64/crypto/fipsmodule/md5-armv8.S |  4 +-
+ .../crypto/fipsmodule/p256-armv8-asm.S        |  4 +-
+ .../crypto/fipsmodule/p256_beeu-armv8-asm.S   |  4 +-
+ .../crypto/fipsmodule/sha1-armv8.S            |  4 +-
+ .../crypto/fipsmodule/sha256-armv8.S          |  4 +-
+ .../crypto/fipsmodule/sha512-armv8.S          |  4 +-
+ .../crypto/fipsmodule/vpaes-armv8.S           |  4 +-
+ .../crypto/test/trampoline-armv8.S            |  4 +-
+ .../ios-arm/crypto/chacha/chacha-armv4.S      |  4 +-
+ .../ios-arm/crypto/fipsmodule/aesv8-armx.S    |  4 +-
+ .../ios-arm/crypto/fipsmodule/armv4-mont.S    |  4 +-
+ .../ios-arm/crypto/fipsmodule/bsaes-armv7.S   |  4 +-
+ .../ios-arm/crypto/fipsmodule/ghash-armv4.S   |  4 +-
+ .../ios-arm/crypto/fipsmodule/ghashv8-armx.S  |  4 +-
+ .../crypto/fipsmodule/sha1-armv4-large.S      |  4 +-
+ .../ios-arm/crypto/fipsmodule/sha256-armv4.S  |  4 +-
+ .../ios-arm/crypto/fipsmodule/sha512-armv4.S  |  4 +-
+ .../ios-arm/crypto/fipsmodule/vpaes-armv7.S   |  4 +-
+ .../ios-arm/crypto/test/trampoline-armv4.S    |  4 +-
+ .../crypto/chacha/chacha-armv8.S              |  4 +-
+ .../cipher_extra/chacha20_poly1305_armv8.S    |  4 +-
+ .../crypto/fipsmodule/aesv8-armx.S            |  4 +-
+ .../fipsmodule/aesv8-gcm-armv8-unroll8.S      |  4 +-
+ .../crypto/fipsmodule/aesv8-gcm-armv8.S       |  4 +-
+ .../crypto/fipsmodule/armv8-mont.S            |  4 +-
+ .../crypto/fipsmodule/bn-armv8.S              |  4 +-
+ .../crypto/fipsmodule/ghash-neon-armv8.S      |  4 +-
+ .../crypto/fipsmodule/ghashv8-armx.S          |  4 +-
+ .../crypto/fipsmodule/keccak1600-armv8.S      |  4 +-
+ .../crypto/fipsmodule/md5-armv8.S             |  4 +-
+ .../crypto/fipsmodule/p256-armv8-asm.S        |  4 +-
+ .../crypto/fipsmodule/p256_beeu-armv8-asm.S   |  4 +-
+ .../crypto/fipsmodule/sha1-armv8.S            |  4 +-
+ .../crypto/fipsmodule/sha256-armv8.S          |  4 +-
+ .../crypto/fipsmodule/sha512-armv8.S          |  4 +-
+ .../crypto/fipsmodule/vpaes-armv8.S           |  4 +-
+ .../crypto/test/trampoline-armv8.S            |  4 +-
+ .../linux-arm/crypto/chacha/chacha-armv4.S    |  4 +-
+ .../linux-arm/crypto/fipsmodule/aesv8-armx.S  |  4 +-
+ .../linux-arm/crypto/fipsmodule/armv4-mont.S  |  4 +-
+ .../linux-arm/crypto/fipsmodule/bsaes-armv7.S |  4 +-
+ .../linux-arm/crypto/fipsmodule/ghash-armv4.S |  4 +-
+ .../crypto/fipsmodule/ghashv8-armx.S          |  4 +-
+ .../crypto/fipsmodule/sha1-armv4-large.S      |  4 +-
+ .../crypto/fipsmodule/sha256-armv4.S          |  4 +-
+ .../crypto/fipsmodule/sha512-armv4.S          |  4 +-
+ .../linux-arm/crypto/fipsmodule/vpaes-armv7.S |  4 +-
+ .../linux-arm/crypto/test/trampoline-armv4.S  |  4 +-
+ .../crypto/fipsmodule/aesp8-ppc.S             |  4 +-
+ .../crypto/fipsmodule/ghashp8-ppc.S           |  4 +-
+ .../crypto/test/trampoline-ppc.S              |  4 +-
+ .../linux-x86/crypto/chacha/chacha-x86.S      |  4 +-
+ .../linux-x86/crypto/fipsmodule/aesni-x86.S   |  4 +-
+ .../linux-x86/crypto/fipsmodule/bn-586.S      |  4 +-
+ .../linux-x86/crypto/fipsmodule/co-586.S      |  4 +-
+ .../crypto/fipsmodule/ghash-ssse3-x86.S       |  4 +-
+ .../linux-x86/crypto/fipsmodule/ghash-x86.S   |  4 +-
+ .../linux-x86/crypto/fipsmodule/md5-586.S     |  4 +-
+ .../linux-x86/crypto/fipsmodule/sha1-586.S    |  4 +-
+ .../linux-x86/crypto/fipsmodule/sha256-586.S  |  4 +-
+ .../linux-x86/crypto/fipsmodule/sha512-586.S  |  4 +-
+ .../linux-x86/crypto/fipsmodule/vpaes-x86.S   |  4 +-
+ .../linux-x86/crypto/fipsmodule/x86-mont.S    |  4 +-
+ .../linux-x86/crypto/test/trampoline-x86.S    |  4 +-
+ .../crypto/chacha/chacha-x86_64.S             |  4 +-
+ .../crypto/cipher_extra/aes128gcmsiv-x86_64.S |  4 +-
+ .../crypto/cipher_extra/aesni-sha1-x86_64.S   |  4 +-
+ .../crypto/cipher_extra/aesni-sha256-x86_64.S |  4 +-
+ .../cipher_extra/chacha20_poly1305_x86_64.S   |  4 +-
+ .../crypto/fipsmodule/aesni-gcm-avx512.S      |  4 +-
+ .../crypto/fipsmodule/aesni-gcm-x86_64.S      |  4 +-
+ .../crypto/fipsmodule/aesni-x86_64.S          |  4 +-
+ .../crypto/fipsmodule/aesni-xts-avx512.S      |  4 +-
+ .../crypto/fipsmodule/ghash-ssse3-x86_64.S    |  4 +-
+ .../crypto/fipsmodule/ghash-x86_64.S          |  4 +-
+ .../crypto/fipsmodule/md5-x86_64.S            |  4 +-
+ .../crypto/fipsmodule/p256-x86_64-asm.S       |  4 +-
+ .../crypto/fipsmodule/p256_beeu-x86_64-asm.S  |  4 +-
+ .../crypto/fipsmodule/rdrand-x86_64.S         |  4 +-
+ .../crypto/fipsmodule/rsaz-avx2.S             |  4 +-
+ .../crypto/fipsmodule/sha1-x86_64.S           |  4 +-
+ .../crypto/fipsmodule/sha256-x86_64.S         |  4 +-
+ .../crypto/fipsmodule/sha512-x86_64.S         |  4 +-
+ .../crypto/fipsmodule/vpaes-x86_64.S          |  4 +-
+ .../crypto/fipsmodule/x86_64-mont.S           |  4 +-
+ .../crypto/fipsmodule/x86_64-mont5.S          |  4 +-
+ .../crypto/test/trampoline-x86_64.S           |  4 +-
+ .../mac-x86/crypto/chacha/chacha-x86.S        |  4 +-
+ .../mac-x86/crypto/fipsmodule/aesni-x86.S     |  4 +-
+ .../mac-x86/crypto/fipsmodule/bn-586.S        |  4 +-
+ .../mac-x86/crypto/fipsmodule/co-586.S        |  4 +-
+ .../crypto/fipsmodule/ghash-ssse3-x86.S       |  4 +-
+ .../mac-x86/crypto/fipsmodule/ghash-x86.S     |  4 +-
+ .../mac-x86/crypto/fipsmodule/md5-586.S       |  4 +-
+ .../mac-x86/crypto/fipsmodule/sha1-586.S      |  4 +-
+ .../mac-x86/crypto/fipsmodule/sha256-586.S    |  4 +-
+ .../mac-x86/crypto/fipsmodule/sha512-586.S    |  4 +-
+ .../mac-x86/crypto/fipsmodule/vpaes-x86.S     |  4 +-
+ .../mac-x86/crypto/fipsmodule/x86-mont.S      |  4 +-
+ .../mac-x86/crypto/test/trampoline-x86.S      |  4 +-
+ .../mac-x86_64/crypto/chacha/chacha-x86_64.S  |  4 +-
+ .../crypto/cipher_extra/aes128gcmsiv-x86_64.S |  4 +-
+ .../crypto/cipher_extra/aesni-sha1-x86_64.S   |  4 +-
+ .../crypto/cipher_extra/aesni-sha256-x86_64.S |  4 +-
+ .../cipher_extra/chacha20_poly1305_x86_64.S   |  4 +-
+ .../crypto/fipsmodule/aesni-gcm-avx512.S      |  4 +-
+ .../crypto/fipsmodule/aesni-gcm-x86_64.S      |  4 +-
+ .../crypto/fipsmodule/aesni-x86_64.S          |  4 +-
+ .../crypto/fipsmodule/aesni-xts-avx512.S      |  4 +-
+ .../crypto/fipsmodule/ghash-ssse3-x86_64.S    |  4 +-
+ .../crypto/fipsmodule/ghash-x86_64.S          |  4 +-
+ .../mac-x86_64/crypto/fipsmodule/md5-x86_64.S |  4 +-
+ .../crypto/fipsmodule/p256-x86_64-asm.S       |  4 +-
+ .../crypto/fipsmodule/p256_beeu-x86_64-asm.S  |  4 +-
+ .../crypto/fipsmodule/rdrand-x86_64.S         |  4 +-
+ .../mac-x86_64/crypto/fipsmodule/rsaz-avx2.S  |  4 +-
+ .../crypto/fipsmodule/sha1-x86_64.S           |  4 +-
+ .../crypto/fipsmodule/sha256-x86_64.S         |  4 +-
+ .../crypto/fipsmodule/sha512-x86_64.S         |  4 +-
+ .../crypto/fipsmodule/vpaes-x86_64.S          |  4 +-
+ .../crypto/fipsmodule/x86_64-mont.S           |  4 +-
+ .../crypto/fipsmodule/x86_64-mont5.S          |  4 +-
+ .../crypto/test/trampoline-x86_64.S           |  4 +-
+ .../win-aarch64/crypto/chacha/chacha-armv8.S  |  4 +-
+ .../cipher_extra/chacha20_poly1305_armv8.S    |  4 +-
+ .../crypto/fipsmodule/aesv8-armx.S            |  4 +-
+ .../fipsmodule/aesv8-gcm-armv8-unroll8.S      |  4 +-
+ .../crypto/fipsmodule/aesv8-gcm-armv8.S       |  4 +-
+ .../crypto/fipsmodule/armv8-mont.S            |  4 +-
+ .../win-aarch64/crypto/fipsmodule/bn-armv8.S  |  4 +-
+ .../crypto/fipsmodule/ghash-neon-armv8.S      |  4 +-
+ .../crypto/fipsmodule/ghashv8-armx.S          |  4 +-
+ .../crypto/fipsmodule/keccak1600-armv8.S      |  4 +-
+ .../win-aarch64/crypto/fipsmodule/md5-armv8.S |  4 +-
+ .../crypto/fipsmodule/p256-armv8-asm.S        |  4 +-
+ .../crypto/fipsmodule/p256_beeu-armv8-asm.S   |  4 +-
+ .../crypto/fipsmodule/sha1-armv8.S            |  4 +-
+ .../crypto/fipsmodule/sha256-armv8.S          |  4 +-
+ .../crypto/fipsmodule/sha512-armv8.S          |  4 +-
+ .../crypto/fipsmodule/vpaes-armv8.S           |  4 +-
+ .../crypto/test/trampoline-armv8.S            |  4 +-
+ .../win-x86/crypto/chacha/chacha-x86.asm      |  4 +-
+ .../win-x86/crypto/fipsmodule/aesni-x86.asm   |  4 +-
+ .../win-x86/crypto/fipsmodule/bn-586.asm      |  4 +-
+ .../win-x86/crypto/fipsmodule/co-586.asm      |  4 +-
+ .../crypto/fipsmodule/ghash-ssse3-x86.asm     |  4 +-
+ .../win-x86/crypto/fipsmodule/ghash-x86.asm   |  4 +-
+ .../win-x86/crypto/fipsmodule/md5-586.asm     |  4 +-
+ .../win-x86/crypto/fipsmodule/sha1-586.asm    |  4 +-
+ .../win-x86/crypto/fipsmodule/sha256-586.asm  |  4 +-
+ .../win-x86/crypto/fipsmodule/sha512-586.asm  |  4 +-
+ .../win-x86/crypto/fipsmodule/vpaes-x86.asm   |  4 +-
+ .../win-x86/crypto/fipsmodule/x86-mont.asm    |  4 +-
+ .../win-x86/crypto/test/trampoline-x86.asm    |  4 +-
+ .../crypto/chacha/chacha-x86_64.asm           |  4 +-
+ .../cipher_extra/aes128gcmsiv-x86_64.asm      |  4 +-
+ .../crypto/cipher_extra/aesni-sha1-x86_64.asm |  4 +-
+ .../cipher_extra/aesni-sha256-x86_64.asm      |  4 +-
+ .../cipher_extra/chacha20_poly1305_x86_64.asm |  4 +-
+ .../crypto/fipsmodule/aesni-gcm-avx512.asm    |  4 +-
+ .../crypto/fipsmodule/aesni-gcm-x86_64.asm    |  4 +-
+ .../crypto/fipsmodule/aesni-x86_64.asm        |  4 +-
+ .../crypto/fipsmodule/aesni-xts-avx512.asm    |  4 +-
+ .../crypto/fipsmodule/ghash-ssse3-x86_64.asm  |  4 +-
+ .../crypto/fipsmodule/ghash-x86_64.asm        |  4 +-
+ .../crypto/fipsmodule/md5-x86_64.asm          |  4 +-
+ .../crypto/fipsmodule/p256-x86_64-asm.asm     |  4 +-
+ .../fipsmodule/p256_beeu-x86_64-asm.asm       |  4 +-
+ .../crypto/fipsmodule/rdrand-x86_64.asm       |  4 +-
+ .../crypto/fipsmodule/rsaz-avx2.asm           |  4 +-
+ .../crypto/fipsmodule/sha1-x86_64.asm         |  4 +-
+ .../crypto/fipsmodule/sha256-x86_64.asm       |  4 +-
+ .../crypto/fipsmodule/sha512-x86_64.asm       |  4 +-
+ .../crypto/fipsmodule/vpaes-x86_64.asm        |  4 +-
+ .../crypto/fipsmodule/x86_64-mont.asm         |  4 +-
+ .../crypto/fipsmodule/x86_64-mont5.asm        |  4 +-
+ .../crypto/test/trampoline-x86_64.asm         |  4 +-
+ include/openssl/base.h                        |  4 +-
+ include/openssl/boringssl_prefix_symbols.h    |  5 ++
+ .../openssl/boringssl_prefix_symbols_asm.h    |  5 ++
+ .../openssl/boringssl_prefix_symbols_nasm.inc |  5 ++
+ ssl/CMakeLists.txt                            |  8 ++-
+ ssl/test/CMakeLists.txt                       |  4 ++
+ third_party/jitterentropy/CMakeLists.txt      |  5 +-
+ tool/CMakeLists.txt                           |  4 +-
+ util/fipstools/CMakeLists.txt                 |  1 +
+ .../acvp/modulewrapper/CMakeLists.txt         |  1 +
+ util/make_prefix_headers.go                   | 44 +++++++++++-
+ 209 files changed, 350 insertions(+), 633 deletions(-)
+ create mode 100644 include/openssl/boringssl_prefix_symbols.h
+ create mode 100644 include/openssl/boringssl_prefix_symbols_asm.h
+ create mode 100644 include/openssl/boringssl_prefix_symbols_nasm.inc
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 932e37ecd..d2c54485c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -58,6 +58,9 @@ endif()
+ install(DIRECTORY include/openssl
+         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+         COMPONENT Development
++        PATTERN boringssl_prefix_symbols.h EXCLUDE
++        PATTERN boringssl_prefix_symbols_asm.h EXCLUDE
++        PATTERN boringssl_prefix_symbols_nasm.inc EXCLUDE
+ )
+ 
+ if(ANDROID)
+@@ -130,19 +133,7 @@ foreach(VAR CMAKE_C_FLAGS CMAKE_CXX_FLAGS CMAKE_ASM_FLAGS)
+          "${${VAR}_RELEASE}")
+ endforeach()
+ 
+-if(BORINGSSL_PREFIX)
+-  add_definitions(-DBORINGSSL_PREFIX=${BORINGSSL_PREFIX})
+-  # CMake automatically connects include_directories to the NASM command-line,
+-  # but not add_definitions.
+-  set(CMAKE_ASM_NASM_FLAGS "${CMAKE_ASM_NASM_FLAGS} -DBORINGSSL_PREFIX=${BORINGSSL_PREFIX}")
+-  set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -DBORINGSSL_PREFIX=${BORINGSSL_PREFIX}")
+-endif()
+-
+ if(BORINGSSL_PREFIX AND BORINGSSL_PREFIX_SYMBOLS AND GO_EXECUTABLE)
+-
+-  # Use "symbol_prefix_include" to store generated header files
+-  include_directories(${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include)
+-
+   if(IS_ABSOLUTE ${BORINGSSL_PREFIX_SYMBOLS})
+     set(BORINGSSL_PREFIX_SYMBOLS_PATH ${BORINGSSL_PREFIX_SYMBOLS})
+   else()
+@@ -150,26 +141,35 @@ if(BORINGSSL_PREFIX AND BORINGSSL_PREFIX_SYMBOLS AND GO_EXECUTABLE)
+   endif()
+ 
+   add_custom_command(
+-    OUTPUT symbol_prefix_include/boringssl_prefix_symbols.h
+-           symbol_prefix_include/boringssl_prefix_symbols_asm.h
+-           symbol_prefix_include/boringssl_prefix_symbols_nasm.inc
+-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include
+-    COMMAND ${GO_EXECUTABLE} run ${CMAKE_CURRENT_SOURCE_DIR}/util/make_prefix_headers.go -out ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include ${BORINGSSL_PREFIX_SYMBOLS_PATH}
+-    COMMAND sed -i.bak '/ bignum_/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/boringssl_prefix_symbols.h
+-    COMMAND sed -i.bak '/ bignum_/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/boringssl_prefix_symbols_asm.h
+-    COMMAND sed -i.bak '/ bignum_/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/boringssl_prefix_symbols_nasm.inc
+-    COMMAND sed -i.bak '/ curve25519_x25519/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/boringssl_prefix_symbols.h
+-    COMMAND sed -i.bak '/ curve25519_x25519/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/boringssl_prefix_symbols_asm.h
+-    COMMAND sed -i.bak '/ curve25519_x25519/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/boringssl_prefix_symbols_nasm.inc
++    OUTPUT symbol_prefix_include/openssl/boringssl_prefix_symbols.h
++           symbol_prefix_include/openssl/boringssl_prefix_symbols_asm.h
++           symbol_prefix_include/openssl/boringssl_prefix_symbols_nasm.inc
++    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl
++    COMMAND ${GO_EXECUTABLE} run ${CMAKE_CURRENT_SOURCE_DIR}/util/make_prefix_headers.go -out ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl -prefix ${BORINGSSL_PREFIX} ${BORINGSSL_PREFIX_SYMBOLS_PATH}
++    COMMAND sed -i.bak '/ bignum_/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl/boringssl_prefix_symbols.h
++    COMMAND sed -i.bak '/ bignum_/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl/boringssl_prefix_symbols_asm.h
++    COMMAND sed -i.bak '/ bignum_/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl/boringssl_prefix_symbols_nasm.inc
++    COMMAND sed -i.bak '/ curve25519_x25519/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl/boringssl_prefix_symbols.h
++    COMMAND sed -i.bak '/ curve25519_x25519/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl/boringssl_prefix_symbols_asm.h
++    COMMAND sed -i.bak '/ curve25519_x25519/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl/boringssl_prefix_symbols_nasm.inc
++    COMMAND ${CMAKE_COMMAND} -E remove
++          ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl/boringssl_prefix_symbols.h.bak
++          ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl/boringssl_prefix_symbols_asm.h.bak
++          ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl/boringssl_prefix_symbols_nasm.inc.bak
+     DEPENDS util/make_prefix_headers.go
+             ${BORINGSSL_PREFIX_SYMBOLS_PATH})
+   # add_dependencies needs a target, not a file, so we add an intermediate
+   # target.
+   add_custom_target(
+     boringssl_prefix_symbols
+-    DEPENDS symbol_prefix_include/boringssl_prefix_symbols.h
+-            symbol_prefix_include/boringssl_prefix_symbols_asm.h
+-            symbol_prefix_include/boringssl_prefix_symbols_nasm.inc)
++    DEPENDS symbol_prefix_include/openssl/boringssl_prefix_symbols.h
++            symbol_prefix_include/openssl/boringssl_prefix_symbols_asm.h
++            symbol_prefix_include/openssl/boringssl_prefix_symbols_nasm.inc)
++
++  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl
++          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
++          COMPONENT Development
++  )
+ elseif(BORINGSSL_PREFIX AND BORINGSSL_PREFIX_HEADERS)
+ 
+   if(IS_ABSOLUTE ${BORINGSSL_PREFIX_HEADERS})
+@@ -178,15 +178,30 @@ elseif(BORINGSSL_PREFIX AND BORINGSSL_PREFIX_HEADERS)
+     set(BORINGSSL_PREFIX_HEADERS_PATH ${PROJECT_BINARY_DIR}/${BORINGSSL_PREFIX_HEADERS})
+   endif()
+ 
+-  include_directories(${BORINGSSL_PREFIX_HEADERS_PATH})
++  file(COPY ${BORINGSSL_PREFIX_HEADERS_PATH}/openssl/boringssl_prefix_symbols.h DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl)
++  file(COPY ${BORINGSSL_PREFIX_HEADERS_PATH}/openssl/boringssl_prefix_symbols_asm.h DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl)
++  file(COPY ${BORINGSSL_PREFIX_HEADERS_PATH}/openssl/boringssl_prefix_symbols_nasm.inc DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl)
+ 
+   add_custom_target(boringssl_prefix_symbols)
++
++  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/openssl
++          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
++          COMPONENT Development
++  )
+ elseif(BORINGSSL_PREFIX OR BORINGSSL_PREFIX_SYMBOLS)
+   message(FATAL_ERROR "Must specify both or neither of BORINGSSL_PREFIX and BORINGSSL_PREFIX_SYMBOLS")
+ elseif((BORINGSSL_PREFIX AND BORINGSSL_PREFIX_SYMBOLS) AND NOT GO_EXECUTABLE)
+   message(FATAL_ERROR "Must have Go installed when using BORINGSSL_PREFIX and BORINGSSL_PREFIX_SYMBOLS")
+ else()
+   add_custom_target(boringssl_prefix_symbols)
++
++  install(DIRECTORY include/openssl
++          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
++          COMPONENT Development
++          PATTERN boringssl_prefix_symbols.h
++          PATTERN boringssl_prefix_symbols_asm.h
++          PATTERN boringssl_prefix_symbols_nasm.inc
++  )
+ endif()
+ 
+ if("${CMAKE_SYSTEM_NAME}" STREQUAL "Emscripten")
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index e5a7fdde1..1438fd9e3 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -532,10 +532,10 @@ add_library(
+ )
+ 
+ target_compile_definitions(crypto_objects PRIVATE BORINGSSL_IMPLEMENTATION)
+-target_include_directories(crypto_objects PRIVATE ../include)
+-
+ # For the prefix build, the object files need the prefix header files to build.
+ add_dependencies(crypto_objects boringssl_prefix_symbols)
++target_include_directories(crypto_objects BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++target_include_directories(crypto_objects PRIVATE ${PROJECT_SOURCE_DIR}/include)
+ 
+ function(build_libcrypto name module_source)
+   if(FIPS)
+@@ -555,8 +555,11 @@ function(build_libcrypto name module_source)
+     target_link_libraries(${name} PUBLIC pthread)
+   endif()
+ 
++  add_dependencies(${name} boringssl_prefix_symbols)
++  target_include_directories(${name} BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++
+   target_include_directories(${name} PUBLIC
+-          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
++          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+           $<INSTALL_INTERFACE:include>)
+ endfunction()
+ 
+@@ -584,7 +587,7 @@ if(FIPS_SHARED)
+       generated_fips_shared_support.c
+       ${PROJECT_SOURCE_DIR}/crypto/fipsmodule/cpucap/cpucap.c
+     )
+-    target_include_directories(generated_fipsmodule PRIVATE ../include)
++    target_include_directories(generated_fipsmodule PRIVATE ${PROJECT_SOURCE_DIR}/include)
+ 
+     build_libcrypto(crypto $<TARGET_OBJECTS:generated_fipsmodule>)
+   else()
+@@ -659,6 +662,8 @@ if(BUILD_TESTING)
+     add_executable(${executable_name} ${test_file})
+     target_compile_definitions(${executable_name} PRIVATE BORINGSSL_IMPLEMENTATION)
+     target_link_libraries(${executable_name} test_support_lib boringssl_gtest_main crypto)
++    add_dependencies(${executable_name} boringssl_prefix_symbols)
++    target_include_directories(${executable_name} BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
+     add_dependencies(all_tests ${executable_name})
+   endmacro()
+ 
+@@ -683,7 +688,9 @@ if(BUILD_TESTING)
+     target_compile_options(${RANDOM_TEST_EXEC} PUBLIC -DJITTER_ENTROPY)
+   endif()
+ 
++  add_dependencies(${RANDOM_TEST_EXEC} boringssl_prefix_symbols)
+   target_link_libraries(${RANDOM_TEST_EXEC} test_support_lib boringssl_gtest crypto)
++  target_include_directories(${RANDOM_TEST_EXEC} BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
+ 
+   add_dependencies(all_tests ${RANDOM_TEST_EXEC})
+ 
+@@ -770,7 +777,9 @@ if(BUILD_TESTING)
+     $<TARGET_OBJECTS:crypto_test_data>
+   )
+ 
++  add_dependencies(${CRYPTO_TEST_EXEC} boringssl_prefix_symbols)
+   target_link_libraries(${CRYPTO_TEST_EXEC} test_support_lib boringssl_gtest_main crypto)
++  target_include_directories(${CRYPTO_TEST_EXEC} BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
+   if(WIN32)
+     target_link_libraries(${CRYPTO_TEST_EXEC} ws2_32)
+   else()
+@@ -783,6 +792,9 @@ if(BUILD_TESTING)
+   add_executable(${DYNAMIC_LOADING_TEST_EXEC} dynamic_loading_test.c)
+   add_dependencies(${DYNAMIC_LOADING_TEST_EXEC} crypto)
+ 
++  add_dependencies(${DYNAMIC_LOADING_TEST_EXEC} boringssl_prefix_symbols)
++  target_include_directories(${DYNAMIC_LOADING_TEST_EXEC} BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++
+   if (BUILD_SHARED_LIBS AND NOT WIN32)
+     target_compile_options(${DYNAMIC_LOADING_TEST_EXEC} PUBLIC "-DLIBCRYPTO_PATH=$<TARGET_FILE:crypto>")
+     # Do not link to boringssl_gtest_main or any library that might be linked to libcrypto.so.
+diff --git a/crypto/fipsmodule/CMakeLists.txt b/crypto/fipsmodule/CMakeLists.txt
+index 229d68566..45ba034b4 100644
+--- a/crypto/fipsmodule/CMakeLists.txt
++++ b/crypto/fipsmodule/CMakeLists.txt
+@@ -259,15 +259,14 @@ function(cpreprocess dest src)
+     set(TARGET "--target=${CMAKE_ASM_COMPILER_TARGET}")
+   endif()
+ 
+-  set(PREFIX_INCLUDE "")
+   if(BORINGSSL_PREFIX)
+-    set(PREFIX_INCLUDE "-I${BORINGSSL_PREFIX_HEADERS_PATH}")
++    set(PREFIX_INCLUDE "-I${PROJECT_BINARY_DIR}/symbol_prefix_include")
+   endif()
+ 
+   string(REGEX REPLACE "[ ]+" ";" CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS}")
+   add_custom_command(
+     OUTPUT ${dest}
+-    COMMAND ${CMAKE_ASM_COMPILER} ${TARGET} ${CMAKE_ASM_FLAGS} -E ${src} -I${PROJECT_SOURCE_DIR}/include ${PREFIX_INCLUDE} > ${dest}
++    COMMAND ${CMAKE_ASM_COMPILER} ${TARGET} ${CMAKE_ASM_FLAGS} -E ${src} ${PREFIX_INCLUDE} -I${PROJECT_SOURCE_DIR}/include > ${dest}
+     DEPENDS
+     ${src}
+     ${PROJECT_SOURCE_DIR}/include/openssl/arm_arch.h
+@@ -342,7 +341,8 @@ if(FIPS_DELOCATE)
+   endif()
+ 
+   add_dependencies(bcm_c_generated_asm boringssl_prefix_symbols)
+-  target_include_directories(bcm_c_generated_asm PRIVATE ../../include)
++  target_include_directories(bcm_c_generated_asm BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++  target_include_directories(bcm_c_generated_asm PRIVATE ${PROJECT_SOURCE_DIR}/include)
+   set_target_properties(bcm_c_generated_asm PROPERTIES COMPILE_OPTIONS "-S")
+   set_target_properties(bcm_c_generated_asm PROPERTIES POSITION_INDEPENDENT_CODE ON)
+ 
+@@ -372,6 +372,8 @@ if(FIPS_DELOCATE)
+   target_compile_definitions(bcm_hashunset PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+   add_dependencies(bcm_hashunset boringssl_prefix_symbols)
++  target_include_directories(bcm_hashunset BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++  target_include_directories(bcm_hashunset PRIVATE ${PROJECT_SOURCE_DIR}/include)
+ 
+   set_target_properties(bcm_hashunset PROPERTIES POSITION_INDEPENDENT_CODE ON)
+   set_target_properties(bcm_hashunset PROPERTIES LINKER_LANGUAGE C)
+@@ -402,7 +404,8 @@ if(FIPS_DELOCATE)
+   target_compile_definitions(fipsmodule PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+   add_dependencies(fipsmodule boringssl_prefix_symbols)
+-  target_include_directories(fipsmodule PRIVATE ../../include)
++  target_include_directories(fipsmodule BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++  target_include_directories(fipsmodule PRIVATE ${PROJECT_SOURCE_DIR}/include)
+ 
+   set_target_properties(fipsmodule PROPERTIES LINKER_LANGUAGE C)
+ elseif(FIPS_SHARED)
+@@ -421,7 +424,8 @@ elseif(FIPS_SHARED)
+   target_compile_definitions(fipsmodule PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+   add_dependencies(fipsmodule boringssl_prefix_symbols)
+-  target_include_directories(fipsmodule PRIVATE ../../include)
++  target_include_directories(fipsmodule BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++  target_include_directories(fipsmodule PRIVATE ${PROJECT_SOURCE_DIR}/include)
+ 
+   add_library(
+     bcm_library
+@@ -433,10 +437,11 @@ elseif(FIPS_SHARED)
+     ${BCM_ASM_SOURCES}
+   )
+   target_compile_definitions(bcm_library PRIVATE BORINGSSL_IMPLEMENTATION)
+-  target_include_directories(bcm_library PRIVATE ../../include)
++  target_include_directories(bcm_library PRIVATE ${PROJECT_SOURCE_DIR}/include)
+ 
+   add_dependencies(bcm_library boringssl_prefix_symbols)
+-  target_include_directories(bcm_library PRIVATE ../../include)
++  target_include_directories(bcm_library BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++  target_include_directories(bcm_library PRIVATE ${PROJECT_SOURCE_DIR}/include)
+   if (APPLE)
+     set(BCM_NAME bcm.o)
+     # The linker on macOS doesn't have the ability to process linker scripts,
+@@ -531,5 +536,6 @@ else()
+   target_compile_definitions(fipsmodule PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+   add_dependencies(fipsmodule boringssl_prefix_symbols)
+-  target_include_directories(fipsmodule PRIVATE ../../include)
++  target_include_directories(fipsmodule BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++  target_include_directories(fipsmodule PRIVATE ${PROJECT_SOURCE_DIR}/include)
+ endif()
+diff --git a/crypto/hrss/asm/poly_rq_mul.S b/crypto/hrss/asm/poly_rq_mul.S
+index 693e90944..cc177c691 100644
+--- a/crypto/hrss/asm/poly_rq_mul.S
++++ b/crypto/hrss/asm/poly_rq_mul.S
+@@ -15,9 +15,7 @@
+ #if !defined(OPENSSL_NO_ASM) && !defined(OPENSSL_SMALL) && \
+     defined(__linux__) && !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX)
+ 
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ 
+ // This is the polynomial multiplication function from [HRSS], provided by kind
+ // permission of the authors.
+diff --git a/crypto/perlasm/arm-xlate.pl b/crypto/perlasm/arm-xlate.pl
+index e876c8b27..e3acacc84 100755
+--- a/crypto/perlasm/arm-xlate.pl
++++ b/crypto/perlasm/arm-xlate.pl
+@@ -187,9 +187,7 @@ print <<___;
+ #if !defined(OPENSSL_NO_ASM) && $arch_defines && $target_defines
+ ___
+ 
+-print "#if defined(BORINGSSL_PREFIX)\n";
+-print "#include <boringssl_prefix_symbols_asm.h>\n";
+-print "#endif\n";
++print "#include <openssl/boringssl_prefix_symbols_asm.h>\n";
+ 
+ while(my $line=<>) {
+ 
+diff --git a/crypto/perlasm/ppc-xlate.pl b/crypto/perlasm/ppc-xlate.pl
+index 249834ccf..6a95c410c 100644
+--- a/crypto/perlasm/ppc-xlate.pl
++++ b/crypto/perlasm/ppc-xlate.pl
+@@ -266,9 +266,7 @@ print <<___;
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__powerpc64__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ ___
+ 
+ while($line=<>) {
+diff --git a/crypto/perlasm/x86_64-xlate.pl b/crypto/perlasm/x86_64-xlate.pl
+index 16a784683..fde1a7955 100755
+--- a/crypto/perlasm/x86_64-xlate.pl
++++ b/crypto/perlasm/x86_64-xlate.pl
+@@ -1500,9 +1500,7 @@ default	rel
+ \%define YMMWORD
+ \%define ZMMWORD
+ 
+-\%ifdef BORINGSSL_PREFIX
+-\%include "boringssl_prefix_symbols_nasm.inc"
+-\%endif
++\%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ ___
+ } elsif ($masm) {
+     print <<___;
+@@ -1529,9 +1527,7 @@ if ($gas) {
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && $target
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ ___
+ }
+ 
+diff --git a/crypto/perlasm/x86asm.pl b/crypto/perlasm/x86asm.pl
+index d66255ed6..f0680e700 100644
+--- a/crypto/perlasm/x86asm.pl
++++ b/crypto/perlasm/x86asm.pl
+@@ -284,9 +284,7 @@ $comment source tree. Do not edit by hand.
+ ___
+     if ($win32) {
+         print <<___ unless $masm;
+-\%ifdef BORINGSSL_PREFIX
+-\%include "boringssl_prefix_symbols_nasm.inc"
+-\%endif
++\%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ \%ifidn __OUTPUT_FORMAT__, win32
+ ___
+         print @out;
+@@ -314,9 +312,7 @@ ___
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && $target
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ ___
+         print @out;
+         print <<___;
+diff --git a/crypto/poly1305/poly1305_arm_asm.S b/crypto/poly1305/poly1305_arm_asm.S
+index 7895ab49d..eb67aa386 100644
+--- a/crypto/poly1305/poly1305_arm_asm.S
++++ b/crypto/poly1305/poly1305_arm_asm.S
+@@ -6,9 +6,7 @@
+ 
+ #if defined(__ARMEL__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+ 
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ 
+ # This implementation was taken from the public domain, neon2 version in
+ # SUPERCOP by D. J. Bernstein and Peter Schwabe.
+diff --git a/crypto/test/CMakeLists.txt b/crypto/test/CMakeLists.txt
+index bdb8acbc2..280c60085 100644
+--- a/crypto/test/CMakeLists.txt
++++ b/crypto/test/CMakeLists.txt
+@@ -20,5 +20,8 @@ if(WIN32)
+ endif()
+ target_link_libraries(test_support_lib boringssl_gtest crypto)
+ 
++target_include_directories(test_support_lib BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++
+ add_library(boringssl_gtest_main STATIC gtest_main.cc)
+ target_link_libraries(boringssl_gtest_main boringssl_gtest crypto test_support_lib)
++target_include_directories(boringssl_gtest_main BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
+diff --git a/fuzz/CMakeLists.txt b/fuzz/CMakeLists.txt
+index 0003d19ba..a8314044c 100644
+--- a/fuzz/CMakeLists.txt
++++ b/fuzz/CMakeLists.txt
+@@ -2,6 +2,7 @@ macro(fuzzer name)
+   add_executable(${name} ${name}.cc)
+   target_compile_options(${name} PRIVATE "-Wno-missing-prototypes")
+   target_link_libraries(${name} crypto ${ARGN})
++  target_include_directories(${name} BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
+   if(LIBFUZZER_FROM_DEPS)
+     set_target_properties(${name} PROPERTIES LINK_FLAGS "-fsanitize=fuzzer-no-link")
+     target_link_libraries(${name} Fuzzer)
+diff --git a/generated-src/ios-aarch64/crypto/chacha/chacha-armv8.S b/generated-src/ios-aarch64/crypto/chacha/chacha-armv8.S
+index 619742855..f3db86a9c 100644
+--- a/generated-src/ios-aarch64/crypto/chacha/chacha-armv8.S
++++ b/generated-src/ios-aarch64/crypto/chacha/chacha-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ 
+diff --git a/generated-src/ios-aarch64/crypto/cipher_extra/chacha20_poly1305_armv8.S b/generated-src/ios-aarch64/crypto/cipher_extra/chacha20_poly1305_armv8.S
+index 7fce17593..d5613a59b 100644
+--- a/generated-src/ios-aarch64/crypto/cipher_extra/chacha20_poly1305_armv8.S
++++ b/generated-src/ios-aarch64/crypto/cipher_extra/chacha20_poly1305_armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ .section	__TEXT,__const
+ 
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-armx.S b/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-armx.S
+index c9982dad9..784492a88 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-armx.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-armx.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ #if __ARM_MAX_ARCH__>=7
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S b/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
+index 795b76637..94af10d12 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include "openssl/arm_arch.h"
+ 
+ #if __ARM_MAX_ARCH__>=8
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
+index f56f032ad..4c0663f4d 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ #if __ARM_MAX_ARCH__ >= 8
+ 
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/armv8-mont.S b/generated-src/ios-aarch64/crypto/fipsmodule/armv8-mont.S
+index 9f1b81053..8765458e3 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/armv8-mont.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/armv8-mont.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/bn-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/bn-armv8.S
+index 9334ed426..a559228c7 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/bn-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/bn-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/ghash-neon-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/ghash-neon-armv8.S
+index d4cc16f78..b6a09b159 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/ghash-neon-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/ghash-neon-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/ghashv8-armx.S b/generated-src/ios-aarch64/crypto/fipsmodule/ghashv8-armx.S
+index b8c683519..b45ba6e5f 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/ghashv8-armx.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/ghashv8-armx.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ #if __ARM_MAX_ARCH__>=7
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/keccak1600-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+index 774636992..ae1b574e6 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/keccak1600-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ .text
+ .align	8	// strategic alignment and padding that allows to use
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/md5-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/md5-armv8.S
+index 70d8d52d3..9f449a24b 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/md5-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/md5-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ 
+ .text
+ .globl	_md5_block_asm_data_order
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/p256-armv8-asm.S b/generated-src/ios-aarch64/crypto/fipsmodule/p256-armv8-asm.S
+index b18602f9c..a07fe333d 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/p256-armv8-asm.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/p256-armv8-asm.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include "openssl/arm_arch.h"
+ 
+ .section	__TEXT,__const
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/p256_beeu-armv8-asm.S b/generated-src/ios-aarch64/crypto/fipsmodule/p256_beeu-armv8-asm.S
+index 8214e1164..c8f223a31 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/p256_beeu-armv8-asm.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/p256_beeu-armv8-asm.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include "openssl/arm_arch.h"
+ 
+ .text
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/sha1-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/sha1-armv8.S
+index 94c4fc586..f2e377d6c 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/sha1-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/sha1-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/sha256-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/sha256-armv8.S
+index d407c765a..2d70f99b3 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/sha256-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/sha256-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ // Copyright 2014-2020 The OpenSSL Project Authors. All Rights Reserved.
+ //
+ // Licensed under the OpenSSL license (the "License").  You may not use
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/sha512-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/sha512-armv8.S
+index 17c8e78df..606aca80e 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/sha512-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/sha512-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ // Copyright 2014-2020 The OpenSSL Project Authors. All Rights Reserved.
+ //
+ // Licensed under the OpenSSL license (the "License").  You may not use
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/vpaes-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/vpaes-armv8.S
+index c7eafb66f..537df23d7 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/vpaes-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/vpaes-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .section	__TEXT,__const
+diff --git a/generated-src/ios-aarch64/crypto/test/trampoline-armv8.S b/generated-src/ios-aarch64/crypto/test/trampoline-armv8.S
+index 5e1b1ee13..d5ef7cca2 100644
+--- a/generated-src/ios-aarch64/crypto/test/trampoline-armv8.S
++++ b/generated-src/ios-aarch64/crypto/test/trampoline-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/ios-arm/crypto/chacha/chacha-armv4.S b/generated-src/ios-arm/crypto/chacha/chacha-armv4.S
+index c42b0d220..0c0c8fdd1 100644
+--- a/generated-src/ios-arm/crypto/chacha/chacha-armv4.S
++++ b/generated-src/ios-arm/crypto/chacha/chacha-armv4.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ @ Silence ARMv8 deprecated IT instruction warnings. This file is used by both
+diff --git a/generated-src/ios-arm/crypto/fipsmodule/aesv8-armx.S b/generated-src/ios-arm/crypto/fipsmodule/aesv8-armx.S
+index 3695e57c2..7310e9923 100644
+--- a/generated-src/ios-arm/crypto/fipsmodule/aesv8-armx.S
++++ b/generated-src/ios-arm/crypto/fipsmodule/aesv8-armx.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ #if __ARM_MAX_ARCH__>=7
+diff --git a/generated-src/ios-arm/crypto/fipsmodule/armv4-mont.S b/generated-src/ios-arm/crypto/fipsmodule/armv4-mont.S
+index a552fb57c..8594c784a 100644
+--- a/generated-src/ios-arm/crypto/fipsmodule/armv4-mont.S
++++ b/generated-src/ios-arm/crypto/fipsmodule/armv4-mont.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ @ Silence ARMv8 deprecated IT instruction warnings. This file is used by both
+diff --git a/generated-src/ios-arm/crypto/fipsmodule/bsaes-armv7.S b/generated-src/ios-arm/crypto/fipsmodule/bsaes-armv7.S
+index a72b437b6..6085d5d27 100644
+--- a/generated-src/ios-arm/crypto/fipsmodule/bsaes-armv7.S
++++ b/generated-src/ios-arm/crypto/fipsmodule/bsaes-armv7.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ @ Copyright 2012-2016 The OpenSSL Project Authors. All Rights Reserved.
+ @
+ @ Licensed under the OpenSSL license (the "License").  You may not use
+diff --git a/generated-src/ios-arm/crypto/fipsmodule/ghash-armv4.S b/generated-src/ios-arm/crypto/fipsmodule/ghash-armv4.S
+index 762ada8f9..d104ebd27 100644
+--- a/generated-src/ios-arm/crypto/fipsmodule/ghash-armv4.S
++++ b/generated-src/ios-arm/crypto/fipsmodule/ghash-armv4.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ @ Silence ARMv8 deprecated IT instruction warnings. This file is used by both
+diff --git a/generated-src/ios-arm/crypto/fipsmodule/ghashv8-armx.S b/generated-src/ios-arm/crypto/fipsmodule/ghashv8-armx.S
+index 36d8937c2..f232e7ca6 100644
+--- a/generated-src/ios-arm/crypto/fipsmodule/ghashv8-armx.S
++++ b/generated-src/ios-arm/crypto/fipsmodule/ghashv8-armx.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ #if __ARM_MAX_ARCH__>=7
+diff --git a/generated-src/ios-arm/crypto/fipsmodule/sha1-armv4-large.S b/generated-src/ios-arm/crypto/fipsmodule/sha1-armv4-large.S
+index fc0a2627d..03d0776aa 100644
+--- a/generated-src/ios-arm/crypto/fipsmodule/sha1-armv4-large.S
++++ b/generated-src/ios-arm/crypto/fipsmodule/sha1-armv4-large.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/ios-arm/crypto/fipsmodule/sha256-armv4.S b/generated-src/ios-arm/crypto/fipsmodule/sha256-armv4.S
+index 26e58cf72..76e2d8b98 100644
+--- a/generated-src/ios-arm/crypto/fipsmodule/sha256-armv4.S
++++ b/generated-src/ios-arm/crypto/fipsmodule/sha256-armv4.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ @ Copyright 2007-2016 The OpenSSL Project Authors. All Rights Reserved.
+ @
+ @ Licensed under the OpenSSL license (the "License").  You may not use
+diff --git a/generated-src/ios-arm/crypto/fipsmodule/sha512-armv4.S b/generated-src/ios-arm/crypto/fipsmodule/sha512-armv4.S
+index 95ff7743e..86e69c502 100644
+--- a/generated-src/ios-arm/crypto/fipsmodule/sha512-armv4.S
++++ b/generated-src/ios-arm/crypto/fipsmodule/sha512-armv4.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ @ Copyright 2007-2016 The OpenSSL Project Authors. All Rights Reserved.
+ @
+ @ Licensed under the OpenSSL license (the "License").  You may not use
+diff --git a/generated-src/ios-arm/crypto/fipsmodule/vpaes-armv7.S b/generated-src/ios-arm/crypto/fipsmodule/vpaes-armv7.S
+index 31690229a..73ccf1f95 100644
+--- a/generated-src/ios-arm/crypto/fipsmodule/vpaes-armv7.S
++++ b/generated-src/ios-arm/crypto/fipsmodule/vpaes-armv7.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .syntax	unified
+ 
+ 
+diff --git a/generated-src/ios-arm/crypto/test/trampoline-armv4.S b/generated-src/ios-arm/crypto/test/trampoline-armv4.S
+index 2516f66a6..daba61941 100644
+--- a/generated-src/ios-arm/crypto/test/trampoline-armv4.S
++++ b/generated-src/ios-arm/crypto/test/trampoline-armv4.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .syntax	unified
+ 
+ 
+diff --git a/generated-src/linux-aarch64/crypto/chacha/chacha-armv8.S b/generated-src/linux-aarch64/crypto/chacha/chacha-armv8.S
+index 598cb2a8c..10be69810 100644
+--- a/generated-src/linux-aarch64/crypto/chacha/chacha-armv8.S
++++ b/generated-src/linux-aarch64/crypto/chacha/chacha-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ 
+diff --git a/generated-src/linux-aarch64/crypto/cipher_extra/chacha20_poly1305_armv8.S b/generated-src/linux-aarch64/crypto/cipher_extra/chacha20_poly1305_armv8.S
+index 73a3d6466..fcfc41ec9 100644
+--- a/generated-src/linux-aarch64/crypto/cipher_extra/chacha20_poly1305_armv8.S
++++ b/generated-src/linux-aarch64/crypto/cipher_extra/chacha20_poly1305_armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ .section	.rodata
+ 
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-armx.S b/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-armx.S
+index 5304a1079..221f03c33 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-armx.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-armx.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ #if __ARM_MAX_ARCH__>=7
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S b/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
+index 3d3e40380..113e24ec6 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include "openssl/arm_arch.h"
+ 
+ #if __ARM_MAX_ARCH__>=8
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
+index 1d452ddf4..5aea92f2f 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ #if __ARM_MAX_ARCH__ >= 8
+ 
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/armv8-mont.S b/generated-src/linux-aarch64/crypto/fipsmodule/armv8-mont.S
+index 8ba78192d..ad125a2b7 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/armv8-mont.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/armv8-mont.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/bn-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/bn-armv8.S
+index d18381e48..74e7f25d8 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/bn-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/bn-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/ghash-neon-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/ghash-neon-armv8.S
+index 1f8149809..b4aa8b6e2 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/ghash-neon-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/ghash-neon-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/ghashv8-armx.S b/generated-src/linux-aarch64/crypto/fipsmodule/ghashv8-armx.S
+index 8b8d90239..f0b8b478c 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/ghashv8-armx.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/ghashv8-armx.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ #if __ARM_MAX_ARCH__>=7
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/keccak1600-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+index e1e15df3d..88eaa3932 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/keccak1600-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ .text
+ .align	8	// strategic alignment and padding that allows to use
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/md5-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/md5-armv8.S
+index 2b5659d03..3fa6fecc1 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/md5-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/md5-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ 
+ .text
+ .globl	md5_block_asm_data_order
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/p256-armv8-asm.S b/generated-src/linux-aarch64/crypto/fipsmodule/p256-armv8-asm.S
+index accc37552..1a506a43f 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/p256-armv8-asm.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/p256-armv8-asm.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include "openssl/arm_arch.h"
+ 
+ .section	.rodata
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/p256_beeu-armv8-asm.S b/generated-src/linux-aarch64/crypto/fipsmodule/p256_beeu-armv8-asm.S
+index 0f8645f74..919fbafcc 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/p256_beeu-armv8-asm.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/p256_beeu-armv8-asm.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include "openssl/arm_arch.h"
+ 
+ .text
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/sha1-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/sha1-armv8.S
+index 079f2723d..fc02c4458 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/sha1-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/sha1-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/sha256-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/sha256-armv8.S
+index 36c50d026..225d3125d 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/sha256-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/sha256-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ // Copyright 2014-2020 The OpenSSL Project Authors. All Rights Reserved.
+ //
+ // Licensed under the OpenSSL license (the "License").  You may not use
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/sha512-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/sha512-armv8.S
+index d7c5a3f4f..97cdfed14 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/sha512-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/sha512-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ // Copyright 2014-2020 The OpenSSL Project Authors. All Rights Reserved.
+ //
+ // Licensed under the OpenSSL license (the "License").  You may not use
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/vpaes-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/vpaes-armv8.S
+index edf2cf1bc..39a8f3e9e 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/vpaes-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/vpaes-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .section	.rodata
+diff --git a/generated-src/linux-aarch64/crypto/test/trampoline-armv8.S b/generated-src/linux-aarch64/crypto/test/trampoline-armv8.S
+index 08e0bc35f..a548957e7 100644
+--- a/generated-src/linux-aarch64/crypto/test/trampoline-armv8.S
++++ b/generated-src/linux-aarch64/crypto/test/trampoline-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/linux-arm/crypto/chacha/chacha-armv4.S b/generated-src/linux-arm/crypto/chacha/chacha-armv4.S
+index 8de81965c..f1f58ac8b 100644
+--- a/generated-src/linux-arm/crypto/chacha/chacha-armv4.S
++++ b/generated-src/linux-arm/crypto/chacha/chacha-armv4.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ @ Silence ARMv8 deprecated IT instruction warnings. This file is used by both
+diff --git a/generated-src/linux-arm/crypto/fipsmodule/aesv8-armx.S b/generated-src/linux-arm/crypto/fipsmodule/aesv8-armx.S
+index e44cb77c8..56ab41e2d 100644
+--- a/generated-src/linux-arm/crypto/fipsmodule/aesv8-armx.S
++++ b/generated-src/linux-arm/crypto/fipsmodule/aesv8-armx.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ #if __ARM_MAX_ARCH__>=7
+diff --git a/generated-src/linux-arm/crypto/fipsmodule/armv4-mont.S b/generated-src/linux-arm/crypto/fipsmodule/armv4-mont.S
+index 4cbd5fac7..11b3924fd 100644
+--- a/generated-src/linux-arm/crypto/fipsmodule/armv4-mont.S
++++ b/generated-src/linux-arm/crypto/fipsmodule/armv4-mont.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ @ Silence ARMv8 deprecated IT instruction warnings. This file is used by both
+diff --git a/generated-src/linux-arm/crypto/fipsmodule/bsaes-armv7.S b/generated-src/linux-arm/crypto/fipsmodule/bsaes-armv7.S
+index 45ae4b014..f1b638d7b 100644
+--- a/generated-src/linux-arm/crypto/fipsmodule/bsaes-armv7.S
++++ b/generated-src/linux-arm/crypto/fipsmodule/bsaes-armv7.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ @ Copyright 2012-2016 The OpenSSL Project Authors. All Rights Reserved.
+ @
+ @ Licensed under the OpenSSL license (the "License").  You may not use
+diff --git a/generated-src/linux-arm/crypto/fipsmodule/ghash-armv4.S b/generated-src/linux-arm/crypto/fipsmodule/ghash-armv4.S
+index 57ca0983f..95d561df5 100644
+--- a/generated-src/linux-arm/crypto/fipsmodule/ghash-armv4.S
++++ b/generated-src/linux-arm/crypto/fipsmodule/ghash-armv4.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ @ Silence ARMv8 deprecated IT instruction warnings. This file is used by both
+diff --git a/generated-src/linux-arm/crypto/fipsmodule/ghashv8-armx.S b/generated-src/linux-arm/crypto/fipsmodule/ghashv8-armx.S
+index 46fa91814..268185b57 100644
+--- a/generated-src/linux-arm/crypto/fipsmodule/ghashv8-armx.S
++++ b/generated-src/linux-arm/crypto/fipsmodule/ghashv8-armx.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ #if __ARM_MAX_ARCH__>=7
+diff --git a/generated-src/linux-arm/crypto/fipsmodule/sha1-armv4-large.S b/generated-src/linux-arm/crypto/fipsmodule/sha1-armv4-large.S
+index 4e7aa299d..3d49a732b 100644
+--- a/generated-src/linux-arm/crypto/fipsmodule/sha1-armv4-large.S
++++ b/generated-src/linux-arm/crypto/fipsmodule/sha1-armv4-large.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/linux-arm/crypto/fipsmodule/sha256-armv4.S b/generated-src/linux-arm/crypto/fipsmodule/sha256-armv4.S
+index eaa5701e1..3c63a8ca6 100644
+--- a/generated-src/linux-arm/crypto/fipsmodule/sha256-armv4.S
++++ b/generated-src/linux-arm/crypto/fipsmodule/sha256-armv4.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ @ Copyright 2007-2016 The OpenSSL Project Authors. All Rights Reserved.
+ @
+ @ Licensed under the OpenSSL license (the "License").  You may not use
+diff --git a/generated-src/linux-arm/crypto/fipsmodule/sha512-armv4.S b/generated-src/linux-arm/crypto/fipsmodule/sha512-armv4.S
+index 02489b863..4bab92316 100644
+--- a/generated-src/linux-arm/crypto/fipsmodule/sha512-armv4.S
++++ b/generated-src/linux-arm/crypto/fipsmodule/sha512-armv4.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ @ Copyright 2007-2016 The OpenSSL Project Authors. All Rights Reserved.
+ @
+ @ Licensed under the OpenSSL license (the "License").  You may not use
+diff --git a/generated-src/linux-arm/crypto/fipsmodule/vpaes-armv7.S b/generated-src/linux-arm/crypto/fipsmodule/vpaes-armv7.S
+index dd354ef45..50c44c5c8 100644
+--- a/generated-src/linux-arm/crypto/fipsmodule/vpaes-armv7.S
++++ b/generated-src/linux-arm/crypto/fipsmodule/vpaes-armv7.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .syntax	unified
+ 
+ .arch	armv7-a
+diff --git a/generated-src/linux-arm/crypto/test/trampoline-armv4.S b/generated-src/linux-arm/crypto/test/trampoline-armv4.S
+index 4649b0437..45915ae7a 100644
+--- a/generated-src/linux-arm/crypto/test/trampoline-armv4.S
++++ b/generated-src/linux-arm/crypto/test/trampoline-armv4.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__ARMEL__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .syntax	unified
+ 
+ .arch	armv7-a
+diff --git a/generated-src/linux-ppc64le/crypto/fipsmodule/aesp8-ppc.S b/generated-src/linux-ppc64le/crypto/fipsmodule/aesp8-ppc.S
+index 4866c7a3c..f98648595 100644
+--- a/generated-src/linux-ppc64le/crypto/fipsmodule/aesp8-ppc.S
++++ b/generated-src/linux-ppc64le/crypto/fipsmodule/aesp8-ppc.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__powerpc64__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .machine	"any"
+ 
+ .abiversion	2
+diff --git a/generated-src/linux-ppc64le/crypto/fipsmodule/ghashp8-ppc.S b/generated-src/linux-ppc64le/crypto/fipsmodule/ghashp8-ppc.S
+index 08377b309..3019ab5dc 100644
+--- a/generated-src/linux-ppc64le/crypto/fipsmodule/ghashp8-ppc.S
++++ b/generated-src/linux-ppc64le/crypto/fipsmodule/ghashp8-ppc.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__powerpc64__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .machine	"any"
+ 
+ .abiversion	2
+diff --git a/generated-src/linux-ppc64le/crypto/test/trampoline-ppc.S b/generated-src/linux-ppc64le/crypto/test/trampoline-ppc.S
+index 0d7430683..2ac3ed1fe 100644
+--- a/generated-src/linux-ppc64le/crypto/test/trampoline-ppc.S
++++ b/generated-src/linux-ppc64le/crypto/test/trampoline-ppc.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__powerpc64__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .machine	"any"
+ .abiversion	2
+ .text
+diff --git a/generated-src/linux-x86/crypto/chacha/chacha-x86.S b/generated-src/linux-x86/crypto/chacha/chacha-x86.S
+index 17d280d4f..9db296639 100644
+--- a/generated-src/linux-x86/crypto/chacha/chacha-x86.S
++++ b/generated-src/linux-x86/crypto/chacha/chacha-x86.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	ChaCha20_ctr32
+ .hidden	ChaCha20_ctr32
+diff --git a/generated-src/linux-x86/crypto/fipsmodule/aesni-x86.S b/generated-src/linux-x86/crypto/fipsmodule/aesni-x86.S
+index 34e1e432f..4d10aa2df 100644
+--- a/generated-src/linux-x86/crypto/fipsmodule/aesni-x86.S
++++ b/generated-src/linux-x86/crypto/fipsmodule/aesni-x86.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ #ifdef BORINGSSL_DISPATCH_TEST
+ #endif
+diff --git a/generated-src/linux-x86/crypto/fipsmodule/bn-586.S b/generated-src/linux-x86/crypto/fipsmodule/bn-586.S
+index d3b83f89f..431f3cf5b 100644
+--- a/generated-src/linux-x86/crypto/fipsmodule/bn-586.S
++++ b/generated-src/linux-x86/crypto/fipsmodule/bn-586.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	bn_mul_add_words
+ .hidden	bn_mul_add_words
+diff --git a/generated-src/linux-x86/crypto/fipsmodule/co-586.S b/generated-src/linux-x86/crypto/fipsmodule/co-586.S
+index bb75ab4cf..70874e3fd 100644
+--- a/generated-src/linux-x86/crypto/fipsmodule/co-586.S
++++ b/generated-src/linux-x86/crypto/fipsmodule/co-586.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	bn_mul_comba8
+ .hidden	bn_mul_comba8
+diff --git a/generated-src/linux-x86/crypto/fipsmodule/ghash-ssse3-x86.S b/generated-src/linux-x86/crypto/fipsmodule/ghash-ssse3-x86.S
+index 19fd370b6..bbc9972ae 100644
+--- a/generated-src/linux-x86/crypto/fipsmodule/ghash-ssse3-x86.S
++++ b/generated-src/linux-x86/crypto/fipsmodule/ghash-ssse3-x86.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	gcm_gmult_ssse3
+ .hidden	gcm_gmult_ssse3
+diff --git a/generated-src/linux-x86/crypto/fipsmodule/ghash-x86.S b/generated-src/linux-x86/crypto/fipsmodule/ghash-x86.S
+index e912e86d2..756782a7c 100644
+--- a/generated-src/linux-x86/crypto/fipsmodule/ghash-x86.S
++++ b/generated-src/linux-x86/crypto/fipsmodule/ghash-x86.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	gcm_init_clmul
+ .hidden	gcm_init_clmul
+diff --git a/generated-src/linux-x86/crypto/fipsmodule/md5-586.S b/generated-src/linux-x86/crypto/fipsmodule/md5-586.S
+index d28e1f4ee..1e12070a1 100644
+--- a/generated-src/linux-x86/crypto/fipsmodule/md5-586.S
++++ b/generated-src/linux-x86/crypto/fipsmodule/md5-586.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	md5_block_asm_data_order
+ .hidden	md5_block_asm_data_order
+diff --git a/generated-src/linux-x86/crypto/fipsmodule/sha1-586.S b/generated-src/linux-x86/crypto/fipsmodule/sha1-586.S
+index b63882db9..209dd9555 100644
+--- a/generated-src/linux-x86/crypto/fipsmodule/sha1-586.S
++++ b/generated-src/linux-x86/crypto/fipsmodule/sha1-586.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	sha1_block_data_order
+ .hidden	sha1_block_data_order
+diff --git a/generated-src/linux-x86/crypto/fipsmodule/sha256-586.S b/generated-src/linux-x86/crypto/fipsmodule/sha256-586.S
+index 8eb929f4c..ae74a0997 100644
+--- a/generated-src/linux-x86/crypto/fipsmodule/sha256-586.S
++++ b/generated-src/linux-x86/crypto/fipsmodule/sha256-586.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	sha256_block_data_order
+ .hidden	sha256_block_data_order
+diff --git a/generated-src/linux-x86/crypto/fipsmodule/sha512-586.S b/generated-src/linux-x86/crypto/fipsmodule/sha512-586.S
+index eb0695ef7..a5e7323e2 100644
+--- a/generated-src/linux-x86/crypto/fipsmodule/sha512-586.S
++++ b/generated-src/linux-x86/crypto/fipsmodule/sha512-586.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	sha512_block_data_order
+ .hidden	sha512_block_data_order
+diff --git a/generated-src/linux-x86/crypto/fipsmodule/vpaes-x86.S b/generated-src/linux-x86/crypto/fipsmodule/vpaes-x86.S
+index efd56e38a..b1f275066 100644
+--- a/generated-src/linux-x86/crypto/fipsmodule/vpaes-x86.S
++++ b/generated-src/linux-x86/crypto/fipsmodule/vpaes-x86.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ #ifdef BORINGSSL_DISPATCH_TEST
+ #endif
+diff --git a/generated-src/linux-x86/crypto/fipsmodule/x86-mont.S b/generated-src/linux-x86/crypto/fipsmodule/x86-mont.S
+index 2085caf46..f3229a515 100644
+--- a/generated-src/linux-x86/crypto/fipsmodule/x86-mont.S
++++ b/generated-src/linux-x86/crypto/fipsmodule/x86-mont.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	bn_mul_mont
+ .hidden	bn_mul_mont
+diff --git a/generated-src/linux-x86/crypto/test/trampoline-x86.S b/generated-src/linux-x86/crypto/test/trampoline-x86.S
+index 3d560af35..496661a0f 100644
+--- a/generated-src/linux-x86/crypto/test/trampoline-x86.S
++++ b/generated-src/linux-x86/crypto/test/trampoline-x86.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	abi_test_trampoline
+ .hidden	abi_test_trampoline
+diff --git a/generated-src/linux-x86_64/crypto/chacha/chacha-x86_64.S b/generated-src/linux-x86_64/crypto/chacha/chacha-x86_64.S
+index 57919a256..0facbdc28 100644
+--- a/generated-src/linux-x86_64/crypto/chacha/chacha-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/chacha/chacha-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ .extern	OPENSSL_ia32cap_P
+diff --git a/generated-src/linux-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.S b/generated-src/linux-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.S
+index dff6ddaa9..4deba072d 100644
+--- a/generated-src/linux-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .section	.rodata
+ 
+ .align	16
+diff --git a/generated-src/linux-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.S b/generated-src/linux-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.S
+index d2daa9010..b6d1dc490 100644
+--- a/generated-src/linux-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ .extern	OPENSSL_ia32cap_P
+ .hidden OPENSSL_ia32cap_P
+diff --git a/generated-src/linux-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.S b/generated-src/linux-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.S
+index 298cd9a77..c15112021 100644
+--- a/generated-src/linux-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ .extern	OPENSSL_ia32cap_P
+diff --git a/generated-src/linux-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.S b/generated-src/linux-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.S
+index cb4df7621..6a7c8d1de 100644
+--- a/generated-src/linux-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.S
++++ b/generated-src/linux-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ .extern	OPENSSL_ia32cap_P
+ .hidden OPENSSL_ia32cap_P
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/aesni-gcm-avx512.S b/generated-src/linux-x86_64/crypto/fipsmodule/aesni-gcm-avx512.S
+index 369ddf929..85f815214 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/aesni-gcm-avx512.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/aesni-gcm-avx512.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ .globl	gcm_init_avx512
+ .hidden gcm_init_avx512
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.S b/generated-src/linux-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.S
+index 340cc9e5c..bf9ef582a 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ .type	_aesni_ctr32_ghash_6x,@function
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/aesni-x86_64.S b/generated-src/linux-x86_64/crypto/fipsmodule/aesni-x86_64.S
+index 6ad609bb1..ce60a3898 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/aesni-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/aesni-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ .extern	OPENSSL_ia32cap_P
+ .hidden OPENSSL_ia32cap_P
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/aesni-xts-avx512.S b/generated-src/linux-x86_64/crypto/fipsmodule/aesni-xts-avx512.S
+index eecc2989e..18f495181 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/aesni-xts-avx512.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/aesni-xts-avx512.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ .globl	aes_hw_xts_encrypt_avx512
+ .hidden aes_hw_xts_encrypt_avx512
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S b/generated-src/linux-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S
+index 0754e9bd7..2ce1d94c8 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/ghash-x86_64.S b/generated-src/linux-x86_64/crypto/fipsmodule/ghash-x86_64.S
+index e0cbc99a1..eeb382265 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/ghash-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/ghash-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ .extern	OPENSSL_ia32cap_P
+ .hidden OPENSSL_ia32cap_P
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/md5-x86_64.S b/generated-src/linux-x86_64/crypto/fipsmodule/md5-x86_64.S
+index 88ba8b291..971e69f3a 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/md5-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/md5-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ .align	16
+ 
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/p256-x86_64-asm.S b/generated-src/linux-x86_64/crypto/fipsmodule/p256-x86_64-asm.S
+index 56a48ad72..14a7ee53e 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/p256-x86_64-asm.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/p256-x86_64-asm.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ .extern	OPENSSL_ia32cap_P
+ .hidden OPENSSL_ia32cap_P
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.S b/generated-src/linux-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.S
+index 5c0eaf7df..e6dd8678f 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ .type	beeu_mod_inverse_vartime,@function
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/rdrand-x86_64.S b/generated-src/linux-x86_64/crypto/fipsmodule/rdrand-x86_64.S
+index 80de2e672..1bf41cdde 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/rdrand-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/rdrand-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/rsaz-avx2.S b/generated-src/linux-x86_64/crypto/fipsmodule/rsaz-avx2.S
+index ccf5478dc..dcf094635 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/rsaz-avx2.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/rsaz-avx2.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ .globl	rsaz_1024_sqr_avx2
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/sha1-x86_64.S b/generated-src/linux-x86_64/crypto/fipsmodule/sha1-x86_64.S
+index f9c7250de..0be4972af 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/sha1-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/sha1-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ .extern	OPENSSL_ia32cap_P
+ .hidden OPENSSL_ia32cap_P
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/sha256-x86_64.S b/generated-src/linux-x86_64/crypto/fipsmodule/sha256-x86_64.S
+index a8d473835..89e1cea82 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/sha256-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/sha256-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ .extern	OPENSSL_ia32cap_P
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/sha512-x86_64.S b/generated-src/linux-x86_64/crypto/fipsmodule/sha512-x86_64.S
+index d9fd3a406..c4d6a8bc3 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/sha512-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/sha512-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ .extern	OPENSSL_ia32cap_P
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/vpaes-x86_64.S b/generated-src/linux-x86_64/crypto/fipsmodule/vpaes-x86_64.S
+index f00ef0ed7..56cf583c0 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/vpaes-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/vpaes-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/x86_64-mont.S b/generated-src/linux-x86_64/crypto/fipsmodule/x86_64-mont.S
+index 6dfb88537..b6c419085 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/x86_64-mont.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/x86_64-mont.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ .extern	OPENSSL_ia32cap_P
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/x86_64-mont5.S b/generated-src/linux-x86_64/crypto/fipsmodule/x86_64-mont5.S
+index 7e42e8084..7b0000ce6 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/x86_64-mont5.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/x86_64-mont5.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ .extern	OPENSSL_ia32cap_P
+diff --git a/generated-src/linux-x86_64/crypto/test/trampoline-x86_64.S b/generated-src/linux-x86_64/crypto/test/trampoline-x86_64.S
+index aa2698047..b2ea29046 100644
+--- a/generated-src/linux-x86_64/crypto/test/trampoline-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/test/trampoline-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__ELF__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86/crypto/chacha/chacha-x86.S b/generated-src/mac-x86/crypto/chacha/chacha-x86.S
+index 8d0de1dbb..8d80771f8 100644
+--- a/generated-src/mac-x86/crypto/chacha/chacha-x86.S
++++ b/generated-src/mac-x86/crypto/chacha/chacha-x86.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	_ChaCha20_ctr32
+ .private_extern	_ChaCha20_ctr32
+diff --git a/generated-src/mac-x86/crypto/fipsmodule/aesni-x86.S b/generated-src/mac-x86/crypto/fipsmodule/aesni-x86.S
+index 8a55e3fd2..f5d3defba 100644
+--- a/generated-src/mac-x86/crypto/fipsmodule/aesni-x86.S
++++ b/generated-src/mac-x86/crypto/fipsmodule/aesni-x86.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ #ifdef BORINGSSL_DISPATCH_TEST
+ #endif
+diff --git a/generated-src/mac-x86/crypto/fipsmodule/bn-586.S b/generated-src/mac-x86/crypto/fipsmodule/bn-586.S
+index a169595a4..26a2e878e 100644
+--- a/generated-src/mac-x86/crypto/fipsmodule/bn-586.S
++++ b/generated-src/mac-x86/crypto/fipsmodule/bn-586.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	_bn_mul_add_words
+ .private_extern	_bn_mul_add_words
+diff --git a/generated-src/mac-x86/crypto/fipsmodule/co-586.S b/generated-src/mac-x86/crypto/fipsmodule/co-586.S
+index 0d4554c27..eb465b94d 100644
+--- a/generated-src/mac-x86/crypto/fipsmodule/co-586.S
++++ b/generated-src/mac-x86/crypto/fipsmodule/co-586.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	_bn_mul_comba8
+ .private_extern	_bn_mul_comba8
+diff --git a/generated-src/mac-x86/crypto/fipsmodule/ghash-ssse3-x86.S b/generated-src/mac-x86/crypto/fipsmodule/ghash-ssse3-x86.S
+index 9d3bac5cd..d4c16f69f 100644
+--- a/generated-src/mac-x86/crypto/fipsmodule/ghash-ssse3-x86.S
++++ b/generated-src/mac-x86/crypto/fipsmodule/ghash-ssse3-x86.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	_gcm_gmult_ssse3
+ .private_extern	_gcm_gmult_ssse3
+diff --git a/generated-src/mac-x86/crypto/fipsmodule/ghash-x86.S b/generated-src/mac-x86/crypto/fipsmodule/ghash-x86.S
+index e39452fa5..a280fbdbb 100644
+--- a/generated-src/mac-x86/crypto/fipsmodule/ghash-x86.S
++++ b/generated-src/mac-x86/crypto/fipsmodule/ghash-x86.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	_gcm_init_clmul
+ .private_extern	_gcm_init_clmul
+diff --git a/generated-src/mac-x86/crypto/fipsmodule/md5-586.S b/generated-src/mac-x86/crypto/fipsmodule/md5-586.S
+index 7ff200e03..444c8fb33 100644
+--- a/generated-src/mac-x86/crypto/fipsmodule/md5-586.S
++++ b/generated-src/mac-x86/crypto/fipsmodule/md5-586.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	_md5_block_asm_data_order
+ .private_extern	_md5_block_asm_data_order
+diff --git a/generated-src/mac-x86/crypto/fipsmodule/sha1-586.S b/generated-src/mac-x86/crypto/fipsmodule/sha1-586.S
+index 8951d0c60..00b46d9e9 100644
+--- a/generated-src/mac-x86/crypto/fipsmodule/sha1-586.S
++++ b/generated-src/mac-x86/crypto/fipsmodule/sha1-586.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	_sha1_block_data_order
+ .private_extern	_sha1_block_data_order
+diff --git a/generated-src/mac-x86/crypto/fipsmodule/sha256-586.S b/generated-src/mac-x86/crypto/fipsmodule/sha256-586.S
+index b9afaf004..b2671f551 100644
+--- a/generated-src/mac-x86/crypto/fipsmodule/sha256-586.S
++++ b/generated-src/mac-x86/crypto/fipsmodule/sha256-586.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	_sha256_block_data_order
+ .private_extern	_sha256_block_data_order
+diff --git a/generated-src/mac-x86/crypto/fipsmodule/sha512-586.S b/generated-src/mac-x86/crypto/fipsmodule/sha512-586.S
+index b3a53f3aa..4c98a4862 100644
+--- a/generated-src/mac-x86/crypto/fipsmodule/sha512-586.S
++++ b/generated-src/mac-x86/crypto/fipsmodule/sha512-586.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	_sha512_block_data_order
+ .private_extern	_sha512_block_data_order
+diff --git a/generated-src/mac-x86/crypto/fipsmodule/vpaes-x86.S b/generated-src/mac-x86/crypto/fipsmodule/vpaes-x86.S
+index 476529a1b..0057515ef 100644
+--- a/generated-src/mac-x86/crypto/fipsmodule/vpaes-x86.S
++++ b/generated-src/mac-x86/crypto/fipsmodule/vpaes-x86.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ #ifdef BORINGSSL_DISPATCH_TEST
+ #endif
+diff --git a/generated-src/mac-x86/crypto/fipsmodule/x86-mont.S b/generated-src/mac-x86/crypto/fipsmodule/x86-mont.S
+index a977cec23..db9703f08 100644
+--- a/generated-src/mac-x86/crypto/fipsmodule/x86-mont.S
++++ b/generated-src/mac-x86/crypto/fipsmodule/x86-mont.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	_bn_mul_mont
+ .private_extern	_bn_mul_mont
+diff --git a/generated-src/mac-x86/crypto/test/trampoline-x86.S b/generated-src/mac-x86/crypto/test/trampoline-x86.S
+index 17d84feb4..53f9f26be 100644
+--- a/generated-src/mac-x86/crypto/test/trampoline-x86.S
++++ b/generated-src/mac-x86/crypto/test/trampoline-x86.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__i386__) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text
+ .globl	_abi_test_trampoline
+ .private_extern	_abi_test_trampoline
+diff --git a/generated-src/mac-x86_64/crypto/chacha/chacha-x86_64.S b/generated-src/mac-x86_64/crypto/chacha/chacha-x86_64.S
+index 583c4e376..9bf9f80d4 100644
+--- a/generated-src/mac-x86_64/crypto/chacha/chacha-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/chacha/chacha-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.S b/generated-src/mac-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.S
+index cd6d6a79e..bf101061d 100644
+--- a/generated-src/mac-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .section	__DATA,__const
+ 
+ .p2align	4
+diff --git a/generated-src/mac-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.S b/generated-src/mac-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.S
+index aca3c9b58..9f1d3829c 100644
+--- a/generated-src/mac-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.S b/generated-src/mac-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.S
+index 7393eb057..812c19657 100644
+--- a/generated-src/mac-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.S b/generated-src/mac-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.S
+index 5f04f7fdf..e05c2c0d2 100644
+--- a/generated-src/mac-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.S
++++ b/generated-src/mac-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/aesni-gcm-avx512.S b/generated-src/mac-x86_64/crypto/fipsmodule/aesni-gcm-avx512.S
+index b5a6414e0..b8ddcdd48 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/aesni-gcm-avx512.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/aesni-gcm-avx512.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ .globl	_gcm_init_avx512
+ .private_extern _gcm_init_avx512
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.S b/generated-src/mac-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.S
+index 08e2830ec..b50e18d2e 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/aesni-x86_64.S b/generated-src/mac-x86_64/crypto/fipsmodule/aesni-x86_64.S
+index 24696f9d8..e3accec0f 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/aesni-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/aesni-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ .globl	_aes_hw_encrypt
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/aesni-xts-avx512.S b/generated-src/mac-x86_64/crypto/fipsmodule/aesni-xts-avx512.S
+index e1aaa6274..ce997b67c 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/aesni-xts-avx512.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/aesni-xts-avx512.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ .globl	_aes_hw_xts_encrypt_avx512
+ .private_extern _aes_hw_xts_encrypt_avx512
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S b/generated-src/mac-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S
+index d305be63c..f1f6751aa 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/ghash-x86_64.S b/generated-src/mac-x86_64/crypto/fipsmodule/ghash-x86_64.S
+index b26ad8429..1a37d87ed 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/ghash-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/ghash-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ .globl	_gcm_init_clmul
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/md5-x86_64.S b/generated-src/mac-x86_64/crypto/fipsmodule/md5-x86_64.S
+index 60afa5afb..ae6edaf05 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/md5-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/md5-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ .p2align	4
+ 
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/p256-x86_64-asm.S b/generated-src/mac-x86_64/crypto/fipsmodule/p256-x86_64-asm.S
+index a766757bd..514ec52ef 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/p256-x86_64-asm.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/p256-x86_64-asm.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.S b/generated-src/mac-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.S
+index 3a71b3790..d3e4370c9 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/rdrand-x86_64.S b/generated-src/mac-x86_64/crypto/fipsmodule/rdrand-x86_64.S
+index 99b3ea333..df042b08c 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/rdrand-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/rdrand-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/rsaz-avx2.S b/generated-src/mac-x86_64/crypto/fipsmodule/rsaz-avx2.S
+index 258b62431..14efb3b67 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/rsaz-avx2.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/rsaz-avx2.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ .globl	_rsaz_1024_sqr_avx2
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/sha1-x86_64.S b/generated-src/mac-x86_64/crypto/fipsmodule/sha1-x86_64.S
+index 2a6a69287..cf901d4d2 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/sha1-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/sha1-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/sha256-x86_64.S b/generated-src/mac-x86_64/crypto/fipsmodule/sha256-x86_64.S
+index 75bba8120..20919d1fc 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/sha256-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/sha256-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/sha512-x86_64.S b/generated-src/mac-x86_64/crypto/fipsmodule/sha512-x86_64.S
+index f6d0e1974..88a0021fe 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/sha512-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/sha512-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/vpaes-x86_64.S b/generated-src/mac-x86_64/crypto/fipsmodule/vpaes-x86_64.S
+index 08df86a9f..695e4389b 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/vpaes-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/vpaes-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/x86_64-mont.S b/generated-src/mac-x86_64/crypto/fipsmodule/x86_64-mont.S
+index c0c8a056b..a3b833d65 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/x86_64-mont.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/x86_64-mont.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/x86_64-mont5.S b/generated-src/mac-x86_64/crypto/fipsmodule/x86_64-mont5.S
+index 1aa66fc19..fd9d2fee2 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/x86_64-mont5.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/x86_64-mont5.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/test/trampoline-x86_64.S b/generated-src/mac-x86_64/crypto/test/trampoline-x86_64.S
+index 966ec0ae8..eec1e9c08 100644
+--- a/generated-src/mac-x86_64/crypto/test/trampoline-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/test/trampoline-x86_64.S
+@@ -8,9 +8,7 @@
+ #endif
+ 
+ #if defined(__x86_64__) && !defined(OPENSSL_NO_ASM) && defined(__APPLE__)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ .text	
+ 
+ 
+diff --git a/generated-src/win-aarch64/crypto/chacha/chacha-armv8.S b/generated-src/win-aarch64/crypto/chacha/chacha-armv8.S
+index 8a815438d..773cde844 100644
+--- a/generated-src/win-aarch64/crypto/chacha/chacha-armv8.S
++++ b/generated-src/win-aarch64/crypto/chacha/chacha-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ 
+diff --git a/generated-src/win-aarch64/crypto/cipher_extra/chacha20_poly1305_armv8.S b/generated-src/win-aarch64/crypto/cipher_extra/chacha20_poly1305_armv8.S
+index 8c22c4d58..b0b78aa22 100644
+--- a/generated-src/win-aarch64/crypto/cipher_extra/chacha20_poly1305_armv8.S
++++ b/generated-src/win-aarch64/crypto/cipher_extra/chacha20_poly1305_armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ .section	.rodata
+ 
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/aesv8-armx.S b/generated-src/win-aarch64/crypto/fipsmodule/aesv8-armx.S
+index af3341dbc..cc57cbabb 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/aesv8-armx.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/aesv8-armx.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ #if __ARM_MAX_ARCH__>=7
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S b/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
+index ae7a502ba..f1b058113 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include "openssl/arm_arch.h"
+ 
+ #if __ARM_MAX_ARCH__>=8
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
+index c49b2719c..ab6ebb2df 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ #if __ARM_MAX_ARCH__ >= 8
+ 
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/armv8-mont.S b/generated-src/win-aarch64/crypto/fipsmodule/armv8-mont.S
+index 9b4a9afc3..87129eb5b 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/armv8-mont.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/armv8-mont.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/bn-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/bn-armv8.S
+index 50a9ea920..352b4a41c 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/bn-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/bn-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/ghash-neon-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/ghash-neon-armv8.S
+index bee5b0e1a..ffa94ade6 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/ghash-neon-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/ghash-neon-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/ghashv8-armx.S b/generated-src/win-aarch64/crypto/fipsmodule/ghashv8-armx.S
+index a21d4ab84..64670611a 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/ghashv8-armx.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/ghashv8-armx.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ #if __ARM_MAX_ARCH__>=7
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/keccak1600-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+index 9a85cb8da..2bbf519ed 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/keccak1600-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ .text
+ .align	8	// strategic alignment and padding that allows to use
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/md5-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/md5-armv8.S
+index e58249e64..8155e60c0 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/md5-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/md5-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ 
+ .text
+ .globl	md5_block_asm_data_order
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/p256-armv8-asm.S b/generated-src/win-aarch64/crypto/fipsmodule/p256-armv8-asm.S
+index 4d9e97029..9644e9b91 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/p256-armv8-asm.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/p256-armv8-asm.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include "openssl/arm_arch.h"
+ 
+ .section	.rodata
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/p256_beeu-armv8-asm.S b/generated-src/win-aarch64/crypto/fipsmodule/p256_beeu-armv8-asm.S
+index db796f0de..8dfa2bd50 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/p256_beeu-armv8-asm.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/p256_beeu-armv8-asm.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include "openssl/arm_arch.h"
+ 
+ .text
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/sha1-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/sha1-armv8.S
+index 8f528ac00..db6380cd2 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/sha1-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/sha1-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/sha256-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/sha256-armv8.S
+index baf6b85d2..04c201e67 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/sha256-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/sha256-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ // Copyright 2014-2020 The OpenSSL Project Authors. All Rights Reserved.
+ //
+ // Licensed under the OpenSSL license (the "License").  You may not use
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/sha512-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/sha512-armv8.S
+index 72d353454..2b68f731b 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/sha512-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/sha512-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ // Copyright 2014-2020 The OpenSSL Project Authors. All Rights Reserved.
+ //
+ // Licensed under the OpenSSL license (the "License").  You may not use
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/vpaes-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/vpaes-armv8.S
+index 61eb10df4..719c59edf 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/vpaes-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/vpaes-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .section	.rodata
+diff --git a/generated-src/win-aarch64/crypto/test/trampoline-armv8.S b/generated-src/win-aarch64/crypto/test/trampoline-armv8.S
+index 5dbfcfc3f..760f078ac 100644
+--- a/generated-src/win-aarch64/crypto/test/trampoline-armv8.S
++++ b/generated-src/win-aarch64/crypto/test/trampoline-armv8.S
+@@ -9,9 +9,7 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__AARCH64EL__) && defined(_WIN32)
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols_asm.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols_asm.h>
+ #include <openssl/arm_arch.h>
+ 
+ .text
+diff --git a/generated-src/win-x86/crypto/chacha/chacha-x86.asm b/generated-src/win-x86/crypto/chacha/chacha-x86.asm
+index 8bd0ce589..e99ad2915 100644
+--- a/generated-src/win-x86/crypto/chacha/chacha-x86.asm
++++ b/generated-src/win-x86/crypto/chacha/chacha-x86.asm
+@@ -1,9 +1,7 @@
+ ; This file is generated from a similarly-named Perl script in the BoringSSL
+ ; source tree. Do not edit by hand.
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ %ifidn __OUTPUT_FORMAT__, win32
+ %ifidn __OUTPUT_FORMAT__,obj
+ section	code	use32 class=code align=64
+diff --git a/generated-src/win-x86/crypto/fipsmodule/aesni-x86.asm b/generated-src/win-x86/crypto/fipsmodule/aesni-x86.asm
+index 19b1d98be..173f54fb9 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/aesni-x86.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/aesni-x86.asm
+@@ -1,9 +1,7 @@
+ ; This file is generated from a similarly-named Perl script in the BoringSSL
+ ; source tree. Do not edit by hand.
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ %ifidn __OUTPUT_FORMAT__, win32
+ %ifidn __OUTPUT_FORMAT__,obj
+ section	code	use32 class=code align=64
+diff --git a/generated-src/win-x86/crypto/fipsmodule/bn-586.asm b/generated-src/win-x86/crypto/fipsmodule/bn-586.asm
+index f7ddfa841..88548af91 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/bn-586.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/bn-586.asm
+@@ -1,9 +1,7 @@
+ ; This file is generated from a similarly-named Perl script in the BoringSSL
+ ; source tree. Do not edit by hand.
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ %ifidn __OUTPUT_FORMAT__, win32
+ %ifidn __OUTPUT_FORMAT__,obj
+ section	code	use32 class=code align=64
+diff --git a/generated-src/win-x86/crypto/fipsmodule/co-586.asm b/generated-src/win-x86/crypto/fipsmodule/co-586.asm
+index 6ad46962c..a8ea4a1b1 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/co-586.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/co-586.asm
+@@ -1,9 +1,7 @@
+ ; This file is generated from a similarly-named Perl script in the BoringSSL
+ ; source tree. Do not edit by hand.
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ %ifidn __OUTPUT_FORMAT__, win32
+ %ifidn __OUTPUT_FORMAT__,obj
+ section	code	use32 class=code align=64
+diff --git a/generated-src/win-x86/crypto/fipsmodule/ghash-ssse3-x86.asm b/generated-src/win-x86/crypto/fipsmodule/ghash-ssse3-x86.asm
+index 52108aacc..e8fdecf39 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/ghash-ssse3-x86.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/ghash-ssse3-x86.asm
+@@ -1,9 +1,7 @@
+ ; This file is generated from a similarly-named Perl script in the BoringSSL
+ ; source tree. Do not edit by hand.
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ %ifidn __OUTPUT_FORMAT__, win32
+ %ifidn __OUTPUT_FORMAT__,obj
+ section	code	use32 class=code align=64
+diff --git a/generated-src/win-x86/crypto/fipsmodule/ghash-x86.asm b/generated-src/win-x86/crypto/fipsmodule/ghash-x86.asm
+index 3f6c70747..62e00b090 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/ghash-x86.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/ghash-x86.asm
+@@ -1,9 +1,7 @@
+ ; This file is generated from a similarly-named Perl script in the BoringSSL
+ ; source tree. Do not edit by hand.
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ %ifidn __OUTPUT_FORMAT__, win32
+ %ifidn __OUTPUT_FORMAT__,obj
+ section	code	use32 class=code align=64
+diff --git a/generated-src/win-x86/crypto/fipsmodule/md5-586.asm b/generated-src/win-x86/crypto/fipsmodule/md5-586.asm
+index 25592b8d4..659de2d75 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/md5-586.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/md5-586.asm
+@@ -1,9 +1,7 @@
+ ; This file is generated from a similarly-named Perl script in the BoringSSL
+ ; source tree. Do not edit by hand.
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ %ifidn __OUTPUT_FORMAT__, win32
+ %ifidn __OUTPUT_FORMAT__,obj
+ section	code	use32 class=code align=64
+diff --git a/generated-src/win-x86/crypto/fipsmodule/sha1-586.asm b/generated-src/win-x86/crypto/fipsmodule/sha1-586.asm
+index 51a890748..ae30b3d13 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/sha1-586.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/sha1-586.asm
+@@ -1,9 +1,7 @@
+ ; This file is generated from a similarly-named Perl script in the BoringSSL
+ ; source tree. Do not edit by hand.
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ %ifidn __OUTPUT_FORMAT__, win32
+ %ifidn __OUTPUT_FORMAT__,obj
+ section	code	use32 class=code align=64
+diff --git a/generated-src/win-x86/crypto/fipsmodule/sha256-586.asm b/generated-src/win-x86/crypto/fipsmodule/sha256-586.asm
+index 4e0278b0a..434195bad 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/sha256-586.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/sha256-586.asm
+@@ -1,9 +1,7 @@
+ ; This file is generated from a similarly-named Perl script in the BoringSSL
+ ; source tree. Do not edit by hand.
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ %ifidn __OUTPUT_FORMAT__, win32
+ %ifidn __OUTPUT_FORMAT__,obj
+ section	code	use32 class=code align=64
+diff --git a/generated-src/win-x86/crypto/fipsmodule/sha512-586.asm b/generated-src/win-x86/crypto/fipsmodule/sha512-586.asm
+index 3603a6dc1..b18b11a1f 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/sha512-586.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/sha512-586.asm
+@@ -1,9 +1,7 @@
+ ; This file is generated from a similarly-named Perl script in the BoringSSL
+ ; source tree. Do not edit by hand.
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ %ifidn __OUTPUT_FORMAT__, win32
+ %ifidn __OUTPUT_FORMAT__,obj
+ section	code	use32 class=code align=64
+diff --git a/generated-src/win-x86/crypto/fipsmodule/vpaes-x86.asm b/generated-src/win-x86/crypto/fipsmodule/vpaes-x86.asm
+index 661496e36..241fdc294 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/vpaes-x86.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/vpaes-x86.asm
+@@ -1,9 +1,7 @@
+ ; This file is generated from a similarly-named Perl script in the BoringSSL
+ ; source tree. Do not edit by hand.
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ %ifidn __OUTPUT_FORMAT__, win32
+ %ifidn __OUTPUT_FORMAT__,obj
+ section	code	use32 class=code align=64
+diff --git a/generated-src/win-x86/crypto/fipsmodule/x86-mont.asm b/generated-src/win-x86/crypto/fipsmodule/x86-mont.asm
+index cd77529cb..f6804c0b2 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/x86-mont.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/x86-mont.asm
+@@ -1,9 +1,7 @@
+ ; This file is generated from a similarly-named Perl script in the BoringSSL
+ ; source tree. Do not edit by hand.
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ %ifidn __OUTPUT_FORMAT__, win32
+ %ifidn __OUTPUT_FORMAT__,obj
+ section	code	use32 class=code align=64
+diff --git a/generated-src/win-x86/crypto/test/trampoline-x86.asm b/generated-src/win-x86/crypto/test/trampoline-x86.asm
+index 3ef9917af..76724920f 100644
+--- a/generated-src/win-x86/crypto/test/trampoline-x86.asm
++++ b/generated-src/win-x86/crypto/test/trampoline-x86.asm
+@@ -1,9 +1,7 @@
+ ; This file is generated from a similarly-named Perl script in the BoringSSL
+ ; source tree. Do not edit by hand.
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ %ifidn __OUTPUT_FORMAT__, win32
+ %ifidn __OUTPUT_FORMAT__,obj
+ section	code	use32 class=code align=64
+diff --git a/generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm b/generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm
+index 994b787fb..9126b1b79 100644
+--- a/generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.asm b/generated-src/win-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.asm
+index 0019f3335..84e4da4ad 100644
+--- a/generated-src/win-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.rdata rdata align=8
+ 
+ ALIGN	16
+diff --git a/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.asm b/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.asm
+index 715291a71..027f64971 100644
+--- a/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ EXTERN	OPENSSL_ia32cap_P
+diff --git a/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.asm b/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.asm
+index 912d455a6..e51edad01 100644
+--- a/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.asm b/generated-src/win-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.asm
+index 527762a5b..143b51cab 100644
+--- a/generated-src/win-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.asm
++++ b/generated-src/win-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ EXTERN	OPENSSL_ia32cap_P
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-avx512.asm b/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-avx512.asm
+index 161ca694d..919cc43a1 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-avx512.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-avx512.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm
+index 52e2babe9..203222b09 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm
+index 5e5cfa159..6a89d77ea 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ EXTERN	OPENSSL_ia32cap_P
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/aesni-xts-avx512.asm b/generated-src/win-x86_64/crypto/fipsmodule/aesni-xts-avx512.asm
+index 43c91d8bd..28aa9f7f7 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/aesni-xts-avx512.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/aesni-xts-avx512.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ global	aes_hw_xts_encrypt_avx512
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm
+index b3d54e6ae..23b0dd74d 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm
+index b2323ee62..5ccc45b9b 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ EXTERN	OPENSSL_ia32cap_P
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/md5-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/md5-x86_64.asm
+index 003a589eb..af196d71b 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/md5-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/md5-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ ALIGN	16
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm b/generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm
+index 73f536ea3..f154ea672 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ EXTERN	OPENSSL_ia32cap_P
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.asm b/generated-src/win-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.asm
+index 0488afd83..1ad3dcb9e 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/rdrand-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/rdrand-x86_64.asm
+index f3a93287e..f134b4b55 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/rdrand-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/rdrand-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm b/generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm
+index fd41206e6..345b313a2 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm
+index c842eee83..57aedbda8 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ EXTERN	OPENSSL_ia32cap_P
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm
+index fc7c3ff99..387e9f20f 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm
+index a85813c0c..fa3a40775 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm
+index 593ab402d..89b838e51 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont.asm b/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont.asm
+index 5ea1f2edc..fbf628c3d 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm b/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm
+index 8583bda11..cacc4f90d 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/test/trampoline-x86_64.asm b/generated-src/win-x86_64/crypto/test/trampoline-x86_64.asm
+index a63c060fe..d11ea0e78 100644
+--- a/generated-src/win-x86_64/crypto/test/trampoline-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/test/trampoline-x86_64.asm
+@@ -7,9 +7,7 @@ default	rel
+ %define YMMWORD
+ %define ZMMWORD
+ 
+-%ifdef BORINGSSL_PREFIX
+-%include "boringssl_prefix_symbols_nasm.inc"
+-%endif
++%include "openssl/boringssl_prefix_symbols_nasm.inc"
+ section	.text code align=64
+ 
+ 
+diff --git a/include/openssl/base.h b/include/openssl/base.h
+index 288b39efd..f5d8af3f4 100644
+--- a/include/openssl/base.h
++++ b/include/openssl/base.h
+@@ -75,9 +75,7 @@
+ #include <openssl/is_awslc.h>
+ #include <openssl/opensslconf.h>
+ 
+-#if defined(BORINGSSL_PREFIX)
+-#include <boringssl_prefix_symbols.h>
+-#endif
++#include <openssl/boringssl_prefix_symbols.h>
+ 
+ #if defined(__cplusplus)
+ extern "C" {
+diff --git a/include/openssl/boringssl_prefix_symbols.h b/include/openssl/boringssl_prefix_symbols.h
+new file mode 100644
+index 000000000..93442671b
+--- /dev/null
++++ b/include/openssl/boringssl_prefix_symbols.h
+@@ -0,0 +1,5 @@
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
++
++// This file is intentionally empty, were AWS-LC installed with symbol prefixes, this file would contain
++// macro definitions for the prefixed symbols.
+diff --git a/include/openssl/boringssl_prefix_symbols_asm.h b/include/openssl/boringssl_prefix_symbols_asm.h
+new file mode 100644
+index 000000000..93442671b
+--- /dev/null
++++ b/include/openssl/boringssl_prefix_symbols_asm.h
+@@ -0,0 +1,5 @@
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
++
++// This file is intentionally empty, were AWS-LC installed with symbol prefixes, this file would contain
++// macro definitions for the prefixed symbols.
+diff --git a/include/openssl/boringssl_prefix_symbols_nasm.inc b/include/openssl/boringssl_prefix_symbols_nasm.inc
+new file mode 100644
+index 000000000..ceeaad104
+--- /dev/null
++++ b/include/openssl/boringssl_prefix_symbols_nasm.inc
+@@ -0,0 +1,5 @@
++; Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++; SPDX-License-Identifier: Apache-2.0 OR ISC
++
++; This file is intentionally empty, were AWS-LC installed with symbol prefixes, this file would contain
++; macro definitions for the prefixed symbols.
+diff --git a/ssl/CMakeLists.txt b/ssl/CMakeLists.txt
+index 010b9d57a..95afb48c0 100644
+--- a/ssl/CMakeLists.txt
++++ b/ssl/CMakeLists.txt
+@@ -47,8 +47,10 @@ target_compile_definitions(ssl PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+ target_link_libraries(ssl crypto)
+ 
++target_include_directories(ssl BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++
+ target_include_directories(ssl PUBLIC
+-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
++  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+   $<INSTALL_INTERFACE:include>)
+ 
+ if(BUILD_TESTING)
+@@ -69,6 +71,7 @@ if(BUILD_TESTING)
+   )
+   target_link_libraries(${INTEGRATION_TEST_EXEC} test_support_lib
+           boringssl_gtest_main ssl crypto)
++  target_include_directories(${INTEGRATION_TEST_EXEC} BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
+   add_dependencies(all_tests ${INTEGRATION_TEST_EXEC})
+ 
+   add_executable(
+@@ -80,6 +83,9 @@ if(BUILD_TESTING)
+  )
+ 
+   target_link_libraries(${SSL_TEST_EXEC} test_support_lib boringssl_gtest_main ssl crypto)
++
++  target_include_directories(${SSL_TEST_EXEC} BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++
+   if(WIN32)
+     target_link_libraries(${SSL_TEST_EXEC} ws2_32)
+   endif()
+diff --git a/ssl/test/CMakeLists.txt b/ssl/test/CMakeLists.txt
+index 9412a25de..5452e6b05 100644
+--- a/ssl/test/CMakeLists.txt
++++ b/ssl/test/CMakeLists.txt
+@@ -17,6 +17,8 @@ if(WIN32)
+   target_link_libraries(bssl_shim ws2_32)
+ endif()
+ 
++target_include_directories(bssl_shim BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++
+ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+   add_executable(
+     handshaker
+@@ -32,6 +34,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+   )
+ 
+   target_link_libraries(handshaker test_support_lib ssl crypto)
++
++  target_include_directories(handshaker BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
+ else()
+   # Declare a dummy target for run_tests to depend on.
+   add_custom_target(handshaker)
+diff --git a/third_party/jitterentropy/CMakeLists.txt b/third_party/jitterentropy/CMakeLists.txt
+index 654a186fd..a74eebd80 100644
+--- a/third_party/jitterentropy/CMakeLists.txt
++++ b/third_party/jitterentropy/CMakeLists.txt
+@@ -14,7 +14,7 @@ set(JITTER_SOURCES
+         ${PROJECT_SOURCE_DIR}/third_party/jitterentropy/jitterentropy-sha3.c
+         ${PROJECT_SOURCE_DIR}/third_party/jitterentropy/jitterentropy-timer.c)
+ 
+-include_directories(../../include)
++include_directories(${PROJECT_SOURCE_DIR}/include)
+ 
+ if(MSVC)
+     set(JITTER_COMPILE_FLAGS "/Od /W4 /DYNAMICBASE /DAWSLC")
+@@ -24,4 +24,5 @@ endif()
+ 
+ set_source_files_properties(${JITTER_SOURCES} PROPERTIES COMPILE_FLAGS ${JITTER_COMPILE_FLAGS})
+ add_library(jitterentropy OBJECT ${JITTER_SOURCES})
+-
++add_dependencies(jitterentropy boringssl_prefix_symbols)
++target_include_directories(jitterentropy BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
+diff --git a/tool/CMakeLists.txt b/tool/CMakeLists.txt
+index f15cad5d4..a0814e428 100644
+--- a/tool/CMakeLists.txt
++++ b/tool/CMakeLists.txt
+@@ -20,7 +20,7 @@ add_executable(
+   transport_common.cc
+ )
+ 
+-target_include_directories(bssl PUBLIC ../include)
++target_include_directories(bssl PUBLIC ${PROJECT_SOURCE_DIR}/include)
+ target_compile_options(bssl PUBLIC -DINTERNAL_TOOL)
+ 
+ if(WIN32)
+@@ -41,6 +41,8 @@ else()
+   endif()
+ endif()
+ 
++target_include_directories(bssl BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
++
+ install(TARGETS bssl
+         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+ )
+diff --git a/util/fipstools/CMakeLists.txt b/util/fipstools/CMakeLists.txt
+index ace581a2d..79b7f044a 100644
+--- a/util/fipstools/CMakeLists.txt
++++ b/util/fipstools/CMakeLists.txt
+@@ -5,4 +5,5 @@ if(FIPS AND BUILD_TESTING)
+     test_fips.c
+   )
+   target_link_libraries(test_fips crypto)
++  target_include_directories(test_fips BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
+ endif()
+diff --git a/util/fipstools/acvp/modulewrapper/CMakeLists.txt b/util/fipstools/acvp/modulewrapper/CMakeLists.txt
+index 7938d3900..1e88c555e 100644
+--- a/util/fipstools/acvp/modulewrapper/CMakeLists.txt
++++ b/util/fipstools/acvp/modulewrapper/CMakeLists.txt
+@@ -6,4 +6,5 @@ if(FIPS)
+     modulewrapper.cc
+   )
+   target_link_libraries(modulewrapper crypto)
++  target_include_directories(modulewrapper BEFORE PRIVATE ${PROJECT_BINARY_DIR}/symbol_prefix_include)
+ endif()
+diff --git a/util/make_prefix_headers.go b/util/make_prefix_headers.go
+index 8787654b5..9ed674e5e 100644
+--- a/util/make_prefix_headers.go
++++ b/util/make_prefix_headers.go
+@@ -39,6 +39,7 @@ import (
+ )
+ 
+ var out = flag.String("out", ".", "Path to a directory where the outputs will be written")
++var prefix = flag.String("prefix", "awslc", "The BORINGSSL_PREFIX value to define guard")
+ 
+ // Read newline-separated symbols from a file, ignoring any comments started
+ // with '#'.
+@@ -87,7 +88,19 @@ func writeCHeader(symbols []string, path string) error {
+ // WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+ // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+ // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++`); err != nil {
++		return err
++	}
++
++	if _, err := fmt.Fprintf(f, `
++#ifndef BORINGSSL_PREFIX
++#define BORINGSSL_PREFIX %s
++#endif
++`, *prefix); err != nil {
++		return err
++	}
+ 
++	if _, err := f.WriteString(`
+ // BORINGSSL_ADD_PREFIX pastes two identifiers into one. It performs one
+ // iteration of macro expansion on its arguments before pasting.
+ #define BORINGSSL_ADD_PREFIX(a, b) BORINGSSL_ADD_PREFIX_INNER(a, b)
+@@ -126,9 +139,21 @@ func writeASMHeader(symbols []string, path string) error {
+ // WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+ // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+ // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++`); err != nil {
++		return err
++	}
+ 
++	if _, err := fmt.Fprintf(f, `
++#ifndef BORINGSSL_PREFIX
++#define BORINGSSL_PREFIX %s
++#endif
++    `, *prefix); err != nil {
++		return err
++	}
++
++	if _, err := f.WriteString(`
+ #if !defined(__APPLE__)
+-#include <boringssl_prefix_symbols.h>
++#include <openssl/boringssl_prefix_symbols.h>
+ #else
+ // On iOS and macOS, we need to treat assembly symbols differently from other
+ // symbols. The linker expects symbols to be prefixed with an underscore.
+@@ -172,7 +197,19 @@ func writeNASMHeader(symbols []string, path string) error {
+ ; WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+ ; OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+ ; CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++`); err != nil {
++		return err
++	}
++
++	if _, err := fmt.Fprintf(f, `
++%%ifndef BORINGSSL_PREFIX
++%%define BORINGSSL_PREFIX %s
++%%endif
++`, *prefix); err != nil {
++		return err
++	}
+ 
++	if _, err := f.WriteString(`
+ ; 32-bit Windows adds underscores to C functions, while 64-bit Windows does not.
+ %ifidn __OUTPUT_FORMAT__, win32
+ `); err != nil {
+@@ -209,6 +246,11 @@ func main() {
+ 		os.Exit(1)
+ 	}
+ 
++	if len(*prefix) == 0 {
++		fmt.Fprint(os.Stderr, "-prefix must be non-zero length")
++		os.Exit(1)
++	}
++
+ 	symbols, err := readSymbols(flag.Arg(0))
+ 	if err != nil {
+ 		fmt.Fprintf(os.Stderr, "Error reading symbols: %s\n", err)

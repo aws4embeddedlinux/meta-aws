@@ -1,0 +1,206 @@
+From ea4534511e75c5b232bad10ff15077ca9b0b672e Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 27 Jan 2023 21:02:34 -0500
+Subject: [PATCH] Introduce a locale-independent version of isspace
+
+The real isspace may give locale-dependent results, so use our own.
+
+This also lets us simplify some of the silliness asn1_string_canon needs
+to go through to never pass high bytes into isspace and islower. (I'm
+otherwise leaving that function alone because I plan to, later, convert
+the whole thing to CBS/CBB.)
+
+Change-Id: Idd349095f3e98bf908bb628ea1089ba05c2c6797
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56486
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 42b7b35f761383d6232ea5c055170488975a02fb)
+---
+ crypto/conf/conf.c       |  4 ++--
+ crypto/mem.c             |  5 +++++
+ crypto/test/file_test.cc |  5 +++--
+ crypto/x509/x_name.c     | 17 +++++------------
+ crypto/x509v3/v3_conf.c  |  4 ++--
+ crypto/x509v3/v3_utl.c   |  4 ++--
+ include/openssl/mem.h    |  7 ++++++-
+ 7 files changed, 25 insertions(+), 21 deletions(-)
+
+diff --git a/crypto/conf/conf.c b/crypto/conf/conf.c
+index f03649884..887489611 100644
+--- a/crypto/conf/conf.c
++++ b/crypto/conf/conf.c
+@@ -780,7 +780,7 @@ int CONF_parse_list(const char *list, char sep, int remove_whitespace,
+   lstart = list;
+   for (;;) {
+     if (remove_whitespace) {
+-      while (*lstart && isspace((unsigned char)*lstart)) {
++      while (*lstart && OPENSSL_isspace((unsigned char)*lstart)) {
+         lstart++;
+       }
+     }
+@@ -794,7 +794,7 @@ int CONF_parse_list(const char *list, char sep, int remove_whitespace,
+         tmpend = lstart + strlen(lstart) - 1;
+       }
+       if (remove_whitespace) {
+-        while (isspace((unsigned char)*tmpend)) {
++        while (OPENSSL_isspace((unsigned char)*tmpend)) {
+           tmpend--;
+         }
+       }
+diff --git a/crypto/mem.c b/crypto/mem.c
+index a580bbf46..a7997d8ab 100644
+--- a/crypto/mem.c
++++ b/crypto/mem.c
+@@ -384,6 +384,11 @@ int OPENSSL_tolower(int c) {
+   return c;
+ }
+ 
++int OPENSSL_isspace(int c) {
++  return c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r' ||
++         c == ' ';
++}
++
+ int OPENSSL_strcasecmp(const char *a, const char *b) {
+   for (size_t i = 0;; i++) {
+     const int aa = OPENSSL_tolower(a[i]);
+diff --git a/crypto/test/file_test.cc b/crypto/test/file_test.cc
+index e1ab2aa7c..d7ef95115 100644
+--- a/crypto/test/file_test.cc
++++ b/crypto/test/file_test.cc
+@@ -27,6 +27,7 @@
+ #include <string.h>
+ 
+ #include <openssl/err.h>
++#include <openssl/mem.h>
+ 
+ #include "../internal.h"
+ #include "./test_util.h"
+@@ -57,11 +58,11 @@ static const char *FindDelimiter(const char *str) {
+ // leading and trailing whitespace removed.
+ static std::string StripSpace(const char *str, size_t len) {
+   // Remove leading space.
+-  while (len > 0 && isspace(*str)) {
++  while (len > 0 && OPENSSL_isspace(*str)) {
+     str++;
+     len--;
+   }
+-  while (len > 0 && isspace(str[len - 1])) {
++  while (len > 0 && OPENSSL_isspace(str[len - 1])) {
+     len--;
+   }
+   return std::string(str, len);
+diff --git a/crypto/x509/x_name.c b/crypto/x509/x_name.c
+index a17d9d73f..3e7cb94da 100644
+--- a/crypto/x509/x_name.c
++++ b/crypto/x509/x_name.c
+@@ -443,12 +443,10 @@ static int asn1_string_canon(ASN1_STRING *out, ASN1_STRING *in) {
+ 
+   len = out->length;
+ 
+-  // Convert string in place to canonical form. Ultimately we may need to
+-  // handle a wider range of characters but for now ignore anything with
+-  // MSB set and rely on the isspace() and tolower() functions.
++  // Convert string in place to canonical form.
+ 
+   // Ignore leading spaces
+-  while ((len > 0) && !(*from & 0x80) && isspace(*from)) {
++  while ((len > 0) && OPENSSL_isspace(*from)) {
+     from++;
+     len--;
+   }
+@@ -456,7 +454,7 @@ static int asn1_string_canon(ASN1_STRING *out, ASN1_STRING *in) {
+   to = from + len;
+ 
+   // Ignore trailing spaces
+-  while ((len > 0) && !(to[-1] & 0x80) && isspace(to[-1])) {
++  while ((len > 0) && OPENSSL_isspace(to[-1])) {
+     to--;
+     len--;
+   }
+@@ -465,13 +463,8 @@ static int asn1_string_canon(ASN1_STRING *out, ASN1_STRING *in) {
+ 
+   i = 0;
+   while (i < len) {
+-    // If MSB set just copy across
+-    if (*from & 0x80) {
+-      *to++ = *from++;
+-      i++;
+-    }
+     // Collapse multiple spaces
+-    else if (isspace(*from)) {
++    if (OPENSSL_isspace(*from)) {
+       // Copy one space across
+       *to++ = ' ';
+       // Ignore subsequent spaces. Note: don't need to check len here
+@@ -480,7 +473,7 @@ static int asn1_string_canon(ASN1_STRING *out, ASN1_STRING *in) {
+       do {
+         from++;
+         i++;
+-      } while (!(*from & 0x80) && isspace(*from));
++      } while (OPENSSL_isspace(*from));
+     } else {
+       *to++ = OPENSSL_tolower(*from);
+       from++;
+diff --git a/crypto/x509v3/v3_conf.c b/crypto/x509v3/v3_conf.c
+index 3261302cf..480bb3b79 100644
+--- a/crypto/x509v3/v3_conf.c
++++ b/crypto/x509v3/v3_conf.c
+@@ -258,7 +258,7 @@ static int v3_check_critical(const char **value) {
+     return 0;
+   }
+   p += 9;
+-  while (isspace((unsigned char)*p)) {
++  while (OPENSSL_isspace((unsigned char)*p)) {
+     p++;
+   }
+   *value = p;
+@@ -279,7 +279,7 @@ static int v3_check_generic(const char **value) {
+     return 0;
+   }
+ 
+-  while (isspace((unsigned char)*p)) {
++  while (OPENSSL_isspace((unsigned char)*p)) {
+     p++;
+   }
+   *value = p;
+diff --git a/crypto/x509v3/v3_utl.c b/crypto/x509v3/v3_utl.c
+index 9a1c0e3ef..f856e0ea0 100644
+--- a/crypto/x509v3/v3_utl.c
++++ b/crypto/x509v3/v3_utl.c
+@@ -432,14 +432,14 @@ static char *strip_spaces(char *name) {
+   char *p, *q;
+   // Skip over leading spaces
+   p = name;
+-  while (*p && isspace((unsigned char)*p)) {
++  while (*p && OPENSSL_isspace((unsigned char)*p)) {
+     p++;
+   }
+   if (!*p) {
+     return NULL;
+   }
+   q = p + strlen(p) - 1;
+-  while ((q != p) && isspace((unsigned char)*q)) {
++  while ((q != p) && OPENSSL_isspace((unsigned char)*q)) {
+     q--;
+   }
+   if (p != q) {
+diff --git a/include/openssl/mem.h b/include/openssl/mem.h
+index 91dc22d9a..9b1140a10 100644
+--- a/include/openssl/mem.h
++++ b/include/openssl/mem.h
+@@ -111,9 +111,14 @@ OPENSSL_EXPORT char *OPENSSL_strdup(const char *s);
+ // OPENSSL_strnlen has the same behaviour as strnlen(3).
+ OPENSSL_EXPORT size_t OPENSSL_strnlen(const char *s, size_t len);
+ 
+-// OPENSSL_tolower is a locale-independent version of tolower(3).
++// OPENSSL_tolower is a locale-independent version of tolower(3). It only
++// lowercases ASCII values. Other values are returned as-is.
+ OPENSSL_EXPORT int OPENSSL_tolower(int c);
+ 
++// OPENSSL_isspace is a locale-independent version of isspace(3). It only
++// recognizes '\t', '\n', '\v', '\f', '\r', and ' '.
++OPENSSL_EXPORT int OPENSSL_isspace(int c);
++
+ // OPENSSL_strcasecmp is a locale-independent version of strcasecmp(3).
+ OPENSSL_EXPORT int OPENSSL_strcasecmp(const char *a, const char *b);
+ 

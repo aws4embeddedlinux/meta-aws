@@ -1,0 +1,67 @@
+From 9cdec0f5bb7e026459d959e5fe5d90ef00a40b8e Mon Sep 17 00:00:00 2001
+From: torben-hansen <50673096+torben-hansen@users.noreply.github.com>
+Date: Thu, 18 May 2023 16:36:49 -0700
+Subject: [PATCH] Fix typo's and clarify some language (#993)
+
+Fix some typos and clarify language for nonce-length returned by EVP_AEAD_nonce_length().
+---
+ crypto/fipsmodule/cipher/aead.c | 4 ----
+ include/openssl/aead.h          | 9 +++++----
+ 2 files changed, 5 insertions(+), 8 deletions(-)
+
+diff --git a/crypto/fipsmodule/cipher/aead.c b/crypto/fipsmodule/cipher/aead.c
+index 7d2c20098..7f212d975 100644
+--- a/crypto/fipsmodule/cipher/aead.c
++++ b/crypto/fipsmodule/cipher/aead.c
+@@ -289,10 +289,6 @@ int EVP_AEAD_CTX_tag_len(const EVP_AEAD_CTX *ctx, size_t *out_tag_len,
+   return 1;
+ }
+ 
+-// EVP_AEAD_iv_from_ipv4_nanosecs computes a deterministic IV compliant with
+-// NIST SP 800-38D, built from an IPv4 address and the number of nanoseconds
+-// since boot, writing it to |out_iv|. It returns one on success or zero for
+-// error.
+ int EVP_AEAD_get_iv_from_ipv4_nanosecs(
+     const uint32_t ipv4_address, const uint64_t nanosecs,
+     uint8_t out_iv[FIPS_AES_GCM_NONCE_LENGTH]) {
+diff --git a/include/openssl/aead.h b/include/openssl/aead.h
+index bf7eb0dfa..2a6f037db 100644
+--- a/include/openssl/aead.h
++++ b/include/openssl/aead.h
+@@ -148,7 +148,7 @@ OPENSSL_EXPORT const EVP_AEAD *EVP_aead_aes_256_gcm_siv(void);
+ 
+ // EVP_aead_aes_128_gcm_randnonce is AES-128 in Galois Counter Mode with
+ // internal nonce generation. The 12-byte nonce is appended to the tag
+-// and is generated internally. The "tag", for the purpurses of the API, is thus
++// and is generated internally. The "tag", for the purposes of the API, is thus
+ // 12 bytes larger. The nonce parameter when using this AEAD must be
+ // zero-length. Since the nonce is random, a single key should not be used for
+ // more than 2^32 seal operations.
+@@ -160,7 +160,7 @@ OPENSSL_EXPORT const EVP_AEAD *EVP_aead_aes_128_gcm_randnonce(void);
+ 
+ // EVP_aead_aes_256_gcm_randnonce is AES-256 in Galois Counter Mode with
+ // internal nonce generation. The 12-byte nonce is appended to the tag
+-// and is generated internally. The "tag", for the purpurses of the API, is thus
++// and is generated internally. The "tag", for the purposes of the API, is thus
+ // 12 bytes larger. The nonce parameter when using this AEAD must be
+ // zero-length. Since the nonce is random, a single key should not be used for
+ // more than 2^32 seal operations.
+@@ -171,7 +171,7 @@ OPENSSL_EXPORT const EVP_AEAD *EVP_aead_aes_128_gcm_randnonce(void);
+ OPENSSL_EXPORT const EVP_AEAD *EVP_aead_aes_256_gcm_randnonce(void);
+ 
+ // EVP_aead_aes_128_ccm_bluetooth is AES-128-CCM with M=4 and L=2 (4-byte tags
+-// and 13-byte nonces), as decribed in the Bluetooth Core Specification v5.0,
++// and 13-byte nonces), as described in the Bluetooth Core Specification v5.0,
+ // Volume 6, Part E, Section 1.
+ OPENSSL_EXPORT const EVP_AEAD *EVP_aead_aes_128_ccm_bluetooth(void);
+ 
+@@ -196,7 +196,8 @@ OPENSSL_EXPORT int EVP_has_aes_hardware(void);
+ OPENSSL_EXPORT size_t EVP_AEAD_key_length(const EVP_AEAD *aead);
+ 
+ // EVP_AEAD_nonce_length returns the length, in bytes, of the per-message nonce
+-// for |aead|.
++// for |aead|. Some |aead|s might support a larger set of nonce-lengths (e.g.
++// aes-gcm).
+ OPENSSL_EXPORT size_t EVP_AEAD_nonce_length(const EVP_AEAD *aead);
+ 
+ // EVP_AEAD_max_overhead returns the maximum number of additional bytes added

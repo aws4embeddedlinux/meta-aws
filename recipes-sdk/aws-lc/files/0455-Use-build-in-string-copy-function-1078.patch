@@ -1,0 +1,37 @@
+From e1ff12884e82751b5e18fe9f9ac297c25370246c Mon Sep 17 00:00:00 2001
+From: torben-hansen <50673096+torben-hansen@users.noreply.github.com>
+Date: Wed, 28 Jun 2023 09:41:02 -0700
+Subject: [PATCH] Use build-in string-copy function (#1078)
+
+Use build-in memory copy function for a string type.
+---
+ crypto/x509/x509_vpm.c | 2 +-
+ include/openssl/x509.h | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/x509/x509_vpm.c b/crypto/x509/x509_vpm.c
+index 0dce17650..eac39723e 100644
+--- a/crypto/x509/x509_vpm.c
++++ b/crypto/x509/x509_vpm.c
+@@ -333,7 +333,7 @@ static int int_x509_param_set1_email(char **pdest, size_t *pdestlen,
+       srclen = strlen(src);
+     }
+ 
+-    tmp = OPENSSL_memdup(src, srclen);
++    tmp = OPENSSL_strndup(src, srclen);
+     if (tmp == NULL) {
+       return 0;
+     }
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index e86a6e640..14e0d7dac 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -2961,7 +2961,7 @@ OPENSSL_EXPORT int X509_VERIFY_PARAM_set1_email(X509_VERIFY_PARAM *param,
+                                                 size_t emaillen);
+ 
+ // X509_VERIFY_PARAM_set1_ip sets the expected IP address to |ip|. |iplen| MUST
+-// be set to the length of |email|.
++// be set to the length of |ip|.
+ OPENSSL_EXPORT int X509_VERIFY_PARAM_set1_ip(X509_VERIFY_PARAM *param,
+                                              const unsigned char *ip,
+                                              size_t iplen);

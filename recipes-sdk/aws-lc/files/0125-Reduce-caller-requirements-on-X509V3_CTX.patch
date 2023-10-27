@@ -1,0 +1,199 @@
+From 7532788448a9620b96208955550e0d54de460b78 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 30 Dec 2022 13:37:30 -0500
+Subject: [PATCH] Reduce caller requirements on X509V3_CTX.
+
+This relaxes two caller requirements:
+
+First, although one needs to initialize X509V3_CTX in two parts, some
+callers forget to this. This works some of the time on accident,
+because most codepaths read ctx->db. But if one were to read it, it'd
+be uninitialized. Since all the entrypoints take a CONF anyway, and
+always match them, just implicitly initialize the CONF half of the
+X509V3_CTX with the provided one.
+
+Second, allow X509V3_CTX to be NULL. Some codepaths in the library
+check for NULL (or don't use it) and some do not. Enough codepaths
+don't check that it really cannot be considered to work, but enough
+do that a caller could mistakenly pass in NULL and have it mostly
+work. I've seen one caller mistakenly do this. Since we have to copy
+the X509V3_CTX for the first relaxation anyway, allow it to be NULL
+and fill in an empty one when omitted.
+
+Update-Note: If using different CONFs in the X509V3_CTX and the function
+parameter, the function parameter is now always used. No callers do
+this, and it's somewhat arbitrary which is used. (The generic code
+always uses the one in ctx. The @section syntax uses the parameter. Then
+the per-extension callbacks use the ctx.)
+
+Change-Id: I9fc15a581ea375ea06c4b082dcf0d6360be8144f
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56109
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit 114fa727b7281bf532d037036356359619c730be)
+---
+ crypto/x509/x509_test.cc | 18 ++++++++++++---
+ crypto/x509v3/v3_conf.c  | 47 +++++++++++++++++++++++-----------------
+ include/openssl/x509v3.h | 26 ++++++++++------------
+ 3 files changed, 53 insertions(+), 38 deletions(-)
+
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 306c2f2c6..6d82a812b 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -5714,11 +5714,23 @@ key = FORMAT:HEX,OCTWRAP,OCT:9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703
+           << "Failed to load config at line " << error_line;
+     }
+ 
++    bssl::UniquePtr<X509_EXTENSION> ext(
++        X509V3_EXT_nconf(conf.get(), nullptr, t.name, t.value));
++    if (t.expected.empty()) {
++      EXPECT_FALSE(ext);
++    } else {
++      ASSERT_TRUE(ext);
++      uint8_t *der = nullptr;
++      int len = i2d_X509_EXTENSION(ext.get(), &der);
++      ASSERT_GE(len, 0);
++      bssl::UniquePtr<uint8_t> free_der(der);
++      EXPECT_EQ(Bytes(t.expected), Bytes(der, len));
++    }
++
++    // Repeat the test with an explicit |X509V3_CTX|.
+     X509V3_CTX ctx;
+     X509V3_set_ctx(&ctx, nullptr, nullptr, nullptr, nullptr, 0);
+-    X509V3_set_nconf(&ctx, conf.get());
+-    bssl::UniquePtr<X509_EXTENSION> ext(
+-        X509V3_EXT_nconf(conf.get(), &ctx, t.name, t.value));
++    ext.reset(X509V3_EXT_nconf(conf.get(), &ctx, t.name, t.value));
+     if (t.expected.empty()) {
+       EXPECT_FALSE(ext);
+     } else {
+diff --git a/crypto/x509v3/v3_conf.c b/crypto/x509v3/v3_conf.c
+index 922291dae..b784954ed 100644
+--- a/crypto/x509v3/v3_conf.c
++++ b/crypto/x509v3/v3_conf.c
+@@ -82,19 +82,27 @@ static X509_EXTENSION *do_ext_i2d(const X509V3_EXT_METHOD *method, int ext_nid,
+                                   int crit, void *ext_struc);
+ static unsigned char *generic_asn1(const char *value, const X509V3_CTX *ctx,
+                                    long *ext_len);
+-// CONF *conf:  Config file
+-// char *name:  Name
+-// char *value:  Value
+-X509_EXTENSION *X509V3_EXT_nconf(const CONF *conf, const X509V3_CTX *ctx,
++
++static void setup_ctx(X509V3_CTX *out, const CONF *conf,
++                      const X509V3_CTX *ctx_in) {
++  if (ctx_in == NULL) {
++    X509V3_set_ctx(out, NULL, NULL, NULL, NULL, 0);
++  } else {
++    *out = *ctx_in;
++  }
++  X509V3_set_nconf(out, conf);
++}
++
++X509_EXTENSION *X509V3_EXT_nconf(const CONF *conf, const X509V3_CTX *ctx_in,
+                                  const char *name, const char *value) {
+-  int crit;
+-  int ext_type;
+-  X509_EXTENSION *ret;
+-  crit = v3_check_critical(&value);
+-  if ((ext_type = v3_check_generic(&value))) {
+-    return v3_generic_extension(name, value, crit, ext_type, ctx);
++  X509V3_CTX ctx;
++  setup_ctx(&ctx, conf, ctx_in);
++  int crit = v3_check_critical(&value);
++  int ext_type = v3_check_generic(&value);
++  if (ext_type != 0) {
++    return v3_generic_extension(name, value, crit, ext_type, &ctx);
+   }
+-  ret = do_ext_nconf(conf, ctx, OBJ_sn2nid(name), crit, value);
++  X509_EXTENSION *ret = do_ext_nconf(conf, &ctx, OBJ_sn2nid(name), crit, value);
+   if (!ret) {
+     OPENSSL_PUT_ERROR(X509V3, X509V3_R_ERROR_IN_EXTENSION);
+     ERR_add_error_data(4, "name=", name, ", value=", value);
+@@ -102,18 +110,17 @@ X509_EXTENSION *X509V3_EXT_nconf(const CONF *conf, const X509V3_CTX *ctx,
+   return ret;
+ }
+ 
+-// CONF *conf:  Config file
+-// char *value:  Value
+-X509_EXTENSION *X509V3_EXT_nconf_nid(const CONF *conf, const X509V3_CTX *ctx,
++X509_EXTENSION *X509V3_EXT_nconf_nid(const CONF *conf, const X509V3_CTX *ctx_in,
+                                      int ext_nid, const char *value) {
+-  int crit;
+-  int ext_type;
+-  crit = v3_check_critical(&value);
+-  if ((ext_type = v3_check_generic(&value))) {
++  X509V3_CTX ctx;
++  setup_ctx(&ctx, conf, ctx_in);
++  int crit = v3_check_critical(&value);
++  int ext_type = v3_check_generic(&value);
++  if (ext_type != 0) {
+     return v3_generic_extension(OBJ_nid2sn(ext_nid), value, crit, ext_type,
+-                                ctx);
++                                &ctx);
+   }
+-  return do_ext_nconf(conf, ctx, ext_nid, crit, value);
++  return do_ext_nconf(conf, &ctx, ext_nid, crit, value);
+ }
+ 
+ // CONF *conf:  Config file
+diff --git a/include/openssl/x509v3.h b/include/openssl/x509v3.h
+index fad4dcceb..2d6e9c57e 100644
+--- a/include/openssl/x509v3.h
++++ b/include/openssl/x509v3.h
+@@ -585,8 +585,9 @@ struct v3_ext_ctx {
+ //
+ // |issuer|, |subject|, |req|, and |crl|, if non-NULL, must outlive |ctx|.
+ //
+-// WARNING: This function only partially initializes |ctx|. Callers must also
+-// call |X509V3_set_nconf| or |X509V3_set_ctx_nodb|.
++// WARNING: This function only partially initializes |ctx|. Unless otherwise
++// documented, callers must also call |X509V3_set_nconf| or
++// |X509V3_set_ctx_nodb|.
+ OPENSSL_EXPORT void X509V3_set_ctx(X509V3_CTX *ctx, const X509 *issuer,
+                                    const X509 *subject, const X509_REQ *req,
+                                    const X509_CRL *crl, int flags);
+@@ -596,8 +597,9 @@ OPENSSL_EXPORT void X509V3_set_ctx(X509V3_CTX *ctx, const X509 *issuer,
+ // incomplete and should be discarded. This can be used to partially validate
+ // syntax.
+ //
+-// WARNING: This function only partially initializes |ctx|. Callers must also
+-// call |X509V3_set_nconf| or |X509V3_set_ctx_nodb|.
++// WARNING: This function only partially initializes |ctx|. Unless otherwise
++// documented, callers must also call |X509V3_set_nconf| or
++// |X509V3_set_ctx_nodb|.
+ //
+ // TODO(davidben): Can we remove this?
+ #define X509V3_set_ctx_test(ctx) \
+@@ -610,13 +612,6 @@ OPENSSL_EXPORT void X509V3_set_ctx(X509V3_CTX *ctx, const X509 *issuer,
+ //
+ // WARNING: This function only partially initializes |ctx|. Callers must also
+ // call |X509V3_set_ctx| or |X509V3_set_ctx_test|.
+-//
+-// TODO(davidben): All the public entrypoints take a |CONF| already. OpenSSL
+-// does not document the relationship between |db| in this structure and the
+-// parameter, but all callers either match them, or use NULL and forget to call
+-// |X509V3_set_ctx_nodb|. The latter results in reading an uninitialized pointer
+-// if an applicable format is ever accidentally used. Perhaps this should be
+-// automatically initialized by |X509V3_EXT_nconf|, etc.
+ OPENSSL_EXPORT void X509V3_set_nconf(X509V3_CTX *ctx, const CONF *conf);
+ 
+ // X509V3_set_ctx_nodb calls |X509V3_set_nconf| with no config database.
+@@ -625,11 +620,12 @@ OPENSSL_EXPORT void X509V3_set_nconf(X509V3_CTX *ctx, const CONF *conf);
+ // X509V3_EXT_nconf constructs an extension of type specified by |name|, and
+ // value specified by |value|. It returns a newly-allocated |X509_EXTENSION|
+ // object on success, or NULL on error. |conf| and |ctx| specify additional
+-// information referenced by some formats. |conf| may be NULL, in which case
+-// features which use it will be disabled.
++// information referenced by some formats. Either |conf| or |ctx| may be NULL,
++// in which case features which use it will be disabled.
+ //
+-// TODO(davidben): Allow |ctx| to be NULL. One caller seems to do it, even
+-// though it doesn't really work.
++// If non-NULL, |ctx| must be initialized with |X509V3_set_ctx| or
++// |X509V3_set_ctx_test|. This function implicitly calls |X509V3_set_nconf| with
++// |conf|, so it is safe to only call |X509V3_set_ctx|.
+ OPENSSL_EXPORT X509_EXTENSION *X509V3_EXT_nconf(const CONF *conf,
+                                                 const X509V3_CTX *ctx,
+                                                 const char *name,

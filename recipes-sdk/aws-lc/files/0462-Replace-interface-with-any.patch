@@ -1,0 +1,787 @@
+From 6a90c15f3f901b90acb91fcb4c11cf4c5f3bcfff Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 2 May 2023 10:14:11 -0400
+Subject: [PATCH] Replace interface{} with any
+
+Satisfy a go lint. As of Go 1.18, any is the preferred spelling of
+interface{}.
+
+Also remove an instance of redundant types in
+util/fipstools/acvp/acvptool/acvp.go because my editor warned about it.
+(A []map[string]any{map[string]any{...}, map[string]any{...}} literal
+can omit the inner copy of the type because it's implicit from the outer
+one.)
+
+Change-Id: I2251b2285c16c19bc779fa41d1011f7fa1392563
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59465
+Auto-Submit: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+(cherry picked from commit 77b6f2593543474bf5d2fb4821dfe31b32c7fc22)
+---
+ ssl/test/runner/cipher_suites.go              |  8 ++--
+ ssl/test/runner/common.go                     |  8 ++--
+ ssl/test/runner/conn.go                       |  8 ++--
+ ssl/test/runner/handshake_client.go           |  6 +--
+ ssl/test/runner/handshake_server.go           |  2 +-
+ ssl/test/runner/prf.go                        |  2 +-
+ ssl/test/runner/sign.go                       |  2 +-
+ util/convert_wycheproof/convert_wycheproof.go | 24 +++++------
+ util/fipstools/acvp/acvptool/acvp.go          | 20 +++++-----
+ util/fipstools/acvp/acvptool/acvp/acvp.go     | 40 +++++++++----------
+ util/fipstools/acvp/acvptool/interactive.go   |  8 ++--
+ .../acvp/acvptool/subprocess/aead.go          |  2 +-
+ .../acvp/acvptool/subprocess/block.go         |  2 +-
+ .../acvp/acvptool/subprocess/drbg.go          |  2 +-
+ .../acvp/acvptool/subprocess/ecdsa.go         |  2 +-
+ .../acvp/acvptool/subprocess/hash.go          |  2 +-
+ .../acvp/acvptool/subprocess/hkdf.go          |  2 +-
+ .../acvp/acvptool/subprocess/hmac.go          |  2 +-
+ .../fipstools/acvp/acvptool/subprocess/kas.go |  2 +-
+ .../acvp/acvptool/subprocess/kasdh.go         |  2 +-
+ .../fipstools/acvp/acvptool/subprocess/kdf.go |  2 +-
+ .../acvp/acvptool/subprocess/keyedMac.go      |  2 +-
+ .../fipstools/acvp/acvptool/subprocess/rsa.go |  8 ++--
+ .../acvp/acvptool/subprocess/subprocess.go    |  4 +-
+ .../fipstools/acvp/acvptool/subprocess/xts.go |  2 +-
+ .../acvp/acvptool/test/trim_vectors.go        | 12 +++---
+ util/read_symbols.go                          |  2 +-
+ 27 files changed, 89 insertions(+), 89 deletions(-)
+
+diff --git a/ssl/test/runner/cipher_suites.go b/ssl/test/runner/cipher_suites.go
+index 5db57498b..8a562e075 100644
+--- a/ssl/test/runner/cipher_suites.go
++++ b/ssl/test/runner/cipher_suites.go
+@@ -84,7 +84,7 @@ type cipherSuite struct {
+ 	ka     func(version uint16) keyAgreement
+ 	// flags is a bitmask of the suite* values, above.
+ 	flags  int
+-	cipher func(key, iv []byte, isRead bool) interface{}
++	cipher func(key, iv []byte, isRead bool) any
+ 	mac    func(version uint16, macKey []byte) macFunction
+ 	aead   func(version uint16, key, fixedNonce []byte) *tlsAead
+ }
+@@ -155,11 +155,11 @@ func ivLen3DES(vers uint16) int {
+ 
+ type nullCipher struct{}
+ 
+-func cipherNull(key, iv []byte, isRead bool) interface{} {
++func cipherNull(key, iv []byte, isRead bool) any {
+ 	return nullCipher{}
+ }
+ 
+-func cipher3DES(key, iv []byte, isRead bool) interface{} {
++func cipher3DES(key, iv []byte, isRead bool) any {
+ 	block, _ := des.NewTripleDESCipher(key)
+ 	if isRead {
+ 		return cipher.NewCBCDecrypter(block, iv)
+@@ -167,7 +167,7 @@ func cipher3DES(key, iv []byte, isRead bool) interface{} {
+ 	return cipher.NewCBCEncrypter(block, iv)
+ }
+ 
+-func cipherAES(key, iv []byte, isRead bool) interface{} {
++func cipherAES(key, iv []byte, isRead bool) any {
+ 	block, _ := aes.NewCipher(key)
+ 	if isRead {
+ 		return cipher.NewCBCDecrypter(block, iv)
+diff --git a/ssl/test/runner/common.go b/ssl/test/runner/common.go
+index bc37fcb6c..febab2119 100644
+--- a/ssl/test/runner/common.go
++++ b/ssl/test/runner/common.go
+@@ -2182,11 +2182,11 @@ type lruSessionCache struct {
+ 
+ type lruSessionCacheEntry struct {
+ 	sessionKey string
+-	state      interface{}
++	state      any
+ }
+ 
+ // Put adds the provided (sessionKey, cs) pair to the cache.
+-func (c *lruSessionCache) Put(sessionKey string, cs interface{}) {
++func (c *lruSessionCache) Put(sessionKey string, cs any) {
+ 	c.Lock()
+ 	defer c.Unlock()
+ 
+@@ -2214,7 +2214,7 @@ func (c *lruSessionCache) Put(sessionKey string, cs interface{}) {
+ 
+ // Get returns the value associated with a given key. It returns (nil,
+ // false) if no value is found.
+-func (c *lruSessionCache) Get(sessionKey string) (interface{}, bool) {
++func (c *lruSessionCache) Get(sessionKey string) (any, bool) {
+ 	c.Lock()
+ 	defer c.Unlock()
+ 
+@@ -2328,7 +2328,7 @@ func initDefaultCipherSuites() {
+ 	}
+ }
+ 
+-func unexpectedMessageError(wanted, got interface{}) error {
++func unexpectedMessageError(wanted, got any) error {
+ 	return fmt.Errorf("tls: received unexpected handshake message of type %T when waiting for %T", got, wanted)
+ }
+ 
+diff --git a/ssl/test/runner/conn.go b/ssl/test/runner/conn.go
+index ad77b665d..2e9114dba 100644
+--- a/ssl/test/runner/conn.go
++++ b/ssl/test/runner/conn.go
+@@ -174,13 +174,13 @@ type halfConn struct {
+ 	version     uint16 // protocol version
+ 	wireVersion uint16 // wire version
+ 	isDTLS      bool
+-	cipher      interface{} // cipher algorithm
++	cipher      any // cipher algorithm
+ 	mac         macFunction
+ 	seq         [8]byte // 64-bit sequence number
+ 	outSeq      [8]byte // Mapped sequence number
+ 	bfree       *block  // list of free blocks
+ 
+-	nextCipher interface{} // next encryption state
++	nextCipher any         // next encryption state
+ 	nextMac    macFunction // next MAC algorithm
+ 	nextSeq    [6]byte     // next epoch's starting sequence number in DTLS
+ 
+@@ -207,7 +207,7 @@ func (hc *halfConn) error() error {
+ 
+ // prepareCipherSpec sets the encryption and MAC states
+ // that a subsequent changeCipherSpec will use.
+-func (hc *halfConn) prepareCipherSpec(version uint16, cipher interface{}, mac macFunction) {
++func (hc *halfConn) prepareCipherSpec(version uint16, cipher any, mac macFunction) {
+ 	hc.wireVersion = version
+ 	protocolVersion, ok := wireToVersion(version, hc.isDTLS)
+ 	if !ok {
+@@ -1336,7 +1336,7 @@ func (c *Conn) doReadHandshake() ([]byte, error) {
+ // readHandshake reads the next handshake message from
+ // the record layer.
+ // c.in.Mutex < L; c.out.Mutex < L.
+-func (c *Conn) readHandshake() (interface{}, error) {
++func (c *Conn) readHandshake() (any, error) {
+ 	data, err := c.doReadHandshake()
+ 	if err != nil {
+ 		return nil, err
+diff --git a/ssl/test/runner/handshake_client.go b/ssl/test/runner/handshake_client.go
+index 5d04994ad..a972d3ebe 100644
+--- a/ssl/test/runner/handshake_client.go
++++ b/ssl/test/runner/handshake_client.go
+@@ -925,7 +925,7 @@ func (hs *clientHandshakeState) encryptClientHello(hello, innerHello *clientHell
+ 	return nil
+ }
+ 
+-func (hs *clientHandshakeState) checkECHConfirmation(msg interface{}, hello *clientHelloMsg, finishedHash *finishedHash) bool {
++func (hs *clientHandshakeState) checkECHConfirmation(msg any, hello *clientHelloMsg, finishedHash *finishedHash) bool {
+ 	var offset int
+ 	var raw, label []byte
+ 	if hrr, ok := msg.(*helloRetryRequestMsg); ok {
+@@ -950,7 +950,7 @@ func (hs *clientHandshakeState) checkECHConfirmation(msg interface{}, hello *cli
+ 	return bytes.Equal(confirmation, raw[offset:offset+echAcceptConfirmationLength])
+ }
+ 
+-func (hs *clientHandshakeState) doTLS13Handshake(msg interface{}) error {
++func (hs *clientHandshakeState) doTLS13Handshake(msg any) error {
+ 	c := hs.c
+ 
+ 	// The first message may be a ServerHello or HelloRetryRequest.
+@@ -1897,7 +1897,7 @@ func (hs *clientHandshakeState) establishKeys() error {
+ 
+ 	clientMAC, serverMAC, clientKey, serverKey, clientIV, serverIV :=
+ 		keysFromMasterSecret(c.vers, hs.suite, hs.masterSecret, hs.hello.random, hs.serverHello.random, hs.suite.macLen, hs.suite.keyLen, hs.suite.ivLen(c.vers))
+-	var clientCipher, serverCipher interface{}
++	var clientCipher, serverCipher any
+ 	var clientHash, serverHash macFunction
+ 	if hs.suite.cipher != nil {
+ 		clientCipher = hs.suite.cipher(clientKey, clientIV, false /* not for reading */)
+diff --git a/ssl/test/runner/handshake_server.go b/ssl/test/runner/handshake_server.go
+index 9fc71df9b..d3ecf3bbd 100644
+--- a/ssl/test/runner/handshake_server.go
++++ b/ssl/test/runner/handshake_server.go
+@@ -2068,7 +2068,7 @@ func (hs *serverHandshakeState) establishKeys() error {
+ 	clientMAC, serverMAC, clientKey, serverKey, clientIV, serverIV :=
+ 		keysFromMasterSecret(c.vers, hs.suite, hs.masterSecret, hs.clientHello.random, hs.hello.random, hs.suite.macLen, hs.suite.keyLen, hs.suite.ivLen(c.vers))
+ 
+-	var clientCipher, serverCipher interface{}
++	var clientCipher, serverCipher any
+ 	var clientHash, serverHash macFunction
+ 
+ 	if hs.suite.aead == nil {
+diff --git a/ssl/test/runner/prf.go b/ssl/test/runner/prf.go
+index 5731be033..fc67d7503 100644
+--- a/ssl/test/runner/prf.go
++++ b/ssl/test/runner/prf.go
+@@ -451,7 +451,7 @@ var (
+ 
+ // deriveTrafficAEAD derives traffic keys and constructs an AEAD given a traffic
+ // secret.
+-func deriveTrafficAEAD(version uint16, suite *cipherSuite, secret []byte, side trafficDirection) interface{} {
++func deriveTrafficAEAD(version uint16, suite *cipherSuite, secret []byte, side trafficDirection) any {
+ 	key := hkdfExpandLabel(suite.hash(), secret, keyTLS13, nil, suite.keyLen)
+ 	iv := hkdfExpandLabel(suite.hash(), secret, ivTLS13, nil, suite.ivLen(version))
+ 
+diff --git a/ssl/test/runner/sign.go b/ssl/test/runner/sign.go
+index da6452ac0..70541a1ec 100644
+--- a/ssl/test/runner/sign.go
++++ b/ssl/test/runner/sign.go
+@@ -272,7 +272,7 @@ func (e *ed25519Signer) verifyMessage(key crypto.PublicKey, msg, sig []byte) err
+ 	return nil
+ }
+ 
+-func getSigner(version uint16, key interface{}, config *Config, sigAlg signatureAlgorithm, isVerify bool) (signer, error) {
++func getSigner(version uint16, key any, config *Config, sigAlg signatureAlgorithm, isVerify bool) (signer, error) {
+ 	// TLS 1.1 and below use legacy signature algorithms.
+ 	if version < VersionTLS12 || (!isVerify && config.Bugs.AlwaysSignAsLegacyVersion) {
+ 		if config.Bugs.SigningAlgorithmForLegacyVersions == 0 || isVerify {
+diff --git a/util/convert_wycheproof/convert_wycheproof.go b/util/convert_wycheproof/convert_wycheproof.go
+index 1cd8d4563..cd156e01a 100644
+--- a/util/convert_wycheproof/convert_wycheproof.go
++++ b/util/convert_wycheproof/convert_wycheproof.go
+@@ -33,10 +33,10 @@ type wycheproofTest struct {
+ 	Header           []string          `json:"header"`
+ 	// encoding/json does not support collecting unused keys, so we leave
+ 	// everything past this point as generic.
+-	TestGroups []map[string]interface{} `json:"testGroups"`
++	TestGroups []map[string]any `json:"testGroups"`
+ }
+ 
+-func sortedKeys(m map[string]interface{}) []string {
++func sortedKeys(m map[string]any) []string {
+ 	keys := make([]string, 0, len(m))
+ 	for k, _ := range m {
+ 		keys = append(keys, k)
+@@ -45,8 +45,8 @@ func sortedKeys(m map[string]interface{}) []string {
+ 	return keys
+ }
+ 
+-func printAttribute(w io.Writer, key string, valueI interface{}, isInstruction bool) error {
+-	switch value := valueI.(type) {
++func printAttribute(w io.Writer, key string, valueAny any, isInstruction bool) error {
++	switch value := valueAny.(type) {
+ 	case float64:
+ 		if float64(int(value)) != value {
+ 			panic(key + "was not an integer.")
+@@ -73,14 +73,14 @@ func printAttribute(w io.Writer, key string, valueI interface{}, isInstruction b
+ 				return err
+ 			}
+ 		}
+-	case map[string]interface{}:
++	case map[string]any:
+ 		for _, k := range sortedKeys(value) {
+ 			if err := printAttribute(w, key+"."+k, value[k], isInstruction); err != nil {
+ 				return err
+ 			}
+ 		}
+ 	default:
+-		panic(fmt.Sprintf("Unknown type for %q: %T", key, valueI))
++		panic(fmt.Sprintf("Unknown type for %q: %T", key, valueAny))
+ 	}
+ 	return nil
+ }
+@@ -154,9 +154,9 @@ func convertWycheproof(f io.Writer, jsonPath string) error {
+ 			}
+ 		}
+ 		fmt.Fprintf(f, "\n")
+-		tests := group["tests"].([]interface{})
+-		for _, testI := range tests {
+-			test := testI.(map[string]interface{})
++		tests := group["tests"].([]any)
++		for _, testAny := range tests {
++			test := testAny.(map[string]any)
+ 			if _, err := fmt.Fprintf(f, "# tcId = %d\n", int(test["tcId"].(float64))); err != nil {
+ 				return err
+ 			}
+@@ -173,10 +173,10 @@ func convertWycheproof(f io.Writer, jsonPath string) error {
+ 					return err
+ 				}
+ 			}
+-			if flagsI, ok := test["flags"]; ok {
++			if flagsAny, ok := test["flags"]; ok {
+ 				var flags []string
+-				for _, flagI := range flagsI.([]interface{}) {
+-					flag := flagI.(string)
++				for _, flagAny := range flagsAny.([]any) {
++					flag := flagAny.(string)
+ 					flags = append(flags, flag)
+ 				}
+ 				if len(flags) != 0 {
+diff --git a/util/fipstools/acvp/acvptool/acvp.go b/util/fipstools/acvp/acvptool/acvp.go
+index 998e439c6..2e1883d56 100644
+--- a/util/fipstools/acvp/acvptool/acvp.go
++++ b/util/fipstools/acvp/acvptool/acvp.go
+@@ -80,7 +80,7 @@ func isCommentLine(line []byte) bool {
+ 	return false
+ }
+ 
+-func jsonFromFile(out interface{}, filename string) error {
++func jsonFromFile(out any, filename string) error {
+ 	in, err := os.Open(filename)
+ 	if err != nil {
+ 		return err
+@@ -131,7 +131,7 @@ func TOTP(secret []byte) string {
+ type Middle interface {
+ 	Close()
+ 	Config() ([]byte, error)
+-	Process(algorithm string, vectorSet []byte) (interface{}, error)
++	Process(algorithm string, vectorSet []byte) (any, error)
+ }
+ 
+ func loadCachedSessionTokens(server *acvp.Server, cachePath string) error {
+@@ -198,7 +198,7 @@ func looksLikeVectorSetHeader(element json.RawMessage) bool {
+ 
+ // processFile reads a file containing vector sets, at least in the format
+ // preferred by our lab, and writes the results to stdout.
+-func processFile(filename string, supportedAlgos []map[string]interface{}, middle Middle) error {
++func processFile(filename string, supportedAlgos []map[string]any, middle Middle) error {
+ 	jsonBytes, err := os.ReadFile(filename)
+ 	if err != nil {
+ 		return err
+@@ -267,7 +267,7 @@ func processFile(filename string, supportedAlgos []map[string]interface{}, middl
+ 			return fmt.Errorf("while processing vector set #%d: %s", i+1, err)
+ 		}
+ 
+-		group := map[string]interface{}{
++		group := map[string]any{
+ 			"vsId":       commonFields.ID,
+ 			"testGroups": replyGroups,
+ 			"algorithm":  algo,
+@@ -540,13 +540,13 @@ func main() {
+ 		log.Fatalf("failed to get config from middle: %s", err)
+ 	}
+ 
+-	var supportedAlgos []map[string]interface{}
++	var supportedAlgos []map[string]any
+ 	if err := json.Unmarshal(configBytes, &supportedAlgos); err != nil {
+ 		log.Fatalf("failed to parse configuration from Middle: %s", err)
+ 	}
+ 
+ 	if *dumpRegcap {
+-		nonTestAlgos := make([]map[string]interface{}, 0, len(supportedAlgos))
++		nonTestAlgos := make([]map[string]any, 0, len(supportedAlgos))
+ 		for _, algo := range supportedAlgos {
+ 			if value, ok := algo["acvptoolTestOnly"]; ok {
+ 				testOnly, ok := value.(bool)
+@@ -560,9 +560,9 @@ func main() {
+ 			nonTestAlgos = append(nonTestAlgos, algo)
+ 		}
+ 
+-		regcap := []map[string]interface{}{
+-			map[string]interface{}{"acvVersion": "1.0"},
+-			map[string]interface{}{"algorithms": nonTestAlgos},
++		regcap := []map[string]any{
++			{"acvVersion": "1.0"},
++			{"algorithms": nonTestAlgos},
+ 		}
+ 		regcapBytes, err := json.MarshalIndent(regcap, "", "    ")
+ 		if err != nil {
+@@ -637,7 +637,7 @@ func main() {
+ 		}
+ 	}
+ 
+-	var algorithms []map[string]interface{}
++	var algorithms []map[string]any
+ 	for _, supportedAlgo := range supportedAlgos {
+ 		algoInterface, ok := supportedAlgo["algorithm"]
+ 		if !ok {
+diff --git a/util/fipstools/acvp/acvptool/acvp/acvp.go b/util/fipstools/acvp/acvptool/acvp/acvp.go
+index b5a01f0c3..9d20ed88e 100644
+--- a/util/fipstools/acvp/acvptool/acvp/acvp.go
++++ b/util/fipstools/acvp/acvptool/acvp/acvp.go
+@@ -195,7 +195,7 @@ func parseReplyToBytes(in io.Reader) ([]byte, error) {
+ // parseReply parses the contents of an ACVP reply (after removing the header
+ // element) into out. See the documentation of the encoding/json package for
+ // details of the parsing.
+-func parseReply(out interface{}, in io.Reader) error {
++func parseReply(out any, in io.Reader) error {
+ 	if out == nil {
+ 		// No reply expected.
+ 		return nil
+@@ -379,7 +379,7 @@ func (server *Server) newRequestWithToken(method, endpoint string, body io.Reade
+ 	return req, nil
+ }
+ 
+-func (server *Server) Get(out interface{}, endPoint string) error {
++func (server *Server) Get(out any, endPoint string) error {
+ 	req, err := server.newRequestWithToken("GET", endPoint, nil)
+ 	if err != nil {
+ 		return err
+@@ -417,7 +417,7 @@ func (server *Server) GetBytes(endPoint string) ([]byte, error) {
+ 	return parseReplyToBytes(resp.Body)
+ }
+ 
+-func (server *Server) write(method string, reply interface{}, endPoint string, contents []byte) error {
++func (server *Server) write(method string, reply any, endPoint string, contents []byte) error {
+ 	var buf bytes.Buffer
+ 	buf.WriteString(requestPrefix)
+ 	buf.Write(contents)
+@@ -442,7 +442,7 @@ func (server *Server) write(method string, reply interface{}, endPoint string, c
+ 	return parseReply(reply, resp.Body)
+ }
+ 
+-func (server *Server) postMessage(reply interface{}, endPoint string, request interface{}) error {
++func (server *Server) postMessage(reply any, endPoint string, request any) error {
+ 	contents, err := json.Marshal(request)
+ 	if err != nil {
+ 		return err
+@@ -450,11 +450,11 @@ func (server *Server) postMessage(reply interface{}, endPoint string, request in
+ 	return server.write("POST", reply, endPoint, contents)
+ }
+ 
+-func (server *Server) Post(out interface{}, endPoint string, contents []byte) error {
++func (server *Server) Post(out any, endPoint string, contents []byte) error {
+ 	return server.write("POST", out, endPoint, contents)
+ }
+ 
+-func (server *Server) Put(out interface{}, endPoint string, contents []byte) error {
++func (server *Server) Put(out any, endPoint string, contents []byte) error {
+ 	return server.write("PUT", out, endPoint, contents)
+ }
+ 
+@@ -481,7 +481,7 @@ var (
+ 
+ // GetPaged returns an array of records of some type using one or more requests to the server. See
+ // https://pages.nist.gov/ACVP/draft-fussell-acvp-spec.html#paging_response
+-func (server *Server) GetPaged(out interface{}, endPoint string, condition Query) error {
++func (server *Server) GetPaged(out any, endPoint string, condition Query) error {
+ 	output := reflect.ValueOf(out)
+ 	if output.Kind() != reflect.Ptr {
+ 		panic(fmt.Sprintf("GetPaged output parameter of non-pointer type %T", out))
+@@ -618,22 +618,22 @@ type OperationalEnvironment struct {
+ 	Dependencies   []Dependency `json:"dependencies,omitempty"`
+ }
+ 
+-type Dependency map[string]interface{}
++type Dependency map[string]any
+ 
+-type Algorithm map[string]interface{}
++type Algorithm map[string]any
+ 
+ type TestSession struct {
+-	URL           string                   `json:"url,omitempty"`
+-	ACVPVersion   string                   `json:"acvpVersion,omitempty"`
+-	Created       string                   `json:"createdOn,omitempty"`
+-	Expires       string                   `json:"expiresOn,omitempty"`
+-	VectorSetURLs []string                 `json:"vectorSetUrls,omitempty"`
+-	AccessToken   string                   `json:"accessToken,omitempty"`
+-	Algorithms    []map[string]interface{} `json:"algorithms,omitempty"`
+-	EncryptAtRest bool                     `json:"encryptAtRest,omitempty"`
+-	IsSample      bool                     `json:"isSample,omitempty"`
+-	Publishable   bool                     `json:"publishable,omitempty"`
+-	Passed        bool                     `json:"passed,omitempty"`
++	URL           string           `json:"url,omitempty"`
++	ACVPVersion   string           `json:"acvpVersion,omitempty"`
++	Created       string           `json:"createdOn,omitempty"`
++	Expires       string           `json:"expiresOn,omitempty"`
++	VectorSetURLs []string         `json:"vectorSetUrls,omitempty"`
++	AccessToken   string           `json:"accessToken,omitempty"`
++	Algorithms    []map[string]any `json:"algorithms,omitempty"`
++	EncryptAtRest bool             `json:"encryptAtRest,omitempty"`
++	IsSample      bool             `json:"isSample,omitempty"`
++	Publishable   bool             `json:"publishable,omitempty"`
++	Passed        bool             `json:"passed,omitempty"`
+ }
+ 
+ type Vectors struct {
+diff --git a/util/fipstools/acvp/acvptool/interactive.go b/util/fipstools/acvp/acvptool/interactive.go
+index 384206ced..1c040aea6 100644
+--- a/util/fipstools/acvp/acvptool/interactive.go
++++ b/util/fipstools/acvp/acvptool/interactive.go
+@@ -142,7 +142,7 @@ func (set ServerObjectSet) Action(action string, args []string) error {
+ 			return nil
+ 		}
+ 
+-		var result map[string]interface{}
++		var result map[string]any
+ 		if err := set.env.server.Post(&result, "acvp/v1/"+set.name, newContents); err != nil {
+ 			return err
+ 		}
+@@ -308,7 +308,7 @@ type Algorithms struct {
+ 
+ func (algos Algorithms) String() (string, error) {
+ 	var result struct {
+-		Algorithms []map[string]interface{} `json:"algorithms"`
++		Algorithms []map[string]any `json:"algorithms"`
+ 	}
+ 	if err := algos.env.server.Get(&result, "acvp/v1/algorithms"); err != nil {
+ 		return "", err
+@@ -360,7 +360,7 @@ func (s stringLiteral) Action(action string, args []string) error {
+ 			return fmt.Errorf("found %d arguments but %q takes none", len(args), action)
+ 		}
+ 
+-		var results map[string]interface{}
++		var results map[string]any
+ 		if err := s.env.server.Get(&results, s.contents); err != nil {
+ 			return err
+ 		}
+@@ -379,7 +379,7 @@ type results struct {
+ }
+ 
+ func (r results) String() (string, error) {
+-	var results map[string]interface{}
++	var results map[string]any
+ 	if err := r.env.server.Get(&results, "acvp/v1/"+r.prefix+"/results"); err != nil {
+ 		return "", err
+ 	}
+diff --git a/util/fipstools/acvp/acvptool/subprocess/aead.go b/util/fipstools/acvp/acvptool/subprocess/aead.go
+index c2fd79541..49b59b7a9 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/aead.go
++++ b/util/fipstools/acvp/acvptool/subprocess/aead.go
+@@ -63,7 +63,7 @@ type aeadTestResponse struct {
+ 	IVHex         string  `json:"iv,omitempty"`
+ }
+ 
+-func (a *aead) Process(vectorSet []byte, m Transactable) (interface{}, error) {
++func (a *aead) Process(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed aeadVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+diff --git a/util/fipstools/acvp/acvptool/subprocess/block.go b/util/fipstools/acvp/acvptool/subprocess/block.go
+index 1b1e93b99..0387e0908 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/block.go
++++ b/util/fipstools/acvp/acvptool/subprocess/block.go
+@@ -288,7 +288,7 @@ type blockCipherMCTResult struct {
+ 	Key3Hex string `json:"key3,omitempty"`
+ }
+ 
+-func (b *blockCipher) Process(vectorSet []byte, m Transactable) (interface{}, error) {
++func (b *blockCipher) Process(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed blockCipherVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+diff --git a/util/fipstools/acvp/acvptool/subprocess/drbg.go b/util/fipstools/acvp/acvptool/subprocess/drbg.go
+index d2f7572f0..6db8a64a3 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/drbg.go
++++ b/util/fipstools/acvp/acvptool/subprocess/drbg.go
+@@ -73,7 +73,7 @@ type drbg struct {
+ 	modes map[string]bool // the supported underlying primitives for the DRBG
+ }
+ 
+-func (d *drbg) Process(vectorSet []byte, m Transactable) (interface{}, error) {
++func (d *drbg) Process(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed drbgTestVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+diff --git a/util/fipstools/acvp/acvptool/subprocess/ecdsa.go b/util/fipstools/acvp/acvptool/subprocess/ecdsa.go
+index 314a9043a..c506c35ea 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/ecdsa.go
++++ b/util/fipstools/acvp/acvptool/subprocess/ecdsa.go
+@@ -72,7 +72,7 @@ type ecdsa struct {
+ 	primitives map[string]primitive
+ }
+ 
+-func (e *ecdsa) Process(vectorSet []byte, m Transactable) (interface{}, error) {
++func (e *ecdsa) Process(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed ecdsaTestVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+diff --git a/util/fipstools/acvp/acvptool/subprocess/hash.go b/util/fipstools/acvp/acvptool/subprocess/hash.go
+index 9cbdccbd0..b5a6e8952 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/hash.go
++++ b/util/fipstools/acvp/acvptool/subprocess/hash.go
+@@ -71,7 +71,7 @@ type hashPrimitive struct {
+ 	size int
+ }
+ 
+-func (h *hashPrimitive) Process(vectorSet []byte, m Transactable) (interface{}, error) {
++func (h *hashPrimitive) Process(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed hashTestVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+diff --git a/util/fipstools/acvp/acvptool/subprocess/hkdf.go b/util/fipstools/acvp/acvptool/subprocess/hkdf.go
+index 6e59b9522..5f6aa7f95 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/hkdf.go
++++ b/util/fipstools/acvp/acvptool/subprocess/hkdf.go
+@@ -124,7 +124,7 @@ type hkdfTestResponse struct {
+ 
+ type hkdf struct{}
+ 
+-func (k *hkdf) Process(vectorSet []byte, m Transactable) (interface{}, error) {
++func (k *hkdf) Process(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed hkdfTestVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+diff --git a/util/fipstools/acvp/acvptool/subprocess/hmac.go b/util/fipstools/acvp/acvptool/subprocess/hmac.go
+index 2fd90eac9..185988670 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/hmac.go
++++ b/util/fipstools/acvp/acvptool/subprocess/hmac.go
+@@ -76,7 +76,7 @@ func (h *hmacPrimitive) hmac(msg []byte, key []byte, outBits int, m Transactable
+ 	return result[0][:outBytes]
+ }
+ 
+-func (h *hmacPrimitive) Process(vectorSet []byte, m Transactable) (interface{}, error) {
++func (h *hmacPrimitive) Process(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed hmacTestVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+diff --git a/util/fipstools/acvp/acvptool/subprocess/kas.go b/util/fipstools/acvp/acvptool/subprocess/kas.go
+index cb1eb9151..962533483 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/kas.go
++++ b/util/fipstools/acvp/acvptool/subprocess/kas.go
+@@ -68,7 +68,7 @@ type kasTestResponse struct {
+ 
+ type kas struct{}
+ 
+-func (k *kas) Process(vectorSet []byte, m Transactable) (interface{}, error) {
++func (k *kas) Process(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed kasVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+diff --git a/util/fipstools/acvp/acvptool/subprocess/kasdh.go b/util/fipstools/acvp/acvptool/subprocess/kasdh.go
+index a21d4ee41..a9de2e384 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/kasdh.go
++++ b/util/fipstools/acvp/acvptool/subprocess/kasdh.go
+@@ -59,7 +59,7 @@ type kasDHTestResponse struct {
+ 
+ type kasDH struct{}
+ 
+-func (k *kasDH) Process(vectorSet []byte, m Transactable) (interface{}, error) {
++func (k *kasDH) Process(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed kasDHVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+diff --git a/util/fipstools/acvp/acvptool/subprocess/kdf.go b/util/fipstools/acvp/acvptool/subprocess/kdf.go
+index 2130a9146..136db1a1d 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/kdf.go
++++ b/util/fipstools/acvp/acvptool/subprocess/kdf.go
+@@ -59,7 +59,7 @@ type kdfTestResponse struct {
+ 
+ type kdfPrimitive struct{}
+ 
+-func (k *kdfPrimitive) Process(vectorSet []byte, m Transactable) (interface{}, error) {
++func (k *kdfPrimitive) Process(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed kdfTestVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+diff --git a/util/fipstools/acvp/acvptool/subprocess/keyedMac.go b/util/fipstools/acvp/acvptool/subprocess/keyedMac.go
+index 94be18602..a722ac9a1 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/keyedMac.go
++++ b/util/fipstools/acvp/acvptool/subprocess/keyedMac.go
+@@ -57,7 +57,7 @@ type keyedMACPrimitive struct {
+ 	algo string
+ }
+ 
+-func (k *keyedMACPrimitive) Process(vectorSet []byte, m Transactable) (interface{}, error) {
++func (k *keyedMACPrimitive) Process(vectorSet []byte, m Transactable) (any, error) {
+ 	var vs keyedMACTestVectorSet
+ 	if err := json.Unmarshal(vectorSet, &vs); err != nil {
+ 		return nil, err
+diff --git a/util/fipstools/acvp/acvptool/subprocess/rsa.go b/util/fipstools/acvp/acvptool/subprocess/rsa.go
+index 19935e531..2d5a46f11 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/rsa.go
++++ b/util/fipstools/acvp/acvptool/subprocess/rsa.go
+@@ -117,7 +117,7 @@ type rsaSigVerTestResponse struct {
+ 	Passed bool   `json:"testPassed"`
+ }
+ 
+-func processKeyGen(vectorSet []byte, m Transactable) (interface{}, error) {
++func processKeyGen(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed rsaKeyGenTestVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+@@ -158,7 +158,7 @@ func processKeyGen(vectorSet []byte, m Transactable) (interface{}, error) {
+ 	return ret, nil
+ }
+ 
+-func processSigGen(vectorSet []byte, m Transactable) (interface{}, error) {
++func processSigGen(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed rsaSigGenTestVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+@@ -222,7 +222,7 @@ func processSigGen(vectorSet []byte, m Transactable) (interface{}, error) {
+ 	return ret, nil
+ }
+ 
+-func processSigVer(vectorSet []byte, m Transactable) (interface{}, error) {
++func processSigVer(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed rsaSigVerTestVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+@@ -281,7 +281,7 @@ func processSigVer(vectorSet []byte, m Transactable) (interface{}, error) {
+ 
+ type rsa struct{}
+ 
+-func (*rsa) Process(vectorSet []byte, m Transactable) (interface{}, error) {
++func (*rsa) Process(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed rsaTestVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+diff --git a/util/fipstools/acvp/acvptool/subprocess/subprocess.go b/util/fipstools/acvp/acvptool/subprocess/subprocess.go
+index 802a568a5..c4a37b2ee 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/subprocess.go
++++ b/util/fipstools/acvp/acvptool/subprocess/subprocess.go
+@@ -212,7 +212,7 @@ func (m *Subprocess) Config() ([]byte, error) {
+ }
+ 
+ // Process runs a set of test vectors and returns the result.
+-func (m *Subprocess) Process(algorithm string, vectorSet []byte) (interface{}, error) {
++func (m *Subprocess) Process(algorithm string, vectorSet []byte) (any, error) {
+ 	prim, ok := m.primitives[algorithm]
+ 	if !ok {
+ 		return nil, fmt.Errorf("unknown algorithm %q", algorithm)
+@@ -225,7 +225,7 @@ func (m *Subprocess) Process(algorithm string, vectorSet []byte) (interface{}, e
+ }
+ 
+ type primitive interface {
+-	Process(vectorSet []byte, t Transactable) (interface{}, error)
++	Process(vectorSet []byte, t Transactable) (any, error)
+ }
+ 
+ func uint32le(n uint32) []byte {
+diff --git a/util/fipstools/acvp/acvptool/subprocess/xts.go b/util/fipstools/acvp/acvptool/subprocess/xts.go
+index e3546a33b..50eb6fdb2 100644
+--- a/util/fipstools/acvp/acvptool/subprocess/xts.go
++++ b/util/fipstools/acvp/acvptool/subprocess/xts.go
+@@ -59,7 +59,7 @@ type xtsTestResponse struct {
+ // encrypt/decrypt with AES-XTS.
+ type xts struct{}
+ 
+-func (h *xts) Process(vectorSet []byte, m Transactable) (interface{}, error) {
++func (h *xts) Process(vectorSet []byte, m Transactable) (any, error) {
+ 	var parsed xtsTestVectorSet
+ 	if err := json.Unmarshal(vectorSet, &parsed); err != nil {
+ 		return nil, err
+diff --git a/util/fipstools/acvp/acvptool/test/trim_vectors.go b/util/fipstools/acvp/acvptool/test/trim_vectors.go
+index 703f75fd2..d3402109b 100644
+--- a/util/fipstools/acvp/acvptool/test/trim_vectors.go
++++ b/util/fipstools/acvp/acvptool/test/trim_vectors.go
+@@ -25,7 +25,7 @@ import (
+ )
+ 
+ func main() {
+-	var vectorSets []interface{}
++	var vectorSets []any
+ 	decoder := json.NewDecoder(os.Stdin)
+ 	if err := decoder.Decode(&vectorSets); err != nil {
+ 		panic(err)
+@@ -33,18 +33,18 @@ func main() {
+ 
+ 	// The first element is the metadata which is left unmodified.
+ 	for i := 1; i < len(vectorSets); i++ {
+-		vectorSet := vectorSets[i].(map[string]interface{})
+-		testGroups := vectorSet["testGroups"].([]interface{})
++		vectorSet := vectorSets[i].(map[string]any)
++		testGroups := vectorSet["testGroups"].([]any)
+ 		for _, testGroupInterface := range testGroups {
+-			testGroup := testGroupInterface.(map[string]interface{})
+-			tests := testGroup["tests"].([]interface{})
++			testGroup := testGroupInterface.(map[string]any)
++			tests := testGroup["tests"].([]any)
+ 
+ 			keepIndex := 10
+ 			if keepIndex >= len(tests) {
+ 				keepIndex = len(tests) - 1
+ 			}
+ 
+-			testGroup["tests"] = []interface{}{tests[keepIndex]}
++			testGroup["tests"] = []any{tests[keepIndex]}
+ 		}
+ 	}
+ 
+diff --git a/util/read_symbols.go b/util/read_symbols.go
+index 58bc16b28..13930879a 100644
+--- a/util/read_symbols.go
++++ b/util/read_symbols.go
+@@ -61,7 +61,7 @@ func defaultObjFileFormat(goos string) string {
+ 	}
+ }
+ 
+-func printAndExit(format string, args ...interface{}) {
++func printAndExit(format string, args ...any) {
+ 	s := fmt.Sprintf(format, args...)
+ 	fmt.Fprintln(os.Stderr, s)
+ 	os.Exit(1)

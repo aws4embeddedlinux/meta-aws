@@ -1,0 +1,68 @@
+From 5671f657895a69b0e98aee88ad3798878480c1ea Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 7 Mar 2023 15:14:00 -0500
+Subject: [PATCH] Remove EVP_PKEY_ASN1_METHOD and EVP_PKEY_METHOD from public
+ headers
+
+With EVP_PKEY and EVP_PKEY_CTX opaque, these symbols don't appear in any
+public APIs anymore. Make them internal, which also opens the door to
+renaming them:
+
+- EVP_PKEY_METHOD is more accurately EVP_PKEY_CTX_METHOD
+- EVP_PKEY_ASN1_METHOD is more accurately EVP_PKEY_METHOD
+
+Or perhaps the split doesn't mean much and we should fold them together.
+
+Change-Id: I8a0f7c2e07445dc981c7cef697263e59dba7784e
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57885
+Commit-Queue: David Benjamin <davidben@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit a925c220c123af0bdd49be3a8a84a506584c1fb2)
+---
+ crypto/evp_extra/internal.h      | 1 +
+ crypto/fipsmodule/evp/internal.h | 3 +++
+ include/openssl/base.h           | 2 --
+ 3 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/evp_extra/internal.h b/crypto/evp_extra/internal.h
+index 6d82267b1..26c823b40 100644
+--- a/crypto/evp_extra/internal.h
++++ b/crypto/evp_extra/internal.h
+@@ -2,6 +2,7 @@
+ // SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ #include <openssl/base.h>
++#include "../fipsmodule/evp/internal.h"
+ 
+ typedef struct {
+   // key is the concatenation of the private seed and public key. It is stored
+diff --git a/crypto/fipsmodule/evp/internal.h b/crypto/fipsmodule/evp/internal.h
+index ba18ee644..1e7abb827 100644
+--- a/crypto/fipsmodule/evp/internal.h
++++ b/crypto/fipsmodule/evp/internal.h
+@@ -70,6 +70,9 @@ extern "C" {
+ // |EVP_MD_CTX_set_pkey_ctx|.
+ #define EVP_MD_CTX_FLAG_KEEP_PKEY_CTX   0x0400
+ 
++typedef struct evp_pkey_asn1_method_st EVP_PKEY_ASN1_METHOD;
++typedef struct evp_pkey_method_st EVP_PKEY_METHOD;
++
+ struct evp_pkey_asn1_method_st {
+   int pkey_id;
+   uint8_t oid[11];
+diff --git a/include/openssl/base.h b/include/openssl/base.h
+index 1421ed327..250578b69 100644
+--- a/include/openssl/base.h
++++ b/include/openssl/base.h
+@@ -431,9 +431,7 @@ typedef struct evp_hpke_kem_st EVP_HPKE_KEM;
+ typedef struct evp_hpke_key_st EVP_HPKE_KEY;
+ typedef struct evp_kem_st EVP_KEM;
+ typedef struct kem_key_st KEM_KEY;
+-typedef struct evp_pkey_asn1_method_st EVP_PKEY_ASN1_METHOD;
+ typedef struct evp_pkey_ctx_st EVP_PKEY_CTX;
+-typedef struct evp_pkey_method_st EVP_PKEY_METHOD;
+ typedef struct evp_pkey_st EVP_PKEY;
+ typedef struct hmac_ctx_st HMAC_CTX;
+ typedef struct md4_state_st MD4_CTX;

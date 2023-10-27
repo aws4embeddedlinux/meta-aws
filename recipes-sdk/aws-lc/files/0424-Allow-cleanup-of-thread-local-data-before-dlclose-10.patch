@@ -1,0 +1,267 @@
+From 7dbbb54d4e38dd3f4f2995ad2b541df86ae478fd Mon Sep 17 00:00:00 2001
+From: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+Date: Mon, 19 Jun 2023 17:17:57 -0400
+Subject: [PATCH] Allow cleanup of thread-local data before dlclose (#1057)
+
+---
+ CMakeLists.txt                |   4 +-
+ crypto/CMakeLists.txt         |  17 +++++
+ crypto/dynamic_loading_test.c | 118 ++++++++++++++++++++++++++++++++++
+ crypto/thread_pthread.c       |  29 +++++++++
+ include/openssl/thread.h      |  13 ++++
+ util/all_tests.json           |   5 ++
+ 6 files changed, 185 insertions(+), 1 deletion(-)
+ create mode 100644 crypto/dynamic_loading_test.c
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 6316237c8..7cc2b4a70 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -839,6 +839,7 @@ if(BUILD_TESTING)
+     set(MEM_TEST_EXEC mem_test.so)
+     set(MEM_SET_TEST_EXEC mem_set_test.so)
+     set(INTEGRATION_TEST_EXEC integration_test.so)
++    set(DYNAMIC_LOADING_TEST_EXEC dynamic_loading_test.so)
+   else()
+     set(CRYPTO_TEST_EXEC crypto_test)
+     set(RANDOM_TEST_EXEC urandom_test)
+@@ -846,8 +847,9 @@ if(BUILD_TESTING)
+     set(MEM_TEST_EXEC mem_test)
+     set(MEM_SET_TEST_EXEC mem_set_test)
+     set(INTEGRATION_TEST_EXEC integration_test)
++    set(DYNAMIC_LOADING_TEST_EXEC dynamic_loading_test)
+   endif()
+-  
++
+   add_subdirectory(util/fipstools/acvp/modulewrapper)
+ endif()
+ 
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index d4175f0c2..1823ee638 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -771,6 +771,23 @@ if(BUILD_TESTING)
+     target_compile_options(${CRYPTO_TEST_EXEC} PUBLIC -Wno-deprecated-declarations)
+   endif()
+   add_dependencies(all_tests ${CRYPTO_TEST_EXEC})
++
++  message(STATUS "Generating test executable ${DYNAMIC_LOADING_TEST_EXEC}.")
++
++  add_executable(${DYNAMIC_LOADING_TEST_EXEC} dynamic_loading_test.c)
++  add_dependencies(${DYNAMIC_LOADING_TEST_EXEC} crypto)
++
++  if (BUILD_SHARED_LIBS AND NOT WIN32)
++    target_compile_options(${DYNAMIC_LOADING_TEST_EXEC} PUBLIC "-DLIBCRYPTO_PATH=$<TARGET_FILE:crypto>")
++    # Do not link to boringssl_gtest_main or any library that might be linked to libcrypto.so.
++    if(ANDROID)
++      target_link_libraries(${DYNAMIC_LOADING_TEST_EXEC} PUBLIC boringssl_gtest dl)
++    else()
++      target_link_libraries(${DYNAMIC_LOADING_TEST_EXEC} PUBLIC boringssl_gtest pthread dl)
++    endif()
++  endif()
++
++  add_dependencies(all_tests ${DYNAMIC_LOADING_TEST_EXEC})
+ endif()
+ 
+ install(TARGETS crypto
+diff --git a/crypto/dynamic_loading_test.c b/crypto/dynamic_loading_test.c
+new file mode 100644
+index 000000000..dce850951
+--- /dev/null
++++ b/crypto/dynamic_loading_test.c
+@@ -0,0 +1,118 @@
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
++
++// This test verifies that AWS-LC's shared library can safely be
++// loaded/unloaded using `dlopen`/`dlclose`.
++//
++// Problem:
++// When a thread terminates, its thread-local data is destructed via a call to
++// our internal thread_local_destructor function. However, when our shared
++// library is unloaded (via `dlclose`) prior to the thread's termination, it may
++// result in a segmentation fault due to the destructor function no longer being
++// available.
++//
++// Building:
++// This binary should not be linked to `libcrypto` when built. Doing so would
++// result in the `dlclose` being no-op and invalidating the test.
++//
++// The path to the shared library must be passed as a compiler macro
++// `-DLIBCRYPTO_PATH=<<path to libcrypto.so>>` when built.
++
++#include <stdio.h>
++#include <stdlib.h>
++
++#ifdef LIBCRYPTO_PATH
++
++#include <dlfcn.h>
++#include <pthread.h>
++
++typedef void (*fp_lc_clear_error_t)(void);
++typedef int (*fp_lc_tl_func_t)(void);
++typedef int (*fp_rand_bytes_t)(u_int8_t *buf, size_t len);
++
++#define BUFFER_SIZE 16
++#define TEST_ITERS 10
++#define THREAD_COUNT 10
++
++static void *cycle_thread_local_setup(void *lc_so) {
++  u_int8_t buffer[BUFFER_SIZE];
++  fp_lc_clear_error_t lc_clear_error = dlsym(lc_so, "ERR_clear_error");
++  fp_rand_bytes_t lc_rand_bytes = dlsym(lc_so, "RAND_bytes");
++  fp_lc_tl_func_t lc_tl_clear = dlsym(lc_so, "AWSLC_thread_local_clear");
++
++  for (int i = 0; i < TEST_ITERS; i++) {
++    (*lc_clear_error)();
++    if (1 != (*lc_rand_bytes)(buffer, BUFFER_SIZE)) {
++      fprintf(stderr, "Call to RAND_bytes failed.");
++      exit(1);
++    }
++    if (1 != (*lc_tl_clear)()) {
++      fprintf(stderr, "Call to AWSLC_thread_local_clear failed.");
++      exit(1);
++    }
++  }
++
++  return NULL;
++}
++
++static void *load_unload(void *ctx) {
++  const char* path = ctx;
++  void *lc_so = dlopen(path, RTLD_NOW);
++  fp_lc_tl_func_t lc_tl_shutdown = dlsym(lc_so, "AWSLC_thread_local_shutdown");
++
++  pthread_t thread_id[THREAD_COUNT];
++  for (int i = 0; i < THREAD_COUNT; i++) {
++    if (pthread_create(&thread_id[i], NULL, cycle_thread_local_setup, lc_so)) {
++      fprintf(stderr, "Call to pthread_create in load_unload failed.");
++      exit(1);
++    }
++  }
++
++  // Also cycle on the current thread
++  cycle_thread_local_setup(lc_so);
++
++  for (int i = 0; i < THREAD_COUNT; i++) {
++    if (pthread_join(thread_id[i], NULL)) {
++      fprintf(stderr, "Call to pthread_join in load_unload failed.");
++      exit(1);
++    }
++  }
++
++  if (1 != (*lc_tl_shutdown)()) {
++    fprintf(stderr, "Call to AWSLC_thread_local_shutdown failed.");
++    exit(1);
++  }
++  dlclose(lc_so);
++
++  return NULL;
++}
++
++
++#define xstr(s) str(s)
++#define str(s) #s
++#define DYNAMIC_LIBRARY_PATH xstr(LIBCRYPTO_PATH)
++
++
++int main(int argc, char *argv[]) {
++  pthread_t thread_id;
++  if (pthread_create(&thread_id, NULL, load_unload, (void*)DYNAMIC_LIBRARY_PATH)) {
++    fprintf(stderr, "Call to pthread_create in main failed.");
++    exit(1);
++  }
++
++  if (pthread_join(thread_id, NULL)) {
++    fprintf(stderr, "Call to pthread_join in main failed.");
++    exit(1);
++  }
++
++  printf("PASS\n");
++  return 0;
++}
++#else
++
++int main(int argc, char **argv) {
++  printf("PASS\n");
++  return 0;
++}
++
++#endif // LIBCRYPTO_PATH
+diff --git a/crypto/thread_pthread.c b/crypto/thread_pthread.c
+index 00bc4caff..c789292b4 100644
+--- a/crypto/thread_pthread.c
++++ b/crypto/thread_pthread.c
+@@ -178,4 +178,33 @@ int CRYPTO_set_thread_local(thread_local_data_t index, void *value,
+   return 1;
+ }
+ 
++int AWSLC_thread_local_clear(void) {
++  if (!g_thread_local_key_created) {
++    return 1;
++  }
++  void *pointers = pthread_getspecific(g_thread_local_key);
++  thread_local_destructor(pointers);
++  // By setting the value NULL, thread_local_destructor will not be called when
++  // this thread dies.
++  if (0 != pthread_setspecific(g_thread_local_key, NULL)) {
++    return 0;
++  }
++  return 1;
++}
++
++// This function is not thread-safe. It should only be called on a thread that
++// is prepared to also call `dlclose` to unload our shared library.
++int AWSLC_thread_local_shutdown(void) {
++  if (!g_thread_local_key_created) {
++    return 1;
++  }
++  // This deletes the thread local key
++  if (0 != pthread_key_delete(g_thread_local_key)) {
++    return 0;
++  }
++
++  g_thread_local_key_created = 0;
++  return 1;
++}
++
+ #endif  // OPENSSL_PTHREADS
+diff --git a/include/openssl/thread.h b/include/openssl/thread.h
+index 57484ae28..e6108902f 100644
+--- a/include/openssl/thread.h
++++ b/include/openssl/thread.h
+@@ -102,6 +102,19 @@ typedef union crypto_mutex_st {
+ // a plain uint32_t and an _Atomic uint32_t are equal in refcount_c11.c.
+ typedef uint32_t CRYPTO_refcount_t;
+ 
++// AWSLC_thread_local_clear destructs AWS-LC-related thread-local data.
++// If no other AWS-LC function is subsequently called on this thread prior to
++// its termination, our internal thread-local destructor function will not be
++// invoked. If performed on all active threads, this may allow a shared
++// AWS-LC library to be unloaded safely via |dlclose|.
++OPENSSL_EXPORT int AWSLC_thread_local_clear(void);
++
++// AWSLC_thread_local_shutdown deletes the key used to track thread-local data.
++// This function is not thread-safe. It is needed to avoid leaking resources in
++// consumers that use |dlopen|/|dlclose| to access the AWS-LC shared library.
++// It should be called prior to |dlclose| after all other threads have completed
++// calls to |AWSLC_thread_local_clear|.
++OPENSSL_EXPORT int AWSLC_thread_local_shutdown(void);
+ 
+ // Deprecated functions.
+ //
+diff --git a/util/all_tests.json b/util/all_tests.json
+index fd855a5e0..723501dfa 100644
+--- a/util/all_tests.json
++++ b/util/all_tests.json
+@@ -100,5 +100,10 @@
+   },
+   {
+     "cmd": ["crypto/mem_set_test"]
++  },
++  {
++    "cmd": [
++      "crypto/dynamic_loading_test"
++    ]
+   }
+ ]

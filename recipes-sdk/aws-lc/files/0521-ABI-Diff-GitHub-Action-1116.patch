@@ -1,0 +1,137 @@
+From d8bf5f3c52fc082e9104bbaa9d285d1339fe8ba9 Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Tue, 8 Aug 2023 14:25:51 -0700
+Subject: [PATCH] ABI Diff GitHub Action (#1116)
+
+---
+ .github/docker_images/abidiff/Dockerfile | 15 +++++++++
+ .github/docker_images/abidiff/build.sh   |  8 +++++
+ .github/docker_images/abidiff/diff.sh    | 41 ++++++++++++++++++++++++
+ .github/workflows/abidiff.yml            | 33 +++++++++++++++++++
+ 4 files changed, 97 insertions(+)
+ create mode 100644 .github/docker_images/abidiff/Dockerfile
+ create mode 100755 .github/docker_images/abidiff/build.sh
+ create mode 100755 .github/docker_images/abidiff/diff.sh
+ create mode 100644 .github/workflows/abidiff.yml
+
+diff --git a/.github/docker_images/abidiff/Dockerfile b/.github/docker_images/abidiff/Dockerfile
+new file mode 100644
+index 000000000..bdf16aa29
+--- /dev/null
++++ b/.github/docker_images/abidiff/Dockerfile
+@@ -0,0 +1,15 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++FROM amazonlinux:2023
++
++VOLUME ["/previous", "/next"]
++
++RUN yum install -y libabigail ninja-build cmake golang gcc gcc-c++
++
++COPY build.sh /
++COPY diff.sh /
++
++ENTRYPOINT ["/diff.sh"]
++
++CMD ["crypto"]
+diff --git a/.github/docker_images/abidiff/build.sh b/.github/docker_images/abidiff/build.sh
+new file mode 100755
+index 000000000..4b8ae6355
+--- /dev/null
++++ b/.github/docker_images/abidiff/build.sh
+@@ -0,0 +1,8 @@
++#!/usr/bin/env bash
++
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++set -ex
++cmake -S . -B build -GNinja -DBUILD_SHARED_LIBS=1 -DCMAKE_BUILD_TYPE=RelWithDebInfo
++cmake --build build
+diff --git a/.github/docker_images/abidiff/diff.sh b/.github/docker_images/abidiff/diff.sh
+new file mode 100755
+index 000000000..dc9a11cd9
+--- /dev/null
++++ b/.github/docker_images/abidiff/diff.sh
+@@ -0,0 +1,41 @@
++#!/usr/bin/env bash
++
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++set -ex
++
++cd /previous && /build.sh
++cd /next && /build.sh
++
++CHECK_LIB="$1"
++ARTIFACT_PATH="build"
++if [[ "${CHECK_LIB}" == "crypto" ]]; then
++  ARTIFACT_PATH="${ARTIFACT_PATH}/crypto/libcrypto.so"
++elif [[ "${CHECK_LIB}" == "ssl" ]]; then
++  ARTIFACT_PATH="${ARTIFACT_PATH}/ssl/libssl.so"
++else
++  exit 1
++fi
++
++set +e
++
++# https://sourceware.org/libabigail/manual/abidiff.html
++abidiff --hd1 "/previous/include" --hd2 "/next/include" "/previous/${ARTIFACT_PATH}" "/next/${ARTIFACT_PATH}"
++
++# From the manual page:
++#
++# The exit code of the abidiff command is either 0 if the ABI of the binaries being compared are equal,
++# or non-zero if they differ or if the tool encountered an error.
++# ...
++# The third bit, of value 4, named ABIDIFF_ABI_CHANGE means the ABI of the binaries being compared are different.
++# The fourth bit, of value 8, named ABIDIFF_ABI_INCOMPATIBLE_CHANGE means the ABI of the binaries compared are different
++# in an incompatible way. If this bit is set, then the ABIDIFF_ABI_CHANGE bit must be set as well. If the
++# ABIDIFF_ABI_CHANGE is set and the ABIDIFF_INCOMPATIBLE_CHANGE is NOT set, then it means that the ABIs being compared
++# might or might not be compatible. In that case, a human being needs to review the ABI changes to decide if they are
++# compatible or not.
++if [[ $? -ge 4 ]]; then
++  exit 1
++else
++  exit 0
++fi
+diff --git a/.github/workflows/abidiff.yml b/.github/workflows/abidiff.yml
+new file mode 100644
+index 000000000..f4f8ea595
+--- /dev/null
++++ b/.github/workflows/abidiff.yml
+@@ -0,0 +1,33 @@
++name: AWS-LC ABI Diff
++on:
++  pull_request:
++    branches: [ '*' ]
++env:
++  DOCKER_BUILDKIT: 1
++  GOPROXY: https://proxy.golang.org,direct
++jobs:
++  libs:
++    name: libcrypto and libssl
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v3
++        with:
++          repository: aws/aws-lc
++          ref: ${{ github.ref }}
++          path: ${{ github.workspace }}/next
++      - uses: actions/checkout@v3
++        with:
++          repository: aws/aws-lc
++          ref: ${{ github.base.ref }}
++          path: ${{ github.workspace }}/previous
++      - name: Build Docker Image
++        working-directory: ${{ github.workspace }}/next/.github/docker_images/abidiff
++        run: |
++          docker build -t abidiff .
++      - name: Perform libcrypto ABI Diff
++        run: |
++          docker run -v ${{ github.workspace }}/previous:/previous -v ${{ github.workspace }}/next:/next abidiff crypto
++      - name: Perform libssl ABI Diff
++        if: ${{ success() || failure() }}
++        run: |
++          docker run -v ${{ github.workspace }}/previous:/previous -v ${{ github.workspace }}/next:/next abidiff ssl

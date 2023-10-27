@@ -1,0 +1,808 @@
+From 463433fb402018f83e6e7d953fd0c53c9e37e645 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Tue, 21 Feb 2023 14:18:40 -0800
+Subject: [PATCH] Migrate io/ioutil uses to new APIs. (#816)
+
+ioutil has been deprecated since Go 1.16. The functions were moved to
+some combination of io and os. See https://pkg.go.dev/io/ioutil.
+
+(File-related functions went to os. Generic things went to io. Names
+were kept the same except TempDir and TempFile are os.MkdirTemp and
+os.CreateTemp, respectively.)
+
+Change-Id: I031306f69e70424841df08f64fa9d90f31780928
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/55186
+Auto-Submit: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+
+Co-authored-by: David Benjamin <davidben@google.com>
+---
+ crypto/fipsmodule/bn/bn_test_to_fuzzer.go       |  5 ++---
+ crypto/obj/objects.go                           |  5 ++---
+ crypto/x509/test/make_basic_constraints.go      |  4 ++--
+ ssl/test/runner/hpke/hpke_test.go               |  4 ++--
+ ssl/test/runner/runner.go                       | 17 ++++++++---------
+ ssl/test/runner/sharding.go                     |  3 +--
+ ssl/test/runner/tls.go                          |  6 +++---
+ tests/check_licenses.go                         |  3 +--
+ util/ar/ar_test.go                              |  9 ++++-----
+ util/compare_benchmarks.go                      |  3 +--
+ util/convert_comments.go                        |  5 ++---
+ util/convert_wycheproof.go                      |  3 +--
+ util/doc.go                                     |  7 +++----
+ util/embed_test_data.go                         |  5 ++---
+ util/fetch_ech_config_list.go                   |  3 +--
+ util/fipstools/acvp/acvptool/acvp.go            | 11 +++++------
+ util/fipstools/acvp/acvptool/acvp/acvp.go       |  5 ++---
+ util/fipstools/acvp/acvptool/interactive.go     |  7 +++----
+ .../acvp/acvptool/test/check_expected.go        |  7 +++----
+ util/fipstools/break-hash.go                    |  5 ++---
+ util/fipstools/break-kat.go                     |  3 +--
+ util/fipstools/delocate/delocate.go             |  3 +--
+ util/fipstools/delocate/delocate_test.go        |  6 +++---
+ util/fipstools/inject_hash/inject_hash.go       |  5 ++---
+ util/run_android_tests.go                       |  3 +--
+ 25 files changed, 58 insertions(+), 79 deletions(-)
+
+diff --git a/crypto/fipsmodule/bn/bn_test_to_fuzzer.go b/crypto/fipsmodule/bn/bn_test_to_fuzzer.go
+index d1ee734c3..13cff26a0 100644
+--- a/crypto/fipsmodule/bn/bn_test_to_fuzzer.go
++++ b/crypto/fipsmodule/bn/bn_test_to_fuzzer.go
+@@ -21,7 +21,6 @@ import (
+ 	"errors"
+ 	"fmt"
+ 	"io"
+-	"io/ioutil"
+ 	"math/big"
+ 	"os"
+ 	"path/filepath"
+@@ -221,8 +220,8 @@ func main() {
+ 
+ 		if len(fuzzer) != 0 {
+ 			hash := sha1.Sum(b)
+-			path := filepath.Join(fuzzerDir, fuzzer + "_corpus", hex.EncodeToString(hash[:]))
+-			if err := ioutil.WriteFile(path, b, 0666); err != nil {
++			path := filepath.Join(fuzzerDir, fuzzer+"_corpus", hex.EncodeToString(hash[:]))
++			if err := os.WriteFile(path, b, 0666); err != nil {
+ 				fmt.Fprintf(os.Stderr, "Error writing to %s: %s.\n", path, err)
+ 				os.Exit(1)
+ 			}
+diff --git a/crypto/obj/objects.go b/crypto/obj/objects.go
+index 361cdfe21..1b9ded347 100644
+--- a/crypto/obj/objects.go
++++ b/crypto/obj/objects.go
+@@ -19,7 +19,6 @@ import (
+ 	"bytes"
+ 	"errors"
+ 	"fmt"
+-	"io/ioutil"
+ 	"os"
+ 	"os/exec"
+ 	"sort"
+@@ -518,7 +517,7 @@ extern "C" {
+ 		return err
+ 	}
+ 
+-	return ioutil.WriteFile(path, []byte(formatted), 0666)
++	return os.WriteFile(path, []byte(formatted), 0666)
+ }
+ 
+ // TODO(davidben): Replace this with sort.Slice once Go 1.8 is sufficiently
+@@ -710,7 +709,7 @@ func writeData(path string, objs *objects) error {
+ 		return err
+ 	}
+ 
+-	return ioutil.WriteFile(path, []byte(formatted), 0666)
++	return os.WriteFile(path, []byte(formatted), 0666)
+ }
+ 
+ func main() {
+diff --git a/crypto/x509/test/make_basic_constraints.go b/crypto/x509/test/make_basic_constraints.go
+index 23158b594..652479968 100644
+--- a/crypto/x509/test/make_basic_constraints.go
++++ b/crypto/x509/test/make_basic_constraints.go
+@@ -23,8 +23,8 @@ import (
+ 	"crypto/x509/pkix"
+ 	"encoding/pem"
+ 	"fmt"
+-	"io/ioutil"
+ 	"math/big"
++	"os"
+ 	"time"
+ )
+ 
+@@ -75,7 +75,7 @@ func main() {
+ 		}
+ 
+ 		certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes})
+-		if err := ioutil.WriteFile(fmt.Sprintf("basic_constraints_%s.pem", cert.name), certPEM, 0666); err != nil {
++		if err := os.WriteFile(fmt.Sprintf("basic_constraints_%s.pem", cert.name), certPEM, 0666); err != nil {
+ 			panic(err)
+ 		}
+ 	}
+diff --git a/ssl/test/runner/hpke/hpke_test.go b/ssl/test/runner/hpke/hpke_test.go
+index eec16e9df..35503beb2 100644
+--- a/ssl/test/runner/hpke/hpke_test.go
++++ b/ssl/test/runner/hpke/hpke_test.go
+@@ -23,7 +23,7 @@ import (
+ 	"errors"
+ 	"flag"
+ 	"fmt"
+-	"io/ioutil"
++	"os"
+ 	"path/filepath"
+ 	"testing"
+ )
+@@ -98,7 +98,7 @@ type ExportTestVector struct {
+ 
+ // TestVectors checks all relevant test vectors in test-vectors.json.
+ func TestVectors(t *testing.T) {
+-	jsonStr, err := ioutil.ReadFile(filepath.Join(*testDataDir, "test-vectors.json"))
++	jsonStr, err := os.ReadFile(filepath.Join(*testDataDir, "test-vectors.json"))
+ 	if err != nil {
+ 		t.Errorf("error reading test vectors: %s", err)
+ 		return
+diff --git a/ssl/test/runner/runner.go b/ssl/test/runner/runner.go
+index 8e07792ad..2973f488e 100644
+--- a/ssl/test/runner/runner.go
++++ b/ssl/test/runner/runner.go
+@@ -32,7 +32,6 @@ import (
+ 	"flag"
+ 	"fmt"
+ 	"io"
+-	"io/ioutil"
+ 	"math/big"
+ 	"net"
+ 	"os"
+@@ -240,7 +239,7 @@ func initCertificates() {
+ 		*testCerts[i].cert = cert
+ 	}
+ 
+-	channelIDPEMBlock, err := ioutil.ReadFile(path.Join(*resourceDir, channelIDKeyFile))
++	channelIDPEMBlock, err := os.ReadFile(path.Join(*resourceDir, channelIDKeyFile))
+ 	if err != nil {
+ 		panic(err)
+ 	}
+@@ -300,7 +299,7 @@ type delegatedCredentialConfig struct {
+ 
+ func loadRSAPrivateKey(filename string) (priv *rsa.PrivateKey, privPKCS8 []byte, err error) {
+ 	pemPath := path.Join(*resourceDir, filename)
+-	pemBytes, err := ioutil.ReadFile(pemPath)
++	pemBytes, err := os.ReadFile(pemPath)
+ 	if err != nil {
+ 		return nil, nil, err
+ 	}
+@@ -718,7 +717,7 @@ func appendTranscript(path string, data []byte) error {
+ 		return nil
+ 	}
+ 
+-	settings, err := ioutil.ReadFile(path)
++	settings, err := os.ReadFile(path)
+ 	if err != nil {
+ 		if !os.IsNotExist(err) {
+ 			return err
+@@ -729,7 +728,7 @@ func appendTranscript(path string, data []byte) error {
+ 	}
+ 
+ 	settings = append(settings, data...)
+-	return ioutil.WriteFile(path, settings, 0644)
++	return os.WriteFile(path, settings, 0644)
+ }
+ 
+ // A timeoutConn implements an idle timeout on each Read and Write operation.
+@@ -828,7 +827,7 @@ func doExchange(test *testCase, config *Config, conn net.Conn, isResume bool, tr
+ 				bb := newByteBuilder()
+ 				bb.addU24LengthPrefixed().addBytes(encodedInner)
+ 				bb.addBytes(outer)
+-				return ioutil.WriteFile(filepath.Join(dir, name), bb.finish(), 0644)
++				return os.WriteFile(filepath.Join(dir, name), bb.finish(), 0644)
+ 			}
+ 		}
+ 
+@@ -1097,7 +1096,7 @@ func doExchange(test *testCase, config *Config, conn net.Conn, isResume bool, tr
+ 			return fmt.Errorf("messageLen < 0 not supported for DTLS tests")
+ 		}
+ 		// Read until EOF.
+-		_, err := io.Copy(ioutil.Discard, tlsConn)
++		_, err := io.Copy(io.Discard, tlsConn)
+ 		return err
+ 	}
+ 	if messageLen == 0 {
+@@ -16585,7 +16584,7 @@ func addJDK11WorkaroundTests() {
+ 
+ func addDelegatedCredentialTests() {
+ 	certPath := path.Join(*resourceDir, rsaCertificateFile)
+-	pemBytes, err := ioutil.ReadFile(certPath)
++	pemBytes, err := os.ReadFile(certPath)
+ 	if err != nil {
+ 		panic(err)
+ 	}
+@@ -19589,7 +19588,7 @@ func main() {
+ 	initCertificates()
+ 
+ 	if len(*shimConfigFile) != 0 {
+-		encoded, err := ioutil.ReadFile(*shimConfigFile)
++		encoded, err := os.ReadFile(*shimConfigFile)
+ 		if err != nil {
+ 			fmt.Fprintf(os.Stderr, "Couldn't read config file %q: %s\n", *shimConfigFile, err)
+ 			os.Exit(1)
+diff --git a/ssl/test/runner/sharding.go b/ssl/test/runner/sharding.go
+index 5061a6ffe..b10973a8d 100644
+--- a/ssl/test/runner/sharding.go
++++ b/ssl/test/runner/sharding.go
+@@ -16,7 +16,6 @@ package runner
+ 
+ import (
+ 	"fmt"
+-	"io/ioutil"
+ 	"os"
+ 	"strconv"
+ )
+@@ -68,7 +67,7 @@ func getSharding() (index, total int, err error) {
+ 	}
+ 
+ 	if len(statusFile) > 0 {
+-		if err := ioutil.WriteFile(statusFile, nil, 0664); err != nil {
++		if err := os.WriteFile(statusFile, nil, 0664); err != nil {
+ 			return 0, 0, err
+ 		}
+ 	}
+diff --git a/ssl/test/runner/tls.go b/ssl/test/runner/tls.go
+index af3fa3af1..6e57d1819 100644
+--- a/ssl/test/runner/tls.go
++++ b/ssl/test/runner/tls.go
+@@ -14,8 +14,8 @@ import (
+ 	"crypto/x509"
+ 	"encoding/pem"
+ 	"errors"
+-	"io/ioutil"
+ 	"net"
++	"os"
+ 	"strings"
+ 	"time"
+ )
+@@ -174,11 +174,11 @@ func Dial(network, addr string, config *Config) (*Conn, error) {
+ // LoadX509KeyPair reads and parses a public/private key pair from a pair of
+ // files. The files must contain PEM encoded data.
+ func LoadX509KeyPair(certFile, keyFile string) (cert Certificate, err error) {
+-	certPEMBlock, err := ioutil.ReadFile(certFile)
++	certPEMBlock, err := os.ReadFile(certFile)
+ 	if err != nil {
+ 		return
+ 	}
+-	keyPEMBlock, err := ioutil.ReadFile(keyFile)
++	keyPEMBlock, err := os.ReadFile(keyFile)
+ 	if err != nil {
+ 		return
+ 	}
+diff --git a/tests/check_licenses.go b/tests/check_licenses.go
+index 0f7f885c8..19deb7094 100644
+--- a/tests/check_licenses.go
++++ b/tests/check_licenses.go
+@@ -5,7 +5,6 @@ package main
+ 
+ import (
+ 	"fmt"
+-	"io/ioutil"
+ 	"os"
+ 	"path/filepath"
+ 	"regexp"
+@@ -53,7 +52,7 @@ func main() {
+ 	// Check that every file contains one of the known copyright headers,
+ 	// otherwise add it to |unlicensed_files|
+ 	for _, file := range files {
+-		content, _ := ioutil.ReadFile(file)
++		content, _ := os.ReadFile(file)
+ 		if license_regex.MatchString(string(content)) != true {
+ 			unlicensed_files = append(unlicensed_files, file)
+ 		}
+diff --git a/util/ar/ar_test.go b/util/ar/ar_test.go
+index ef37d795d..fac0e266a 100644
+--- a/util/ar/ar_test.go
++++ b/util/ar/ar_test.go
+@@ -17,7 +17,6 @@ package ar
+ import (
+ 	"bytes"
+ 	"flag"
+-	"io/ioutil"
+ 	"os"
+ 	"path/filepath"
+ 	"testing"
+@@ -52,7 +51,7 @@ var arTests = []arTest{
+ 		"linux",
+ 		"libsample.a",
+ 		map[string]string{
+-			"foo.c.o": "foo.c.o",
++			"foo.c.o":  "foo.c.o",
+ 			"bar.cc.o": "bar.cc.o",
+ 		},
+ 		false,
+@@ -61,7 +60,7 @@ var arTests = []arTest{
+ 		"mac",
+ 		"libsample.a",
+ 		map[string]string{
+-			"foo.c.o": "foo.c.o",
++			"foo.c.o":  "foo.c.o",
+ 			"bar.cc.o": "bar.cc.o",
+ 		},
+ 		true,
+@@ -70,7 +69,7 @@ var arTests = []arTest{
+ 		"windows",
+ 		"sample.lib",
+ 		map[string]string{
+-			"CMakeFiles\\sample.dir\\foo.c.obj": "foo.c.obj",
++			"CMakeFiles\\sample.dir\\foo.c.obj":  "foo.c.obj",
+ 			"CMakeFiles\\sample.dir\\bar.cc.obj": "bar.cc.obj",
+ 		},
+ 		false,
+@@ -92,7 +91,7 @@ func TestAR(t *testing.T) {
+ 			}
+ 
+ 			for file, contentsPath := range test.out {
+-				expected, err := ioutil.ReadFile(test.Path(contentsPath))
++				expected, err := os.ReadFile(test.Path(contentsPath))
+ 				if err != nil {
+ 					t.Fatalf("error reading %s: %s", contentsPath, err)
+ 				}
+diff --git a/util/compare_benchmarks.go b/util/compare_benchmarks.go
+index fd7fdfb38..0c79d638e 100644
+--- a/util/compare_benchmarks.go
++++ b/util/compare_benchmarks.go
+@@ -20,7 +20,6 @@ import (
+ 	"encoding/json"
+ 	"flag"
+ 	"fmt"
+-	"io/ioutil"
+ 	"os"
+ )
+ 
+@@ -63,7 +62,7 @@ func printResult(result Result, baseline *Result) error {
+ }
+ 
+ func readResults(path string) ([]Result, error) {
+-	data, err := ioutil.ReadFile(path)
++	data, err := os.ReadFile(path)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+diff --git a/util/convert_comments.go b/util/convert_comments.go
+index afd070f70..917f29c86 100644
+--- a/util/convert_comments.go
++++ b/util/convert_comments.go
+@@ -17,7 +17,6 @@ package main
+ import (
+ 	"bytes"
+ 	"fmt"
+-	"io/ioutil"
+ 	"os"
+ 	"strings"
+ )
+@@ -270,11 +269,11 @@ func convertComments(path string, in []byte) []byte {
+ 
+ func main() {
+ 	for _, arg := range os.Args[1:] {
+-		in, err := ioutil.ReadFile(arg)
++		in, err := os.ReadFile(arg)
+ 		if err != nil {
+ 			panic(err)
+ 		}
+-		if err := ioutil.WriteFile(arg, convertComments(arg, in), 0666); err != nil {
++		if err := os.WriteFile(arg, convertComments(arg, in), 0666); err != nil {
+ 			panic(err)
+ 		}
+ 	}
+diff --git a/util/convert_wycheproof.go b/util/convert_wycheproof.go
+index 5d0871584..404e56afa 100644
+--- a/util/convert_wycheproof.go
++++ b/util/convert_wycheproof.go
+@@ -20,7 +20,6 @@ import (
+ 	"encoding/json"
+ 	"fmt"
+ 	"io"
+-	"io/ioutil"
+ 	"os"
+ 	"sort"
+ 	"strings"
+@@ -122,7 +121,7 @@ func printComment(w io.Writer, in string) error {
+ }
+ 
+ func convertWycheproof(f io.Writer, jsonPath string) error {
+-	jsonData, err := ioutil.ReadFile(jsonPath)
++	jsonData, err := os.ReadFile(jsonPath)
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/util/doc.go b/util/doc.go
+index f0281b0d8..45caa15ea 100644
+--- a/util/doc.go
++++ b/util/doc.go
+@@ -14,7 +14,6 @@ import (
+ 	"flag"
+ 	"fmt"
+ 	"html/template"
+-	"io/ioutil"
+ 	"os"
+ 	"path/filepath"
+ 	"regexp"
+@@ -746,11 +745,11 @@ func generateIndex(outPath string, config *Config, headerDescriptions map[string
+ }
+ 
+ func copyFile(outPath string, inFilePath string) error {
+-	bytes, err := ioutil.ReadFile(inFilePath)
++	bytes, err := os.ReadFile(inFilePath)
+ 	if err != nil {
+ 		return err
+ 	}
+-	return ioutil.WriteFile(filepath.Join(outPath, filepath.Base(inFilePath)), bytes, 0666)
++	return os.WriteFile(filepath.Join(outPath, filepath.Base(inFilePath)), bytes, 0666)
+ }
+ 
+ func main() {
+@@ -772,7 +771,7 @@ func main() {
+ 		os.Exit(1)
+ 	}
+ 
+-	configBytes, err := ioutil.ReadFile(*configFlag)
++	configBytes, err := os.ReadFile(*configFlag)
+ 	if err != nil {
+ 		fmt.Printf("Failed to open config file: %s\n", err)
+ 		os.Exit(1)
+diff --git a/util/embed_test_data.go b/util/embed_test_data.go
+index 9fd7de1ef..266f2969a 100644
+--- a/util/embed_test_data.go
++++ b/util/embed_test_data.go
+@@ -20,7 +20,6 @@ import (
+ 	"bytes"
+ 	"flag"
+ 	"fmt"
+-	"io/ioutil"
+ 	"os"
+ 	"strings"
+ )
+@@ -77,7 +76,7 @@ func main() {
+ 
+ 	var files []string
+ 	if len(*fileList) != 0 {
+-		data, err := ioutil.ReadFile(*fileList)
++		data, err := os.ReadFile(*fileList)
+ 		if err != nil {
+ 			fmt.Fprintf(os.Stderr, "Error reading %s: %s.\n", *fileList, err)
+ 			os.Exit(1)
+@@ -127,7 +126,7 @@ func main() {
+ 	const chunkSize = 8192
+ 
+ 	for i, arg := range files {
+-		data, err := ioutil.ReadFile(arg)
++		data, err := os.ReadFile(arg)
+ 		if err != nil {
+ 			fmt.Fprintf(os.Stderr, "Error reading %s: %s.\n", arg, err)
+ 			os.Exit(1)
+diff --git a/util/fetch_ech_config_list.go b/util/fetch_ech_config_list.go
+index badaae293..8f09e66b1 100644
+--- a/util/fetch_ech_config_list.go
++++ b/util/fetch_ech_config_list.go
+@@ -18,7 +18,6 @@ import (
+ 	"errors"
+ 	"flag"
+ 	"fmt"
+-	"io/ioutil"
+ 	"log"
+ 	"net"
+ 	"os"
+@@ -379,7 +378,7 @@ func main() {
+ 		}
+ 
+ 		outFile := path.Join(*outDir, fmt.Sprintf("ech-config-list-%d", echConfigListCount))
+-		if err = ioutil.WriteFile(outFile, record.ech, 0644); err != nil {
++		if err = os.WriteFile(outFile, record.ech, 0644); err != nil {
+ 			log.Printf("Failed to write file: %s\n", err)
+ 			os.Exit(1)
+ 		}
+diff --git a/util/fipstools/acvp/acvptool/acvp.go b/util/fipstools/acvp/acvptool/acvp.go
+index c111b32d9..998e439c6 100644
+--- a/util/fipstools/acvp/acvptool/acvp.go
++++ b/util/fipstools/acvp/acvptool/acvp.go
+@@ -29,7 +29,6 @@ import (
+ 	"flag"
+ 	"fmt"
+ 	"io"
+-	"io/ioutil"
+ 	"log"
+ 	"net/http"
+ 	neturl "net/url"
+@@ -158,7 +157,7 @@ func loadCachedSessionTokens(server *acvp.Server, cachePath string) error {
+ 			continue
+ 		}
+ 		path := filepath.Join(cachePath, name)
+-		contents, err := ioutil.ReadFile(path)
++		contents, err := os.ReadFile(path)
+ 		if err != nil {
+ 			return fmt.Errorf("Failed to read session token cache entry %q: %s", path, err)
+ 		}
+@@ -200,7 +199,7 @@ func looksLikeVectorSetHeader(element json.RawMessage) bool {
+ // processFile reads a file containing vector sets, at least in the format
+ // preferred by our lab, and writes the results to stdout.
+ func processFile(filename string, supportedAlgos []map[string]interface{}, middle Middle) error {
+-	jsonBytes, err := ioutil.ReadFile(filename)
++	jsonBytes, err := os.ReadFile(filename)
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -376,7 +375,7 @@ func connect(config *Config, sessionTokensCacheDir string) (*acvp.Server, error)
+ 	if len(config.CertPEMFile) == 0 {
+ 		return nil, errors.New("config file missing CertPEMFile")
+ 	}
+-	certPEM, err := ioutil.ReadFile(config.CertPEMFile)
++	certPEM, err := os.ReadFile(config.CertPEMFile)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("failed to read certificate from %q: %s", config.CertPEMFile, err)
+ 	}
+@@ -394,7 +393,7 @@ func connect(config *Config, sessionTokensCacheDir string) (*acvp.Server, error)
+ 		privateKeyFile = config.PrivateKeyFile
+ 	}
+ 
+-	keyBytes, err := ioutil.ReadFile(privateKeyFile)
++	keyBytes, err := os.ReadFile(privateKeyFile)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("failed to read private key from %q: %s", privateKeyFile, err)
+ 	}
+@@ -699,7 +698,7 @@ func main() {
+ 	if token := result.AccessToken; len(token) > 0 {
+ 		server.PrefixTokens[url] = token
+ 		if len(sessionTokensCacheDir) > 0 {
+-			ioutil.WriteFile(filepath.Join(sessionTokensCacheDir, neturl.PathEscape(url))+".token", []byte(token), 0600)
++			os.WriteFile(filepath.Join(sessionTokensCacheDir, neturl.PathEscape(url))+".token", []byte(token), 0600)
+ 		}
+ 	}
+ 
+diff --git a/util/fipstools/acvp/acvptool/acvp/acvp.go b/util/fipstools/acvp/acvptool/acvp/acvp.go
+index d70f98c71..b5a01f0c3 100644
+--- a/util/fipstools/acvp/acvptool/acvp/acvp.go
++++ b/util/fipstools/acvp/acvptool/acvp/acvp.go
+@@ -23,7 +23,6 @@ import (
+ 	"errors"
+ 	"fmt"
+ 	"io"
+-	"io/ioutil"
+ 	"net"
+ 	"net/http"
+ 	"net/url"
+@@ -168,12 +167,12 @@ func parseReplyToBytes(in io.Reader) ([]byte, error) {
+ 		return nil, err
+ 	}
+ 
+-	buf, err := ioutil.ReadAll(decoder.Buffered())
++	buf, err := io.ReadAll(decoder.Buffered())
+ 	if err != nil {
+ 		return nil, err
+ 	}
+ 
+-	rest, err := ioutil.ReadAll(in)
++	rest, err := io.ReadAll(in)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+diff --git a/util/fipstools/acvp/acvptool/interactive.go b/util/fipstools/acvp/acvptool/interactive.go
+index ee992f1ed..384206ced 100644
+--- a/util/fipstools/acvp/acvptool/interactive.go
++++ b/util/fipstools/acvp/acvptool/interactive.go
+@@ -23,7 +23,6 @@ import (
+ 	"errors"
+ 	"fmt"
+ 	"io"
+-	"io/ioutil"
+ 	neturl "net/url"
+ 	"os"
+ 	"os/exec"
+@@ -159,7 +158,7 @@ func (set ServerObjectSet) Action(action string, args []string) error {
+ 						}
+ 						set.env.server.PrefixTokens[url] = token
+ 						if len(set.env.config.SessionTokensCache) > 0 {
+-							ioutil.WriteFile(filepath.Join(set.env.config.SessionTokensCache, neturl.PathEscape(url))+".token", []byte(token), 0600)
++							os.WriteFile(filepath.Join(set.env.config.SessionTokensCache, neturl.PathEscape(url))+".token", []byte(token), 0600)
+ 						}
+ 					}
+ 				}
+@@ -205,7 +204,7 @@ func (ServerObject) Search(condition acvp.Query) (Object, error) {
+ }
+ 
+ func edit(initialContents string) ([]byte, error) {
+-	tmp, err := ioutil.TempFile("", "acvp*.json")
++	tmp, err := os.CreateTemp("", "acvp*.json")
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -231,7 +230,7 @@ func edit(initialContents string) ([]byte, error) {
+ 		return nil, err
+ 	}
+ 
+-	return ioutil.ReadFile(path)
++	return os.ReadFile(path)
+ }
+ 
+ func (obj ServerObject) Action(action string, args []string) error {
+diff --git a/util/fipstools/acvp/acvptool/test/check_expected.go b/util/fipstools/acvp/acvptool/test/check_expected.go
+index 28b76269e..fc2e0c7d2 100644
+--- a/util/fipstools/acvp/acvptool/test/check_expected.go
++++ b/util/fipstools/acvp/acvptool/test/check_expected.go
+@@ -21,7 +21,6 @@ import (
+ 	"flag"
+ 	"fmt"
+ 	"io"
+-	"io/ioutil"
+ 	"log"
+ 	"os"
+ 	"os/exec"
+@@ -138,7 +137,7 @@ func doTest(test invocation) error {
+ 	}
+ 	defer input.Close()
+ 
+-	tempFile, err := ioutil.TempFile("", "boringssl-check_expected-")
++	tempFile, err := os.CreateTemp("", "boringssl-check_expected-")
+ 	if err != nil {
+ 		return fmt.Errorf("Failed to create temp file: %s", err)
+ 	}
+@@ -186,7 +185,7 @@ func doTest(test invocation) error {
+ 		expectedBytes = expectedBuf.Bytes()
+ 	} else {
+ 		// Avoid decompression if it's not compressed
+-		expectedBytes, _ = ioutil.ReadFile(test.expectedPath)
++		expectedBytes, _ = os.ReadFile(test.expectedPath)
+ 	}
+ 
+ 	if !bytes.Equal(expectedBytes, result) {
+@@ -200,7 +199,7 @@ func doTest(test invocation) error {
+ }
+ 
+ func writeUpdate(path string, contents []byte) {
+-	if err := ioutil.WriteFile(path, contents, 0644); err != nil {
++	if err := os.WriteFile(path, contents, 0644); err != nil {
+ 		log.Printf("Failed to create missing file %q: %s", path, err)
+ 	} else {
+ 		log.Printf("Wrote %q", path)
+diff --git a/util/fipstools/break-hash.go b/util/fipstools/break-hash.go
+index 8c817d8db..9893716b9 100644
+--- a/util/fipstools/break-hash.go
++++ b/util/fipstools/break-hash.go
+@@ -24,12 +24,11 @@ import (
+ 	"encoding/hex"
+ 	"errors"
+ 	"fmt"
+-	"io/ioutil"
+ 	"os"
+ )
+ 
+ func do(outPath, inPath string) error {
+-	objectBytes, err := ioutil.ReadFile(inPath)
++	objectBytes, err := os.ReadFile(inPath)
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -131,7 +130,7 @@ func do(outPath, inPath string) error {
+ 	fmt.Printf("\nHash of module was:          %x\n", hashWas)
+ 	fmt.Printf("Hash of corrupted module is: %x\n", newHash)
+ 
+-	return ioutil.WriteFile(outPath, objectBytes, 0755)
++	return os.WriteFile(outPath, objectBytes, 0755)
+ }
+ 
+ func main() {
+diff --git a/util/fipstools/break-kat.go b/util/fipstools/break-kat.go
+index 621791d79..6eace5b46 100644
+--- a/util/fipstools/break-kat.go
++++ b/util/fipstools/break-kat.go
+@@ -8,7 +8,6 @@ import (
+ 	"encoding/hex"
+ 	"flag"
+ 	"fmt"
+-	"io/ioutil"
+ 	"os"
+ 	"sort"
+ )
+@@ -63,7 +62,7 @@ func main() {
+ 		panic("invalid kat data: " + err.Error())
+ 	}
+ 
+-	binaryContents, err := ioutil.ReadFile(inPath)
++	binaryContents, err := os.ReadFile(inPath)
+ 	if err != nil {
+ 		fmt.Fprintln(os.Stderr, err)
+ 		os.Exit(2)
+diff --git a/util/fipstools/delocate/delocate.go b/util/fipstools/delocate/delocate.go
+index fcabfe1a1..411d9d45c 100644
+--- a/util/fipstools/delocate/delocate.go
++++ b/util/fipstools/delocate/delocate.go
+@@ -21,7 +21,6 @@ import (
+ 	"errors"
+ 	"flag"
+ 	"fmt"
+-	"io/ioutil"
+ 	"os"
+ 	"os/exec"
+ 	"path/filepath"
+@@ -2025,7 +2024,7 @@ func parseInputs(inputs []inputFile, cppCommand []string) error {
+ 			if len(cppCommand) > 0 {
+ 				inBytes, err = preprocess(cppCommand, input.path)
+ 			} else {
+-				inBytes, err = ioutil.ReadFile(input.path)
++				inBytes, err = os.ReadFile(input.path)
+ 			}
+ 
+ 			if err != nil {
+diff --git a/util/fipstools/delocate/delocate_test.go b/util/fipstools/delocate/delocate_test.go
+index e971e8683..082b3aa7f 100644
+--- a/util/fipstools/delocate/delocate_test.go
++++ b/util/fipstools/delocate/delocate_test.go
+@@ -17,7 +17,7 @@ package main
+ import (
+ 	"bytes"
+ 	"flag"
+-	"io/ioutil"
++	"os"
+ 	"path/filepath"
+ 	"testing"
+ )
+@@ -75,9 +75,9 @@ func TestDelocate(t *testing.T) {
+ 			}
+ 
+ 			if *update {
+-				ioutil.WriteFile(test.Path(test.out), buf.Bytes(), 0666)
++				os.WriteFile(test.Path(test.out), buf.Bytes(), 0666)
+ 			} else {
+-				expected, err := ioutil.ReadFile(test.Path(test.out))
++				expected, err := os.ReadFile(test.Path(test.out))
+ 				if err != nil {
+ 					t.Fatalf("could not read %q: %s", test.Path(test.out), err)
+ 				}
+diff --git a/util/fipstools/inject_hash/inject_hash.go b/util/fipstools/inject_hash/inject_hash.go
+index 3c8e22b01..3d1d8dc4b 100644
+--- a/util/fipstools/inject_hash/inject_hash.go
++++ b/util/fipstools/inject_hash/inject_hash.go
+@@ -28,7 +28,6 @@ import (
+ 	"flag"
+ 	"fmt"
+ 	"io"
+-	"io/ioutil"
+ 	"os"
+ 	"strings"
+ 
+@@ -346,7 +345,7 @@ func do(outPath, oInput string, arInput string, appleOS bool) error {
+ 		}
+ 		perm = fi.Mode()
+ 
+-		if objectBytes, err = ioutil.ReadFile(oInput); err != nil {
++		if objectBytes, err = os.ReadFile(oInput); err != nil {
+ 			return err
+ 		}
+ 		isStatic = strings.HasSuffix(oInput, ".o")
+@@ -398,7 +397,7 @@ func do(outPath, oInput string, arInput string, appleOS bool) error {
+ 
+ 	copy(objectBytes[offset:], calculated)
+ 
+-	return ioutil.WriteFile(outPath, objectBytes, perm & 0777)
++	return os.WriteFile(outPath, objectBytes, perm&0777)
+ }
+ 
+ func main() {
+diff --git a/util/run_android_tests.go b/util/run_android_tests.go
+index 4d6bf9669..057e346d9 100644
+--- a/util/run_android_tests.go
++++ b/util/run_android_tests.go
+@@ -21,7 +21,6 @@ import (
+ 	"flag"
+ 	"fmt"
+ 	"io"
+-	"io/ioutil"
+ 	"os"
+ 	"os/exec"
+ 	"path/filepath"
+@@ -293,7 +292,7 @@ func main() {
+ 	}
+ 
+ 	// Stage everything in a temporary directory.
+-	tmpDir, err := ioutil.TempDir("", "boringssl-android")
++	tmpDir, err := os.MkdirTemp("", "boringssl-android")
+ 	if err != nil {
+ 		fmt.Printf("Error making temporary directory: %s\n", err)
+ 		os.Exit(1)

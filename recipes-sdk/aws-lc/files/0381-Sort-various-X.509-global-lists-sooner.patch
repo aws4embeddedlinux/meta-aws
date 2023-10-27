@@ -1,0 +1,168 @@
+From c40ddd0b8df705dabd61db3a177d54794de99065 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 29 Mar 2023 03:09:15 +0900
+Subject: [PATCH] Sort various X.509 global lists sooner
+
+These functions need a lot more work, documentation, warnings
+that using them isn't a good idea, and really we should just remove them
+entirely.
+
+But, for now, this is a minimal fix to the most egregious of issues: not
+only are the functions themselves not thread-safe (i.e. you must call it
+in some program-global initialization), but using them puts you in a
+state where future uses of the X.509 library are not thread-safe! Fix
+the latter by sorting the list at the point we're already mutating
+things.
+
+Re-sorting a list after every addition is not a particularly sensible
+implementation, but we can assume these lists will only ever contain
+O(1) entries.
+
+(The sort calls date to
+https://boringssl-review.googlesource.com/c/boringssl/+/27304, but the
+issue was there before. Prior to that CL, sk_FOO_find implicitly sorted
+the list. That CL made sk_FOO_find itself a const operation, necessary
+for this, and just added explicit sk_FOO_sort calls to preserve the
+existing behavior, initially.)
+
+Change-Id: I063b8e708eaf17dfe66c5a3e8d33733adb3297e9
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58385
+Auto-Submit: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit 97d48dbeb8010365a1d5cb029bee29617261d8a0)
+---
+ crypto/x509/x509_trs.c  | 6 +++++-
+ crypto/x509/x509_vpm.c  | 6 +++---
+ crypto/x509v3/v3_lib.c  | 3 ++-
+ crypto/x509v3/v3_purp.c | 6 +++++-
+ 4 files changed, 15 insertions(+), 6 deletions(-)
+
+diff --git a/crypto/x509/x509_trs.c b/crypto/x509/x509_trs.c
+index 1329a9f95..553a0aeca 100644
+--- a/crypto/x509/x509_trs.c
++++ b/crypto/x509/x509_trs.c
+@@ -152,7 +152,6 @@ int X509_TRUST_get_by_id(int id) {
+   if (!trtable) {
+     return -1;
+   }
+-  sk_X509_TRUST_sort(trtable);
+   if (!sk_X509_TRUST_find(trtable, &idx, &tmp)) {
+     return -1;
+   }
+@@ -216,6 +215,10 @@ int X509_TRUST_add(int id, int flags, int (*ck)(X509_TRUST *, X509 *, int),
+ 
+   // If its a new entry manage the dynamic table
+   if (idx == -1) {
++    // TODO(davidben): This should be locked. Alternatively, remove the dynamic
++    // registration mechanism entirely. The trouble is there no way to pass in
++    // the various parameters into an |X509_VERIFY_PARAM| directly. You can only
++    // register it in the global table and get an ID.
+     if (!trtable && !(trtable = sk_X509_TRUST_new(tr_cmp))) {
+       trtable_free(trtmp);
+       return 0;
+@@ -224,6 +227,7 @@ int X509_TRUST_add(int id, int flags, int (*ck)(X509_TRUST *, X509 *, int),
+       trtable_free(trtmp);
+       return 0;
+     }
++    sk_X509_TRUST_sort(trtable);
+   }
+   return 1;
+ }
+diff --git a/crypto/x509/x509_vpm.c b/crypto/x509/x509_vpm.c
+index d985cb742..f14a531f6 100644
+--- a/crypto/x509/x509_vpm.c
++++ b/crypto/x509/x509_vpm.c
+@@ -554,6 +554,8 @@ static int param_cmp(const X509_VERIFY_PARAM **a, const X509_VERIFY_PARAM **b) {
+ }
+ 
+ int X509_VERIFY_PARAM_add0_table(X509_VERIFY_PARAM *param) {
++  // TODO(davidben): This should be locked. Alternatively, remove the dynamic
++  // registration mechanism entirely.
+   X509_VERIFY_PARAM *ptmp;
+   if (!param_table) {
+     param_table = sk_X509_VERIFY_PARAM_new(param_cmp);
+@@ -562,8 +564,6 @@ int X509_VERIFY_PARAM_add0_table(X509_VERIFY_PARAM *param) {
+     }
+   } else {
+     size_t idx;
+-
+-    sk_X509_VERIFY_PARAM_sort(param_table);
+     if (sk_X509_VERIFY_PARAM_find(param_table, &idx, param)) {
+       ptmp = sk_X509_VERIFY_PARAM_value(param_table, idx);
+       X509_VERIFY_PARAM_free(ptmp);
+@@ -573,6 +573,7 @@ int X509_VERIFY_PARAM_add0_table(X509_VERIFY_PARAM *param) {
+   if (!sk_X509_VERIFY_PARAM_push(param_table, param)) {
+     return 0;
+   }
++  sk_X509_VERIFY_PARAM_sort(param_table);
+   return 1;
+ }
+ 
+@@ -599,7 +600,6 @@ const X509_VERIFY_PARAM *X509_VERIFY_PARAM_lookup(const char *name) {
+   pm.name = (char *)name;
+   if (param_table) {
+     size_t idx;
+-    sk_X509_VERIFY_PARAM_sort(param_table);
+     if (sk_X509_VERIFY_PARAM_find(param_table, &idx, &pm)) {
+       return sk_X509_VERIFY_PARAM_value(param_table, idx);
+     }
+diff --git a/crypto/x509v3/v3_lib.c b/crypto/x509v3/v3_lib.c
+index d006a5ee8..5a3c3e81d 100644
+--- a/crypto/x509v3/v3_lib.c
++++ b/crypto/x509v3/v3_lib.c
+@@ -78,6 +78,7 @@ static int ext_stack_cmp(const X509V3_EXT_METHOD **a,
+ }
+ 
+ int X509V3_EXT_add(X509V3_EXT_METHOD *ext) {
++  // TODO(davidben): This should be locked. Also check for duplicates.
+   if (!ext_list && !(ext_list = sk_X509V3_EXT_METHOD_new(ext_stack_cmp))) {
+     ext_list_free(ext);
+     return 0;
+@@ -86,6 +87,7 @@ int X509V3_EXT_add(X509V3_EXT_METHOD *ext) {
+     ext_list_free(ext);
+     return 0;
+   }
++  sk_X509V3_EXT_METHOD_sort(ext_list);
+   return 1;
+ }
+ 
+@@ -113,7 +115,6 @@ const X509V3_EXT_METHOD *X509V3_EXT_get_nid(int nid) {
+     return NULL;
+   }
+ 
+-  sk_X509V3_EXT_METHOD_sort(ext_list);
+   if (!sk_X509V3_EXT_METHOD_find(ext_list, &idx, &tmp)) {
+     return NULL;
+   }
+diff --git a/crypto/x509v3/v3_purp.c b/crypto/x509v3/v3_purp.c
+index 71b2c6d1c..8c254e80b 100644
+--- a/crypto/x509v3/v3_purp.c
++++ b/crypto/x509v3/v3_purp.c
+@@ -201,7 +201,6 @@ int X509_PURPOSE_get_by_id(int purpose) {
+     return -1;
+   }
+ 
+-  sk_X509_PURPOSE_sort(xptable);
+   if (!sk_X509_PURPOSE_find(xptable, &idx, &tmp)) {
+     return -1;
+   }
+@@ -267,6 +266,10 @@ int X509_PURPOSE_add(int id, int trust, int flags,
+ 
+   // If its a new entry manage the dynamic table
+   if (idx == -1) {
++    // TODO(davidben): This should be locked. Alternatively, remove the dynamic
++    // registration mechanism entirely. The trouble is there no way to pass in
++    // the various parameters into an |X509_VERIFY_PARAM| directly. You can only
++    // register it in the global table and get an ID.
+     if (!xptable && !(xptable = sk_X509_PURPOSE_new(xp_cmp))) {
+       xptable_free(ptmp);
+       return 0;
+@@ -275,6 +278,7 @@ int X509_PURPOSE_add(int id, int trust, int flags,
+       xptable_free(ptmp);
+       return 0;
+     }
++    sk_X509_PURPOSE_sort(xptable);
+   }
+   return 1;
+ }

@@ -1,0 +1,115 @@
+From a52498807d63e820386994bc4adb9062d647f7f0 Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Wed, 15 Feb 2023 11:14:32 -0800
+Subject: [PATCH] Allow override of git clone URL and branch to allow
+ generation of crate using local changes (#801)
+
+* Allow override of git clone URL and branch to allow generation of crate using local changes
+
+* Feedback for prompt checkout url and branch
+
+* Prompt when non-default git url or branch
+
+* Fix execute permission bits after recent merge
+---
+ bindings/rust/generate/_generation_tools.sh | 24 ++++++++++++---------
+ bindings/rust/generate/generate-fips.sh     | 13 +++++++----
+ bindings/rust/generate/generate.sh          | 12 ++++++++---
+ 3 files changed, 32 insertions(+), 17 deletions(-)
+
+diff --git a/bindings/rust/generate/_generation_tools.sh b/bindings/rust/generate/_generation_tools.sh
+index 05432c460..33108cc92 100644
+--- a/bindings/rust/generate/_generation_tools.sh
++++ b/bindings/rust/generate/_generation_tools.sh
+@@ -164,16 +164,20 @@ function public_api_diff {
+   pushd "${CRATE_DIR}"
+   cargo build --features internal_generate
+   if ! cargo public-api diff --deny changed --deny removed "${PUBLISHED_CRATE_VERSION}"; then
+-    while true; do
+-      echo
+-      echo Version changing from: ${PUBLISHED_CRATE_VERSION} to ${CRATE_VERSION}
+-      read -p "API changes found.  Continue with crate generation? (yn) " yn
+-      case $yn in
+-        [Yy]* ) break;;
+-        [Nn]* ) exit 1;;
+-        * ) echo "Please answer yes or no.";;
+-      esac
+-    done
++    echo
++    echo Version changing from: ${PUBLISHED_CRATE_VERSION} to ${CRATE_VERSION}
++    prompt_yes_no "API changes found.  Continue with crate generation?"
+   fi
+   popd
+ }
++
++function prompt_yes_no {
++  while true; do
++    read -p "$1 (y/n): " yn
++    case $yn in
++      [Yy]* ) break;;
++      [Nn]* ) exit 1;;
++      * ) echo "Please answer (y)es or (n)o.";;
++    esac
++  done
++}
+diff --git a/bindings/rust/generate/generate-fips.sh b/bindings/rust/generate/generate-fips.sh
+index 8ed0bec74..7c0838e4c 100755
+--- a/bindings/rust/generate/generate-fips.sh
++++ b/bindings/rust/generate/generate-fips.sh
+@@ -10,7 +10,10 @@ IGNORE_UPSTREAM=0
+ IGNORE_MACOS=0
+ SKIP_TEST=0
+ GENERATE_FIPS=1
+-AWS_LC_FIPS_BRANCH="fips-2022-11-02"
++DEFAULT_GIT_CLONE_URL="https://github.com/awslabs/aws-lc.git"
++DEFAULT_GIT_BRANCH="fips-2022-11-02"
++AWS_LC_FIPS_GIT_CLONE_URL=${AWS_LC_FIPS_GIT_CLONE_URL:-${DEFAULT_GIT_CLONE_URL}}
++AWS_LC_FIPS_GIT_BRANCH=${AWS_LC_FIPS_GIT_BRANCH:-${DEFAULT_GIT_BRANCH}}
+ CRATE_NAME="aws-lc-fips-sys"
+ CRATE_VERSION="" # User prompted for value if empty
+ 
+@@ -29,9 +32,11 @@ source "${SCRIPT_DIR}"/_generation_tools.sh
+ 
+ # Clone the FIPS branch in local.
+ function clone_fips_branch {
+-  pushd "${TMP_DIR}"
+-  git clone -b ${AWS_LC_FIPS_BRANCH} --depth 1 --single-branch https://github.com/aws/aws-lc.git
+-  popd
++  echo "Cloning from: ${AWS_LC_FIPS_GIT_CLONE_URL}:${AWS_LC_FIPS_GIT_BRANCH}"
++  if [[ "${AWS_LC_FIPS_GIT_CLONE_URL}" != "${DEFAULT_GIT_CLONE_URL}" || "${AWS_LC_FIPS_GIT_BRANCH}" != "${DEFAULT_GIT_BRANCH}" ]]; then
++    prompt_yes_no "Non-default repository URL or branch, Continue?"
++  fi
++  git clone -b "${AWS_LC_FIPS_GIT_BRANCH}" --depth 1 --single-branch "${AWS_LC_FIPS_GIT_CLONE_URL}" "${AWS_LC_FIPS_DIR}"
+ }
+ 
+ function prepare_crate_dir {
+diff --git a/bindings/rust/generate/generate.sh b/bindings/rust/generate/generate.sh
+index a4817e62e..87114434a 100755
+--- a/bindings/rust/generate/generate.sh
++++ b/bindings/rust/generate/generate.sh
+@@ -12,6 +12,10 @@ SKIP_TEST=0
+ GENERATE_FIPS=0
+ CRATE_NAME="aws-lc-sys"
+ CRATE_VERSION="" # User prompted for version when empty
++DEFAULT_GIT_CLONE_URL="https://github.com/awslabs/aws-lc.git"
++DEFAULT_GIT_BRANCH="main"
++AWS_LC_GIT_CLONE_URL=${AWS_LC_GIT_CLONE_URL:-${DEFAULT_GIT_CLONE_URL}}
++AWS_LC_GIT_BRANCH=${AWS_LC_GIT_BRANCH:-${DEFAULT_GIT_BRANCH}}
+ 
+ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+ AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+@@ -28,9 +32,11 @@ source "${SCRIPT_DIR}"/_generation_tools.sh
+ 
+ # Clone the main branch in local.
+ function clone_main_branch {
+-  pushd "${TMP_DIR}"
+-  git clone -b main --depth 1 --single-branch https://github.com/aws/aws-lc.git
+-  popd
++  echo "Cloning from: ${AWS_LC_GIT_CLONE_URL}:${AWS_LC_GIT_BRANCH}"
++  if [[ "${AWS_LC_GIT_CLONE_URL}" != "${DEFAULT_GIT_CLONE_URL}" || "${AWS_LC_GIT_BRANCH}" != "${DEFAULT_GIT_BRANCH}" ]]; then
++    prompt_yes_no "Non-default repository URL or branch, Continue?"
++  fi
++  git clone -b "${AWS_LC_GIT_BRANCH}" --depth 1 --single-branch "${AWS_LC_GIT_CLONE_URL}" "${AWS_LC_SRC_DIR}"
+ }
+ 
+ function prepare_crate_dir {

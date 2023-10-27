@@ -1,0 +1,1660 @@
+From fece7d7c74bc7dbe534ad6740e6d4ad9cdbe2ffa Mon Sep 17 00:00:00 2001
+From: Juneyoung Lee <lebjuney@amazon.com>
+Date: Sat, 22 Jul 2023 23:57:31 +0000
+Subject: [PATCH] Avoid using assembler macros and rename labels in the
+ functions for RSA
+
+This patch updates the functions used by RSA signing to avoid using
+assembler macros because the `delocate` utility in BoringSSL cannot
+parse them. Also, the offsets in load/store instructions are
+simplified so that `delocate` can understand them as well.
+
+Also, the labels having overlapping names are renamed so that aws-lc can
+compile them without duplicate symbol found errors.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/3750058af0886a4c912aa1ad673ac54136bdb44c
+---
+ arm/fastmul/bignum_emontredc_8n.S |  57 +++--
+ arm/fastmul/bignum_kmul_16_32.S   |  60 +++--
+ arm/fastmul/bignum_kmul_32_64.S   | 400 +++++++++++++++++++++++++-----
+ arm/fastmul/bignum_ksqr_16_32.S   |  60 +++--
+ arm/fastmul/bignum_ksqr_32_64.S   | 350 +++++++++++++++++++++-----
+ arm/generic/bignum_ge.S           |  30 +--
+ arm/generic/bignum_mul.S          |  16 +-
+ arm/generic/bignum_optsub.S       |   8 +-
+ arm/generic/bignum_sqr.S          |  22 +-
+ 9 files changed, 767 insertions(+), 236 deletions(-)
+
+diff --git a/arm/fastmul/bignum_emontredc_8n.S b/arm/fastmul/bignum_emontredc_8n.S
+index f66d53604..0876ddea8 100644
+--- a/arm/fastmul/bignum_emontredc_8n.S
++++ b/arm/fastmul/bignum_emontredc_8n.S
+@@ -28,21 +28,20 @@
+ // t,h should not overlap w,z
+ // ---------------------------------------------------------------------------
+ 
+-.macro muldiffnadd b,a, c,h,l,t, x,y, w,z
+-        subs    \t, \x, \y
+-        cneg    \t, \t, cc
+-        csetm   \c, cc
+-        subs    \h, \w, \z
+-        cneg    \h, \h, cc
+-        mul     \l, \t, \h
+-        umulh   \h, \t, \h
+-        cinv    \c, \c, cc
+-        adds    xzr, \c, #1
+-        eor     \l, \l, \c
+-        adcs    \a, \a, \l
+-        eor     \h, \h, \c
+-        adcs    \b, \b, \h
+-.endm
++#define muldiffnadd(b,a, c,h,l,t, x,y, w,z) \
++        subs    t, x, y ; \
++        cneg    t, t, cc ; \
++        csetm   c, cc ; \
++        subs    h, w, z ; \
++        cneg    h, h, cc ; \
++        mul     l, t, h ; \
++        umulh   h, t, h ; \
++        cinv    c, c, cc ; \
++        adds    xzr, c, #1 ; \
++        eor     l, l, c ; \
++        adcs    a, a, l ; \
++        eor     h, h, c ; \
++        adcs    b, b, h
+ 
+ // The inputs, though k gets processed so we use a different name
+ 
+@@ -159,31 +158,31 @@
+ 
+ // Now add in all the "complicated" terms.
+ 
+-        muldiffnadd u6,u5, c,h,l,t, a2,a3, b3,b2
++        muldiffnadd (u6,u5, c,h,l,t, a2,a3, b3,b2)
+         adc     u7, u7, c
+ 
+-        muldiffnadd u2,u1, c,h,l,t, a0,a1, b1,b0
++        muldiffnadd (u2,u1, c,h,l,t, a0,a1, b1,b0)
+         adcs    u3, u3, c
+         adcs    u4, u4, c
+         adcs    u5, u5, c
+         adcs    u6, u6, c
+         adc     u7, u7, c
+ 
+-        muldiffnadd u5,u4, c,h,l,t, a1,a3, b3,b1
++        muldiffnadd (u5,u4, c,h,l,t, a1,a3, b3,b1)
+         adcs    u6, u6, c
+         adc     u7, u7, c
+ 
+-        muldiffnadd u3,u2, c,h,l,t, a0,a2, b2,b0
++        muldiffnadd (u3,u2, c,h,l,t, a0,a2, b2,b0)
+         adcs    u4, u4, c
+         adcs    u5, u5, c
+         adcs    u6, u6, c
+         adc     u7, u7, c
+ 
+-        muldiffnadd u4,u3, c,h,l,t, a0,a3, b3,b0
++        muldiffnadd (u4,u3, c,h,l,t, a0,a3, b3,b0)
+         adcs    u5, u5, c
+         adcs    u6, u6, c
+         adc     u7, u7, c
+-        muldiffnadd u4,u3, c,h,l,t, a1,a2, b2,b1
++        muldiffnadd (u4,u3, c,h,l,t, a1,a2, b2,b1)
+         adcs    c1, u5, c
+         adcs    c2, u6, c
+         adc     c3, u7, c
+@@ -212,7 +211,7 @@ stp     x19, x20, [sp, #-16]!
+         lsr     k4m1, x0, #2
+         mov     i, k4m1
+         subs    c, k4m1, #1
+-        bcc     end
++        bcc     bignum_emontredc_8n_end
+         mov     tc, xzr
+         lsl     k4m1, c, #5
+ 
+@@ -220,7 +219,7 @@ stp     x19, x20, [sp, #-16]!
+ // Rather than propagating the carry to the end each time, we
+ // stop at the "natural" end and store top carry in tc as a bitmask.
+ 
+-outerloop:
++bignum_emontredc_8n_outerloop:
+ 
+ // Load [u3;u2;u1;u0] = bottom 4 digits of the input at current window
+ 
+@@ -326,9 +325,9 @@ outerloop:
+ 
+ // Repeated multiply-add block to do the k/4-1 remaining 4-digit chunks
+ 
+-        cbz     k4m1, madddone
++        cbz     k4m1, bignum_emontredc_8n_madddone
+         mov     j, k4m1
+-maddloop:
++bignum_emontredc_8n_maddloop:
+         add     m, m, #32
+         add     z, z, #32
+ 
+@@ -336,8 +335,8 @@ maddloop:
+         ldp     b2, b3, [m, #16]
+         madd4
+         subs    j, j, #32
+-        bne     maddloop
+-madddone:
++        bne     bignum_emontredc_8n_maddloop
++bignum_emontredc_8n_madddone:
+ 
+ // Add the carry out to the existing z contents, propagating the
+ // top carry tc up by 32 places as we move "leftwards".
+@@ -362,13 +361,13 @@ madddone:
+ 
+         add     z, z, #32
+         subs    i, i, #1
+-        bne     outerloop
++        bne     bignum_emontredc_8n_outerloop
+ 
+ // Return the top carry as 0 or 1 (it's currently a bitmask)
+ 
+         neg     x0, tc
+ 
+-end:
++bignum_emontredc_8n_end:
+         ldp     x27, x28, [sp], #16
+         ldp     x25, x26, [sp], #16
+         ldp     x23, x24, [sp], #16
+diff --git a/arm/fastmul/bignum_kmul_16_32.S b/arm/fastmul/bignum_kmul_16_32.S
+index 11dc1a723..2367b6989 100644
+--- a/arm/fastmul/bignum_kmul_16_32.S
++++ b/arm/fastmul/bignum_kmul_16_32.S
+@@ -53,7 +53,7 @@ S2N_BN_SYMBOL(bignum_kmul_16_32):
+ 
+ // Compute L = x_lo * y_lo in bottom half of buffer (size 8 x 8 -> 16)
+ 
+-        bl      local_mul_8_16
++        bl      bignum_kmul_16_32_local_mul_8_16
+ 
+ // Compute absolute difference [t..] = |x_lo - x_hi|
+ // and the sign s = sgn(x_lo - x_hi) as a bitmask (all 1s for negative)
+@@ -102,7 +102,7 @@ S2N_BN_SYMBOL(bignum_kmul_16_32):
+         add     x0, z, #128
+         add     x1, x, #64
+         add     x2, y, #64
+-        bl      local_mul_8_16
++        bl      bignum_kmul_16_32_local_mul_8_16
+ 
+ // Compute the other absolute difference [t+8..] = |y_hi - y_lo|
+ // Collect the combined product sign bitmask (all 1s for negative) in s
+@@ -150,38 +150,56 @@ S2N_BN_SYMBOL(bignum_kmul_16_32):
+ // Compute H' = H + L_top in place of H (it cannot overflow)
+ // First add 8-sized block then propagate carry through next 8
+ 
+-        .set    I, 0
+-
+-        ldp     x10, x11, [z, #128+8*I]
+-        ldp     x12, x13, [z, #64+8*I]
++        ldp     x10, x11, [z, #128]
++        ldp     x12, x13, [z, #64]
+         adds    x10, x10, x12
+         adcs    x11, x11, x13
+-        stp     x10, x11, [z, #128+8*I]
+-        .set    I, (I+2)
++        stp     x10, x11, [z, #128]
++
++        ldp     x10, x11, [z, #128+16]
++        ldp     x12, x13, [z, #64+16]
++        adcs    x10, x10, x12
++        adcs    x11, x11, x13
++        stp     x10, x11, [z, #128+16]
+ 
+-.rep 3
+-        ldp     x10, x11, [z, #128+8*I]
+-        ldp     x12, x13, [z, #64+8*I]
++        ldp     x10, x11, [z, #128+32]
++        ldp     x12, x13, [z, #64+32]
+         adcs    x10, x10, x12
+         adcs    x11, x11, x13
+-        stp     x10, x11, [z, #128+8*I]
+-        .set    I, (I+2)
+-.endr
++        stp     x10, x11, [z, #128+32]
++
++        ldp     x10, x11, [z, #128+48]
++        ldp     x12, x13, [z, #64+48]
++        adcs    x10, x10, x12
++        adcs    x11, x11, x13
++        stp     x10, x11, [z, #128+48]
++
++        ldp     x10, x11, [z, #128+64]
++        adcs    x10, x10, xzr
++        adcs    x11, x11, xzr
++        stp     x10, x11, [z, #128+64]
++
++        ldp     x10, x11, [z, #128+80]
++        adcs    x10, x10, xzr
++        adcs    x11, x11, xzr
++        stp     x10, x11, [z, #128+80]
++
++        ldp     x10, x11, [z, #128+96]
++        adcs    x10, x10, xzr
++        adcs    x11, x11, xzr
++        stp     x10, x11, [z, #128+96]
+ 
+-.rep 4
+-        ldp     x10, x11, [z, #128+8*I]
++        ldp     x10, x11, [z, #128+112]
+         adcs    x10, x10, xzr
+         adcs    x11, x11, xzr
+-        stp     x10, x11, [z, #128+8*I]
+-        .set    I, (I+2)
+-.endr
++        stp     x10, x11, [z, #128+112]
+ 
+ // Compute M = |x_lo - x_hi| * |y_hi - y_lo| in [t+16...], size 16
+ 
+         add     x0, t, #128
+         mov     x1, t
+         add     x2, t, #64
+-        bl      local_mul_8_16
++        bl      bignum_kmul_16_32_local_mul_8_16
+ 
+ // Add the interlocking H' and L_bot terms, storing in registers x15..x0
+ // Intercept the carry at the 8 + 16 = 24 position and store it in x.
+@@ -315,7 +333,7 @@ S2N_BN_SYMBOL(bignum_kmul_16_32):
+ // Local copy of bignum_mul_8_16 without the scratch register save/restore
+ // -----------------------------------------------------------------------
+ 
+-local_mul_8_16:
++bignum_kmul_16_32_local_mul_8_16:
+         ldp     x3, x4, [x1]
+         ldp     x7, x8, [x2]
+         ldp     x5, x6, [x1, #16]
+diff --git a/arm/fastmul/bignum_kmul_32_64.S b/arm/fastmul/bignum_kmul_32_64.S
+index 42286ff36..467d29869 100644
+--- a/arm/fastmul/bignum_kmul_32_64.S
++++ b/arm/fastmul/bignum_kmul_32_64.S
+@@ -22,7 +22,7 @@
+         .balign 4
+ 
+ #define K 16
+-#define L (K/2)
++#define L 8 // this is (K/2)
+ 
+ #define z x19
+ #define x x20
+@@ -49,7 +49,7 @@ S2N_BN_SYMBOL(bignum_kmul_32_64):
+ 
+ // Compute L = x_lo * y_lo in bottom half of buffer (size 16 x 16 -> 32)
+ 
+-        bl      local_kmul_16_32
++        bl      bignum_kmul_32_64_local_kmul_16_32
+ 
+ // Compute H = x_hi * y_hi in top half of buffer (size 16 x 16 -> 32)
+ 
+@@ -57,7 +57,7 @@ S2N_BN_SYMBOL(bignum_kmul_32_64):
+         add     x1, x, #8*K
+         add     x2, y, #8*K
+         mov     x3, t
+-        bl      local_kmul_16_32
++        bl      bignum_kmul_32_64_local_kmul_16_32
+ 
+ // Compute absolute difference [t..] = |x_lo - x_hi|
+ // and the sign x = sgn(x_lo - x_hi) as a bitmask (all 1s for negative)
+@@ -208,82 +208,141 @@ S2N_BN_SYMBOL(bignum_kmul_32_64):
+         adcs    x0, x0, xzr
+         eor     x1, x1, y
+         adcs    x1, x1, xzr
+-        stp     x0, x1, [t, #8*K]
++        stp     x0, x1, [t, #128]
+ 
+         eor     x2, x2, y
+         adcs    x2, x2, xzr
+         eor     x3, x3, y
+         adcs    x3, x3, xzr
+-        stp     x2, x3, [t, #8*K+16]
++        stp     x2, x3, [t, #128+16]
+ 
+         eor     x4, x4, y
+         adcs    x4, x4, xzr
+         eor     x5, x5, y
+         adcs    x5, x5, xzr
+-        stp     x4, x5, [t, #8*K+32]
++        stp     x4, x5, [t, #128+32]
+ 
+         eor     x6, x6, y
+         adcs    x6, x6, xzr
+         eor     x7, x7, y
+         adcs    x7, x7, xzr
+-        stp     x6, x7, [t, #8*K+48]
++        stp     x6, x7, [t, #128+48]
+ 
+         eor     x8, x8, y
+         adcs    x8, x8, xzr
+         eor     x9, x9, y
+         adcs    x9, x9, xzr
+-        stp     x8, x9, [t, #8*K+64]
++        stp     x8, x9, [t, #128+64]
+ 
+         eor     x10, x10, y
+         adcs    x10, x10, xzr
+         eor     x11, x11, y
+         adcs    x11, x11, xzr
+-        stp     x10, x11, [t, #8*K+80]
++        stp     x10, x11, [t, #128+80]
+ 
+         eor     x12, x12, y
+         adcs    x12, x12, xzr
+         eor     x13, x13, y
+         adcs    x13, x13, xzr
+-        stp     x12, x13, [t, #8*K+96]
++        stp     x12, x13, [t, #128+96]
+ 
+         eor     x14, x14, y
+         adcs    x14, x14, xzr
+         eor     x15, x15, y
+         adc     x15, x15, xzr
+-        stp     x14, x15, [t, #8*K+112]
++        stp     x14, x15, [t, #128+112]
+ 
+         eor     y, y, x
+ 
+ // Compute H' = H + L_top in place of H (it cannot overflow)
+ 
+-        ldp     x0, x1, [z, #16*K]
++        ldp     x0, x1, [z, #16*16]
+         ldp     x2, x3, [z, #16*L]
+         adds    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, #16*K]
++        stp     x0, x1, [z, #16*16]
+ 
+-        .set    I, 1
+-        .rep (L-1)
+-        ldp     x0, x1, [z, #16*(K+I)]
+-        ldp     x2, x3, [z, #16*(L+I)]
++        ldp     x0, x1, [z, #16*17]
++        ldp     x2, x3, [z, #16*9]
+         adcs    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, #16*(K+I)]
+-        .set    I, (I+1)
+-        .endr
++        stp     x0, x1, [z, #16*17]
+ 
+-        .rep    (L-1)
+-        ldp     x0, x1, [z, #16*(K+I)]
++        ldp     x0, x1, [z, #16*18]
++        ldp     x2, x3, [z, #16*10]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*18]
++
++        ldp     x0, x1, [z, #16*19]
++        ldp     x2, x3, [z, #16*11]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*19]
++
++        ldp     x0, x1, [z, #16*20]
++        ldp     x2, x3, [z, #16*12]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*20]
++
++        ldp     x0, x1, [z, #16*21]
++        ldp     x2, x3, [z, #16*13]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*21]
++
++        ldp     x0, x1, [z, #16*22]
++        ldp     x2, x3, [z, #16*14]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*22]
++
++        ldp     x0, x1, [z, #16*23]
++        ldp     x2, x3, [z, #16*15]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*23]
++
++        ldp     x0, x1, [z, #16*24]
++        adcs    x0, x0, xzr
++        adcs    x1, x1, xzr
++        stp     x0, x1, [z, #16*24]
++
++        ldp     x0, x1, [z, #16*25]
+         adcs    x0, x0, xzr
+         adcs    x1, x1, xzr
+-        stp     x0, x1, [z, #16*(K+I)]
+-        .set    I, (I+1)
+-        .endr
++        stp     x0, x1, [z, #16*25]
+ 
+-        ldp     x0, x1, [z, #16*(K+I)]
++        ldp     x0, x1, [z, #16*26]
++        adcs    x0, x0, xzr
++        adcs    x1, x1, xzr
++        stp     x0, x1, [z, #16*26]
++
++        ldp     x0, x1, [z, #16*27]
++        adcs    x0, x0, xzr
++        adcs    x1, x1, xzr
++        stp     x0, x1, [z, #16*27]
++
++        ldp     x0, x1, [z, #16*28]
++        adcs    x0, x0, xzr
++        adcs    x1, x1, xzr
++        stp     x0, x1, [z, #16*28]
++
++        ldp     x0, x1, [z, #16*29]
++        adcs    x0, x0, xzr
++        adcs    x1, x1, xzr
++        stp     x0, x1, [z, #16*29]
++
++        ldp     x0, x1, [z, #16*30]
++        adcs    x0, x0, xzr
++        adcs    x1, x1, xzr
++        stp     x0, x1, [z, #16*30]
++
++        ldp     x0, x1, [z, #16*31]
+         adcs    x0, x0, xzr
+         adc     x1, x1, xzr
+-        stp     x0, x1, [z, #16*(K+I)]
++        stp     x0, x1, [z, #16*31]
+ 
+ // Compute M = |x_lo - x_hi| * |y_hi - y_lo|, size 32
+ 
+@@ -291,37 +350,107 @@ S2N_BN_SYMBOL(bignum_kmul_32_64):
+         mov     x1, t
+         add     x2, t, #8*K
+         add     x3, t, #32*K
+-        bl      local_kmul_16_32
++        bl      bignum_kmul_32_64_local_kmul_16_32
+ 
+ // Add the interlocking H' and L_bot terms
+ // Intercept the carry at the 3k position and store it in x.
+ // Again, we no longer need the input x was pointing at.
+ 
+-        ldp     x0, x1, [z, #16*K]
++        ldp     x0, x1, [z, #16*16]
+         ldp     x2, x3, [z]
+         adds    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, #16*L]
++        stp     x0, x1, [z, #16*8]
++
++        ldp     x0, x1, [z, #16*17]
++        ldp     x2, x3, [z, #16*1]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*9]
+ 
+-        .set    I, 1
+-        .rep (L-1)
+-        ldp     x0, x1, [z, #16*(K+I)]
+-        ldp     x2, x3, [z, #16*I]
++        ldp     x0, x1, [z, #16*18]
++        ldp     x2, x3, [z, #16*2]
+         adcs    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, #16*(L+I)]
+-        .set    I, (I+1)
+-        .endr
+-
+-        .set    I, 0
+-        .rep    L
+-        ldp     x0, x1, [z, #16*(K+I)]
+-        ldp     x2, x3, [z, #16*(3*L+I)]
++        stp     x0, x1, [z, #16*10]
++
++        ldp     x0, x1, [z, #16*19]
++        ldp     x2, x3, [z, #16*3]
+         adcs    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, #16*(K+I)]
+-        .set    I, (I+1)
+-        .endr
++        stp     x0, x1, [z, #16*11]
++
++        ldp     x0, x1, [z, #16*20]
++        ldp     x2, x3, [z, #16*4]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*12]
++
++        ldp     x0, x1, [z, #16*21]
++        ldp     x2, x3, [z, #16*5]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*13]
++
++        ldp     x0, x1, [z, #16*22]
++        ldp     x2, x3, [z, #16*6]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*14]
++
++        ldp     x0, x1, [z, #16*23]
++        ldp     x2, x3, [z, #16*7]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*15]
++
++        ldp     x0, x1, [z, #16*16]
++        ldp     x2, x3, [z, #16*24]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*16]
++
++        ldp     x0, x1, [z, #16*17]
++        ldp     x2, x3, [z, #16*25]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*17]
++
++        ldp     x0, x1, [z, #16*18]
++        ldp     x2, x3, [z, #16*26]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*18]
++
++        ldp     x0, x1, [z, #16*19]
++        ldp     x2, x3, [z, #16*27]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*19]
++
++        ldp     x0, x1, [z, #16*20]
++        ldp     x2, x3, [z, #16*28]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*20]
++
++        ldp     x0, x1, [z, #16*21]
++        ldp     x2, x3, [z, #16*29]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*21]
++
++        ldp     x0, x1, [z, #16*22]
++        ldp     x2, x3, [z, #16*30]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*22]
++
++        ldp     x0, x1, [z, #16*23]
++        ldp     x2, x3, [z, #16*31]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*23]
+ 
+         cset      x, cs
+ 
+@@ -329,17 +458,133 @@ S2N_BN_SYMBOL(bignum_kmul_32_64):
+ 
+         cmn     y, y
+ 
+-        .set    I, L
+-        .rep K
+-        ldp     x0, x1, [z, #16*I]
+-        ldp     x2, x3, [t, #8*K+16*I]
++        ldp     x0, x1, [z, #128]
++        ldp     x2, x3, [t, #128+128]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #128]
++
++        ldp     x0, x1, [z, #144]
++        ldp     x2, x3, [t, #128+144]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #144]
++
++        ldp     x0, x1, [z, #160]
++        ldp     x2, x3, [t, #128+160]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #160]
++
++        ldp     x0, x1, [z, #176]
++        ldp     x2, x3, [t, #128+176]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #176]
++
++        ldp     x0, x1, [z, #192]
++        ldp     x2, x3, [t, #128+192]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #192]
++
++        ldp     x0, x1, [z, #208]
++        ldp     x2, x3, [t, #128+208]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #208]
++
++        ldp     x0, x1, [z, #224]
++        ldp     x2, x3, [t, #128+224]
+         eor     x2, x2, y
+         adcs    x0, x0, x2
+         eor     x3, x3, y
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, #16*I]
+-        .set    I, (I+1)
+-        .endr
++        stp     x0, x1, [z, #224]
++
++        ldp     x0, x1, [z, #240]
++        ldp     x2, x3, [t, #128+240]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #240]
++
++        ldp     x0, x1, [z, #256]
++        ldp     x2, x3, [t, #128+256]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #256]
++
++        ldp     x0, x1, [z, #272]
++        ldp     x2, x3, [t, #128+272]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #272]
++
++        ldp     x0, x1, [z, #288]
++        ldp     x2, x3, [t, #128+288]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #288]
++
++        ldp     x0, x1, [z, #304]
++        ldp     x2, x3, [t, #128+304]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #304]
++
++        ldp     x0, x1, [z, #320]
++        ldp     x2, x3, [t, #128+320]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #320]
++
++        ldp     x0, x1, [z, #336]
++        ldp     x2, x3, [t, #128+336]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #336]
++
++        ldp     x0, x1, [z, #352]
++        ldp     x2, x3, [t, #128+352]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #352]
++
++        ldp     x0, x1, [z, #368]
++        ldp     x2, x3, [t, #128+368]
++        eor     x2, x2, y
++        adcs    x0, x0, x2
++        eor     x3, x3, y
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #368]
+ 
+ // Get the next digits effectively resulting so far starting at 3k
+ // [...,c,c,c,c,x]
+@@ -349,24 +594,45 @@ S2N_BN_SYMBOL(bignum_kmul_32_64):
+ 
+ // Now propagate through the top quarter of the result
+ 
+-        ldp     x0, x1, [z, #16*3*L]
++        ldp     x0, x1, [z, #16*24]
+         adds    x0, x0, x
+         adcs    x1, x1, c
+-        stp     x0, x1, [z, #16*3*L]
++        stp     x0, x1, [z, #16*24]
++
++        ldp     x0, x1, [z, #16*25]
++        adcs    x0, x0, c
++        adcs    x1, x1, c
++        stp     x0, x1, [z, #16*25]
++
++        ldp     x0, x1, [z, #16*26]
++        adcs    x0, x0, c
++        adcs    x1, x1, c
++        stp     x0, x1, [z, #16*26]
++
++        ldp     x0, x1, [z, #16*27]
++        adcs    x0, x0, c
++        adcs    x1, x1, c
++        stp     x0, x1, [z, #16*27]
++
++        ldp     x0, x1, [z, #16*28]
++        adcs    x0, x0, c
++        adcs    x1, x1, c
++        stp     x0, x1, [z, #16*28]
++
++        ldp     x0, x1, [z, #16*29]
++        adcs    x0, x0, c
++        adcs    x1, x1, c
++        stp     x0, x1, [z, #16*29]
+ 
+-        .set    I, 3*L+1
+-        .rep    (L-2)
+-        ldp     x0, x1, [z, #16*I]
++        ldp     x0, x1, [z, #16*30]
+         adcs    x0, x0, c
+         adcs    x1, x1, c
+-        stp     x0, x1, [z, #16*I]
+-        .set    I, (I+1)
+-        .endr
++        stp     x0, x1, [z, #16*30]
+ 
+-        ldp     x0, x1, [z, #16*I]
++        ldp     x0, x1, [z, #16*31]
+         adcs    x0, x0, c
+         adc     x1, x1, c
+-        stp     x0, x1, [z, #16*I]
++        stp     x0, x1, [z, #16*31]
+ 
+ // Restore and return
+ 
+@@ -382,7 +648,7 @@ S2N_BN_SYMBOL(bignum_kmul_32_64):
+ // only preserves the key registers we need to be stable in the main code.
+ // This includes in turn a copy of bignum_mul_8_16.
+ 
+-local_kmul_16_32:
++bignum_kmul_32_64_local_kmul_16_32:
+         stp     x19, x20, [sp, -16]!
+         stp     x21, x22, [sp, -16]!
+         stp     x23, x30, [sp, -16]!
+@@ -390,7 +656,7 @@ local_kmul_16_32:
+         mov     x26, x1
+         mov     x27, x2
+         mov     x28, x3
+-        bl      local_mul_8_16
++        bl      bignum_kmul_32_64_local_mul_8_16
+         ldp     x10, x11, [x26]
+         ldp     x8, x9, [x26, #64]
+         subs    x10, x10, x8
+@@ -432,7 +698,7 @@ local_kmul_16_32:
+         add     x0, x25, #0x80
+         add     x1, x26, #0x40
+         add     x2, x27, #0x40
+-        bl      local_mul_8_16
++        bl      bignum_kmul_32_64_local_mul_8_16
+         ldp     x10, x11, [x27]
+         ldp     x8, x9, [x27, #64]
+         subs    x10, x8, x10
+@@ -511,7 +777,7 @@ local_kmul_16_32:
+         add     x0, x28, #0x80
+         mov     x1, x28
+         add     x2, x28, #0x40
+-        bl      local_mul_8_16
++        bl      bignum_kmul_32_64_local_mul_8_16
+         ldp     x0, x1, [x25]
+         ldp     x16, x17, [x25, #128]
+         adds    x0, x0, x16
+@@ -617,7 +883,7 @@ local_kmul_16_32:
+         ldp     x19, x20, [sp], #16
+         ret
+ 
+-local_mul_8_16:
++bignum_kmul_32_64_local_mul_8_16:
+         ldp     x3, x4, [x1]
+         ldp     x7, x8, [x2]
+         ldp     x5, x6, [x1, #16]
+diff --git a/arm/fastmul/bignum_ksqr_16_32.S b/arm/fastmul/bignum_ksqr_16_32.S
+index 9d7c9e7af..bb62a9c0c 100644
+--- a/arm/fastmul/bignum_ksqr_16_32.S
++++ b/arm/fastmul/bignum_ksqr_16_32.S
+@@ -48,7 +48,7 @@ S2N_BN_SYMBOL(bignum_ksqr_16_32):
+ 
+ // Compute L = x_lo * y_lo in bottom half of buffer (size 8 x 8 -> 16)
+ 
+-        bl      local_sqr_8_16
++        bl      bignum_ksqr_16_32_local_sqr_8_16
+ 
+ // Compute absolute difference [t..] = |x_lo - x_hi|
+ 
+@@ -95,42 +95,60 @@ S2N_BN_SYMBOL(bignum_ksqr_16_32):
+ 
+         add     x0, z, #128
+         add     x1, x, #64
+-        bl      local_sqr_8_16
++        bl      bignum_ksqr_16_32_local_sqr_8_16
+ 
+ // Compute H' = H + L_top in place of H (it cannot overflow)
+ // First add 8-sized block then propagate carry through next 8
+ 
+-        .set    I, 0
+-
+-        ldp     x10, x11, [z, #128+8*I]
+-        ldp     x12, x13, [z, #64+8*I]
++        ldp     x10, x11, [z, #128]
++        ldp     x12, x13, [z, #64]
+         adds    x10, x10, x12
+         adcs    x11, x11, x13
+-        stp     x10, x11, [z, #128+8*I]
+-        .set    I, (I+2)
++        stp     x10, x11, [z, #128]
++
++        ldp     x10, x11, [z, #128+16]
++        ldp     x12, x13, [z, #64+16]
++        adcs    x10, x10, x12
++        adcs    x11, x11, x13
++        stp     x10, x11, [z, #128+16]
+ 
+-.rep 3
+-        ldp     x10, x11, [z, #128+8*I]
+-        ldp     x12, x13, [z, #64+8*I]
++        ldp     x10, x11, [z, #128+32]
++        ldp     x12, x13, [z, #64+32]
+         adcs    x10, x10, x12
+         adcs    x11, x11, x13
+-        stp     x10, x11, [z, #128+8*I]
+-        .set    I, (I+2)
+-.endr
++        stp     x10, x11, [z, #128+32]
++
++        ldp     x10, x11, [z, #128+48]
++        ldp     x12, x13, [z, #64+48]
++        adcs    x10, x10, x12
++        adcs    x11, x11, x13
++        stp     x10, x11, [z, #128+48]
++
++        ldp     x10, x11, [z, #128+64]
++        adcs    x10, x10, xzr
++        adcs    x11, x11, xzr
++        stp     x10, x11, [z, #128+64]
++
++        ldp     x10, x11, [z, #128+80]
++        adcs    x10, x10, xzr
++        adcs    x11, x11, xzr
++        stp     x10, x11, [z, #128+80]
++
++        ldp     x10, x11, [z, #128+96]
++        adcs    x10, x10, xzr
++        adcs    x11, x11, xzr
++        stp     x10, x11, [z, #128+96]
+ 
+-.rep 4
+-        ldp     x10, x11, [z, #128+8*I]
++        ldp     x10, x11, [z, #128+112]
+         adcs    x10, x10, xzr
+         adcs    x11, x11, xzr
+-        stp     x10, x11, [z, #128+8*I]
+-        .set    I, (I+2)
+-.endr
++        stp     x10, x11, [z, #128+112]
+ 
+ // Compute M = |x_lo - x_hi| * |y_hi - y_lo| in [t+8...], size 16
+ 
+         add     x0, t, #64
+         mov     x1, t
+-        bl      local_sqr_8_16
++        bl      bignum_ksqr_16_32_local_sqr_8_16
+ 
+ // Add the interlocking H' and L_bot terms, storing in registers x15..x0
+ // Intercept the carry at the 8 + 16 = 24 position and store it in x.
+@@ -244,7 +262,7 @@ S2N_BN_SYMBOL(bignum_ksqr_16_32):
+ // the same as bignum_sqr_8_16 without the scratch register preservation.
+ // -----------------------------------------------------------------------------
+ 
+-local_sqr_8_16:
++bignum_ksqr_16_32_local_sqr_8_16:
+         ldp     x2, x3, [x1]
+         ldp     x4, x5, [x1, #16]
+         ldp     x6, x7, [x1, #32]
+diff --git a/arm/fastmul/bignum_ksqr_32_64.S b/arm/fastmul/bignum_ksqr_32_64.S
+index 0405db1af..fbd3c47be 100644
+--- a/arm/fastmul/bignum_ksqr_32_64.S
++++ b/arm/fastmul/bignum_ksqr_32_64.S
+@@ -21,7 +21,7 @@
+         .balign 4
+ 
+ #define K 16
+-#define L (K/2)
++#define L 8 // (K/2)
+ 
+ #define z x19
+ #define x x20
+@@ -43,45 +43,104 @@ S2N_BN_SYMBOL(bignum_ksqr_32_64):
+ 
+ // Compute L = x_lo * y_lo in bottom half of buffer (size 16 x 16 -> 32)
+ 
+-        bl      local_ksqr_16_32
++        bl      bignum_ksqr_32_64_local_ksqr_16_32
+ 
+ // Compute H = x_hi * y_hi in top half of buffer (size 16 x 16 -> 32)
+ 
+         add     x0, z, #16*K
+         add     x1, x, #8*K
+         mov     x2, t
+-        bl      local_ksqr_16_32
++        bl      bignum_ksqr_32_64_local_ksqr_16_32
+ 
+ // Compute H' = H + L_top in place of H (it cannot overflow)
+ 
+-        ldp     x0, x1, [z, #16*K]
+-        ldp     x2, x3, [z, #16*L]
++        ldp     x0, x1, [z, #16*16]
++        ldp     x2, x3, [z, #16*8]
+         adds    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, #16*K]
++        stp     x0, x1, [z, #16*16]
+ 
+-        .set    I, 1
+-        .rep (L-1)
+-        ldp     x0, x1, [z, #16*(K+I)]
+-        ldp     x2, x3, [z, #16*(L+I)]
++        ldp     x0, x1, [z, #16*17]
++        ldp     x2, x3, [z, #16*9]
+         adcs    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, #16*(K+I)]
+-        .set    I, (I+1)
+-        .endr
++        stp     x0, x1, [z, #16*17]
+ 
+-        .rep    (L-1)
+-        ldp     x0, x1, [z, #16*(K+I)]
++        ldp     x0, x1, [z, #16*18]
++        ldp     x2, x3, [z, #16*10]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*18]
++
++        ldp     x0, x1, [z, #16*19]
++        ldp     x2, x3, [z, #16*11]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*19]
++
++        ldp     x0, x1, [z, #16*20]
++        ldp     x2, x3, [z, #16*12]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*20]
++
++        ldp     x0, x1, [z, #16*21]
++        ldp     x2, x3, [z, #16*13]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*21]
++
++        ldp     x0, x1, [z, #16*22]
++        ldp     x2, x3, [z, #16*14]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*22]
++
++        ldp     x0, x1, [z, #16*23]
++        ldp     x2, x3, [z, #16*15]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*23]
++
++        ldp     x0, x1, [z, #16*24]
+         adcs    x0, x0, xzr
+         adcs    x1, x1, xzr
+-        stp     x0, x1, [z, #16*(K+I)]
+-        .set    I, (I+1)
+-        .endr
++        stp     x0, x1, [z, #16*24]
+ 
+-        ldp     x0, x1, [z, #16*(K+I)]
++        ldp     x0, x1, [z, #16*25]
++        adcs    x0, x0, xzr
++        adcs    x1, x1, xzr
++        stp     x0, x1, [z, #16*25]
++
++        ldp     x0, x1, [z, #16*26]
++        adcs    x0, x0, xzr
++        adcs    x1, x1, xzr
++        stp     x0, x1, [z, #16*26]
++
++        ldp     x0, x1, [z, #16*27]
++        adcs    x0, x0, xzr
++        adcs    x1, x1, xzr
++        stp     x0, x1, [z, #16*27]
++
++        ldp     x0, x1, [z, #16*28]
++        adcs    x0, x0, xzr
++        adcs    x1, x1, xzr
++        stp     x0, x1, [z, #16*28]
++
++        ldp     x0, x1, [z, #16*29]
++        adcs    x0, x0, xzr
++        adcs    x1, x1, xzr
++        stp     x0, x1, [z, #16*29]
++
++        ldp     x0, x1, [z, #16*30]
++        adcs    x0, x0, xzr
++        adcs    x1, x1, xzr
++        stp     x0, x1, [z, #16*30]
++
++        ldp     x0, x1, [z, #16*31]
+         adcs    x0, x0, xzr
+         adc     x1, x1, xzr
+-        stp     x0, x1, [z, #16*(K+I)]
++        stp     x0, x1, [z, #16*31]
+ 
+ // Compute absolute difference [t..] = |x_lo - x_hi|
+ 
+@@ -182,37 +241,107 @@ S2N_BN_SYMBOL(bignum_ksqr_32_64):
+         add     x0, t, #8*K
+         mov     x1, t
+         add     x2, t, #24*K
+-        bl      local_ksqr_16_32
++        bl      bignum_ksqr_32_64_local_ksqr_16_32
+ 
+ // Add the interlocking H' and L_bot terms
+ // Intercept the carry at the 3k position and store it in x.
+ // (Note that we no longer need the input x was pointing at.)
+ 
+-        ldp     x0, x1, [z, #16*K]
++        ldp     x0, x1, [z, #16*16]
+         ldp     x2, x3, [z]
+         adds    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, #16*L]
++        stp     x0, x1, [z, #16*8]
++
++        ldp     x0, x1, [z, #16*17]
++        ldp     x2, x3, [z, #16*1]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*9]
++
++        ldp     x0, x1, [z, #16*18]
++        ldp     x2, x3, [z, #16*2]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*10]
++
++        ldp     x0, x1, [z, #16*19]
++        ldp     x2, x3, [z, #16*3]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*11]
++
++        ldp     x0, x1, [z, #16*20]
++        ldp     x2, x3, [z, #16*4]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*12]
++
++        ldp     x0, x1, [z, #16*21]
++        ldp     x2, x3, [z, #16*5]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*13]
++
++        ldp     x0, x1, [z, #16*22]
++        ldp     x2, x3, [z, #16*6]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*14]
++
++        ldp     x0, x1, [z, #16*23]
++        ldp     x2, x3, [z, #16*7]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*15]
++
++        ldp     x0, x1, [z, #16*16]
++        ldp     x2, x3, [z, #16*24]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*16]
++
++        ldp     x0, x1, [z, #16*17]
++        ldp     x2, x3, [z, #16*25]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*17]
++
++        ldp     x0, x1, [z, #16*18]
++        ldp     x2, x3, [z, #16*26]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*18]
+ 
+-        .set    I, 1
+-        .rep (L-1)
+-        ldp     x0, x1, [z, #16*(K+I)]
+-        ldp     x2, x3, [z, #16*I]
++        ldp     x0, x1, [z, #16*19]
++        ldp     x2, x3, [z, #16*27]
+         adcs    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, #16*(L+I)]
+-        .set    I, (I+1)
+-        .endr
+-
+-        .set    I, 0
+-        .rep    L
+-        ldp     x0, x1, [z, #16*(K+I)]
+-        ldp     x2, x3, [z, #16*(3*L+I)]
++        stp     x0, x1, [z, #16*19]
++
++        ldp     x0, x1, [z, #16*20]
++        ldp     x2, x3, [z, #16*28]
+         adcs    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, #16*(K+I)]
+-        .set    I, (I+1)
+-        .endr
++        stp     x0, x1, [z, #16*20]
++
++        ldp     x0, x1, [z, #16*21]
++        ldp     x2, x3, [z, #16*29]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*21]
++
++        ldp     x0, x1, [z, #16*22]
++        ldp     x2, x3, [z, #16*30]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*22]
++
++        ldp     x0, x1, [z, #16*23]
++        ldp     x2, x3, [z, #16*31]
++        adcs    x0, x0, x2
++        adcs    x1, x1, x3
++        stp     x0, x1, [z, #16*23]
+ 
+         cset      x, cs
+ 
+@@ -224,15 +353,95 @@ S2N_BN_SYMBOL(bignum_ksqr_32_64):
+         sbcs    x1, x1, x3
+         stp     x0, x1, [z, #16*L]
+ 
+-        .set    I, L+1
+-        .rep (K-1)
+-        ldp     x0, x1, [z, #16*I]
+-        ldp     x2, x3, [t, #16*I]
++        ldp     x0, x1, [z, #16*9]
++        ldp     x2, x3, [t, #16*9]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*9]
++
++        ldp     x0, x1, [z, #16*10]
++        ldp     x2, x3, [t, #16*10]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*10]
++
++        ldp     x0, x1, [z, #16*11]
++        ldp     x2, x3, [t, #16*11]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*11]
++
++        ldp     x0, x1, [z, #16*12]
++        ldp     x2, x3, [t, #16*12]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*12]
++
++        ldp     x0, x1, [z, #16*13]
++        ldp     x2, x3, [t, #16*13]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*13]
++
++        ldp     x0, x1, [z, #16*14]
++        ldp     x2, x3, [t, #16*14]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*14]
++
++        ldp     x0, x1, [z, #16*15]
++        ldp     x2, x3, [t, #16*15]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*15]
++
++        ldp     x0, x1, [z, #16*16]
++        ldp     x2, x3, [t, #16*16]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*16]
++
++        ldp     x0, x1, [z, #16*17]
++        ldp     x2, x3, [t, #16*17]
+         sbcs    x0, x0, x2
+         sbcs    x1, x1, x3
+-        stp     x0, x1, [z, #16*I]
+-        .set    I, (I+1)
+-        .endr
++        stp     x0, x1, [z, #16*17]
++
++        ldp     x0, x1, [z, #16*18]
++        ldp     x2, x3, [t, #16*18]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*18]
++
++        ldp     x0, x1, [z, #16*19]
++        ldp     x2, x3, [t, #16*19]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*19]
++
++        ldp     x0, x1, [z, #16*20]
++        ldp     x2, x3, [t, #16*20]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*20]
++
++        ldp     x0, x1, [z, #16*21]
++        ldp     x2, x3, [t, #16*21]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*21]
++
++        ldp     x0, x1, [z, #16*22]
++        ldp     x2, x3, [t, #16*22]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*22]
++
++        ldp     x0, x1, [z, #16*23]
++        ldp     x2, x3, [t, #16*23]
++        sbcs    x0, x0, x2
++        sbcs    x1, x1, x3
++        stp     x0, x1, [z, #16*23]
+ 
+ // Get the next digits effectively resulting so far starting at 3k
+ // [...,c,c,c,c,x]
+@@ -242,24 +451,45 @@ S2N_BN_SYMBOL(bignum_ksqr_32_64):
+ 
+ // Now propagate through the top quarter of the result
+ 
+-        ldp     x0, x1, [z, #16*3*L]
++        ldp     x0, x1, [z, #16*24]
+         adds    x0, x0, x
+         adcs    x1, x1, c
+-        stp     x0, x1, [z, #16*3*L]
++        stp     x0, x1, [z, #16*24]
++
++        ldp     x0, x1, [z, #16*25]
++        adcs    x0, x0, c
++        adcs    x1, x1, c
++        stp     x0, x1, [z, #16*25]
++
++        ldp     x0, x1, [z, #16*26]
++        adcs    x0, x0, c
++        adcs    x1, x1, c
++        stp     x0, x1, [z, #16*26]
++
++        ldp     x0, x1, [z, #16*27]
++        adcs    x0, x0, c
++        adcs    x1, x1, c
++        stp     x0, x1, [z, #16*27]
++
++        ldp     x0, x1, [z, #16*28]
++        adcs    x0, x0, c
++        adcs    x1, x1, c
++        stp     x0, x1, [z, #16*28]
++
++        ldp     x0, x1, [z, #16*29]
++        adcs    x0, x0, c
++        adcs    x1, x1, c
++        stp     x0, x1, [z, #16*29]
+ 
+-        .set    I, 3*L+1
+-        .rep    (L-2)
+-        ldp     x0, x1, [z, #16*I]
++        ldp     x0, x1, [z, #16*30]
+         adcs    x0, x0, c
+         adcs    x1, x1, c
+-        stp     x0, x1, [z, #16*I]
+-        .set    I, (I+1)
+-        .endr
++        stp     x0, x1, [z, #16*30]
+ 
+-        ldp     x0, x1, [z, #16*I]
++        ldp     x0, x1, [z, #16*31]
+         adcs    x0, x0, c
+         adc     x1, x1, c
+-        stp     x0, x1, [z, #16*I]
++        stp     x0, x1, [z, #16*31]
+ 
+ // Restore
+ 
+@@ -271,7 +501,7 @@ S2N_BN_SYMBOL(bignum_ksqr_32_64):
+ // Local copy of bignum_ksqr_16_32, identical to main one.
+ // This includes in turn a copy of bignum_sqr_8_16.
+ 
+-local_ksqr_16_32:
++bignum_ksqr_32_64_local_ksqr_16_32:
+         stp     x19, x20, [sp, #-16]!
+         stp     x21, x22, [sp, #-16]!
+         stp     x23, x24, [sp, #-16]!
+@@ -279,7 +509,7 @@ local_ksqr_16_32:
+         mov     x23, x0
+         mov     x24, x1
+         mov     x25, x2
+-        bl      local_sqr_8_16
++        bl      bignum_ksqr_32_64_local_sqr_8_16
+         ldp     x10, x11, [x24]
+         ldp     x8, x9, [x24, #64]
+         subs    x10, x10, x8
+@@ -320,7 +550,7 @@ local_ksqr_16_32:
+         stp     x16, x17, [x25, #48]
+         add     x0, x23, #0x80
+         add     x1, x24, #0x40
+-        bl      local_sqr_8_16
++        bl      bignum_ksqr_32_64_local_sqr_8_16
+         ldp     x10, x11, [x23, #128]
+         ldp     x12, x13, [x23, #64]
+         adds    x10, x10, x12
+@@ -359,7 +589,7 @@ local_ksqr_16_32:
+         stp     x10, x11, [x23, #240]
+         add     x0, x25, #0x40
+         mov     x1, x25
+-        bl      local_sqr_8_16
++        bl      bignum_ksqr_32_64_local_sqr_8_16
+         ldp     x0, x1, [x23]
+         ldp     x16, x17, [x23, #128]
+         adds    x0, x0, x16
+@@ -449,7 +679,7 @@ local_ksqr_16_32:
+         ldp     x19, x20, [sp], #16
+         ret
+ 
+-local_sqr_8_16:
++bignum_ksqr_32_64_local_sqr_8_16:
+         ldp     x2, x3, [x1]
+         ldp     x4, x5, [x1, #16]
+         ldp     x6, x7, [x1, #32]
+diff --git a/arm/generic/bignum_ge.S b/arm/generic/bignum_ge.S
+index 6ba9202f0..a646b47d4 100644
+--- a/arm/generic/bignum_ge.S
++++ b/arm/generic/bignum_ge.S
+@@ -35,51 +35,51 @@ S2N_BN_SYMBOL(bignum_ge):
+ // Speculatively form m := m - n and do case split
+ 
+         subs    m, m, n
+-        bcc     ylonger
++        bcc     bignum_ge_ylonger
+ 
+ // The case where x is longer or of the same size (m >= n)
+ // Note that CF=1 initially by the fact that we reach this point
+ 
+-        cbz     n, xtest
+-xmainloop:
++        cbz     n, bignum_ge_xtest
++bignum_ge_xmainloop:
+         ldr     a, [x, i, lsl #3]
+         ldr     d, [y, i, lsl #3]
+         sbcs    xzr, a, d
+         add     i, i, #1
+         sub     n, n, #1
+-        cbnz    n, xmainloop
+-xtest:
+-        cbz     m, xskip
+-xtoploop:
++        cbnz    n, bignum_ge_xmainloop
++bignum_ge_xtest:
++        cbz     m, bignum_ge_xskip
++bignum_ge_xtoploop:
+         ldr     a, [x, i, lsl #3]
+         sbcs    xzr, a, xzr
+         add     i, i, #1
+         sub     m, m, #1
+-        cbnz    m, xtoploop
+-xskip:
++        cbnz    m, bignum_ge_xtoploop
++bignum_ge_xskip:
+         cset    x0, cs
+         ret
+ 
+ // The case where y is longer (n > m)
+ // The first "adds" also makes sure CF=1 initially in this branch
+ 
+-ylonger:
++bignum_ge_ylonger:
+         adds    m, m, n
+-        cbz     m, ytoploop
++        cbz     m, bignum_ge_ytoploop
+         sub     n, n, m
+-ymainloop:
++bignum_ge_ymainloop:
+         ldr     a, [x, i, lsl #3]
+         ldr     d, [y, i, lsl #3]
+         sbcs    xzr, a, d
+         add     i, i, #1
+         sub     m, m, #1
+-        cbnz    m, ymainloop
+-ytoploop:
++        cbnz    m, bignum_ge_ymainloop
++bignum_ge_ytoploop:
+         ldr     a, [y, i, lsl #3]
+         sbcs    xzr, xzr, a
+         add     i, i, #1
+         sub     n, n, #1
+-        cbnz    n, ytoploop
++        cbnz    n, bignum_ge_ytoploop
+ 
+         cset    x0, cs
+         ret
+diff --git a/arm/generic/bignum_mul.S b/arm/generic/bignum_mul.S
+index 85bfad9d3..1da4bf951 100644
+--- a/arm/generic/bignum_mul.S
++++ b/arm/generic/bignum_mul.S
+@@ -43,7 +43,7 @@ S2N_BN_SYMBOL(bignum_mul):
+ 
+ // If p = 0 the result is trivial and nothing needs doing
+ 
+-        cbz     p, end
++        cbz     p, bignum_mul_end
+ 
+ // initialize (h,l) = 0, saving c = 0 for inside the loop
+ 
+@@ -53,7 +53,7 @@ S2N_BN_SYMBOL(bignum_mul):
+ // Iterate outer loop from k = 0 ... k = p - 1 producing result digits
+ 
+         mov     k, xzr
+-outerloop:
++bignum_mul_outerloop:
+ 
+ // Zero the carry for this stage
+ 
+@@ -71,7 +71,7 @@ outerloop:
+ // Set loop count i = b - a, and skip everything if it's <= 0
+ 
+         subs    i, b, a
+-        bls     innerend
++        bls     bignum_mul_innerend
+ 
+ // Use temporary pointers xx = x + 8 * a and yy = y + 8 * (k - b)
+ // Increment xx per iteration but just use loop counter with yy
+@@ -86,7 +86,7 @@ outerloop:
+ 
+ // And index using the loop counter i = b - a, ..., i = 1
+ 
+-innerloop:
++bignum_mul_innerloop:
+         ldr     a, [xx], #8
+         ldr     b, [yy, i, lsl #3]
+         mul     d, a, b
+@@ -95,18 +95,18 @@ innerloop:
+         adcs    h, h, a
+         adc     c, c, xzr
+         subs    i, i, #1
+-        bne     innerloop
++        bne     bignum_mul_innerloop
+ 
+-innerend:
++bignum_mul_innerend:
+         str     l, [z, k, lsl #3]
+         mov     l, h
+         mov     h, c
+ 
+         add     k, k, #1
+         cmp     k, p
+-        bcc     outerloop                       // Inverted carry flag!
++        bcc     bignum_mul_outerloop                       // Inverted carry flag!
+ 
+-end:
++bignum_mul_end:
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/arm/generic/bignum_optsub.S b/arm/generic/bignum_optsub.S
+index 5d82a407d..285536ef7 100644
+--- a/arm/generic/bignum_optsub.S
++++ b/arm/generic/bignum_optsub.S
+@@ -35,7 +35,7 @@ S2N_BN_SYMBOL(bignum_optsub):
+ 
+ // if k = 0 do nothing. This is also the right top carry in X0
+ 
+-        cbz     k, end
++        cbz     k, bignum_optsub_end
+ 
+ // Convert p into a strict bitmask (same register in fact)
+ 
+@@ -48,7 +48,7 @@ S2N_BN_SYMBOL(bignum_optsub):
+ 
+ // Main loop
+ 
+-loop:
++bignum_optsub_loop:
+         ldr     a, [x, i]
+         ldr     b, [y, i]
+         and     b, b, m
+@@ -56,13 +56,13 @@ loop:
+         str     a, [z, i]
+         add     i, i, #8
+         sub     k, k, #1
+-        cbnz    k, loop
++        cbnz    k, bignum_optsub_loop
+ 
+ // Return (non-inverted) carry flag
+ 
+         cset    x0, cc
+ 
+-end:
++bignum_optsub_end:
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/arm/generic/bignum_sqr.S b/arm/generic/bignum_sqr.S
+index 39683061f..1a75dbddb 100644
+--- a/arm/generic/bignum_sqr.S
++++ b/arm/generic/bignum_sqr.S
+@@ -42,7 +42,7 @@ S2N_BN_SYMBOL(bignum_sqr):
+ 
+ // If p = 0 the result is trivial and nothing needs doing
+ 
+-        cbz     p, end
++        cbz     p, bignum_sqr_end
+ 
+ // initialize (hh,ll) = 0
+ 
+@@ -52,7 +52,7 @@ S2N_BN_SYMBOL(bignum_sqr):
+ // Iterate outer loop from k = 0 ... k = p - 1 producing result digits
+ 
+         mov     k, xzr
+-outerloop:
++bignum_sqr_outerloop:
+ 
+ // First let bot = MAX 0 (k + 1 - n) and top = MIN (k + 1) n
+ // We want to accumulate all x[i] * x[k - i] for bot <= i < top
+@@ -76,7 +76,7 @@ outerloop:
+ // If htop <= bot then main doubled part of the sum is empty
+ 
+         cmp     htop, i
+-        bls     nosumming
++        bls     bignum_sqr_nosumming
+ 
+ // Use a moving pointer for [y] = x[k-i] for the cofactor
+ 
+@@ -86,7 +86,7 @@ outerloop:
+ 
+ // Do the main part of the sum x[i] * x[k - i] for 2 * i < k
+ 
+-innerloop:
++bignum_sqr_innerloop:
+         ldr     a, [x, i, lsl #3]
+         ldr     b, [y], #-8
+         mul     d, a, b
+@@ -96,7 +96,7 @@ innerloop:
+         adc     c, c, xzr
+         add     i, i, #1
+         cmp     i, htop
+-        bne     innerloop
++        bne     bignum_sqr_innerloop
+ 
+ // Now double it
+ 
+@@ -106,12 +106,12 @@ innerloop:
+ 
+ // If k is even (which means 2 * i = k) and i < n add the extra x[i]^2 term
+ 
+-nosumming:
++bignum_sqr_nosumming:
+ 
+         ands    xzr, k, #1
+-        bne     innerend
++        bne     bignum_sqr_innerend
+         cmp     i, n
+-        bcs     innerend
++        bcs     bignum_sqr_innerend
+ 
+         ldr     a, [x, i, lsl #3]
+         mul     d, a, a
+@@ -122,7 +122,7 @@ nosumming:
+ 
+ // Now add the local sum into the global sum, store and shift
+ 
+-innerend:
++bignum_sqr_innerend:
+         adds    l, l, ll
+         str     l, [z, k, lsl #3]
+         adcs    ll, h, hh
+@@ -130,9 +130,9 @@ innerend:
+ 
+         add     k, k, #1
+         cmp     k, p
+-        bcc     outerloop
++        bcc     bignum_sqr_outerloop
+ 
+-end:
++bignum_sqr_end:
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)

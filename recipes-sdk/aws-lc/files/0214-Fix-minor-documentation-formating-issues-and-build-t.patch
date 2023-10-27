@@ -1,0 +1,434 @@
+From 065028a49f753ae4b768f72eb45214ab78c7e648 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Tue, 21 Mar 2023 16:01:35 -0700
+Subject: [PATCH] Fix minor documentation formating issues and build the
+ documentation in the CI (#896)
+
+---
+ include/openssl/aead.h                    |  5 +++--
+ include/openssl/bio.h                     |  1 -
+ include/openssl/cipher.h                  | 23 ++++++++++++++---------
+ include/openssl/crypto.h                  |  1 +
+ include/openssl/dh.h                      |  7 ++++---
+ include/openssl/digest.h                  |  8 +++-----
+ include/openssl/evp.h                     |  2 ++
+ include/openssl/ocsp.h                    | 23 +++++++++++++----------
+ include/openssl/rc4.h                     |  1 +
+ include/openssl/rsa.h                     |  2 +-
+ include/openssl/service_indicator.h       | 13 ++++++++++---
+ include/openssl/sshkdf.h                  |  4 +++-
+ tests/ci/codebuild/linux-x86/pre-push.yml |  1 +
+ util/doc.config                           |  7 +++++--
+ util/doc.go                               |  6 +++---
+ 15 files changed, 64 insertions(+), 40 deletions(-)
+
+diff --git a/include/openssl/aead.h b/include/openssl/aead.h
+index 62a7dc039..bf7eb0dfa 100644
+--- a/include/openssl/aead.h
++++ b/include/openssl/aead.h
+@@ -462,6 +462,8 @@ OPENSSL_EXPORT int EVP_AEAD_CTX_tag_len(const EVP_AEAD_CTX *ctx,
+                                         const size_t in_len,
+                                         const size_t extra_in_len);
+ 
++#define FIPS_AES_GCM_NONCE_LENGTH 12
++
+ // EVP_AEAD_get_iv_from_ipv4_nanosecs computes a deterministic IV compliant with
+ // NIST SP 800-38D, built from an IPv4 address and the number of nanoseconds
+ // since boot, writing it to |out_iv|. It returns one on success or zero for
+@@ -469,12 +471,11 @@ OPENSSL_EXPORT int EVP_AEAD_CTX_tag_len(const EVP_AEAD_CTX *ctx,
+ //
+ // This is not a general-purpose API, you should not be using it unless you
+ // specifically know you need to use this.
+-#define FIPS_AES_GCM_NONCE_LENGTH 12
+-
+ OPENSSL_EXPORT int EVP_AEAD_get_iv_from_ipv4_nanosecs(
+     const uint32_t ipv4_address, const uint64_t nanosecs,
+     uint8_t out_iv[FIPS_AES_GCM_NONCE_LENGTH]);
+ 
++
+ #if defined(__cplusplus)
+ }  // extern C
+ 
+diff --git a/include/openssl/bio.h b/include/openssl/bio.h
+index ff51ae7e6..8b53839fd 100644
+--- a/include/openssl/bio.h
++++ b/include/openssl/bio.h
+@@ -87,7 +87,6 @@ OPENSSL_EXPORT BIO *BIO_new(const BIO_METHOD *method);
+ // drops to zero, it (optionally) calls the BIO's callback with |BIO_CB_FREE|,
+ // calls the destroy callback, if present, on the method and frees |bio| itself.
+ // It then repeats that for the next BIO in the chain, if any.
+-
+ //
+ // It returns one on success or zero otherwise.
+ OPENSSL_EXPORT int BIO_free(BIO *bio);
+diff --git a/include/openssl/cipher.h b/include/openssl/cipher.h
+index 33767edc8..39ffa8977 100644
+--- a/include/openssl/cipher.h
++++ b/include/openssl/cipher.h
+@@ -384,20 +384,22 @@ OPENSSL_EXPORT int EVP_BytesToKey(const EVP_CIPHER *type, const EVP_MD *md,
+ // their needs). Thus this exists only to allow code to compile.
+ #define EVP_CIPH_FLAG_NON_FIPS_ALLOW 0
+ 
+-// Legacy AEAD Functions. Deprecated. Don't take a dependency on these ciphers.
+ 
+-// EVP_aes_128/256_cbc_hmac_sha1/256 are imported from OpenSSL to provide AES CBC
++// Deprecated functions
++
++// EVP_aes_128/256_cbc_hmac_sha1/256 return |EVP_CIPHER| objects that implement
++// the named cipher algorithm. They are imported from OpenSSL to provide AES CBC
+ // HMAC SHA stitch implementation. These methods are TLS specific.
+ //
+ // WARNING: these APIs usage can get wrong easily. Below functions include details.
+ //     |aesni_cbc_hmac_sha1_cipher| and |aesni_cbc_hmac_sha256_cipher|.
++
++
+ OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_128_cbc_hmac_sha1(void);
+ OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_256_cbc_hmac_sha1(void);
+ OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_128_cbc_hmac_sha256(void);
+ OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_256_cbc_hmac_sha256(void);
+ 
+-// Deprecated functions
+-
+ // EVP_CipherInit acts like EVP_CipherInit_ex except that |EVP_CIPHER_CTX_init|
+ // is called on |cipher| first, if |cipher| is not NULL.
+ OPENSSL_EXPORT int EVP_CipherInit(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
+@@ -630,14 +632,17 @@ typedef struct evp_cipher_info_st {
+   unsigned char iv[EVP_MAX_IV_LENGTH];
+ } EVP_CIPHER_INFO;
+ 
+-// The following constants are used by AES-CBC stitch ctrl methods.
+-// AEAD cipher deduces payload length and returns number of bytes required to
+-// store MAC and eventual padding. Subsequent call to EVP_Cipher even
+-// appends/verifies MAC.
++
++// AES-CBC stitch ctrl method constants
++
++// EVP_CTRL_AEAD_TLS1_AAD is a control command for |EVP_CIPHER_CTX_ctrl| to set
++// the length of the TLS additional authenticated data
+ #define EVP_CTRL_AEAD_TLS1_AAD 0x16
+-// RFC 5246 defines additional data to be 13 bytes in length.
++// EVP_AEAD_TLS1_AAD_LEN is the length of the additional authenticated data from
++// RFC 5246.
+ #define EVP_AEAD_TLS1_AAD_LEN 13
+ 
++
+ #if defined(__cplusplus)
+ }  // extern C
+ 
+diff --git a/include/openssl/crypto.h b/include/openssl/crypto.h
+index 6fb821947..d05047886 100644
+--- a/include/openssl/crypto.h
++++ b/include/openssl/crypto.h
+@@ -197,6 +197,7 @@ OPENSSL_EXPORT uint32_t FIPS_version(void);
+ OPENSSL_EXPORT int FIPS_query_algorithm_status(const char *algorithm);
+ #endif //BORINGSSL_FIPS_140_3
+ 
++
+ #if defined(__cplusplus)
+ }  // extern C
+ #endif
+diff --git a/include/openssl/dh.h b/include/openssl/dh.h
+index c6175747e..7f49c8301 100644
+--- a/include/openssl/dh.h
++++ b/include/openssl/dh.h
+@@ -328,15 +328,16 @@ OPENSSL_EXPORT int i2d_DHparams(const DH *in, unsigned char **outp);
+ OPENSSL_EXPORT int DH_compute_key(uint8_t *out, const BIGNUM *peers_key,
+                                   DH *dh);
+ 
+-// Standard parameters. These parameters are taken from RFC 5114.
+-// This function returns a new DH object with standard parameters. It returns
+-// NULL on allocation failure.
++// DH_get_2048_256 returns the 2048-bit MODP Group with 256-bit Prime Order
++// Subgroup from RFC 5114. This function returns a new DH object with standard
++// parameters. It returns NULL on allocation failure.
+ //
+ // Warning: 2048-256 is no longer an optimal parameter for Diffie-Hellman. No
+ // one should use finite field Diffie-Hellman anymore.
+ // This function has been deprecated with no replacement.
+ OPENSSL_EXPORT DH *DH_get_2048_256(void);
+ 
++
+ #if defined(__cplusplus)
+ }  // extern C
+ 
+diff --git a/include/openssl/digest.h b/include/openssl/digest.h
+index 53208f017..7da91f6de 100644
+--- a/include/openssl/digest.h
++++ b/include/openssl/digest.h
+@@ -65,6 +65,7 @@
+ extern "C" {
+ #endif
+ 
++// EVP_MD_unstable_sha3_enable manges runtime access to the SHA3 implementation.
+ // If |enable| is true the SHA3 implementation will be enabled. If |enable| is
+ // false, the SHA3 implementation will be disabled. If the SHA3 implementation
+ // is disabled, using the implementation in any way will cause AWS-LC to exit
+@@ -72,7 +73,7 @@ extern "C" {
+ // |unstable_sha3_enabled_flag| is configured globally.
+ OPENSSL_EXPORT void EVP_MD_unstable_sha3_enable(bool enable);
+ 
+-// EVP_MD_unstable_sha3_is_enabled returns wheather SHA3 is enabled.
++// EVP_MD_unstable_sha3_is_enabled returns whether SHA3 is enabled.
+ // |unstable_sha3_enabled_flag| is configured globally.
+ OPENSSL_EXPORT bool EVP_MD_unstable_sha3_is_enabled(void);
+ 
+@@ -313,10 +314,7 @@ OPENSSL_EXPORT void EVP_MD_CTX_set_flags(EVP_MD_CTX *ctx, int flags);
+ // EVP_MD_nid calls |EVP_MD_type|.
+ OPENSSL_EXPORT int EVP_MD_nid(const EVP_MD *md);
+ 
+-// This function was deprecated from OpenSSL in BoringSSL, but was brought back
+-// to AWS-LC.
+-//
+-// |EVP_MD_CTX_set_pkey_ctx| sets |ctx|'s |EVP_PKEY_CTX| reference to |pctx|.
++// EVP_MD_CTX_set_pkey_ctx sets |ctx|'s |EVP_PKEY_CTX| reference to |pctx|.
+ // The |EVP_PKEY_CTX| object |pctx| needs to have been initialised before
+ // associating it with |ctx|. The hash functions associated to |ctx| and |pctx|
+ // must be equal. Once |EVP_MD_CTX_set_pkey_ctx| is called, the caller is
+diff --git a/include/openssl/evp.h b/include/openssl/evp.h
+index 77f6493a0..5e884585a 100644
+--- a/include/openssl/evp.h
++++ b/include/openssl/evp.h
+@@ -181,6 +181,7 @@ OPENSSL_EXPORT EC_KEY *EVP_PKEY_get1_EC_KEY(const EVP_PKEY *pkey);
+ #define EVP_PKEY_ED25519 NID_ED25519
+ #define EVP_PKEY_X25519 NID_X25519
+ // TODO(awslc): delete Kyber define
++
+ #define EVP_PKEY_KYBER512 NID_KYBER512
+ #define EVP_PKEY_HKDF NID_hkdf
+ #define EVP_PKEY_KEM NID_kem
+@@ -1176,6 +1177,7 @@ struct evp_pkey_st {
+   const EVP_PKEY_ASN1_METHOD *ameth;
+ }; // EVP_PKEY
+ 
++
+ #if defined(__cplusplus)
+ }  // extern C
+ 
+diff --git a/include/openssl/ocsp.h b/include/openssl/ocsp.h
+index dd074b911..bf91decbe 100644
+--- a/include/openssl/ocsp.h
++++ b/include/openssl/ocsp.h
+@@ -15,7 +15,7 @@
+ #include <openssl/x509.h>
+ #include <openssl/x509v3.h>
+ 
+-#ifdef __cplusplus
++#if defined(__cplusplus)
+ extern "C" {
+ #endif
+ 
+@@ -51,14 +51,15 @@ DECLARE_ASN1_FUNCTIONS(OCSP_RESPBYTES)
+ DECLARE_ASN1_FUNCTIONS(OCSP_CERTID)
+ DECLARE_ASN1_FUNCTIONS(OCSP_SIGNATURE)
+ 
+-// Returns response status from |OCSP_RESPONSE|.
++// OCSP_response_status returns response status from |OCSP_RESPONSE|.
+ OPENSSL_EXPORT int OCSP_response_status(OCSP_RESPONSE *resp);
+ 
+-// Returns |OCSP_BASICRESP| from |OCSP_RESPONSE|.
++// OCSP_response_get1_basic returns |OCSP_BASICRESP| from |OCSP_RESPONSE|.
+ OPENSSL_EXPORT OCSP_BASICRESP *OCSP_response_get1_basic(OCSP_RESPONSE *resp);
+ 
+-// Looks up a cert id and extract the update time and revocation status of
+-// certificate sent back from OCSP responder if found. Returns 1 on success.
++// OCSP_resp_find_status looks up a cert id and extracts the update time and
++// revocation status of certificate sent back from OCSP responder if found.
++// Returns 1 on success.
+ //
+ // Note: 1. Revocation status code is passed into |*status| parameter. Status code will
+ //          not be passed if |*status| is NULL.
+@@ -68,14 +69,15 @@ OPENSSL_EXPORT int OCSP_resp_find_status(OCSP_BASICRESP *bs, OCSP_CERTID *id, in
+                           ASN1_GENERALIZEDTIME **thisupd,
+                           ASN1_GENERALIZEDTIME **nextupd);
+ 
+-// Verifies a basic response message. Returns 1 on success, 0 on error, or -1 on
+-// fatal errors such as malloc failure.
++// OCSP_basic_verify verifies a basic response message. Returns 1 on success, 0
++// on error, or -1 on fatal errors such as malloc failure.
+ //
+ // Note: 1. Checks that OCSP response CAN be verified, not that it has been verified.
+ OPENSSL_EXPORT int OCSP_basic_verify(OCSP_BASICRESP *bs, STACK_OF(X509) *certs,
+                                      X509_STORE *st, unsigned long flags);
+ 
+-// Returns a |OCSP_CERTID| converted from a certificate and its issuer.
++// OCSP_cert_to_id returns a |OCSP_CERTID| converted from a certificate and its
++// issuer.
+ //
+ // Note: 1. If subject is NULL, we get the subject name from the issuer and set
+ //          the serial number is NULL.
+@@ -86,8 +88,9 @@ OPENSSL_EXPORT int OCSP_basic_verify(OCSP_BASICRESP *bs, STACK_OF(X509) *certs,
+ OPENSSL_EXPORT OCSP_CERTID *OCSP_cert_to_id(const EVP_MD *dgst, const X509 *subject,
+                                             const X509 *issuer);
+ 
+-#ifdef __cplusplus
+-}
++
++#if defined(__cplusplus)
++}  // extern C
+ #endif
+ 
+ #if !defined(BORINGSSL_NO_CXX)
+diff --git a/include/openssl/rc4.h b/include/openssl/rc4.h
+index 87a0d570c..ab8208647 100644
+--- a/include/openssl/rc4.h
++++ b/include/openssl/rc4.h
+@@ -82,6 +82,7 @@ OPENSSL_EXPORT void RC4_set_key(RC4_KEY *rc4key, unsigned len,
+ OPENSSL_EXPORT void RC4(RC4_KEY *key, size_t len, const uint8_t *in,
+                         uint8_t *out);
+ 
++
+ #if defined(__cplusplus)
+ }  // extern C
+ #endif
+diff --git a/include/openssl/rsa.h b/include/openssl/rsa.h
+index 29b0f0887..bd882e3fa 100644
+--- a/include/openssl/rsa.h
++++ b/include/openssl/rsa.h
+@@ -280,7 +280,7 @@ OPENSSL_EXPORT int RSA_private_decrypt(size_t flen, const uint8_t *from,
+                                        uint8_t *to, RSA *rsa, int padding);
+ 
+ 
+-// Salt length matches digest
++// RSA_PSS_SALTLEN_DIGEST denotes the salt length matches the digest length
+ #define RSA_PSS_SALTLEN_DIGEST -1
+ 
+ // Signing / Verification
+diff --git a/include/openssl/service_indicator.h b/include/openssl/service_indicator.h
+index f09ec24ac..f1160eb8e 100644
+--- a/include/openssl/service_indicator.h
++++ b/include/openssl/service_indicator.h
+@@ -10,6 +10,9 @@
+ extern "C" {
+ #endif
+ 
++// FIPS 140-3 Approved Security Service Indicator
++
++
+ // |FIPS_service_indicator_before_call| and |FIPS_service_indicator_after_call|
+ // both currently return the same local thread counter which is slowly
+ // incremented whenever approved services are called.
+@@ -20,6 +23,8 @@ extern "C" {
+ // not equal, this means that the service called in between is deemed to be
+ // approved. If the values are still the same, this means the counter has not
+ // been incremented, and the service called is otherwise not approved for FIPS.
++
++
+ OPENSSL_EXPORT uint64_t FIPS_service_indicator_before_call(void);
+ OPENSSL_EXPORT uint64_t FIPS_service_indicator_after_call(void);
+ 
+@@ -34,7 +39,7 @@ enum FIPSStatus {
+ 
+ #define AWSLC_MODE_STRING "AWS-LC FIPS "
+ 
+-// This macro provides a bundled way to do an approval check and run the service.
++// CALL_SERVICE_AND_CHECK_APPROVED performs an approval check and runs the service.
+ // The |approved| value passed in will change to |AWSLC_APPROVED| and
+ // |AWSLC_NOT_APPROVED| accordingly to the approved state of the service ran.
+ // It is highly recommended that users of the service indicator use this macro
+@@ -55,8 +60,9 @@ enum FIPSStatus {
+ 
+ #define AWSLC_MODE_STRING "AWS-LC "
+ 
+-// Assume |AWSLC_APPROVED| when FIPS is not on, for easier consumer compatibility
+-// that have both FIPS and non-FIPS libraries.
++// CALL_SERVICE_AND_CHECK_APPROVED always returns |AWSLC_APPROVED| when AWS-LC
++// is not built in FIPS mode for easier consumer compatibility that have both
++// FIPS and non-FIPS libraries.
+ #define CALL_SERVICE_AND_CHECK_APPROVED(approved, func)             \
+   do {                                                              \
+     (approved) = AWSLC_APPROVED;                                    \
+@@ -68,6 +74,7 @@ enum FIPSStatus {
+ 
+ #define AWSLC_VERSION_STRING AWSLC_MODE_STRING AWSLC_VERSION_NUMBER_STRING
+ 
++
+ #if defined(__cplusplus)
+ }  // extern C
+ #endif
+diff --git a/include/openssl/sshkdf.h b/include/openssl/sshkdf.h
+index 8cb2091ce..42c6ece4f 100644
+--- a/include/openssl/sshkdf.h
++++ b/include/openssl/sshkdf.h
+@@ -23,7 +23,9 @@ extern "C" {
+ // general-purpose KDF and is only Approved for FIPS 140-3 use specifically
+ // in SSH.
+ 
+-// |type| values for SSHKDF().
++
++// The following defines are the valid |type| values for SSHKDF().
++
+ #define EVP_KDF_SSHKDF_TYPE_INITIAL_IV_CLI_TO_SRV     65
+ #define EVP_KDF_SSHKDF_TYPE_INITIAL_IV_SRV_TO_CLI     66
+ #define EVP_KDF_SSHKDF_TYPE_ENCRYPTION_KEY_CLI_TO_SRV 67
+diff --git a/tests/ci/codebuild/linux-x86/pre-push.yml b/tests/ci/codebuild/linux-x86/pre-push.yml
+index 43829207c..15ed6e76f 100644
+--- a/tests/ci/codebuild/linux-x86/pre-push.yml
++++ b/tests/ci/codebuild/linux-x86/pre-push.yml
+@@ -10,3 +10,4 @@ phases:
+       - go run ./tests/check_licenses.go
+       - ./tests/check_generated_src.sh
+       - ./tests/coding_guidelines/coding_guidelines_test.sh
++      - (cd util && go run ./doc.go)
+diff --git a/util/doc.config b/util/doc.config
+index 8de5f1dec..533f253c2 100644
+--- a/util/doc.config
++++ b/util/doc.config
+@@ -15,6 +15,7 @@
+       "include/openssl/obj.h",
+       "include/openssl/pool.h",
+       "include/openssl/rand.h",
++      "include/openssl/service_indicator.h",
+       "include/openssl/stack.h"
+     ]
+   },{
+@@ -39,7 +40,8 @@
+       "include/openssl/rc4.h",
+       "include/openssl/rsa.h",
+       "include/openssl/sha.h",
+-      "include/openssl/siphash.h"
++      "include/openssl/siphash.h",
++      "include/openssl/sshkdf.h"
+     ]
+   },{
+     "Name": "Crypto interfaces",
+@@ -49,7 +51,8 @@
+       "include/openssl/aead.h",
+       "include/openssl/evp.h",
+       "include/openssl/hpke.h",
+-      "include/openssl/kdf.h"
++      "include/openssl/kdf.h",
++      "include/openssl/ocsp.h"
+     ]
+   },{
+     "Name": "Legacy ASN.1 and X.509 implementation (documentation in progress)",
+diff --git a/util/doc.go b/util/doc.go
+index 4fb73ca0d..a76a4d091 100644
+--- a/util/doc.go
++++ b/util/doc.go
+@@ -610,7 +610,7 @@ func generate(outPath string, config *Config) (map[string]string, error) {
+ 	headerTmpl, err := headerTmpl.Parse(`<!DOCTYPE html>
+ <html>
+   <head>
+-    <title>BoringSSL - {{.Name}}</title>
++    <title>AWS-LC - {{.Name}}</title>
+     <meta charset="utf-8">
+     <link rel="stylesheet" type="text/css" href="doc.css">
+   </head>
+@@ -706,7 +706,7 @@ func generateIndex(outPath string, config *Config, headerDescriptions map[string
+ 	indexTmpl, err := indexTmpl.Parse(`<!DOCTYPE html5>
+ 
+   <head>
+-    <title>BoringSSL - Headers</title>
++    <title>AWS-LC - Headers</title>
+     <meta charset="utf-8">
+     <link rel="stylesheet" type="text/css" href="doc.css">
+   </head>
+@@ -714,7 +714,7 @@ func generateIndex(outPath string, config *Config, headerDescriptions map[string
+   <body>
+     <div id="main">
+       <div class="title">
+-        <h2>BoringSSL Headers</h2>
++        <h2>AWS-LC Headers</h2>
+       </div>
+       <table>
+         {{range .Sections}}

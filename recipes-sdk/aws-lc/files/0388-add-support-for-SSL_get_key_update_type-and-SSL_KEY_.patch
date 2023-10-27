@@ -1,0 +1,254 @@
+From a0587a356220be5bc528edb3fce0dfb7688a4397 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Wed, 24 May 2023 14:32:41 -0700
+Subject: [PATCH] add support for SSL_get_key_update_type and
+ SSL_KEY_UPDATE_NONE (#1011)
+
+mySQL consumes `SSL_get_key_update_type` along with
+`SSL_KEY_UPDATE_NONE` when building with OpenSSL1.1.1.  OpenSSL
+indicates that: SSL_get_key_update_type can be used to determine
+whether a key update operation has been scheduled but not yet performed.
+The type of the pending key update operation will be returned if there
+is one, or SSL_KEY_UPDATE_NONE otherwise.
+
+AWS-LC does have existing related symbols (`SSL_key_update` and
+`SSL_KEY_UPDATE_(NOT_)REQUESTED`) and a `key_update_pending` boolean in
+the underlying SSL3 structure which may seem to be reusable in this
+case. However, in OpenSSL, `SSL_get_key_update_type` has 3 possible
+values (`SSL_KEY_UPDATE_REQUESTED`, `SSL_KEY_UPDATE_NOT_REQUESTED`,
+`SSL_KEY_UPDATE_NONE`). We could return `SSL_KEY_UPDATE_NONE` when
+`key_update_pending` is false in AWS-LC, but we wouldn't be able to
+easily differentiate between `SSL_KEY_UPDATE_REQUESTED/NOT_REQUESTED`
+because both values are setting `key_pending` to true.
+The way to work around this was to change `key_update_pending` into an
+`int`, so that it can maintain the 3 possible states that OpenSSL has.
+---
+ include/openssl/ssl.h | 30 ++++++++++++++++++++++++++----
+ ssl/internal.h        | 10 ++++++----
+ ssl/s3_lib.cc         |  1 -
+ ssl/s3_pkt.cc         |  2 +-
+ ssl/ssl_lib.cc        |  6 +++++-
+ ssl/ssl_test.cc       | 43 ++++++++++++++++++++++++++++++++++++++++---
+ ssl/tls13_both.cc     |  6 ++++--
+ 7 files changed, 82 insertions(+), 16 deletions(-)
+
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index b96f2d38f..25fcf786b 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -461,13 +461,28 @@ OPENSSL_EXPORT int SSL_write_ex(SSL *s, const void *buf, size_t num,
+ #define SSL_KEY_UPDATE_REQUESTED 1
+ 
+ // SSL_KEY_UPDATE_NOT_REQUESTED indicates that the peer should not reply with
+-// it's own KeyUpdate message.
++// its own KeyUpdate message.
+ #define SSL_KEY_UPDATE_NOT_REQUESTED 0
+ 
++// SSL_KEY_UPDATE_NONE should not be set by the user and is only used to
++// indicate that there isn't a pending key operation. OpenSSL indicates that -1
++// is used, so that it will be an invalid value for the on-the-wire protocol
++// when calling |SSL_key_update|.
++#define SSL_KEY_UPDATE_NONE -1
++
+ // SSL_key_update queues a TLS 1.3 KeyUpdate message to be sent on |ssl|
+-// if one is not already queued. The |request_type| argument must one of the
+-// |SSL_KEY_UPDATE_*| values. This function requires that |ssl| have completed a
+-// TLS >= 1.3 handshake. It returns one on success or zero on error.
++// if one is not already queued. The |request_type| argument must be either
++// |SSL_KEY_UPDATE_REQUESTED| or |SSL_KEY_UPDATE_NOT_REQUESTED|. This function
++// requires that |ssl| have completed a TLS >= 1.3 handshake. It returns one on
++// success or zero on error.
++//
++// If |request_type| is set to |SSL_KEY_UPDATE_NOT_REQUESTED|, then the sending
++// keys for this connection will be updated and the peer will be informed of the
++// change.
++// If |request_type| is set to |SSL_KEY_UPDATE_REQUESTED|, then the sending keys
++// for this connection will be updated and the peer will be informed of the change
++// along with a request for the peer to additionally update its sending keys.
++// RFC: https://datatracker.ietf.org/doc/html/rfc8446#section-4.6.3
+ //
+ // Note that this function does not _send_ the message itself. The next call to
+ // |SSL_write| will cause the message to be sent. |SSL_write| may be called with
+@@ -475,6 +490,13 @@ OPENSSL_EXPORT int SSL_write_ex(SSL *s, const void *buf, size_t num,
+ // pending.
+ OPENSSL_EXPORT int SSL_key_update(SSL *ssl, int request_type);
+ 
++// SSL_get_key_update_type returns the state of the pending key operation in
++// |ssl|. The type of pending key operation will be either
++// |SSL_KEY_UPDATE_REQUESTED| or |SSL_KEY_UPDATE_NOT_REQUESTED| if there is one,
++// and |SSL_KEY_UPDATE_NONE| otherwise. This can be used to indicate whether
++// a key update operation has been scheduled but not yet performed.
++OPENSSL_EXPORT int SSL_get_key_update_type(const SSL *ssl);
++
+ // SSL_shutdown shuts down |ssl|. It runs in two stages. First, it sends
+ // close_notify and returns zero or one on success or -1 on failure. Zero
+ // indicates that close_notify was sent, but not received, and one additionally
+diff --git a/ssl/internal.h b/ssl/internal.h
+index f651120d1..39efc0d1f 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -2719,6 +2719,12 @@ struct SSL3_STATE {
+   // needs re-doing when in SSL_accept or SSL_connect
+   int rwstate = SSL_ERROR_NONE;
+ 
++  // key_update_pending will be either |SSL_KEY_UPDATE_REQUESTED| or
++  // |SSL_KEY_UPDATE_NOT_REQUESTED| if we have a KeyUpdate acknowledgment
++  // outstanding. |SSL_KEY_UPDATE_NONE| indicates that no KeyUpdates
++  // acknowledgements are pending.
++  int key_update_pending = SSL_KEY_UPDATE_NONE;
++
+   enum ssl_encryption_level_t read_level = ssl_encryption_initial;
+   enum ssl_encryption_level_t write_level = ssl_encryption_initial;
+ 
+@@ -2773,10 +2779,6 @@ struct SSL3_STATE {
+   // Channel ID and the |channel_id| field is filled in.
+   bool channel_id_valid : 1;
+ 
+-  // key_update_pending is true if we have a KeyUpdate acknowledgment
+-  // outstanding.
+-  bool key_update_pending : 1;
+-
+   // early_data_accepted is true if early data was accepted by the server.
+   bool early_data_accepted : 1;
+ 
+diff --git a/ssl/s3_lib.cc b/ssl/s3_lib.cc
+index 8e8a034eb..fe67f1ec1 100644
+--- a/ssl/s3_lib.cc
++++ b/ssl/s3_lib.cc
+@@ -174,7 +174,6 @@ SSL3_STATE::SSL3_STATE()
+       delegated_credential_used(false),
+       send_connection_binding(false),
+       channel_id_valid(false),
+-      key_update_pending(false),
+       early_data_accepted(false),
+       alert_dispatch(false),
+       renegotiate_pending(false),
+diff --git a/ssl/s3_pkt.cc b/ssl/s3_pkt.cc
+index bc0d13dd5..7c25942e3 100644
+--- a/ssl/s3_pkt.cc
++++ b/ssl/s3_pkt.cc
+@@ -290,7 +290,7 @@ static int do_tls_write(SSL *ssl, size_t *out_bytes_written, uint8_t type,
+ 
+   // Now that we've made progress on the connection, uncork KeyUpdate
+   // acknowledgments.
+-  ssl->s3->key_update_pending = false;
++  ssl->s3->key_update_pending = SSL_KEY_UPDATE_NONE;
+ 
+   // Flush the write buffer.
+   ret = ssl_write_buffer_flush(ssl);
+diff --git a/ssl/ssl_lib.cc b/ssl/ssl_lib.cc
+index ccf55ff63..0e146d616 100644
+--- a/ssl/ssl_lib.cc
++++ b/ssl/ssl_lib.cc
+@@ -1131,7 +1131,7 @@ int SSL_key_update(SSL *ssl, int request_type) {
+     return 0;
+   }
+ 
+-  if (!ssl->s3->key_update_pending &&
++  if (ssl->s3->key_update_pending == SSL_KEY_UPDATE_NONE &&
+       !tls13_add_key_update(ssl, request_type)) {
+     return 0;
+   }
+@@ -1752,6 +1752,10 @@ long SSL_get_default_timeout(const SSL *ssl) {
+   return SSL_DEFAULT_SESSION_TIMEOUT;
+ }
+ 
++int SSL_get_key_update_type(const SSL *ssl) {
++  return ssl->s3->key_update_pending;
++}
++
+ int SSL_renegotiate(SSL *ssl) {
+   // Caller-initiated renegotiation is not supported.
+   if (!ssl->s3->renegotiate_pending) {
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index 4ef5834cb..e70fbf36c 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -6193,9 +6193,9 @@ TEST_P(EncodeDecodeKATTest, RoundTrips) {
+   ASSERT_EQ(memcmp(output_bytes.data(), encoded, encoded_len), 0);
+ }
+ 
+-TEST(SSLTest, ZeroSizedWiteFlushesHandshakeMessages) {
+-  // If there are pending handshake mesages, an |SSL_write| of zero bytes should
+-  // flush them.
++TEST(SSLTest, ZeroSizedWriteFlushesHandshakeMessages) {
++  // If there are pending handshake messages, an |SSL_write| of zero bytes
++  // should flush them.
+   bssl::UniquePtr<SSL_CTX> server_ctx(
+       CreateContextWithTestCertificate(TLS_method()));
+   ASSERT_TRUE(server_ctx);
+@@ -6219,6 +6219,43 @@ TEST(SSLTest, ZeroSizedWiteFlushesHandshakeMessages) {
+   EXPECT_NE(0u, BIO_wpending(client_wbio));
+ }
+ 
++TEST(SSLTest, SSLGetKeyUpdate) {
++  bssl::UniquePtr<SSL_CTX> server_ctx(
++      CreateContextWithTestCertificate(TLS_method()));
++  ASSERT_TRUE(server_ctx);
++  EXPECT_TRUE(SSL_CTX_set_max_proto_version(server_ctx.get(), TLS1_3_VERSION));
++  EXPECT_TRUE(SSL_CTX_set_min_proto_version(server_ctx.get(), TLS1_3_VERSION));
++
++  bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
++  ASSERT_TRUE(client_ctx);
++  EXPECT_TRUE(SSL_CTX_set_max_proto_version(client_ctx.get(), TLS1_3_VERSION));
++  EXPECT_TRUE(SSL_CTX_set_min_proto_version(client_ctx.get(), TLS1_3_VERSION));
++
++  bssl::UniquePtr<SSL> client, server;
++  ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
++                                     server_ctx.get()));
++
++  // Initial state should be |SSL_KEY_UPDATE_NONE|.
++  EXPECT_EQ(SSL_get_key_update_type(client.get()), SSL_KEY_UPDATE_NONE);
++
++  // Test setting |SSL_key_update| with |SSL_KEY_UPDATE_REQUESTED|.
++  EXPECT_TRUE(SSL_key_update(client.get(), SSL_KEY_UPDATE_REQUESTED));
++  // |SSL_get_key_update_type| is used to determine whether a key update
++  // operation has been scheduled but not yet performed.
++  EXPECT_EQ(SSL_get_key_update_type(client.get()), SSL_KEY_UPDATE_REQUESTED);
++  EXPECT_EQ(0, SSL_write(client.get(), nullptr, 0));
++  // Key update operation should have been performed by now.
++  EXPECT_EQ(SSL_get_key_update_type(client.get()), SSL_KEY_UPDATE_NONE);
++
++  // Test setting |SSL_key_update| with |SSL_KEY_UPDATE_NOT_REQUESTED|.
++  EXPECT_TRUE(SSL_key_update(client.get(), SSL_KEY_UPDATE_NOT_REQUESTED));
++  EXPECT_EQ(SSL_get_key_update_type(client.get()),
++            SSL_KEY_UPDATE_NOT_REQUESTED);
++  EXPECT_EQ(0, SSL_write(client.get(), nullptr, 0));
++  // Key update operation should have been performed by now.
++  EXPECT_EQ(SSL_get_key_update_type(client.get()), SSL_KEY_UPDATE_NONE);
++}
++
+ TEST_P(SSLVersionTest, VerifyBeforeCertRequest) {
+   // Configure the server to request client certificates.
+   SSL_CTX_set_custom_verify(
+diff --git a/ssl/tls13_both.cc b/ssl/tls13_both.cc
+index 99ce56d6e..62e3fffeb 100644
+--- a/ssl/tls13_both.cc
++++ b/ssl/tls13_both.cc
+@@ -623,6 +623,8 @@ bool tls13_add_key_update(SSL *ssl, int update_requested) {
+   CBB body_cbb;
+   if (!ssl->method->init_message(ssl, cbb.get(), &body_cbb,
+                                  SSL3_MT_KEY_UPDATE) ||
++      (update_requested != SSL_KEY_UPDATE_NOT_REQUESTED &&
++       update_requested != SSL_KEY_UPDATE_REQUESTED) ||
+       !CBB_add_u8(&body_cbb, update_requested) ||
+       !ssl_add_message_cbb(ssl, cbb.get()) ||
+       !tls13_rotate_traffic_key(ssl, evp_aead_seal)) {
+@@ -632,7 +634,7 @@ bool tls13_add_key_update(SSL *ssl, int update_requested) {
+   // Suppress KeyUpdate acknowledgments until this change is written to the
+   // wire. This prevents us from accumulating write obligations when read and
+   // write progress at different rates. See RFC 8446, section 4.6.3.
+-  ssl->s3->key_update_pending = true;
++  ssl->s3->key_update_pending = update_requested;
+ 
+   return true;
+ }
+@@ -655,7 +657,7 @@ static bool tls13_receive_key_update(SSL *ssl, const SSLMessage &msg) {
+ 
+   // Acknowledge the KeyUpdate
+   if (key_update_request == SSL_KEY_UPDATE_REQUESTED &&
+-      !ssl->s3->key_update_pending &&
++      ssl->s3->key_update_pending == SSL_KEY_UPDATE_NONE &&
+       !tls13_add_key_update(ssl, SSL_KEY_UPDATE_NOT_REQUESTED)) {
+     return false;
+   }

@@ -1,0 +1,172 @@
+From fc378bd5c98d54b77377c9dac113511c2c776360 Mon Sep 17 00:00:00 2001
+From: William Bo Yang <coolbillyang@gmail.com>
+Date: Mon, 5 Jun 2023 14:48:00 -0700
+Subject: [PATCH] set rsa pkcs1v1.5 and ecdsa sig/ver with SHA512/256 to not
+ approved (#1038)
+
+Co-authored-by: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+---
+ .../service_indicator/service_indicator.c     | 24 +++++++++++++------
+ .../service_indicator_test.cc                 | 24 ++++++++++---------
+ 2 files changed, 30 insertions(+), 18 deletions(-)
+
+diff --git a/crypto/fipsmodule/service_indicator/service_indicator.c b/crypto/fipsmodule/service_indicator/service_indicator.c
+index d56c728c6..6f92e8c55 100644
+--- a/crypto/fipsmodule/service_indicator/service_indicator.c
++++ b/crypto/fipsmodule/service_indicator/service_indicator.c
+@@ -169,14 +169,19 @@ static int is_ec_fips_approved(int curve_nid) {
+ 
+ // is_md_fips_approved_for_signing returns one if the given message digest type
+ // is FIPS approved for signing, and zero otherwise.
+-static int is_md_fips_approved_for_signing(int md_type) {
++static int is_md_fips_approved_for_signing(int md_type, int pkey_type) {
+   switch (md_type) {
+     case NID_sha224:
+     case NID_sha256:
+     case NID_sha384:
+     case NID_sha512:
+-    case NID_sha512_256:
+       return 1;
++    case NID_sha512_256:
++      // SHA512/256 is only approved for signing with RSA PSS
++      if (pkey_type == EVP_PKEY_RSA_PSS) {
++        return 1;
++      }
++      return 0;
+     default:
+       return 0;
+   }
+@@ -184,15 +189,20 @@ static int is_md_fips_approved_for_signing(int md_type) {
+ 
+ // is_md_fips_approved_for_verifying returns one if the given message digest
+ // type is FIPS approved for verifying, and zero otherwise.
+-static int is_md_fips_approved_for_verifying(int md_type) {
++static int is_md_fips_approved_for_verifying(int md_type, int pkey_type) {
+   switch (md_type) {
+     case NID_sha1:
+     case NID_sha224:
+     case NID_sha256:
+     case NID_sha384:
+     case NID_sha512:
+-    case NID_sha512_256:
+       return 1;
++    case NID_sha512_256:
++      // SHA512/256 is only approved for verifying with RSA PSS
++      if (pkey_type == EVP_PKEY_RSA_PSS) {
++        return 1;
++      }
++      return 0;
+     default:
+       return 0;
+   }
+@@ -200,7 +210,7 @@ static int is_md_fips_approved_for_verifying(int md_type) {
+ 
+ static void evp_md_ctx_verify_service_indicator(const EVP_MD_CTX *ctx,
+                                                 int rsa_1024_ok,
+-                                                int (*md_ok)(int md_type)) {
++                                                int (*md_ok)(int md_type, int pkey_type)) {
+   if (EVP_MD_CTX_md(ctx) == NULL) {
+     // Signature schemes without a prehash are currently never FIPS approved.
+     goto err;
+@@ -245,7 +255,7 @@ static void evp_md_ctx_verify_service_indicator(const EVP_MD_CTX *ctx,
+     size_t pkey_size = EVP_PKEY_size(ctx->pctx->pkey);
+ 
+     // Check if the MD type and the RSA key size are approved.
+-    if (md_ok(md_type) &&
++    if (md_ok(md_type, pkey_type) &&
+         ((rsa_1024_ok && pkey_size == 128) || pkey_size == 256 ||
+          pkey_size == 384 || pkey_size == 512)) {
+       FIPS_service_indicator_update_state();
+@@ -253,7 +263,7 @@ static void evp_md_ctx_verify_service_indicator(const EVP_MD_CTX *ctx,
+   } else if (pkey_type == EVP_PKEY_EC) {
+     // Check if the MD type and the elliptic curve are approved.
+     int curve_nid = EC_GROUP_get_curve_name(pkey->pkey.ec->group);
+-    if (md_ok(md_type) && is_ec_fips_approved(curve_nid)) {
++    if (md_ok(md_type, pkey_type) && is_ec_fips_approved(curve_nid)) {
+       FIPS_service_indicator_update_state();
+     }
+   }
+diff --git a/crypto/fipsmodule/service_indicator/service_indicator_test.cc b/crypto/fipsmodule/service_indicator/service_indicator_test.cc
+index 7253b4a8b..0ba18bbed 100644
+--- a/crypto/fipsmodule/service_indicator/service_indicator_test.cc
++++ b/crypto/fipsmodule/service_indicator/service_indicator_test.cc
+@@ -1881,6 +1881,11 @@ struct RSATestVector kRSATestVectors[] = {
+     { 3071, &EVP_sha512, true, AWSLC_NOT_APPROVED, AWSLC_NOT_APPROVED },
+     { 4096, &EVP_md5, false, AWSLC_NOT_APPROVED, AWSLC_NOT_APPROVED },
+ 
++    // PKCS1v1.5 with SHA512/256 are not FIPS approved
++    { 2048, &EVP_sha512_256, false, AWSLC_NOT_APPROVED, AWSLC_NOT_APPROVED },
++    { 3072, &EVP_sha512_256, false, AWSLC_NOT_APPROVED, AWSLC_NOT_APPROVED },
++    { 4096, &EVP_sha512_256, false, AWSLC_NOT_APPROVED, AWSLC_NOT_APPROVED },
++
+     // RSA test cases that are approved.
+     { 1024, &EVP_sha1, false, AWSLC_NOT_APPROVED, AWSLC_APPROVED },
+     { 1024, &EVP_sha256, false, AWSLC_NOT_APPROVED, AWSLC_APPROVED },
+@@ -1895,7 +1900,6 @@ struct RSATestVector kRSATestVectors[] = {
+     { 2048, &EVP_sha256, false, AWSLC_APPROVED, AWSLC_APPROVED },
+     { 2048, &EVP_sha384, false, AWSLC_APPROVED, AWSLC_APPROVED },
+     { 2048, &EVP_sha512, false, AWSLC_APPROVED, AWSLC_APPROVED },
+-    { 2048, &EVP_sha512_256, false, AWSLC_APPROVED, AWSLC_APPROVED },
+ 
+     { 2048, &EVP_sha1, true, AWSLC_NOT_APPROVED, AWSLC_APPROVED },
+     { 2048, &EVP_sha224, true, AWSLC_APPROVED, AWSLC_APPROVED },
+@@ -1909,7 +1913,6 @@ struct RSATestVector kRSATestVectors[] = {
+     { 3072, &EVP_sha256, false, AWSLC_APPROVED, AWSLC_APPROVED },
+     { 3072, &EVP_sha384, false, AWSLC_APPROVED, AWSLC_APPROVED },
+     { 3072, &EVP_sha512, false, AWSLC_APPROVED, AWSLC_APPROVED },
+-    { 3072, &EVP_sha512_256, false, AWSLC_APPROVED, AWSLC_APPROVED },
+ 
+     { 3072, &EVP_sha1, true, AWSLC_NOT_APPROVED, AWSLC_APPROVED },
+     { 3072, &EVP_sha224, true, AWSLC_APPROVED, AWSLC_APPROVED },
+@@ -1923,7 +1926,6 @@ struct RSATestVector kRSATestVectors[] = {
+     { 4096, &EVP_sha256, false, AWSLC_APPROVED, AWSLC_APPROVED },
+     { 4096, &EVP_sha384, false, AWSLC_APPROVED, AWSLC_APPROVED },
+     { 4096, &EVP_sha512, false, AWSLC_APPROVED, AWSLC_APPROVED },
+-    { 4096, &EVP_sha512_256, false, AWSLC_APPROVED, AWSLC_APPROVED },
+ 
+     { 4096, &EVP_sha1, true, AWSLC_NOT_APPROVED, AWSLC_APPROVED },
+     { 4096, &EVP_sha224, true, AWSLC_APPROVED, AWSLC_APPROVED },
+@@ -2230,8 +2232,8 @@ static const struct ECDSATestVector kECDSATestVectors[] = {
+      AWSLC_APPROVED},
+     {NID_secp224r1, &EVP_sha512, AWSLC_APPROVED, AWSLC_APPROVED,
+      AWSLC_APPROVED},
+-    {NID_secp224r1, &EVP_sha512_256, AWSLC_APPROVED, AWSLC_APPROVED,
+-     AWSLC_APPROVED},
++    {NID_secp224r1, &EVP_sha512_256, AWSLC_APPROVED, AWSLC_NOT_APPROVED,
++     AWSLC_NOT_APPROVED},
+ 
+     {NID_X9_62_prime256v1, &EVP_sha1, AWSLC_APPROVED,
+      AWSLC_NOT_APPROVED, AWSLC_APPROVED},
+@@ -2243,8 +2245,8 @@ static const struct ECDSATestVector kECDSATestVectors[] = {
+      AWSLC_APPROVED, AWSLC_APPROVED},
+     {NID_X9_62_prime256v1, &EVP_sha512, AWSLC_APPROVED,
+      AWSLC_APPROVED, AWSLC_APPROVED},
+-    {NID_X9_62_prime256v1, &EVP_sha512_256, AWSLC_APPROVED, AWSLC_APPROVED,
+-     AWSLC_APPROVED},
++    {NID_X9_62_prime256v1, &EVP_sha512_256, AWSLC_APPROVED, AWSLC_NOT_APPROVED,
++     AWSLC_NOT_APPROVED},
+ 
+     {NID_secp384r1, &EVP_sha1, AWSLC_APPROVED, AWSLC_NOT_APPROVED,
+      AWSLC_APPROVED},
+@@ -2256,8 +2258,8 @@ static const struct ECDSATestVector kECDSATestVectors[] = {
+      AWSLC_APPROVED},
+     {NID_secp384r1, &EVP_sha512, AWSLC_APPROVED, AWSLC_APPROVED,
+      AWSLC_APPROVED},
+-    {NID_secp384r1, &EVP_sha512_256, AWSLC_APPROVED, AWSLC_APPROVED,
+-     AWSLC_APPROVED},
++    {NID_secp384r1, &EVP_sha512_256, AWSLC_APPROVED, AWSLC_NOT_APPROVED,
++     AWSLC_NOT_APPROVED},
+ 
+     {NID_secp521r1, &EVP_sha1, AWSLC_APPROVED, AWSLC_NOT_APPROVED,
+      AWSLC_APPROVED},
+@@ -2269,8 +2271,8 @@ static const struct ECDSATestVector kECDSATestVectors[] = {
+      AWSLC_APPROVED},
+     {NID_secp521r1, &EVP_sha512, AWSLC_APPROVED, AWSLC_APPROVED,
+      AWSLC_APPROVED},
+-    {NID_secp521r1, &EVP_sha512_256, AWSLC_APPROVED, AWSLC_APPROVED,
+-     AWSLC_APPROVED},
++    {NID_secp521r1, &EVP_sha512_256, AWSLC_APPROVED, AWSLC_NOT_APPROVED,
++     AWSLC_NOT_APPROVED},
+ 
+     {NID_secp256k1, &EVP_sha1, AWSLC_NOT_APPROVED,
+      AWSLC_NOT_APPROVED, AWSLC_NOT_APPROVED},

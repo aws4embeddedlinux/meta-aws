@@ -1,0 +1,31 @@
+From 4b5c619d7a326ecd673ae6afac2774ad8fc0bb97 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Wed, 19 Jul 2023 13:07:03 -0700
+Subject: [PATCH] fix rust sanity check CI (#1106)
+
+---
+ .github/workflows/aws-lc-rs.yml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/.github/workflows/aws-lc-rs.yml b/.github/workflows/aws-lc-rs.yml
+index 6688c212d..bb98bdb7e 100644
+--- a/.github/workflows/aws-lc-rs.yml
++++ b/.github/workflows/aws-lc-rs.yml
+@@ -5,7 +5,6 @@ on:
+   pull_request:
+     branches: [ '*' ]
+ env:
+-  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+   GOPROXY: https://proxy.golang.org,direct
+ jobs:
+   standard:
+@@ -19,7 +18,8 @@ jobs:
+           submodules: false
+       - uses: actions-rs/toolchain@v1
+         with:
+-          toolchain: stable
++          # Our aws-lc-sys generation scripts require nightly.
++          toolchain: nightly
+           override: true
+       - uses: actions-rs/cargo@v1
+         with:

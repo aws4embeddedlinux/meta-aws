@@ -1,0 +1,2691 @@
+From 110bfa7e69555345977c94aeab22b462f418add8 Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Tue, 7 Mar 2023 16:43:37 -0800
+Subject: [PATCH] Remove old Rust bindings that have been relocated (#850)
+
+---
+ bindings/rust/README.md                       |  38 --
+ .../rust/aws-lc-fips-sys-template/Cargo.toml  |  46 ---
+ .../rust/aws-lc-fips-sys-template/README.md   |  39 ---
+ .../aws-lc-fips-sys-template/build/bindgen.rs | 117 -------
+ .../aws-lc-fips-sys-template/build/main.rs    | 328 ------------------
+ .../deps/aws-lc/crypto/rust_wrapper.c         |  28 --
+ .../deps/aws-lc/include/rust_wrapper.h        | 111 ------
+ .../rust/aws-lc-fips-sys-template/src/lib.rs  |  77 ----
+ .../tests/sanity-tests.rs                     |  23 --
+ bindings/rust/aws-lc-sys-template/Cargo.toml  |  48 ---
+ bindings/rust/aws-lc-sys-template/README.md   |  40 ---
+ .../rust/aws-lc-sys-template/build/bindgen.rs | 117 -------
+ .../rust/aws-lc-sys-template/build/main.rs    | 318 -----------------
+ .../deps/aws-lc/crypto/rust_wrapper.c         |  28 --
+ .../deps/aws-lc/include/rust_wrapper.h        | 112 ------
+ bindings/rust/aws-lc-sys-template/src/lib.rs  |  82 -----
+ .../aws-lc-sys-template/tests/sanity-tests.rs |  41 ---
+ .../rust/generate/_collect_symbols_build.sh   |  46 ---
+ .../generate/_collect_symbols_build_fips.sh   |  48 ---
+ bindings/rust/generate/_crate_test_build.sh   |  20 --
+ .../_generate_all_bindings_flavors.sh         |  55 ---
+ bindings/rust/generate/_generate_bindings.sh  |  22 --
+ bindings/rust/generate/_generation_tools.sh   | 183 ----------
+ .../generate/_run_supported_symbol_builds.sh  |  39 ---
+ .../rust/generate/_test_supported_builds.sh   |  49 ---
+ bindings/rust/generate/generate-fips.sh       | 124 -------
+ bindings/rust/generate/generate.sh            | 118 -------
+ bindings/rust/publish/_prepublish_checks.sh   |  23 --
+ bindings/rust/publish/_publish_tools.sh       |  57 ---
+ bindings/rust/publish/publish-fips.sh         |  28 --
+ bindings/rust/publish/publish.sh              |  28 --
+ 31 files changed, 2433 deletions(-)
+ delete mode 100644 bindings/rust/README.md
+ delete mode 100644 bindings/rust/aws-lc-fips-sys-template/Cargo.toml
+ delete mode 100644 bindings/rust/aws-lc-fips-sys-template/README.md
+ delete mode 100644 bindings/rust/aws-lc-fips-sys-template/build/bindgen.rs
+ delete mode 100644 bindings/rust/aws-lc-fips-sys-template/build/main.rs
+ delete mode 100644 bindings/rust/aws-lc-fips-sys-template/deps/aws-lc/crypto/rust_wrapper.c
+ delete mode 100644 bindings/rust/aws-lc-fips-sys-template/deps/aws-lc/include/rust_wrapper.h
+ delete mode 100644 bindings/rust/aws-lc-fips-sys-template/src/lib.rs
+ delete mode 100644 bindings/rust/aws-lc-fips-sys-template/tests/sanity-tests.rs
+ delete mode 100644 bindings/rust/aws-lc-sys-template/Cargo.toml
+ delete mode 100644 bindings/rust/aws-lc-sys-template/README.md
+ delete mode 100644 bindings/rust/aws-lc-sys-template/build/bindgen.rs
+ delete mode 100644 bindings/rust/aws-lc-sys-template/build/main.rs
+ delete mode 100644 bindings/rust/aws-lc-sys-template/deps/aws-lc/crypto/rust_wrapper.c
+ delete mode 100644 bindings/rust/aws-lc-sys-template/deps/aws-lc/include/rust_wrapper.h
+ delete mode 100644 bindings/rust/aws-lc-sys-template/src/lib.rs
+ delete mode 100644 bindings/rust/aws-lc-sys-template/tests/sanity-tests.rs
+ delete mode 100755 bindings/rust/generate/_collect_symbols_build.sh
+ delete mode 100755 bindings/rust/generate/_collect_symbols_build_fips.sh
+ delete mode 100755 bindings/rust/generate/_crate_test_build.sh
+ delete mode 100755 bindings/rust/generate/_generate_all_bindings_flavors.sh
+ delete mode 100755 bindings/rust/generate/_generate_bindings.sh
+ delete mode 100644 bindings/rust/generate/_generation_tools.sh
+ delete mode 100755 bindings/rust/generate/_run_supported_symbol_builds.sh
+ delete mode 100755 bindings/rust/generate/_test_supported_builds.sh
+ delete mode 100755 bindings/rust/generate/generate-fips.sh
+ delete mode 100755 bindings/rust/generate/generate.sh
+ delete mode 100755 bindings/rust/publish/_prepublish_checks.sh
+ delete mode 100644 bindings/rust/publish/_publish_tools.sh
+ delete mode 100755 bindings/rust/publish/publish-fips.sh
+ delete mode 100755 bindings/rust/publish/publish.sh
+
+diff --git a/bindings/rust/README.md b/bindings/rust/README.md
+deleted file mode 100644
+index ef8e3390c..000000000
+--- a/bindings/rust/README.md
++++ /dev/null
+@@ -1,38 +0,0 @@
+-aws-lc-sys
+-============
+-
+-Low-level AWS-LC bindings crate for Rust.
+-
+-### How it works
+-`aws-lc-sys` uses `bindgen` to generate Rust compatibility shims for the targeted platform. It is important to generate it for the correct platform because `bindgen` uses LLVM information for alignment which varies depending on architecture.
+-
+-### Installation
+-
+-In order to generate the `aws-lc-sys` crate, you need to have the following installed:
+-
+-* Rust - installable with [rustup](https://rustup.rs/)
+-* libclang
+-* docker
+-* C compilation tools to build AWS-LC. We pull in [generated-src](https://github.com/aws/aws-lc/tree/main/generated-src) into `aws-lc-sys`, so Go and Perl aren't needed (for non-FIPS).
+-* CMake3 or above. [`cmake-rs`](https://docs.rs/cmake/latest/cmake/) appends build options after the path, which isn't supported in older versions of cmake.
+-
+-### To Use
+-The `aws-lc-sys` create can be built by running the [generate.sh](./generate/generate.sh) script. 
+-The script requires the [docker images](../../tests/ci/docker_images/rust) to 
+-be [built](../../tests/ci/docker_images/rust/build_images.sh) and available locally. Bindings for `macos-x86_64` are generated on the native MacOS x86_64 platform. Bindings are generated for `linux-x86_64`, `linux-aarch64`, `linux-x86` using the corresponding docker images.
+-
+-```
+-./bindings/rust/generate/generate.sh
+-```
+-
+-See AWS-LC build documentation for more details: https://github.com/aws/aws-lc/blob/main/BUILDING.md
+-
+-### Publishing
+-The `aws-lc-sys` crate should be fully generated and tested by running the [generate.sh](./generate/generate.sh) script, prior to publishing.
+-The following need to be done in order to publish:
+-* Log in via `cargo login`: requires API token generation from https://crates.io/settings/tokens
+-* `cargo install cargo-public-api`
+-
+-```
+-./bindings/rust/publish/publish.sh
+-```
+diff --git a/bindings/rust/aws-lc-fips-sys-template/Cargo.toml b/bindings/rust/aws-lc-fips-sys-template/Cargo.toml
+deleted file mode 100644
+index aee6bb9e4..000000000
+--- a/bindings/rust/aws-lc-fips-sys-template/Cargo.toml
++++ /dev/null
+@@ -1,46 +0,0 @@
+-[package]
+-name = "aws-lc-fips-sys"
+-description = "AWS-LC is a general-purpose cryptographic library maintained by the AWS Cryptography team for AWS and their customers. This is the FIPS validated version of AWS-LC."
+-version = "__AWS_LC_FIPS_SYS_VERSION__"
+-authors = ["AWS-LC"]
+-edition = "2021"
+-repository = "https://github.com/aws/aws-lc"
+-license = "Apache-2.0 OR ISC"
+-rust-version = "1.57.0"
+-include = [
+-    "build/**/*.rs",
+-    "Cargo.toml",
+-    "deps/aws-lc/**/*.c",
+-    "deps/aws-lc/**/*.cc",
+-    "deps/aws-lc/**/*.pl",
+-    "deps/aws-lc/**/*.h",
+-    "deps/aws-lc/**/*.S",
+-    "deps/aws-lc/**/CMakeLists.txt",
+-    "deps/aws-lc/**/*.cmake",
+-    "deps/aws-lc/**/*.errordata",
+-    "deps/aws-lc/**/*.go",
+-    "deps/aws-lc/**/*.mod",
+-    "deps/aws-lc/**/*.sum",
+-    "src/**/*.rs",
+-    "tests/**/*.rs",
+-]
+-build = "build/main.rs"
+-
+-[features]
+-asan = []
+-internal_generate = ["bindgen"] # Only for internal use, this line is removed prior to publishing.
+-ssl = []
+-
+-[build-dependencies]
+-cmake = "0.1.48"
+-bindgen = { version = "0.64.0", optional = true }
+-regex = "1"
+-dunce = "1.0"
+-cfg_aliases = "0.1.1"
+-
+-[dependencies]
+-libc = "0.2"
+-paste = "1.0.11"
+-
+-[package.metadata.aws-lc-fips-sys]
+-commit-hash = "__AWS_LC_COMMIT_HASH__"
+diff --git a/bindings/rust/aws-lc-fips-sys-template/README.md b/bindings/rust/aws-lc-fips-sys-template/README.md
+deleted file mode 100644
+index c268e968a..000000000
+--- a/bindings/rust/aws-lc-fips-sys-template/README.md
++++ /dev/null
+@@ -1,39 +0,0 @@
+-# aws-lc-fips-sys
+-
+-[![crates.io](https://img.shields.io/crates/v/aws-lc-fips-sys.svg)](https://crates.io/crates/aws-lc-fips-sys)
+-
+-**Autogenerated** low-level AWS-LC FIPS bindings for the Rust programming language. We do not recommend directly relying on these bindings.
+-
+-[Documentation](https://github.com/aws/aws-lc).
+-
+-## Release Support
+-
+-This crate pulls in the source code of the latest AWS-LC FIPS branch to build with it. Bindings for platforms we officially support are pre-generated.
+-The platforms which `aws-lc-fips-sys` builds on is limited to the platforms where the AWS-LC FIPS static build is supported.
+-
+-### Pregenerated Bindings Availability
+-
+-CPU|OS
+--------------|-------------
+-x86-64|Linux
+-arm-64|Linux
+-
+-### Tested AWS-LC FIPS Build Environments
+-
+-`aws-lc-fips-sys` currently relies on the AWS-LC FIPS static build, please see our CI documentation at [AWS-LC](https://github.com/aws/aws-lc/tree/main/tests/ci#unit-tests).
+-
+-## Build Prerequisites
+-
+-Since this crate builds AWS-LC as a native library, all build tools needed to build AWS-LC are applicable to `aws-lc-fips-sys` as well. This includes Go and Perl, which are hard dependencies for the AWS-LC FIPS build.
+-
+-[Building AWS-LC](https://github.com/aws/aws-lc/blob/main/BUILDING.md)
+-
+-If you use a different build combination for FIPS and would like us to support it, please open an issue to us at [AWS-LC](https://github.com/aws/aws-lc/issues/new?assignees=&labels=&template=build-issue.md&title=).
+-
+-## Contribution
+-
+-See contributing file at [AWS-LC](https://github.com/aws/aws-lc/blob/main/CONTRIBUTING.md)
+-
+-## Licensing
+-
+-See license at [AWS-LC](https://github.com/aws/aws-lc/blob/main/LICENSE)
+diff --git a/bindings/rust/aws-lc-fips-sys-template/build/bindgen.rs b/bindings/rust/aws-lc-fips-sys-template/build/bindgen.rs
+deleted file mode 100644
+index c9d47cbb4..000000000
+--- a/bindings/rust/aws-lc-fips-sys-template/build/bindgen.rs
++++ /dev/null
+@@ -1,117 +0,0 @@
+-// SPDX-License-Identifier: Apache-2.0 OR ISC
+-// Modifications Copyright Amazon.com, Inc. or its affiliates. See GitHub history for details.
+-
+-use crate::get_include_path;
+-use bindgen::callbacks::{ParseCallbacks, ItemInfo};
+-use std::fmt::Debug;
+-use std::path::Path;
+-
+-#[derive(Debug)]
+-struct StripPrefixCallback {
+-    remove_prefix: Option<String>,
+-}
+-
+-impl StripPrefixCallback {
+-    fn new(prefix: &str) -> StripPrefixCallback {
+-        StripPrefixCallback {
+-            remove_prefix: Some(prefix.to_string()),
+-        }
+-    }
+-}
+-
+-#[cfg(feature = "bindgen")]
+-impl ParseCallbacks for StripPrefixCallback {
+-    fn generated_name_override(&self, item_info: ItemInfo<'_>) -> Option<String> {
+-        self.remove_prefix.as_ref().and_then(|s| {
+-            let prefix = format!("{}_", s);
+-            item_info.name.strip_prefix(prefix.as_str()).map(String::from)
+-        })
+-    }
+-}
+-
+-fn prepare_clang_args(manifest_dir: &Path, build_prefix: &Option<&str>) -> Vec<String> {
+-    let mut clang_args: Vec<String> = vec![
+-        "-I".to_string(),
+-        get_include_path(manifest_dir).display().to_string(),
+-    ];
+-
+-    if let Some(prefix) = build_prefix {
+-        clang_args.push(format!("-DBORINGSSL_PREFIX={}", prefix));
+-    }
+-
+-    clang_args
+-}
+-
+-const COPYRIGHT: &str = r#"
+-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-// SPDX-License-Identifier: Apache-2.0 OR ISC
+-"#;
+-
+-const PRELUDE: &str = r#"
+-#![allow(unused_imports, non_camel_case_types, non_snake_case, non_upper_case_globals, improper_ctypes)]
+-"#;
+-
+-#[derive(Default)]
+-pub(crate) struct BindingOptions<'a> {
+-    pub build_prefix: Option<&'a str>,
+-    pub include_ssl: bool,
+-    pub disable_prelude: bool,
+-}
+-
+-fn prepare_bindings_builder(manifest_dir: &Path, options: BindingOptions<'_>) -> bindgen::Builder {
+-    let clang_args = prepare_clang_args(manifest_dir, &options.build_prefix);
+-
+-    let mut builder = bindgen::Builder::default()
+-        .derive_copy(true)
+-        .derive_debug(true)
+-        .derive_default(true)
+-        .derive_eq(true)
+-        .allowlist_file(".*/openssl/[^/]+\\.h")
+-        .allowlist_file(".*/rust_wrapper\\.h")
+-        .rustified_enum("point_conversion_form_t")
+-        .default_macro_constant_type(bindgen::MacroTypeVariation::Signed)
+-        .generate_comments(true)
+-        .fit_macro_constants(false)
+-        .size_t_is_usize(true)
+-        .layout_tests(true)
+-        .prepend_enum_name(true)
+-        .rustfmt_bindings(true)
+-        .clang_args(clang_args)
+-        .raw_line(COPYRIGHT)
+-        .header(
+-            get_include_path(manifest_dir)
+-                .join("rust_wrapper.h")
+-                .display()
+-                .to_string(),
+-        );
+-
+-    if !options.disable_prelude {
+-        builder = builder.raw_line(PRELUDE);
+-    }
+-
+-    if options.include_ssl {
+-        builder = builder.header_contents(
+-            "rust_ssl_wrapper.h",
+-            "\
+-#include <openssl/ssl.h>
+-#include <openssl/ssl3.h>
+-",
+-        );
+-    }
+-
+-    if let Some(ps) = &options.build_prefix {
+-        builder = builder.parse_callbacks(Box::new(StripPrefixCallback::new(ps)));
+-    }
+-
+-    builder
+-}
+-
+-pub(crate) fn generate_bindings(
+-    manifest_dir: &Path,
+-    options: BindingOptions<'_>,
+-) -> Result<bindgen::Bindings, &'static str> {
+-    let bindings = prepare_bindings_builder(&manifest_dir, options)
+-        .generate()
+-        .expect("Unable to generate bindings.");
+-    Ok(bindings)
+-}
+diff --git a/bindings/rust/aws-lc-fips-sys-template/build/main.rs b/bindings/rust/aws-lc-fips-sys-template/build/main.rs
+deleted file mode 100644
+index 8ad96b0f6..000000000
+--- a/bindings/rust/aws-lc-fips-sys-template/build/main.rs
++++ /dev/null
+@@ -1,328 +0,0 @@
+-/* Copyright (c) 2022, Google Inc.
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+- * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+- * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+- * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+-
+-// SPDX-License-Identifier: Apache-2.0 OR ISC
+-// Modifications Copyright Amazon.com, Inc. or its affiliates. See GitHub history for details.
+-
+-use cfg_aliases::cfg_aliases;
+-#[cfg(feature = "bindgen")]
+-use std::default::Default;
+-use std::ffi::OsStr;
+-use std::path::{Path, PathBuf};
+-use std::process::Command;
+-use std::{env, fs};
+-
+-#[cfg(feature = "bindgen")]
+-mod bindgen;
+-
+-pub(crate) fn get_include_path(manifest_dir: &Path) -> PathBuf {
+-    manifest_dir.join("deps").join("aws-lc").join("include")
+-}
+-
+-const AWS_LC_PATH: &str = "deps/aws-lc";
+-
+-#[allow(dead_code)]
+-#[derive(Clone, Copy, PartialEq, Eq)]
+-enum OutputLib {
+-    Crypto,
+-    Ssl,
+-}
+-
+-#[allow(dead_code)]
+-#[derive(Clone, Copy, PartialEq, Eq)]
+-enum OutputLibType {
+-    Static,
+-    Dynamic,
+-}
+-
+-impl OutputLibType {
+-    fn rust_lib_type(&self) -> &str {
+-        match self {
+-            OutputLibType::Static => "static",
+-            OutputLibType::Dynamic => "dylib",
+-        }
+-    }
+-    fn lib_extension(&self) -> &str {
+-        match self {
+-            OutputLibType::Static => "a",
+-            OutputLibType::Dynamic => "so",
+-        }
+-    }
+-}
+-
+-impl OutputLib {
+-    fn filename(&self, libtype: OutputLibType, prefix: Option<&str>) -> String {
+-        format!("lib{}.{}", &self.libname(prefix), libtype.lib_extension())
+-    }
+-
+-    fn libname(&self, prefix: Option<&str>) -> String {
+-        format!(
+-            "{}{}",
+-            if let Some(pfix) = prefix.to_owned() {
+-                pfix
+-            } else {
+-                ""
+-            },
+-            match self {
+-                OutputLib::Crypto => "crypto",
+-                OutputLib::Ssl => "ssl",
+-            }
+-        )
+-    }
+-
+-    fn locate_dir(&self, path: &Path) -> PathBuf {
+-        path.join(Path::new(&format!("build/{}", self.libname(None))))
+-            .join(get_platform_output_path())
+-    }
+-
+-    fn locate_file(&self, path: &Path, libtype: OutputLibType, prefix: Option<&str>) -> PathBuf {
+-        self.locate_dir(path).join(self.filename(libtype, prefix))
+-    }
+-}
+-
+-fn get_platform_output_path() -> PathBuf {
+-    PathBuf::new()
+-}
+-
+-const VERSION: &str = env!("CARGO_PKG_VERSION");
+-
+-fn prefix_string() -> String {
+-    format!("aws_lc_fips_{}", VERSION.to_string().replace('.', "_"))
+-}
+-
+-fn test_perl_command() -> bool {
+-    test_command("perl".as_ref(), &["--version".as_ref()])
+-}
+-
+-fn test_go_command() -> bool {
+-    test_command("go".as_ref(), &["version".as_ref()])
+-}
+-
+-#[cfg(feature = "internal_generate")]
+-fn target_platform_prefix(name: &str) -> String {
+-    format!(
+-        "{}_{}_{}",
+-        std::env::consts::OS,
+-        std::env::consts::ARCH,
+-        name
+-    )
+-}
+-
+-fn test_command(executable: &OsStr, args: &[&OsStr]) -> bool {
+-    if let Ok(output) = Command::new(executable).args(args).output() {
+-        return output.status.success();
+-    }
+-    false
+-}
+-
+-fn find_cmake_command() -> Option<&'static OsStr> {
+-    if test_command("cmake3".as_ref(), &["--version".as_ref()]) {
+-        Some("cmake3".as_ref())
+-    } else if test_command("cmake".as_ref(), &["--version".as_ref()]) {
+-        Some("cmake".as_ref())
+-    } else {
+-        None
+-    }
+-}
+-
+-fn get_cmake_config() -> cmake::Config {
+-    let pwd = env::current_dir().unwrap();
+-
+-    cmake::Config::new(pwd.join(AWS_LC_PATH))
+-}
+-
+-fn prepare_cmake_build(build_prefix: Option<&str>) -> cmake::Config {
+-    let mut cmake_cfg = get_cmake_config();
+-
+-    let opt_level = env::var("OPT_LEVEL").unwrap_or_else(|_| "0".to_string());
+-    if opt_level.ne("0") {
+-        if opt_level.eq("1") || opt_level.eq("2") {
+-            cmake_cfg.define("CMAKE_BUILD_TYPE", "relwithdebinfo");
+-        } else {
+-            cmake_cfg.define("CMAKE_BUILD_TYPE", "release");
+-        }
+-    }
+-
+-    if let Some(symbol_prefix) = build_prefix {
+-        cmake_cfg.define("BORINGSSL_PREFIX", symbol_prefix);
+-        let pwd = env::current_dir().unwrap();
+-        let include_path = pwd.join(AWS_LC_PATH).join("include");
+-        cmake_cfg.define(
+-            "BORINGSSL_PREFIX_HEADERS",
+-            include_path.display().to_string(),
+-        );
+-    }
+-
+-    cmake_cfg.define("BUILD_TESTING", "OFF");
+-    cmake_cfg.define("BUILD_LIBSSL", "ON");
+-    cmake_cfg.define("FIPS", "1");
+-
+-    if cfg!(feature = "asan") {
+-        env::set_var("CC", "/usr/bin/clang");
+-        env::set_var("CXX", "/usr/bin/clang++");
+-        env::set_var("ASM", "/usr/bin/clang");
+-
+-        cmake_cfg.define("ASAN", "1");
+-    }
+-
+-    cmake_cfg
+-}
+-
+-fn build_aws_lc() -> PathBuf {
+-    let mut cmake_cfg = prepare_cmake_build(Some(&prefix_string()));
+-
+-    // cmake supports passing multiple arguments to target, but this is broken in the cmake crate
+-    // ssl requires crypto so we can get away with just picking the top-most requried one.
+-    let target = if cfg!(feature = "ssl") {
+-        Some("ssl")
+-    } else {
+-        Some("crypto")
+-    };
+-
+-    cmake_cfg.build_target(target.unwrap()).build()
+-}
+-
+-#[cfg(feature = "bindgen")]
+-fn generate_bindings(manifest_dir: &PathBuf, prefix: &str, bindings_path: &PathBuf) {
+-    let options = bindgen::BindingOptions {
+-        build_prefix: Some(&prefix),
+-        include_ssl: cfg!(feature = "ssl"),
+-        disable_prelude: true,
+-        ..Default::default()
+-    };
+-
+-    let bindings =
+-        bindgen::generate_bindings(&manifest_dir, options).expect("Unable to generate bindings.");
+-
+-    bindings
+-        .write(Box::new(std::fs::File::create(&bindings_path).unwrap()))
+-        .expect("written bindings");
+-}
+-
+-#[cfg(feature = "internal_generate")]
+-fn generate_src_bindings(manifest_dir: &PathBuf, prefix: &str, src_bindings_path: &PathBuf) {
+-    bindgen::generate_bindings(
+-        &manifest_dir,
+-        bindgen::BindingOptions {
+-            build_prefix: Some(&prefix),
+-            include_ssl: false,
+-            ..Default::default()
+-        },
+-    )
+-    .expect("Unable to generate bindings.")
+-    .write_to_file(src_bindings_path.join(format!("{}.rs", target_platform_prefix("crypto"))))
+-    .expect("write bindings");
+-
+-    bindgen::generate_bindings(
+-        &manifest_dir,
+-        bindgen::BindingOptions {
+-            build_prefix: Some(&prefix),
+-            include_ssl: true,
+-            ..Default::default()
+-        },
+-    )
+-    .expect("Unable to generate bindings.")
+-    .write_to_file(src_bindings_path.join(format!("{}.rs", target_platform_prefix("crypto_ssl"))))
+-    .expect("write bindings");
+-}
+-
+-fn main() -> Result<(), String> {
+-    use crate::OutputLib::{Crypto, Ssl};
+-    use crate::OutputLibType::Static;
+-
+-    cfg_aliases! {
+-        linux_x86_64: { all(not(feature = "bindgen"), target_os = "linux", target_arch = "x86_64") },
+-        linux_aarch64: { all(not(feature = "bindgen"), target_os = "linux", target_arch = "aarch64") },
+-        not_pregenerated: { not(any(linux_aarch64, linux_x86_64)) },
+-    }
+-
+-    let mut missing_dependency = false;
+-    if !test_go_command() {
+-        eprintln!("Missing dependency: go-lang is required for FIPS.");
+-        missing_dependency = true;
+-    }
+-    if !test_perl_command() {
+-        eprintln!("Missing dependency: perl is required for FIPS.");
+-        missing_dependency = true;
+-    }
+-    if let Some(cmake_cmd) = find_cmake_command() {
+-        env::set_var("CMAKE", cmake_cmd);
+-    } else {
+-        eprintln!("Missing dependency: cmake");
+-        missing_dependency = true;
+-    };
+-
+-    if missing_dependency {
+-        panic!("Required build dependency is missing. Halting build.");
+-    }
+-
+-    let manifest_dir = env::current_dir().unwrap();
+-    let manifest_dir = dunce::canonicalize(Path::new(&manifest_dir)).unwrap();
+-    let prefix = prefix_string();
+-
+-    #[cfg(feature = "internal_generate")]
+-    {
+-        let src_bindings_path = Path::new(&manifest_dir).join("src");
+-        generate_src_bindings(&manifest_dir, &prefix, &src_bindings_path);
+-    }
+-
+-    #[cfg(feature = "bindgen")]
+-    {
+-        let gen_bindings_path = Path::new(&env::var("OUT_DIR").unwrap()).join("bindings.rs");
+-        generate_bindings(&manifest_dir, &prefix, &gen_bindings_path);
+-    }
+-
+-    let aws_lc_dir = build_aws_lc();
+-
+-    let libcrypto_file = Crypto.locate_file(&aws_lc_dir, Static, None);
+-    let prefixed_libcrypto_file = Crypto.locate_file(&aws_lc_dir, Static, Some(&prefix));
+-    fs::rename(libcrypto_file, prefixed_libcrypto_file)
+-        .expect("Unexpected error: Library not found");
+-
+-    println!(
+-        "cargo:rustc-link-search=native={}",
+-        Crypto.locate_dir(&aws_lc_dir).display()
+-    );
+-
+-    println!(
+-        "cargo:rustc-link-lib={}={}",
+-        Static.rust_lib_type(),
+-        Crypto.libname(Some(&prefix))
+-    );
+-
+-    if cfg!(feature = "ssl") {
+-        let libssl_file = Ssl.locate_file(&aws_lc_dir, Static, None);
+-        let prefixed_libssl_file = Ssl.locate_file(&aws_lc_dir, Static, Some(&prefix));
+-        fs::rename(libssl_file, prefixed_libssl_file).expect("Unexpected error: Library not found");
+-
+-        println!(
+-            "cargo:rustc-link-search=native={}",
+-            Ssl.locate_dir(&aws_lc_dir).display()
+-        );
+-
+-        println!(
+-            "cargo:rustc-link-lib={}={}",
+-            Static.rust_lib_type(),
+-            Ssl.libname(Some(&prefix))
+-        );
+-    }
+-
+-    println!(
+-        "cargo:include={}",
+-        get_include_path(&manifest_dir).display()
+-    );
+-
+-    println!("cargo:rerun-if-changed=build/");
+-    Ok(())
+-}
+diff --git a/bindings/rust/aws-lc-fips-sys-template/deps/aws-lc/crypto/rust_wrapper.c b/bindings/rust/aws-lc-fips-sys-template/deps/aws-lc/crypto/rust_wrapper.c
+deleted file mode 100644
+index d5419a9a6..000000000
+--- a/bindings/rust/aws-lc-fips-sys-template/deps/aws-lc/crypto/rust_wrapper.c
++++ /dev/null
+@@ -1,28 +0,0 @@
+-/* Copyright (c) 2022, Google Inc.
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+- * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+- * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+- * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+-
+-#include "rust_wrapper.h"
+-
+-
+-int ERR_GET_LIB_RUST(uint32_t packed_error) {
+-  return ERR_GET_LIB(packed_error);
+-}
+-
+-int ERR_GET_REASON_RUST(uint32_t packed_error) {
+-  return ERR_GET_REASON(packed_error);
+-}
+-
+-int ERR_GET_FUNC_RUST(uint32_t packed_error) {
+-  return ERR_GET_FUNC(packed_error);
+-}
+diff --git a/bindings/rust/aws-lc-fips-sys-template/deps/aws-lc/include/rust_wrapper.h b/bindings/rust/aws-lc-fips-sys-template/deps/aws-lc/include/rust_wrapper.h
+deleted file mode 100644
+index 40a0ca9b8..000000000
+--- a/bindings/rust/aws-lc-fips-sys-template/deps/aws-lc/include/rust_wrapper.h
++++ /dev/null
+@@ -1,111 +0,0 @@
+-/* Copyright (c) 2022, Google Inc.
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+- * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+- * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+- * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+-
+-// SPDX-License-Identifier: Apache-2.0 OR ISC
+-// Modifications Copyright Amazon.com, Inc. or its affiliates. See GitHub history for details.
+-
+-#ifndef OPENSSL_HEADER_RUST_WRAPPER_H
+-#define OPENSSL_HEADER_RUST_WRAPPER_H
+-
+-#include <openssl/err.h>
+-
+-#if defined(__cplusplus)
+-extern "C" {
+-#endif
+-
+-
+-// The following functions are wrappers over inline functions and macros in
+-// BoringSSL, which bindgen cannot currently correctly bind. These wrappers
+-// ensure changes to the functions remain in lockstep with the Rust versions.
+-int ERR_GET_LIB_RUST(uint32_t packed_error);
+-int ERR_GET_REASON_RUST(uint32_t packed_error);
+-int ERR_GET_FUNC_RUST(uint32_t packed_error);
+-
+-
+-#if defined(__cplusplus)
+-}  // extern C
+-#endif
+-
+-#include "openssl/is_awslc.h"
+-#include "openssl/aes.h"
+-#include "openssl/asn1.h"
+-#include "openssl/asn1_mac.h"
+-#include "openssl/asn1t.h"
+-#include "openssl/base.h"
+-#include "openssl/base64.h"
+-#include "openssl/bio.h"
+-#include "openssl/blake2.h"
+-#include "openssl/blowfish.h"
+-#include "openssl/bn.h"
+-#include "openssl/buf.h"
+-#include "openssl/buffer.h"
+-#include "openssl/bytestring.h"
+-#include "openssl/chacha.h"
+-#include "openssl/cipher.h"
+-#include "openssl/cmac.h"
+-#include "openssl/conf.h"
+-#include "openssl/cpu.h"
+-#include "openssl/crypto.h"
+-#include "openssl/curve25519.h"
+-#include "openssl/des.h"
+-#include "openssl/dh.h"
+-#include "openssl/digest.h"
+-#include "openssl/dsa.h"
+-#include "openssl/e_os2.h"
+-#include "openssl/ec.h"
+-#include "openssl/ec_key.h"
+-#include "openssl/ecdh.h"
+-#include "openssl/ecdsa.h"
+-#include "openssl/engine.h"
+-#include "openssl/err.h"
+-#include "openssl/evp.h"
+-#include "openssl/evp_errors.h"
+-#include "openssl/ex_data.h"
+-#include "openssl/hkdf.h"
+-#include "openssl/hmac.h"
+-#include "openssl/hpke.h"
+-#include "openssl/hrss.h"
+-#include "openssl/lhash.h"
+-#include "openssl/md4.h"
+-#include "openssl/md5.h"
+-#include "openssl/mem.h"
+-#include "openssl/obj.h"
+-#include "openssl/obj_mac.h"
+-#include "openssl/objects.h"
+-#include "openssl/opensslconf.h"
+-#include "openssl/opensslv.h"
+-#include "openssl/ossl_typ.h"
+-#include "openssl/pem.h"
+-#include "openssl/pkcs12.h"
+-#include "openssl/pkcs7.h"
+-#include "openssl/pkcs8.h"
+-#include "openssl/poly1305.h"
+-#include "openssl/pool.h"
+-#include "openssl/rand.h"
+-#include "openssl/rc4.h"
+-#include "openssl/ripemd.h"
+-#include "openssl/rsa.h"
+-#include "openssl/safestack.h"
+-#include "openssl/sha.h"
+-#include "openssl/siphash.h"
+-#include "openssl/span.h"
+-#include "openssl/stack.h"
+-#include "openssl/thread.h"
+-#include "openssl/trust_token.h"
+-#include "openssl/type_check.h"
+-#include "openssl/x509.h"
+-#include "openssl/x509_vfy.h"
+-#include "openssl/x509v3.h"
+-
+-#endif  // OPENSSL_HEADER_RUST_WRAPPER_H
+diff --git a/bindings/rust/aws-lc-fips-sys-template/src/lib.rs b/bindings/rust/aws-lc-fips-sys-template/src/lib.rs
+deleted file mode 100644
+index 98200fa23..000000000
+--- a/bindings/rust/aws-lc-fips-sys-template/src/lib.rs
++++ /dev/null
+@@ -1,77 +0,0 @@
+-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-// SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-use paste::paste;
+-use std::os::raw::{c_long, c_char, c_void};
+-
+-// Warn to use feature generate_bindings if building on a platform where prebuilt-bindings
+-// aren't available
+-#[cfg(all(not(feature = "bindgen"), not_pregenerated))]
+-compile_error!("The FIPS static build is not supported on this platform.");
+-
+-#[allow(unused_macros)]
+-macro_rules! use_bindings {
+-    ($bindings:ident) => {
+-        mod $bindings;
+-        pub use $bindings::*;
+-    };
+-}
+-
+-macro_rules! platform_binding {
+-    ($platform:ident) => {
+-        paste! {
+-            #[cfg(all($platform, not(feature = "ssl")))]
+-            use_bindings!([< $platform _crypto >]);
+-
+-            #[cfg(all($platform, feature = "ssl"))]
+-            use_bindings!([< $platform _crypto_ssl >]);
+-        }
+-    };
+-}
+-
+-platform_binding!(linux_x86);
+-
+-platform_binding!(linux_x86_64);
+-
+-platform_binding!(linux_aarch64);
+-
+-platform_binding!(macos_x86_64);
+-
+-#[cfg(all(feature = "bindgen", not_pregenerated))]
+-mod generated {
+-    #![allow(
+-        unused_imports,
+-        non_camel_case_types,
+-        non_snake_case,
+-        non_upper_case_globals,
+-        improper_ctypes
+-    )]
+-
+-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+-}
+-#[cfg(all(feature = "bindgen", not_pregenerated))]
+-pub use generated::*;
+-
+-#[allow(non_snake_case)]
+-pub fn ERR_GET_LIB(packed_error: u32) -> i32 {
+-    unsafe { ERR_GET_LIB_RUST(packed_error) }
+-}
+-
+-#[allow(non_snake_case)]
+-pub fn ERR_GET_REASON(packed_error: u32) -> i32 {
+-    unsafe { ERR_GET_REASON_RUST(packed_error) }
+-}
+-
+-#[allow(non_snake_case)]
+-pub fn ERR_GET_FUNC(packed_error: u32) -> i32 {
+-    unsafe { ERR_GET_FUNC_RUST(packed_error) }
+-}
+-
+-#[allow(non_snake_case)]
+-pub fn BIO_get_mem_data(b: *mut BIO, pp: *mut *mut c_char) -> c_long {
+-    unsafe { BIO_ctrl(b, BIO_CTRL_INFO, 0, pp as *mut c_void) }
+-}
+-
+-pub fn init() {
+-    unsafe { CRYPTO_library_init() }
+-}
+diff --git a/bindings/rust/aws-lc-fips-sys-template/tests/sanity-tests.rs b/bindings/rust/aws-lc-fips-sys-template/tests/sanity-tests.rs
+deleted file mode 100644
+index b4096bc64..000000000
+--- a/bindings/rust/aws-lc-fips-sys-template/tests/sanity-tests.rs
++++ /dev/null
+@@ -1,23 +0,0 @@
+-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-// SPDX-License-Identifier: Apache-2.0 OR ISC
+-use aws_lc_fips_sys as aws_lc_sys;
+-
+-#[test]
+-fn test_fips_mode() {
+-    unsafe {
+-        assert_eq!(aws_lc_sys::FIPS_mode(), 1);
+-    }
+-}
+-
+-#[test]
+-fn error_checking() {
+-    unsafe {
+-        let error = aws_lc_sys::ERR_get_error();
+-        let err_lib = aws_lc_sys::ERR_GET_LIB(error);
+-        let err_reason = aws_lc_sys::ERR_GET_REASON(error);
+-        let err_func = aws_lc_sys::ERR_GET_FUNC(error);
+-        assert_eq!(err_lib, 0);
+-        assert_eq!(err_reason, 0);
+-        assert_eq!(err_func, 0);
+-    }
+-}
+diff --git a/bindings/rust/aws-lc-sys-template/Cargo.toml b/bindings/rust/aws-lc-sys-template/Cargo.toml
+deleted file mode 100644
+index f16fc1bb5..000000000
+--- a/bindings/rust/aws-lc-sys-template/Cargo.toml
++++ /dev/null
+@@ -1,48 +0,0 @@
+-[package]
+-name = "aws-lc-sys"
+-description = "AWS-LC is a general-purpose cryptographic library maintained by the AWS Cryptography team for AWS and their customers. It іs based on code from the Google BoringSSL project and the OpenSSL project."
+-version = "__AWS_LC_SYS_VERSION__"
+-authors = ["AWS-LC"]
+-edition = "2021"
+-repository = "https://github.com/aws/aws-lc"
+-license = "Apache-2.0 OR ISC"
+-rust-version = "1.57.0"
+-include = [
+-    "build/**/*.rs",
+-    "Cargo.toml",
+-    "deps/aws-lc/**/*.c",
+-    "deps/aws-lc/**/*.cc",
+-    "deps/aws-lc/**/*.pl",
+-    "deps/aws-lc/**/*.h",
+-    "deps/aws-lc/**/*.S",
+-    "deps/aws-lc/**/CMakeLists.txt",
+-    "deps/aws-lc/**/*.cmake",
+-    "deps/aws-lc/**/*.errordata",
+-    "deps/aws-lc/**/*.go",
+-    "src/**/*.rs",
+-    "tests/**/*.rs",
+-]
+-build = "build/main.rs"
+-
+-[features]
+-asan = []
+-generate_bindings = ["bindgen"] # Generate the bindings on the targetted platform as a fallback mechanism.
+-internal_generate = ["bindgen"] # Only for internal use, this line is removed prior to publishing.
+-ssl = []
+-
+-[build-dependencies]
+-cmake = "0.1.48"
+-bindgen = { version = "0.64.0", optional = true }
+-regex = "1"
+-dunce = "1.0"
+-cfg_aliases = "0.1.1"
+-
+-[dependencies]
+-libc = "0.2"
+-paste = "1.0.11"
+-
+-[dev-dependencies]
+-openssl = { version = "0.10" }
+-
+-[package.metadata.aws-lc-sys]
+-commit-hash = "__AWS_LC_COMMIT_HASH__"
+diff --git a/bindings/rust/aws-lc-sys-template/README.md b/bindings/rust/aws-lc-sys-template/README.md
+deleted file mode 100644
+index 88bb584dc..000000000
+--- a/bindings/rust/aws-lc-sys-template/README.md
++++ /dev/null
+@@ -1,40 +0,0 @@
+-# aws-lc-sys
+-
+-[![crates.io](https://img.shields.io/crates/v/aws-lc-sys.svg)](https://crates.io/crates/aws-lc-sys)
+-
+-**Autogenerated** Low-level AWS-LC bindings for the Rust programming language. We do not recommend directly relying on these bindings.
+-
+-[Documentation](https://github.com/aws/aws-lc).
+-
+-## Release Support
+-
+-This crate pulls in the source code of AWS-LC to build with it. Bindings for platforms we officially support are pre-generated. To generate bindings for any platforms where pre-generated bindings aren't available, you can use the `generate_bindings` feature to do so.
+-
+-### Pregenerated Bindings Availability
+-
+-CPU|OS
+--------------|-------------
+-x86|Linux
+-x86-64|Linux
+-arm-64|Linux
+-x86-64|MacOS
+-
+-## Build Prerequisites
+-
+-Since this crate builds AWS-LC as a native library, most build tools needed to build AWS-LC are applicable to `aws-lc-sys` as well. Go and Perl aren't absolutely necessary for `aws-lc-sys`, as AWS-LC provides generated build files.
+-
+-[Building AWS-LC](https://github.com/aws/aws-lc/blob/main/BUILDING.md)
+-
+-AWS-LC is tested on a variety of C/C++ compiler, OS, and CPU combinations. For a complete list of tested combinations see [tests/ci/Readme.md](https://github.com/aws/aws-lc/tree/main/tests/ci#unit-tests). If you use a different build combination and would like us to support it, please open an issue to us at [AWS-LC](https://github.com/aws/aws-lc/issues/new?assignees=&labels=&template=build-issue.md&title=).
+-
+-## Building with a FIPS-validated module
+-
+-This crate does not offer the AWS-LC FIPS build. To use AWS-LC FIPS, please use the FIPS version of this crate, available at [aws-lc-fips-sys](https://crates.io/crates/aws-lc-fips-sys).
+-
+-## Contribution
+-
+-See contributing file at [AWS-LC](https://github.com/aws/aws-lc/blob/main/CONTRIBUTING.md)
+-
+-## Licensing
+-
+-See license at [AWS-LC](https://github.com/aws/aws-lc/blob/main/LICENSE)
+diff --git a/bindings/rust/aws-lc-sys-template/build/bindgen.rs b/bindings/rust/aws-lc-sys-template/build/bindgen.rs
+deleted file mode 100644
+index c9d47cbb4..000000000
+--- a/bindings/rust/aws-lc-sys-template/build/bindgen.rs
++++ /dev/null
+@@ -1,117 +0,0 @@
+-// SPDX-License-Identifier: Apache-2.0 OR ISC
+-// Modifications Copyright Amazon.com, Inc. or its affiliates. See GitHub history for details.
+-
+-use crate::get_include_path;
+-use bindgen::callbacks::{ParseCallbacks, ItemInfo};
+-use std::fmt::Debug;
+-use std::path::Path;
+-
+-#[derive(Debug)]
+-struct StripPrefixCallback {
+-    remove_prefix: Option<String>,
+-}
+-
+-impl StripPrefixCallback {
+-    fn new(prefix: &str) -> StripPrefixCallback {
+-        StripPrefixCallback {
+-            remove_prefix: Some(prefix.to_string()),
+-        }
+-    }
+-}
+-
+-#[cfg(feature = "bindgen")]
+-impl ParseCallbacks for StripPrefixCallback {
+-    fn generated_name_override(&self, item_info: ItemInfo<'_>) -> Option<String> {
+-        self.remove_prefix.as_ref().and_then(|s| {
+-            let prefix = format!("{}_", s);
+-            item_info.name.strip_prefix(prefix.as_str()).map(String::from)
+-        })
+-    }
+-}
+-
+-fn prepare_clang_args(manifest_dir: &Path, build_prefix: &Option<&str>) -> Vec<String> {
+-    let mut clang_args: Vec<String> = vec![
+-        "-I".to_string(),
+-        get_include_path(manifest_dir).display().to_string(),
+-    ];
+-
+-    if let Some(prefix) = build_prefix {
+-        clang_args.push(format!("-DBORINGSSL_PREFIX={}", prefix));
+-    }
+-
+-    clang_args
+-}
+-
+-const COPYRIGHT: &str = r#"
+-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-// SPDX-License-Identifier: Apache-2.0 OR ISC
+-"#;
+-
+-const PRELUDE: &str = r#"
+-#![allow(unused_imports, non_camel_case_types, non_snake_case, non_upper_case_globals, improper_ctypes)]
+-"#;
+-
+-#[derive(Default)]
+-pub(crate) struct BindingOptions<'a> {
+-    pub build_prefix: Option<&'a str>,
+-    pub include_ssl: bool,
+-    pub disable_prelude: bool,
+-}
+-
+-fn prepare_bindings_builder(manifest_dir: &Path, options: BindingOptions<'_>) -> bindgen::Builder {
+-    let clang_args = prepare_clang_args(manifest_dir, &options.build_prefix);
+-
+-    let mut builder = bindgen::Builder::default()
+-        .derive_copy(true)
+-        .derive_debug(true)
+-        .derive_default(true)
+-        .derive_eq(true)
+-        .allowlist_file(".*/openssl/[^/]+\\.h")
+-        .allowlist_file(".*/rust_wrapper\\.h")
+-        .rustified_enum("point_conversion_form_t")
+-        .default_macro_constant_type(bindgen::MacroTypeVariation::Signed)
+-        .generate_comments(true)
+-        .fit_macro_constants(false)
+-        .size_t_is_usize(true)
+-        .layout_tests(true)
+-        .prepend_enum_name(true)
+-        .rustfmt_bindings(true)
+-        .clang_args(clang_args)
+-        .raw_line(COPYRIGHT)
+-        .header(
+-            get_include_path(manifest_dir)
+-                .join("rust_wrapper.h")
+-                .display()
+-                .to_string(),
+-        );
+-
+-    if !options.disable_prelude {
+-        builder = builder.raw_line(PRELUDE);
+-    }
+-
+-    if options.include_ssl {
+-        builder = builder.header_contents(
+-            "rust_ssl_wrapper.h",
+-            "\
+-#include <openssl/ssl.h>
+-#include <openssl/ssl3.h>
+-",
+-        );
+-    }
+-
+-    if let Some(ps) = &options.build_prefix {
+-        builder = builder.parse_callbacks(Box::new(StripPrefixCallback::new(ps)));
+-    }
+-
+-    builder
+-}
+-
+-pub(crate) fn generate_bindings(
+-    manifest_dir: &Path,
+-    options: BindingOptions<'_>,
+-) -> Result<bindgen::Bindings, &'static str> {
+-    let bindings = prepare_bindings_builder(&manifest_dir, options)
+-        .generate()
+-        .expect("Unable to generate bindings.");
+-    Ok(bindings)
+-}
+diff --git a/bindings/rust/aws-lc-sys-template/build/main.rs b/bindings/rust/aws-lc-sys-template/build/main.rs
+deleted file mode 100644
+index b7c99861d..000000000
+--- a/bindings/rust/aws-lc-sys-template/build/main.rs
++++ /dev/null
+@@ -1,318 +0,0 @@
+-/* Copyright (c) 2022, Google Inc.
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+- * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+- * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+- * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+-
+-// SPDX-License-Identifier: Apache-2.0 OR ISC
+-// Modifications Copyright Amazon.com, Inc. or its affiliates. See GitHub history for details.
+-
+-use cfg_aliases::cfg_aliases;
+-#[cfg(feature = "bindgen")]
+-use std::default::Default;
+-use std::ffi::OsStr;
+-use std::path::{Path, PathBuf};
+-use std::process::Command;
+-use std::{env, fs};
+-
+-#[cfg(feature = "bindgen")]
+-mod bindgen;
+-
+-pub(crate) fn get_include_path(manifest_dir: &Path) -> PathBuf {
+-    manifest_dir.join("deps").join("aws-lc").join("include")
+-}
+-
+-const AWS_LC_PATH: &str = "deps/aws-lc";
+-
+-#[allow(dead_code)]
+-#[derive(Clone, Copy, PartialEq, Eq)]
+-enum OutputLib {
+-    Crypto,
+-    Ssl,
+-}
+-
+-#[allow(dead_code)]
+-#[derive(Clone, Copy, PartialEq, Eq)]
+-enum OutputLibType {
+-    Static,
+-    Dynamic,
+-}
+-
+-impl OutputLibType {
+-    fn rust_lib_type(&self) -> &str {
+-        match self {
+-            OutputLibType::Static => "static",
+-            OutputLibType::Dynamic => "dylib",
+-        }
+-    }
+-    fn lib_extension(&self) -> &str {
+-        match self {
+-            OutputLibType::Static => "a",
+-            OutputLibType::Dynamic => "so",
+-        }
+-    }
+-}
+-
+-impl OutputLib {
+-    fn filename(&self, libtype: OutputLibType, prefix: Option<&str>) -> String {
+-        format!("lib{}.{}", &self.libname(prefix), libtype.lib_extension())
+-    }
+-
+-    fn libname(&self, prefix: Option<&str>) -> String {
+-        format!(
+-            "{}{}",
+-            if let Some(pfix) = prefix.to_owned() {
+-                pfix
+-            } else {
+-                ""
+-            },
+-            match self {
+-                OutputLib::Crypto => "crypto",
+-                OutputLib::Ssl => "ssl",
+-            }
+-        )
+-    }
+-
+-    fn locate_dir(&self, path: &Path) -> PathBuf {
+-        path.join(Path::new(&format!("build/{}", self.libname(None))))
+-            .join(get_platform_output_path())
+-    }
+-
+-    fn locate_file(&self, path: &Path, libtype: OutputLibType, prefix: Option<&str>) -> PathBuf {
+-        self.locate_dir(path).join(self.filename(libtype, prefix))
+-    }
+-}
+-
+-fn get_platform_output_path() -> PathBuf {
+-    PathBuf::new()
+-}
+-
+-const VERSION: &str = env!("CARGO_PKG_VERSION");
+-
+-fn prefix_string() -> String {
+-    format!("aws_lc_{}", VERSION.to_string().replace('.', "_"))
+-}
+-
+-#[cfg(feature = "internal_generate")]
+-fn target_platform_prefix(name: &str) -> String {
+-    format!(
+-        "{}_{}_{}",
+-        std::env::consts::OS,
+-        std::env::consts::ARCH,
+-        name
+-    )
+-}
+-
+-fn test_command(executable: &OsStr, args: &[&OsStr]) -> bool {
+-    if let Ok(output) = Command::new(executable).args(args).output() {
+-        return output.status.success();
+-    }
+-    false
+-}
+-
+-fn find_cmake_command() -> Option<&'static OsStr> {
+-    if test_command("cmake3".as_ref(), &["--version".as_ref()]) {
+-        Some("cmake3".as_ref())
+-    } else if test_command("cmake".as_ref(), &["--version".as_ref()]) {
+-        Some("cmake".as_ref())
+-    } else {
+-        None
+-    }
+-}
+-
+-fn get_cmake_config() -> cmake::Config {
+-    let pwd = env::current_dir().unwrap();
+-
+-    cmake::Config::new(pwd.join(AWS_LC_PATH))
+-}
+-
+-fn prepare_cmake_build(build_prefix: Option<&str>) -> cmake::Config {
+-    let mut cmake_cfg = get_cmake_config();
+-
+-    let opt_level = env::var("OPT_LEVEL").unwrap_or_else(|_| "0".to_string());
+-    if opt_level.ne("0") {
+-        if opt_level.eq("1") || opt_level.eq("2") {
+-            cmake_cfg.define("CMAKE_BUILD_TYPE", "relwithdebinfo");
+-        } else {
+-            cmake_cfg.define("CMAKE_BUILD_TYPE", "release");
+-        }
+-    }
+-
+-    if let Some(symbol_prefix) = build_prefix {
+-        cmake_cfg.define("BORINGSSL_PREFIX", symbol_prefix);
+-        let pwd = env::current_dir().unwrap();
+-        let include_path = pwd.join(AWS_LC_PATH).join("include");
+-        cmake_cfg.define(
+-            "BORINGSSL_PREFIX_HEADERS",
+-            include_path.display().to_string(),
+-        );
+-    }
+-
+-    // Build flags that minimize our crate size.
+-    cmake_cfg.define("BUILD_TESTING", "OFF");
+-    cmake_cfg.define("BUILD_LIBSSL", "ON");
+-    // Build flags that minimize our dependencies.
+-    cmake_cfg.define("DISABLE_PERL", "ON");
+-    cmake_cfg.define("DISABLE_GO", "ON");
+-
+-    if cfg!(feature = "asan") {
+-        env::set_var("CC", "/usr/bin/clang");
+-        env::set_var("CXX", "/usr/bin/clang++");
+-        env::set_var("ASM", "/usr/bin/clang");
+-
+-        cmake_cfg.define("ASAN", "1");
+-    }
+-
+-    cmake_cfg
+-}
+-
+-fn build_aws_lc() -> PathBuf {
+-    let mut cmake_cfg = prepare_cmake_build(Some(&prefix_string()));
+-
+-    // cmake supports passing multiple arguments to target, but this is broken in the cmake crate
+-    // ssl requires crypto so we can get away with just picking the top-most requried one.
+-    let target = if cfg!(feature = "ssl") {
+-        Some("ssl")
+-    } else {
+-        Some("crypto")
+-    };
+-
+-    cmake_cfg.build_target(target.unwrap()).build()
+-}
+-
+-#[cfg(feature = "bindgen")]
+-fn generate_bindings(manifest_dir: &PathBuf, prefix: &str, bindings_path: &PathBuf) {
+-    let options = bindgen::BindingOptions {
+-        build_prefix: Some(&prefix),
+-        include_ssl: cfg!(feature = "ssl"),
+-        disable_prelude: true,
+-        ..Default::default()
+-    };
+-
+-    let bindings =
+-        bindgen::generate_bindings(&manifest_dir, options).expect("Unable to generate bindings.");
+-
+-    bindings
+-        .write(Box::new(std::fs::File::create(&bindings_path).unwrap()))
+-        .expect("written bindings");
+-}
+-
+-#[cfg(feature = "internal_generate")]
+-fn generate_src_bindings(manifest_dir: &PathBuf, prefix: &str, src_bindings_path: &PathBuf) {
+-    bindgen::generate_bindings(
+-        &manifest_dir,
+-        bindgen::BindingOptions {
+-            build_prefix: Some(&prefix),
+-            include_ssl: false,
+-            ..Default::default()
+-        },
+-    )
+-    .expect("Unable to generate bindings.")
+-    .write_to_file(src_bindings_path.join(format!("{}.rs", target_platform_prefix("crypto"))))
+-    .expect("write bindings");
+-
+-    bindgen::generate_bindings(
+-        &manifest_dir,
+-        bindgen::BindingOptions {
+-            build_prefix: Some(&prefix),
+-            include_ssl: true,
+-            ..Default::default()
+-        },
+-    )
+-    .expect("Unable to generate bindings.")
+-    .write_to_file(src_bindings_path.join(format!("{}.rs", target_platform_prefix("crypto_ssl"))))
+-    .expect("write bindings");
+-}
+-
+-fn main() -> Result<(), String> {
+-    use crate::OutputLib::{Crypto, Ssl};
+-    use crate::OutputLibType::Static;
+-
+-    cfg_aliases! {
+-        linux_x86: { all(not(feature = "bindgen"), target_os = "linux", target_arch = "x86") },
+-        linux_x86_64: { all(not(feature = "bindgen"), target_os = "linux", target_arch = "x86_64") },
+-        linux_aarch64: { all(not(feature = "bindgen"), target_os = "linux", target_arch = "aarch64") },
+-        macos_x86_64: { all(not(feature = "bindgen"), target_os = "macos", target_arch = "x86_64") },
+-        not_pregenerated: { not(any(linux_x86, linux_aarch64, linux_x86_64, macos_x86_64)) },
+-    }
+-
+-    let mut missing_dependency = false;
+-
+-    if let Some(cmake_cmd) = find_cmake_command() {
+-        env::set_var("CMAKE", cmake_cmd);
+-    } else {
+-        eprintln!("Missing dependency: cmake");
+-        missing_dependency = true;
+-    };
+-
+-    if missing_dependency {
+-        panic!("Required build dependency is missing. Halting build.");
+-    }
+-
+-    let manifest_dir = env::current_dir().unwrap();
+-    let manifest_dir = dunce::canonicalize(Path::new(&manifest_dir)).unwrap();
+-    let prefix = prefix_string();
+-
+-    #[cfg(feature = "internal_generate")]
+-    {
+-        let src_bindings_path = Path::new(&manifest_dir).join("src");
+-        generate_src_bindings(&manifest_dir, &prefix, &src_bindings_path);
+-    }
+-
+-    #[cfg(feature = "bindgen")]
+-    {
+-        let gen_bindings_path = Path::new(&env::var("OUT_DIR").unwrap()).join("bindings.rs");
+-        generate_bindings(&manifest_dir, &prefix, &gen_bindings_path);
+-    }
+-
+-    let aws_lc_dir = build_aws_lc();
+-
+-    let libcrypto_file = Crypto.locate_file(&aws_lc_dir, Static, None);
+-    let prefixed_libcrypto_file = Crypto.locate_file(&aws_lc_dir, Static, Some(&prefix));
+-    fs::rename(libcrypto_file, prefixed_libcrypto_file)
+-        .expect("Unexpected error: Library not found");
+-
+-    println!(
+-        "cargo:rustc-link-search=native={}",
+-        Crypto.locate_dir(&aws_lc_dir).display()
+-    );
+-
+-    println!(
+-        "cargo:rustc-link-lib={}={}",
+-        Static.rust_lib_type(),
+-        Crypto.libname(Some(&prefix))
+-    );
+-
+-    if cfg!(feature = "ssl") {
+-        let libssl_file = Ssl.locate_file(&aws_lc_dir, Static, None);
+-        let prefixed_libssl_file = Ssl.locate_file(&aws_lc_dir, Static, Some(&prefix));
+-        fs::rename(libssl_file, prefixed_libssl_file).expect("Unexpected error: Library not found");
+-
+-        println!(
+-            "cargo:rustc-link-search=native={}",
+-            Ssl.locate_dir(&aws_lc_dir).display()
+-        );
+-
+-        println!(
+-            "cargo:rustc-link-lib={}={}",
+-            Static.rust_lib_type(),
+-            Ssl.libname(Some(&prefix))
+-        );
+-    }
+-
+-    println!(
+-        "cargo:include={}",
+-        get_include_path(&manifest_dir).display()
+-    );
+-
+-    println!("cargo:rerun-if-changed=build/");
+-    Ok(())
+-}
+diff --git a/bindings/rust/aws-lc-sys-template/deps/aws-lc/crypto/rust_wrapper.c b/bindings/rust/aws-lc-sys-template/deps/aws-lc/crypto/rust_wrapper.c
+deleted file mode 100644
+index d5419a9a6..000000000
+--- a/bindings/rust/aws-lc-sys-template/deps/aws-lc/crypto/rust_wrapper.c
++++ /dev/null
+@@ -1,28 +0,0 @@
+-/* Copyright (c) 2022, Google Inc.
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+- * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+- * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+- * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+-
+-#include "rust_wrapper.h"
+-
+-
+-int ERR_GET_LIB_RUST(uint32_t packed_error) {
+-  return ERR_GET_LIB(packed_error);
+-}
+-
+-int ERR_GET_REASON_RUST(uint32_t packed_error) {
+-  return ERR_GET_REASON(packed_error);
+-}
+-
+-int ERR_GET_FUNC_RUST(uint32_t packed_error) {
+-  return ERR_GET_FUNC(packed_error);
+-}
+diff --git a/bindings/rust/aws-lc-sys-template/deps/aws-lc/include/rust_wrapper.h b/bindings/rust/aws-lc-sys-template/deps/aws-lc/include/rust_wrapper.h
+deleted file mode 100644
+index b574e6278..000000000
+--- a/bindings/rust/aws-lc-sys-template/deps/aws-lc/include/rust_wrapper.h
++++ /dev/null
+@@ -1,112 +0,0 @@
+-/* Copyright (c) 2022, Google Inc.
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+- * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+- * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+- * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+-
+-// SPDX-License-Identifier: Apache-2.0 OR ISC
+-// Modifications Copyright Amazon.com, Inc. or its affiliates. See GitHub history for details.
+-
+-#ifndef OPENSSL_HEADER_RUST_WRAPPER_H
+-#define OPENSSL_HEADER_RUST_WRAPPER_H
+-
+-#include <openssl/err.h>
+-
+-#if defined(__cplusplus)
+-extern "C" {
+-#endif
+-
+-
+-// The following functions are wrappers over inline functions and macros in
+-// BoringSSL, which bindgen cannot currently correctly bind. These wrappers
+-// ensure changes to the functions remain in lockstep with the Rust versions.
+-int ERR_GET_LIB_RUST(uint32_t packed_error);
+-int ERR_GET_REASON_RUST(uint32_t packed_error);
+-int ERR_GET_FUNC_RUST(uint32_t packed_error);
+-
+-
+-#if defined(__cplusplus)
+-}  // extern C
+-#endif
+-
+-#include "openssl/is_awslc.h"
+-#include "openssl/aes.h"
+-#include "openssl/asn1.h"
+-#include "openssl/asn1_mac.h"
+-#include "openssl/asn1t.h"
+-#include "openssl/base.h"
+-#include "openssl/base64.h"
+-#include "openssl/bio.h"
+-#include "openssl/blake2.h"
+-#include "openssl/blowfish.h"
+-#include "openssl/bn.h"
+-#include "openssl/buf.h"
+-#include "openssl/buffer.h"
+-#include "openssl/bytestring.h"
+-#include "openssl/chacha.h"
+-#include "openssl/cipher.h"
+-#include "openssl/cmac.h"
+-#include "openssl/conf.h"
+-#include "openssl/cpu.h"
+-#include "openssl/crypto.h"
+-#include "openssl/ctrdrbg.h"
+-#include "openssl/curve25519.h"
+-#include "openssl/des.h"
+-#include "openssl/dh.h"
+-#include "openssl/digest.h"
+-#include "openssl/dsa.h"
+-#include "openssl/e_os2.h"
+-#include "openssl/ec.h"
+-#include "openssl/ec_key.h"
+-#include "openssl/ecdh.h"
+-#include "openssl/ecdsa.h"
+-#include "openssl/engine.h"
+-#include "openssl/err.h"
+-#include "openssl/evp.h"
+-#include "openssl/evp_errors.h"
+-#include "openssl/ex_data.h"
+-#include "openssl/hkdf.h"
+-#include "openssl/hmac.h"
+-#include "openssl/hpke.h"
+-#include "openssl/hrss.h"
+-#include "openssl/lhash.h"
+-#include "openssl/md4.h"
+-#include "openssl/md5.h"
+-#include "openssl/mem.h"
+-#include "openssl/obj.h"
+-#include "openssl/obj_mac.h"
+-#include "openssl/objects.h"
+-#include "openssl/opensslconf.h"
+-#include "openssl/opensslv.h"
+-#include "openssl/ossl_typ.h"
+-#include "openssl/pem.h"
+-#include "openssl/pkcs12.h"
+-#include "openssl/pkcs7.h"
+-#include "openssl/pkcs8.h"
+-#include "openssl/poly1305.h"
+-#include "openssl/pool.h"
+-#include "openssl/rand.h"
+-#include "openssl/rc4.h"
+-#include "openssl/ripemd.h"
+-#include "openssl/rsa.h"
+-#include "openssl/safestack.h"
+-#include "openssl/sha.h"
+-#include "openssl/siphash.h"
+-#include "openssl/span.h"
+-#include "openssl/stack.h"
+-#include "openssl/thread.h"
+-#include "openssl/trust_token.h"
+-#include "openssl/type_check.h"
+-#include "openssl/x509.h"
+-#include "openssl/x509_vfy.h"
+-#include "openssl/x509v3.h"
+-
+-#endif  // OPENSSL_HEADER_RUST_WRAPPER_H
+diff --git a/bindings/rust/aws-lc-sys-template/src/lib.rs b/bindings/rust/aws-lc-sys-template/src/lib.rs
+deleted file mode 100644
+index 4c8b3e8c1..000000000
+--- a/bindings/rust/aws-lc-sys-template/src/lib.rs
++++ /dev/null
+@@ -1,82 +0,0 @@
+-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-// SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-use paste::paste;
+-use std::os::raw::{c_long, c_char, c_void};
+-
+-// Warn to use feature generate_bindings if building on a platform where prebuilt-bindings
+-// aren't available
+-#[cfg(all(not(feature = "bindgen"), not_pregenerated))]
+-compile_error!("Prebuilt-bindings aren't available. Turn on feature generate_bindings to build.");
+-
+-#[cfg(all(feature = "generate_bindings", feature = "internal_generate"))]
+-compile_error!(
+-    "internal_generate is only for internal usage and does not work with the generate_bindings feature."
+-);
+-
+-#[allow(unused_macros)]
+-macro_rules! use_bindings {
+-    ($bindings:ident) => {
+-        mod $bindings;
+-        pub use $bindings::*;
+-    };
+-}
+-
+-macro_rules! platform_binding {
+-    ($platform:ident) => {
+-        paste! {
+-            #[cfg(all($platform, not(feature = "ssl")))]
+-            use_bindings!([< $platform _crypto >]);
+-
+-            #[cfg(all($platform, feature = "ssl"))]
+-            use_bindings!([< $platform _crypto_ssl >]);
+-        }
+-    };
+-}
+-
+-platform_binding!(linux_x86);
+-
+-platform_binding!(linux_x86_64);
+-
+-platform_binding!(linux_aarch64);
+-
+-platform_binding!(macos_x86_64);
+-
+-#[cfg(all(feature = "bindgen", not_pregenerated))]
+-mod generated {
+-    #![allow(
+-        unused_imports,
+-        non_camel_case_types,
+-        non_snake_case,
+-        non_upper_case_globals,
+-        improper_ctypes
+-    )]
+-
+-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+-}
+-#[cfg(all(feature = "bindgen", not_pregenerated))]
+-pub use generated::*;
+-
+-#[allow(non_snake_case)]
+-pub fn ERR_GET_LIB(packed_error: u32) -> i32 {
+-    unsafe { ERR_GET_LIB_RUST(packed_error) }
+-}
+-
+-#[allow(non_snake_case)]
+-pub fn ERR_GET_REASON(packed_error: u32) -> i32 {
+-    unsafe { ERR_GET_REASON_RUST(packed_error) }
+-}
+-
+-#[allow(non_snake_case)]
+-pub fn ERR_GET_FUNC(packed_error: u32) -> i32 {
+-    unsafe { ERR_GET_FUNC_RUST(packed_error) }
+-}
+-
+-#[allow(non_snake_case)]
+-pub fn BIO_get_mem_data(b: *mut BIO, pp: *mut *mut c_char) -> c_long {
+-    unsafe { BIO_ctrl(b, BIO_CTRL_INFO, 0, pp as *mut c_void) }
+-}
+-
+-pub fn init() {
+-    unsafe { CRYPTO_library_init() }
+-}
+diff --git a/bindings/rust/aws-lc-sys-template/tests/sanity-tests.rs b/bindings/rust/aws-lc-sys-template/tests/sanity-tests.rs
+deleted file mode 100644
+index 844db6665..000000000
+--- a/bindings/rust/aws-lc-sys-template/tests/sanity-tests.rs
++++ /dev/null
+@@ -1,41 +0,0 @@
+-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-// SPDX-License-Identifier: Apache-2.0 OR ISC
+-use aws_lc_sys;
+-use std::mem::MaybeUninit;
+-
+-use openssl;
+-
+-fn sha1_tester(input: &[u8]) -> [u8; 20] {
+-    let mut hash = MaybeUninit::<[u8; 20]>::uninit();
+-
+-    unsafe {
+-        aws_lc_sys::SHA1(input.as_ptr(), input.len(), hash.as_mut_ptr().cast());
+-        hash.assume_init()
+-    }
+-}
+-
+-fn compare(result: &[u8], expected_result: &[u8]) {
+-    println!("Comparing: {:?} to {:?}", result, expected_result);
+-    assert_eq!(result, expected_result);
+-}
+-
+-#[test]
+-fn sha1() {
+-    let input1 = b"hello";
+-    let result1 = sha1_tester(input1);
+-    let openssl_result1 = openssl::sha::sha1(input1);
+-    compare(&result1, &openssl_result1);
+-}
+-
+-#[test]
+-fn error_checking() {
+-    unsafe {
+-        let error = aws_lc_sys::ERR_get_error();
+-        let err_lib = aws_lc_sys::ERR_GET_LIB(error);
+-        let err_reason = aws_lc_sys::ERR_GET_REASON(error);
+-        let err_func = aws_lc_sys::ERR_GET_FUNC(error);
+-        assert_eq!(err_lib, 0);
+-        assert_eq!(err_reason, 0);
+-        assert_eq!(err_func, 0);
+-    }
+-}
+diff --git a/bindings/rust/generate/_collect_symbols_build.sh b/bindings/rust/generate/_collect_symbols_build.sh
+deleted file mode 100755
+index 79b26da92..000000000
+--- a/bindings/rust/generate/_collect_symbols_build.sh
++++ /dev/null
+@@ -1,46 +0,0 @@
+-#!/usr/bin/env bash
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-set -e
+-
+-function usage {
+-  echo "Usage: $(basename "${0}")"
+-}
+-
+-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+-AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+-TMP_DIR="${AWS_LC_DIR}"/bindings/rust/tmp
+-BUILD_DIR="$(mktemp -d)"
+-SYMBOLS_TEMP_FILE="${BUILD_DIR}"/symbols-temp.txt
+-SYMBOLS_COLLECT_FILE="${TMP_DIR}"/symbols-collect.txt
+-
+-if [[ ! -d ${TMP_DIR} ]]; then
+-  echo "$(basename "$0")" Sanity Check Failed
+-  exit 1
+-fi
+-
+-echo Building in: "${BUILD_DIR}"
+-mkdir -p "${BUILD_DIR}"
+-pushd "${BUILD_DIR}"
+-
+-if [[ $(type -P "cmake3") ]]; then
+-  CMAKE=cmake3
+-else
+-  CMAKE=cmake
+-fi
+-
+-go env -w GOPROXY=direct
+-${CMAKE} "${AWS_LC_DIR}" -DDISABLE_GO=ON -DDISABLE_PERL=ON -DBUILD_LIBSSL=ON
+-${CMAKE} --build . --target clean
+-${CMAKE} --build . --target crypto ssl
+-
+-pushd "${AWS_LC_DIR}"
+-go run ./util/read_symbols.go -out "${SYMBOLS_TEMP_FILE}" "${BUILD_DIR}"/crypto/libcrypto.a "${BUILD_DIR}"/ssl/libssl.a
+-popd
+-
+-cat "${SYMBOLS_TEMP_FILE}" >> "${SYMBOLS_COLLECT_FILE}"
+-
+-popd
+-echo DONE
+-
+diff --git a/bindings/rust/generate/_collect_symbols_build_fips.sh b/bindings/rust/generate/_collect_symbols_build_fips.sh
+deleted file mode 100755
+index fb9c64854..000000000
+--- a/bindings/rust/generate/_collect_symbols_build_fips.sh
++++ /dev/null
+@@ -1,48 +0,0 @@
+-#!/usr/bin/env bash
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-set -e
+-
+-function usage {
+-  echo "Usage: $(basename "${0}")"
+-}
+-
+-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+-AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+-TMP_DIR="${AWS_LC_DIR}"/bindings/rust/tmp
+-AWS_LC_FIPS_DIR="${TMP_DIR}"/aws-lc
+-BUILD_DIR="$(mktemp -d)"
+-SYMBOLS_TEMP_FILE="${BUILD_DIR}"/symbols-temp.txt
+-SYMBOLS_COLLECT_FILE="${TMP_DIR}"/symbols-collect.txt
+-
+-if [[ ! -d ${TMP_DIR} ]]; then
+-  echo "$(basename "$0")" Sanity Check Failed
+-  exit 1
+-fi
+-
+-echo Building in: "${BUILD_DIR}"
+-mkdir -p "${BUILD_DIR}"
+-pushd "${BUILD_DIR}"
+-
+-if [[ $(type -P "cmake3") ]]; then
+-  CMAKE=cmake3
+-else
+-  CMAKE=cmake
+-fi
+-
+-go env -w GOPROXY=direct
+-${CMAKE} "${AWS_LC_FIPS_DIR}" -DFIPS=1 -DBUILD_LIBSSL=ON
+-${CMAKE} --build . --target clean 
+-${CMAKE} --build . --target crypto ssl
+-
+-pushd "${AWS_LC_FIPS_DIR}"
+-go run ./util/read_symbols.go -out "${SYMBOLS_TEMP_FILE}" "${BUILD_DIR}"/crypto/libcrypto.a "${BUILD_DIR}"/ssl/libssl.a
+-popd
+-
+-cat "${SYMBOLS_TEMP_FILE}" >> "${SYMBOLS_COLLECT_FILE}"
+-
+-popd
+-echo DONE
+-
+-
+diff --git a/bindings/rust/generate/_crate_test_build.sh b/bindings/rust/generate/_crate_test_build.sh
+deleted file mode 100755
+index 5b9a18bb3..000000000
+--- a/bindings/rust/generate/_crate_test_build.sh
++++ /dev/null
+@@ -1,20 +0,0 @@
+-#!/usr/bin/env bash
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-set -e -x
+-
+-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+-AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+-TMP_DIR="${AWS_LC_DIR}"/bindings/rust/tmp
+-CRATE_DIR="${TMP_DIR}/$@"
+-
+-pushd "${CRATE_DIR}"
+-
+-export GOPROXY=direct
+-
+-cargo clean
+-cargo test --release
+-cargo clean
+-
+-popd
+diff --git a/bindings/rust/generate/_generate_all_bindings_flavors.sh b/bindings/rust/generate/_generate_all_bindings_flavors.sh
+deleted file mode 100755
+index 78e691015..000000000
+--- a/bindings/rust/generate/_generate_all_bindings_flavors.sh
++++ /dev/null
+@@ -1,55 +0,0 @@
+-#!/usr/bin/env bash
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-set -e
+-
+-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+-AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+-
+-if [[ "${GENERATE_FIPS}" -eq 0 ]]; then
+-
+-   ## macos x86_64 bindings
+-  if [[ ! "${OSTYPE}" == "darwin"* ]]; then
+-    echo This script is not running on MacOS.
+-    if [[ ${IGNORE_MACOS} -eq 0 ]]; then
+-      echo Aborting. Use '-m' to ignore.
+-      echo
+-      exit 1
+-    else
+-      echo Ignoring non-MacOS. Bindings will not be generated for Mac.
+-      echo
+-    fi
+-  else
+-    "${SCRIPT_DIR}"/_generate_bindings.sh ${CRATE_NAME}
+-  fi
+-
+-  pushd "${AWS_LC_DIR}"
+-
+-  ## TODO: Find a way to pre-generate bindings for macos-aarch64 on the fly.
+-
+-  ##
+-  ## These docker image can be built from Dockerfiles under: <AWS-LC-DIR>/tests/ci/docker_images/rust
+-  ##
+-
+-  ## 386 build
+-  docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/386 rust:linux-386 /bin/bash "${SCRIPT_DIR}"/_generate_bindings.sh ${CRATE_NAME}
+-  ## linux x86_64 build
+-  docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/amd64 rust:linux-x86_64 /bin/bash "${SCRIPT_DIR}"/_generate_bindings.sh ${CRATE_NAME}
+-  ## linux aarch64 build
+-  docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/arm64 rust:linux-arm64 /bin/bash "${SCRIPT_DIR}"/_generate_bindings.sh ${CRATE_NAME}
+-
+-  popd
+-else
+-
+-  pushd "${AWS_LC_DIR}"
+-
+-  ## linux x86_64 build
+-  docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/amd64 rust:linux-x86_64 /bin/bash "${SCRIPT_DIR}"/_generate_bindings.sh ${CRATE_NAME}
+-  ## linux aarch64 build
+-  docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/arm64 rust:linux-arm64 /bin/bash "${SCRIPT_DIR}"/_generate_bindings.sh ${CRATE_NAME}
+-
+-  popd
+-fi
+-
+-
+diff --git a/bindings/rust/generate/_generate_bindings.sh b/bindings/rust/generate/_generate_bindings.sh
+deleted file mode 100755
+index b816044ed..000000000
+--- a/bindings/rust/generate/_generate_bindings.sh
++++ /dev/null
+@@ -1,22 +0,0 @@
+-#!/usr/bin/env bash
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-set -e -x
+-
+-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+-AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+-TMP_DIR="${AWS_LC_DIR}"/bindings/rust/tmp
+-CRATE_DIR="${TMP_DIR}/$@"
+-
+-pushd "${CRATE_DIR}"
+-
+-export GOPROXY=direct
+-
+-cargo clean
+-# internal_generate pre-generates the bindings for a specific platform. This feature 
+-# is only intended for internal use and is removed prior to crate publishing.
+-cargo build --features internal_generate
+-cargo clean
+-
+-popd
+diff --git a/bindings/rust/generate/_generation_tools.sh b/bindings/rust/generate/_generation_tools.sh
+deleted file mode 100644
+index 33108cc92..000000000
+--- a/bindings/rust/generate/_generation_tools.sh
++++ /dev/null
+@@ -1,183 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-function usage {
+-  echo
+-  echo "Usage: $(basename "${0}") [-d] [-b] [-u] [-m] [-s]"
+-  echo
+-}
+-
+-function generation_options {
+-	while getopts "dbums" option; do
+-	  case ${option} in
+-	  d )
+-	    IGNORE_DIRTY=1
+-	    ;;
+-	  b )
+-	    IGNORE_BRANCH=1
+-	    ;;
+-	  u )
+-	    IGNORE_UPSTREAM=1
+-	    ;;
+-	  m )
+-	    IGNORE_MACOS=1
+-	    ;;
+-	  s )
+-	    SKIP_TEST=1
+-	    ;;
+-	  * )
+-	    echo Invalid argument: -"${?}"
+-	    usage
+-	    exit 1
+-	    ;;
+-	  esac
+-	done
+-}
+-
+-function check_workspace {
+-  if [[ $(git status --porcelain | wc -l) -gt 0 ]]; then
+-	echo Workspace is dirty.
+-	if [[ ${IGNORE_DIRTY} -eq 0 ]]; then
+-	  echo Aborting. Use '-d' to ignore.
+-	  echo
+-	  exit 1
+-	else
+-	  echo Ignoring dirty workspace.
+-	  echo
+-	fi
+-  fi
+-}
+-
+-function check_branch {
+-  CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+-  if [ "${CURRENT_BRANCH}" != "main" ]
+-  then
+-    echo Branch is not main.
+-    if [[ ${IGNORE_BRANCH} -eq 0 ]]; then
+-      echo Aborting. Use '-b' to ignore.
+-      echo
+-      exit 1
+-    else
+-      echo Ignoring wrong branch.
+-      echo
+-    fi
+-  fi
+-  git fetch
+-  LOCAL_HASH=$(git rev-parse HEAD)
+-  UPSTREAM_HASH=$(git rev-parse "${CURRENT_BRANCH}"'@{upstream}')
+-
+-  if [[ ! "${LOCAL_HASH}" == "${UPSTREAM_HASH}" ]]; then
+-    echo "${CURRENT_BRANCH}" not up to date with upstream.
+-    if [[ ${IGNORE_UPSTREAM} -eq 0 ]]; then
+-      echo Aborting. Use '-u' to ignore.
+-      echo
+-      exit 1
+-    else
+-      echo Ignoring branch not up to date.
+-      echo
+-    fi
+-  fi
+-}
+-
+-function check_running_on_macos {
+-  if [[ ! "${OSTYPE}" == "darwin"* ]]; then
+-    echo This script is not running on MacOS.
+-    if [[ ${IGNORE_MACOS} -eq 0 ]]; then
+-      echo Aborting. Use '-m' to ignore.
+-      echo
+-      exit 1
+-    else
+-      echo Ignoring non-MacOS. Crate will not be tested and bindings will not be generated for Mac.
+-      echo
+-    fi
+-  fi
+-}
+-
+-function create_symbol_file {
+-  if [[ ! -r "${SYMBOLS_FILE}" ]]; then
+-    echo Symbol file not found
+-    echo Performing build for supported platforms.
+-    source "${SCRIPT_DIR}"/_run_supported_symbol_builds.sh
+-  fi
+-
+-  if [[ ! -r "${SYMBOLS_FILE}" ]]; then
+-    echo Symbol file not found after builds performed.
+-    exit 1
+-  else
+-    echo Symbol file generation complete
+-  fi
+-}
+-
+-function create_prefix_headers {
+-  if [[ ! -r "${PREFIX_HEADERS_FILE}" || "${SYMBOLS_FILE}" -nt "${PREFIX_HEADERS_FILE}" ]]; then
+-    echo Prefix headers not up to date
+-    create_symbol_file
+-
+-    echo Generating prefix headers
+-    go run "${AWS_LC_DIR}"/util/make_prefix_headers.go -out "${CRATE_AWS_LC_DIR}"/include "${SYMBOLS_FILE}"
+-  fi
+-
+-  if [[ ! -r "${PREFIX_HEADERS_FILE}" || "${SYMBOLS_FILE}" -nt "${PREFIX_HEADERS_FILE}" ]]; then
+-    echo Prefix headers not up to date after generation.
+-    exit 1
+-  else
+-    echo Prefix headers generation complete
+-  fi
+-}
+-
+-function parse_version {
+-  local VERSION="${1}"
+-  echo Version: "${VERSION}"
+-  echo "${VERSION}" | egrep -q '^[0-9]+\.[0-9]+\.[0-9]+$'
+-}
+-
+-function determine_generate_version {
+-  PUBLISHED_CRATE_VERSION=$(cargo search "${CRATE_NAME}" | egrep "^${CRATE_NAME} " | sed -e 's/.*"\(.*\)".*/\1/')
+-
+-  source "${SCRIPT_DIR}"/_generation_tools.sh
+-
+-  if ! parse_version "${PUBLISHED_CRATE_VERSION}"; then
+-    echo Could not find current version of published crate.
+-    exit 1
+-  fi
+-
+-  while [ -z "${CRATE_VERSION}" ]; do
+-    echo
+-    echo Current published version of ${CRATE_NAME}: ${PUBLISHED_CRATE_VERSION}
+-    read -p "Enter version for crate generation: " NEW_VERSION
+-    if parse_version "${NEW_VERSION}"; then
+-      if perl -e "exit !(version->parse('${NEW_VERSION}')>version->parse('${PUBLISHED_CRATE_VERSION}'))"; then
+-        CRATE_VERSION="${NEW_VERSION}"
+-      else
+-        echo New version must come after: ${PUBLISHED_CRATE_VERSION}
+-      fi
+-    else
+-      echo Could not parse version: ${NEW_VERSION}
+-    fi
+-  done
+-
+-  echo
+-  echo Generating crate with version: ${CRATE_VERSION}
+-}
+-
+-function public_api_diff {
+-  pushd "${CRATE_DIR}"
+-  cargo build --features internal_generate
+-  if ! cargo public-api diff --deny changed --deny removed "${PUBLISHED_CRATE_VERSION}"; then
+-    echo
+-    echo Version changing from: ${PUBLISHED_CRATE_VERSION} to ${CRATE_VERSION}
+-    prompt_yes_no "API changes found.  Continue with crate generation?"
+-  fi
+-  popd
+-}
+-
+-function prompt_yes_no {
+-  while true; do
+-    read -p "$1 (y/n): " yn
+-    case $yn in
+-      [Yy]* ) break;;
+-      [Nn]* ) exit 1;;
+-      * ) echo "Please answer (y)es or (n)o.";;
+-    esac
+-  done
+-}
+diff --git a/bindings/rust/generate/_run_supported_symbol_builds.sh b/bindings/rust/generate/_run_supported_symbol_builds.sh
+deleted file mode 100755
+index 5b34b2004..000000000
+--- a/bindings/rust/generate/_run_supported_symbol_builds.sh
++++ /dev/null
+@@ -1,39 +0,0 @@
+-#!/usr/bin/env bash
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-set -e
+-
+-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+-AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+-TMP_DIR="${AWS_LC_DIR}"/bindings/rust/tmp
+-SYMBOLS_COLLECT_FILE="${TMP_DIR}"/symbols-collect.txt
+-SYMBOLS_FILE="${TMP_DIR}"/symbols.txt
+-
+-rm -rf "${TMP_DIR}"/BUILD-*
+-
+-pushd "${AWS_LC_DIR}"
+-
+-##
+-## These docker image can be built from Dockerfiles under: <AWS-LC-DIR>/tests/ci/docker_images/rust
+-##
+-if [[ "${GENERATE_FIPS}" -eq 0 ]]; then
+-	## 386 build
+-	docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/386 rust:linux-386 /bin/bash "${SCRIPT_DIR}"/_collect_symbols_build.sh
+-	## x86_64 build
+-	docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/amd64 rust:linux-x86_64 /bin/bash "${SCRIPT_DIR}"/_collect_symbols_build.sh
+-	## arm64 build
+-	docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/arm64 rust:linux-arm64 /bin/bash "${SCRIPT_DIR}"/_collect_symbols_build.sh
+-
+-	sort "${SYMBOLS_COLLECT_FILE}" | uniq | grep -v "^_\?bignum_" | grep -v "pqcrystals" > "${SYMBOLS_FILE}"
+-else
+-	## x86_64 build
+-	docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/amd64 rust:linux-x86_64 /bin/bash "${SCRIPT_DIR}"/_collect_symbols_build_fips.sh
+-	## arm64 build
+-	docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/arm64 rust:linux-arm64 /bin/bash "${SCRIPT_DIR}"/_collect_symbols_build_fips.sh
+-
+-	# OPENSSL_armcap_P symbol needs to be removed for the FIPS prefix build to work on ARM.
+-	sort "${SYMBOLS_COLLECT_FILE}" | uniq | grep -v "^_\?bignum_" | grep -v "pqcrystals" | grep -v "OPENSSL_armcap_P" > "${SYMBOLS_FILE}"
+-fi
+-
+-popd
+diff --git a/bindings/rust/generate/_test_supported_builds.sh b/bindings/rust/generate/_test_supported_builds.sh
+deleted file mode 100755
+index 8845e82ef..000000000
+--- a/bindings/rust/generate/_test_supported_builds.sh
++++ /dev/null
+@@ -1,49 +0,0 @@
+-#!/usr/bin/env bash
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-set -e
+-
+-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+-AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+-
+-if [[ "${GENERATE_FIPS}" -eq 0 ]]; then
+-  CRATE_NAME="aws-lc-sys"
+-
+-  ### Test crate on Mac
+-  if [[ ! "${OSTYPE}" == "darwin"* ]]; then
+-    echo This script is not running on MacOS.
+-    if [[ ${IGNORE_MACOS} -eq 0 ]]; then
+-      echo Aborting. Use '-m' to ignore.
+-      echo
+-      exit 1
+-    else
+-      echo Ignoring non-MacOS. Crate will not be tested for Mac.
+-      echo
+-    fi
+-  else
+-    "${SCRIPT_DIR}"/_crate_test_build.sh ${CRATE_NAME}
+-  fi
+-
+-  pushd "${AWS_LC_DIR}"
+-
+-  ## 386 test
+-  docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/386 rust:linux-386 /bin/bash "${SCRIPT_DIR}"/_crate_test_build.sh ${CRATE_NAME}
+-  ## x86_64 test
+-  docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/amd64 rust:linux-x86_64 /bin/bash "${SCRIPT_DIR}"/_crate_test_build.sh ${CRATE_NAME}
+-  ## arm64 test
+-  docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/arm64 rust:linux-arm64 /bin/bash "${SCRIPT_DIR}"/_crate_test_build.sh ${CRATE_NAME}
+-
+-  popd
+-else
+-  CRATE_NAME="aws-lc-fips-sys"
+-
+-  pushd "${AWS_LC_DIR}"
+-
+-  ## x86_64 test
+-  docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/amd64 rust:linux-x86_64 /bin/bash "${SCRIPT_DIR}"/_crate_test_build.sh ${CRATE_NAME}
+-  ## arm64 test
+-  docker run -v "$(pwd)":"$(pwd)" -w "$(pwd)" --rm --platform linux/arm64 rust:linux-arm64 /bin/bash "${SCRIPT_DIR}"/_crate_test_build.sh ${CRATE_NAME}
+-
+-  popd
+-fi
+diff --git a/bindings/rust/generate/generate-fips.sh b/bindings/rust/generate/generate-fips.sh
+deleted file mode 100755
+index 7c0838e4c..000000000
+--- a/bindings/rust/generate/generate-fips.sh
++++ /dev/null
+@@ -1,124 +0,0 @@
+-#!/usr/bin/env bash
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-set -e
+-
+-IGNORE_DIRTY=0
+-IGNORE_BRANCH=0
+-IGNORE_UPSTREAM=0
+-IGNORE_MACOS=0
+-SKIP_TEST=0
+-GENERATE_FIPS=1
+-DEFAULT_GIT_CLONE_URL="https://github.com/awslabs/aws-lc.git"
+-DEFAULT_GIT_BRANCH="fips-2022-11-02"
+-AWS_LC_FIPS_GIT_CLONE_URL=${AWS_LC_FIPS_GIT_CLONE_URL:-${DEFAULT_GIT_CLONE_URL}}
+-AWS_LC_FIPS_GIT_BRANCH=${AWS_LC_FIPS_GIT_BRANCH:-${DEFAULT_GIT_BRANCH}}
+-CRATE_NAME="aws-lc-fips-sys"
+-CRATE_VERSION="" # User prompted for value if empty
+-
+-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+-AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+-CRATE_TEMPLATE_DIR="${AWS_LC_DIR}"/bindings/rust/aws-lc-fips-sys-template
+-TMP_DIR="${AWS_LC_DIR}"/bindings/rust/tmp
+-AWS_LC_FIPS_DIR="${TMP_DIR}"/aws-lc
+-SYMBOLS_FILE="${TMP_DIR}"/symbols.txt
+-CRATE_DIR="${TMP_DIR}"/aws-lc-fips-sys
+-COMPLETION_MARKER="${CRATE_DIR}"/.generation_complete
+-CRATE_AWS_LC_DIR="${CRATE_DIR}"/deps/aws-lc
+-PREFIX_HEADERS_FILE="${CRATE_AWS_LC_DIR}"/include/boringssl_prefix_symbols.h
+-
+-source "${SCRIPT_DIR}"/_generation_tools.sh
+-
+-# Clone the FIPS branch in local.
+-function clone_fips_branch {
+-  echo "Cloning from: ${AWS_LC_FIPS_GIT_CLONE_URL}:${AWS_LC_FIPS_GIT_BRANCH}"
+-  if [[ "${AWS_LC_FIPS_GIT_CLONE_URL}" != "${DEFAULT_GIT_CLONE_URL}" || "${AWS_LC_FIPS_GIT_BRANCH}" != "${DEFAULT_GIT_BRANCH}" ]]; then
+-    prompt_yes_no "Non-default repository URL or branch, Continue?"
+-  fi
+-  git clone -b "${AWS_LC_FIPS_GIT_BRANCH}" --depth 1 --single-branch "${AWS_LC_FIPS_GIT_CLONE_URL}" "${AWS_LC_FIPS_DIR}"
+-}
+-
+-function prepare_crate_dir {
+-  echo Preparing crate directory: "${CRATE_DIR}"
+-  # Removes completion marker and any other file remaining from a previous crate generation
+-  rm -rf "${CRATE_DIR}"
+-
+-  mkdir -p "${CRATE_DIR}"
+-  mkdir -p "${CRATE_AWS_LC_DIR}"/
+-
+-  cp -r "${CRATE_TEMPLATE_DIR}"/* "${CRATE_DIR}"/
+-  perl -pi -e "s/__AWS_LC_FIPS_SYS_VERSION__/${CRATE_VERSION}/g" "${CRATE_DIR}"/Cargo.toml
+-  perl -pi -e "s/__AWS_LC_COMMIT_HASH__/${AWS_LC_COMMIT_HASH}/g" "${CRATE_DIR}"/Cargo.toml
+-
+-  cp -r "${AWS_LC_FIPS_DIR}"/crypto  \
+-        "${AWS_LC_FIPS_DIR}"/ssl  \
+-        "${AWS_LC_FIPS_DIR}"/include \
+-        "${AWS_LC_FIPS_DIR}"/tool \
+-        "${AWS_LC_FIPS_DIR}"/CMakeLists.txt \
+-        "${AWS_LC_FIPS_DIR}"/LICENSE \
+-        "${AWS_LC_FIPS_DIR}"/sources.cmake \
+-        "${AWS_LC_FIPS_DIR}"/go.mod \
+-        "${AWS_LC_FIPS_DIR}"/go.sum \
+-        "${CRATE_AWS_LC_DIR}"/
+-
+-  cp "${AWS_LC_FIPS_DIR}"/LICENSE  "${CRATE_AWS_LC_DIR}"/
+-  cp "${AWS_LC_FIPS_DIR}"/LICENSE  "${CRATE_DIR}"/
+-
+-  mkdir -p "${CRATE_AWS_LC_DIR}"/util
+-  cp -r "${AWS_LC_FIPS_DIR}"/util/fipstools \
+-        "${AWS_LC_FIPS_DIR}"/util/godeps.go \
+-        "${AWS_LC_FIPS_DIR}"/util/ar \
+-        "${CRATE_AWS_LC_DIR}"/util
+-
+-  mkdir -p "${CRATE_AWS_LC_DIR}"/third_party/
+-  cp -r  "${AWS_LC_FIPS_DIR}"/third_party/googletest \
+-          "${AWS_LC_FIPS_DIR}"/third_party/s2n-bignum \
+-          "${AWS_LC_FIPS_DIR}"/third_party/fiat \
+-          "${AWS_LC_FIPS_DIR}"/third_party/jitterentropy \
+-          "${CRATE_AWS_LC_DIR}"/third_party/
+-
+-  mkdir -p  "${CRATE_AWS_LC_DIR}"/tests/compiler_features_tests
+-  cp "${AWS_LC_FIPS_DIR}"/tests/compiler_features_tests/*.c "${CRATE_AWS_LC_DIR}"/tests/compiler_features_tests
+-}
+-
+-generation_options "$@"
+-shift $((OPTIND - 1))
+-
+-if [[ ! -d ${AWS_LC_DIR} ]]; then
+-  echo "$(basename "${0}")" Sanity Check Failed
+-  exit 1
+-fi
+-
+-pushd "${AWS_LC_DIR}"
+-# The logic for generating/publishing the FIPS crate resides on the main branch.
+-check_branch
+-check_workspace
+-mkdir -p "${TMP_DIR}"
+-
+-determine_generate_version
+-
+-# Crate preparation.
+-if [[ ! -r "${SYMBOLS_FILE}" || ! -d "${AWS_LC_FIPS_DIR}" ]]; then
+-  # Symbols file must be consistent with AWS-LC source directory
+-  rm -f "${SYMBOLS_FILE}"
+-  rm -rf "${AWS_LC_FIPS_DIR}"
+-  clone_fips_branch
+-fi
+-AWS_LC_COMMIT_HASH=$(git -C ${AWS_LC_FIPS_DIR} log -n 1 --pretty=format:"%H" HEAD)
+-
+-prepare_crate_dir
+-create_prefix_headers
+-
+-public_api_diff
+-
+-source "${SCRIPT_DIR}"/_generate_all_bindings_flavors.sh
+-
+-# Crate testing.
+-if [[ ${SKIP_TEST} -eq 1 ]]; then
+-  echo Aborting. Crate generated but not tested.
+-  exit 1
+-fi
+-source "${SCRIPT_DIR}"/_test_supported_builds.sh
+-
+-touch "${COMPLETION_MARKER}"
+diff --git a/bindings/rust/generate/generate.sh b/bindings/rust/generate/generate.sh
+deleted file mode 100755
+index 87114434a..000000000
+--- a/bindings/rust/generate/generate.sh
++++ /dev/null
+@@ -1,118 +0,0 @@
+-#!/usr/bin/env bash
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-set -e
+-
+-IGNORE_DIRTY=0
+-IGNORE_BRANCH=0
+-IGNORE_UPSTREAM=0
+-IGNORE_MACOS=0
+-SKIP_TEST=0
+-GENERATE_FIPS=0
+-CRATE_NAME="aws-lc-sys"
+-CRATE_VERSION="" # User prompted for version when empty
+-DEFAULT_GIT_CLONE_URL="https://github.com/awslabs/aws-lc.git"
+-DEFAULT_GIT_BRANCH="main"
+-AWS_LC_GIT_CLONE_URL=${AWS_LC_GIT_CLONE_URL:-${DEFAULT_GIT_CLONE_URL}}
+-AWS_LC_GIT_BRANCH=${AWS_LC_GIT_BRANCH:-${DEFAULT_GIT_BRANCH}}
+-
+-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+-AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+-CRATE_TEMPLATE_DIR="${AWS_LC_DIR}"/bindings/rust/aws-lc-sys-template
+-TMP_DIR="${AWS_LC_DIR}"/bindings/rust/tmp
+-AWS_LC_SRC_DIR="${TMP_DIR}"/aws-lc
+-SYMBOLS_FILE="${TMP_DIR}"/symbols.txt
+-CRATE_DIR="${TMP_DIR}"/aws-lc-sys
+-COMPLETION_MARKER="${CRATE_DIR}"/.generation_complete
+-CRATE_AWS_LC_DIR="${CRATE_DIR}"/deps/aws-lc
+-PREFIX_HEADERS_FILE="${CRATE_AWS_LC_DIR}"/include/boringssl_prefix_symbols.h
+-
+-source "${SCRIPT_DIR}"/_generation_tools.sh
+-
+-# Clone the main branch in local.
+-function clone_main_branch {
+-  echo "Cloning from: ${AWS_LC_GIT_CLONE_URL}:${AWS_LC_GIT_BRANCH}"
+-  if [[ "${AWS_LC_GIT_CLONE_URL}" != "${DEFAULT_GIT_CLONE_URL}" || "${AWS_LC_GIT_BRANCH}" != "${DEFAULT_GIT_BRANCH}" ]]; then
+-    prompt_yes_no "Non-default repository URL or branch, Continue?"
+-  fi
+-  git clone -b "${AWS_LC_GIT_BRANCH}" --depth 1 --single-branch "${AWS_LC_GIT_CLONE_URL}" "${AWS_LC_SRC_DIR}"
+-}
+-
+-function prepare_crate_dir {
+-  echo Preparing crate directory: "${CRATE_DIR}"
+-  # Removes completion marker and any other file remaining from a previous crate generation
+-  rm -rf "${CRATE_DIR}"
+-
+-  mkdir -p "${CRATE_DIR}"
+-  mkdir -p "${CRATE_AWS_LC_DIR}"/
+-
+-  cp -r "${CRATE_TEMPLATE_DIR}"/* "${CRATE_DIR}"/
+-  perl -pi -e "s/__AWS_LC_SYS_VERSION__/${CRATE_VERSION}/g" "${CRATE_DIR}"/Cargo.toml
+-  perl -pi -e "s/__AWS_LC_COMMIT_HASH__/${AWS_LC_COMMIT_HASH}/g" "${CRATE_DIR}"/Cargo.toml
+-
+-  cp -r "${AWS_LC_SRC_DIR}"/crypto  \
+-        "${AWS_LC_SRC_DIR}"/ssl \
+-        "${AWS_LC_SRC_DIR}"/generated-src \
+-        "${AWS_LC_SRC_DIR}"/include \
+-        "${AWS_LC_SRC_DIR}"/tool \
+-        "${AWS_LC_SRC_DIR}"/CMakeLists.txt \
+-        "${AWS_LC_SRC_DIR}"/LICENSE \
+-        "${AWS_LC_SRC_DIR}"/sources.cmake \
+-        "${CRATE_AWS_LC_DIR}"/
+-
+-  rm "${CRATE_AWS_LC_DIR}"/generated-src/crypto_test_data.cc
+-
+-  cp "${AWS_LC_SRC_DIR}"/LICENSE  "${CRATE_AWS_LC_DIR}"/
+-  cp "${AWS_LC_SRC_DIR}"/LICENSE  "${CRATE_DIR}"/
+-
+-  mkdir -p "${CRATE_AWS_LC_DIR}"/util
+-  cp -r  "${AWS_LC_SRC_DIR}"/util/fipstools "${CRATE_AWS_LC_DIR}"/util
+-
+-  mkdir -p "${CRATE_AWS_LC_DIR}"/third_party/
+-  cp -r  "${AWS_LC_SRC_DIR}"/third_party/googletest "${AWS_LC_SRC_DIR}"/third_party/s2n-bignum "${AWS_LC_SRC_DIR}"/third_party/fiat "${CRATE_AWS_LC_DIR}"/third_party/
+-
+-  mkdir -p  "${CRATE_AWS_LC_DIR}"/tests/compiler_features_tests
+-  cp "${AWS_LC_SRC_DIR}"/tests/compiler_features_tests/*.c "${CRATE_AWS_LC_DIR}"/tests/compiler_features_tests
+-}
+-
+-generation_options "$@"
+-shift $((OPTIND - 1))
+-
+-if [[ ! -d ${AWS_LC_DIR} ]]; then
+-  echo "$(basename "${0}")" Sanity Check Failed
+-  exit 1
+-fi
+-
+-pushd "${AWS_LC_DIR}"
+-check_workspace
+-check_branch
+-check_running_on_macos
+-mkdir -p "${TMP_DIR}"
+-
+-determine_generate_version
+-
+-# Crate preparation.
+-if [[ ! -r "${SYMBOLS_FILE}" || ! -d "${AWS_LC_SRC_DIR}" ]]; then
+-  # Symbols file must be consistent with AWS-LC source directory
+-  rm -f "${SYMBOLS_FILE}"
+-  rm -rf "${AWS_LC_SRC_DIR}"
+-  clone_main_branch
+-fi
+-AWS_LC_COMMIT_HASH=$(git -C ${AWS_LC_SRC_DIR} log -n 1 --pretty=format:"%H" HEAD)
+-
+-prepare_crate_dir
+-create_prefix_headers
+-
+-public_api_diff
+-
+-source "${SCRIPT_DIR}"/_generate_all_bindings_flavors.sh
+-
+-# Crate testing.
+-if [[ ${SKIP_TEST} -eq 1 ]]; then
+-  echo Aborting. Crate generated but not tested.
+-  exit 1
+-fi
+-source "${SCRIPT_DIR}"/_test_supported_builds.sh
+-
+-touch "${COMPLETION_MARKER}"
+diff --git a/bindings/rust/publish/_prepublish_checks.sh b/bindings/rust/publish/_prepublish_checks.sh
+deleted file mode 100755
+index 8337df900..000000000
+--- a/bindings/rust/publish/_prepublish_checks.sh
++++ /dev/null
+@@ -1,23 +0,0 @@
+-#!/usr/bin/env bash
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-set -e -x
+-
+-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+-AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+-TMP_DIR="${AWS_LC_DIR}"/bindings/rust/tmp
+-CRATE_DIR="${TMP_DIR}"/"$@"
+-
+-pushd "${CRATE_DIR}"
+-
+-export GOPROXY=direct
+-
+-cargo clean
+-cargo clippy --fix --allow-no-vcs
+-cargo fmt
+-cargo test # sanity check
+-cargo package --no-verify # checks if published package will build.
+-cargo clean
+-
+-popd
+\ No newline at end of file
+diff --git a/bindings/rust/publish/_publish_tools.sh b/bindings/rust/publish/_publish_tools.sh
+deleted file mode 100644
+index edbcf3ebe..000000000
+--- a/bindings/rust/publish/_publish_tools.sh
++++ /dev/null
+@@ -1,57 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-function publish_options {
+-	while getopts "d:sp" option; do
+-	  case ${option} in
+-	  p )
+-	    PUBLISH=1
+-	    ;;
+-	  * )
+-	    echo Invalid argument: -"${?}"
+-	    usage
+-	    exit 1
+-	    ;;
+-	  esac
+-	done
+-}
+-
+-# Remove the internal_generation feature for bindings pre-generation before publishing.
+-function remove_internal_feature {
+-  if [[ "$(uname)" == "Darwin" ]]; then
+-    find ./ -type f  -name "Cargo.toml" | xargs sed -i '' -e "s|${INTERNAL_FEATURE_STRING}||g"
+-  else
+-    find ./ -type f  -name "Cargo.toml" | xargs sed -i -e "s|${INTERNAL_FEATURE_STRING}||g"
+-  fi
+-}
+-
+-function find_completion_marker {
+-	local marker="$@"
+-	if [[ ! -f "${marker}" ]]; then
+-	  echo
+-	  echo The crate generation script must exit successfully before publishing.
+-	  echo
+-	  exit 1
+-	fi
+-}
+-
+-function run_prepublish_checks {
+-	${SCRIPT_DIR}/_prepublish_checks.sh "$@"
+-}
+-
+-# FIPS static build is only supported on linux.
+-function run_prepublish_checks_linux {
+-	docker run -v "${AWS_LC_DIR}":"${AWS_LC_DIR}" -w "${AWS_LC_DIR}" --rm --platform linux/amd64 rust:linux-x86_64 /bin/bash "${SCRIPT_DIR}"/_prepublish_checks.sh "$@"
+-}
+-
+-function publish_crate {
+-	cargo publish --dry-run --allow-dirty --no-verify
+-
+-	if [[ ${PUBLISH} -eq 1 ]]; then
+-	  # The --no-verify is needed because we create `src/bindings.rs` during the build process.
+-	  # The maximum crate size allowed by crates-io is 10MB.
+-	  cargo publish --allow-dirty --no-verify
+-	else
+-	  echo Not published. Use -p to publish.
+-	fi
+-}
+\ No newline at end of file
+diff --git a/bindings/rust/publish/publish-fips.sh b/bindings/rust/publish/publish-fips.sh
+deleted file mode 100755
+index 7d5a60322..000000000
+--- a/bindings/rust/publish/publish-fips.sh
++++ /dev/null
+@@ -1,28 +0,0 @@
+-#!/usr/bin/env bash
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-set -e -x
+-
+-PUBLISH=0
+-PREV_VERSION=0
+-SKIP_DIFF=0
+-
+-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+-AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+-TMP_DIR="${AWS_LC_DIR}"/bindings/rust/tmp
+-CRATE_NAME=aws-lc-fips-sys
+-CRATE_DIR="${TMP_DIR}/${CRATE_NAME}"
+-COMPLETION_MARKER="${CRATE_DIR}"/.generation_complete
+-INTERNAL_FEATURE_STRING="^internal_generate .*"
+-
+-source ${SCRIPT_DIR}/_publish_tools.sh
+-
+-publish_options "$@"
+-find_completion_marker ${COMPLETION_MARKER}
+-
+-pushd "${CRATE_DIR}"
+-remove_internal_feature
+-run_prepublish_checks_linux "${CRATE_NAME}"
+-publish_crate "${CRATE_NAME}"
+-popd
+diff --git a/bindings/rust/publish/publish.sh b/bindings/rust/publish/publish.sh
+deleted file mode 100755
+index 9ed22c7a6..000000000
+--- a/bindings/rust/publish/publish.sh
++++ /dev/null
+@@ -1,28 +0,0 @@
+-#!/usr/bin/env bash
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-set -e -x
+-
+-PUBLISH=0
+-PREV_VERSION=0
+-SKIP_DIFF=0
+-
+-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+-AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+-TMP_DIR="${AWS_LC_DIR}"/bindings/rust/tmp
+-CRATE_NAME=aws-lc-sys
+-CRATE_DIR="${TMP_DIR}/${CRATE_NAME}"
+-COMPLETION_MARKER="${CRATE_DIR}"/.generation_complete
+-INTERNAL_FEATURE_STRING="^internal_generate .*"
+-
+-source ${SCRIPT_DIR}/_publish_tools.sh
+-
+-publish_options "$@"
+-find_completion_marker ${COMPLETION_MARKER}
+-
+-pushd "${CRATE_DIR}"
+-remove_internal_feature
+-run_prepublish_checks "${CRATE_NAME}"
+-publish_crate
+-popd

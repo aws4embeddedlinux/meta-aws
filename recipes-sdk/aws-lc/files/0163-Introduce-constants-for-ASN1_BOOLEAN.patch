@@ -1,0 +1,190 @@
+From 53f6ff553f530255816bac8b47f7a8388ea93e05 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sat, 28 Jan 2023 10:20:18 -0500
+Subject: [PATCH] Introduce constants for ASN1_BOOLEAN
+
+Between the type being sometimes a tri-state and capturing the
+underlying DER/BER representation, this type is a bit confusing. Add
+constants for these.
+
+I've left a case in ASN1_TBOOLEAN unconverted because it's actually
+wrong. It will be fixed in a subsequent CL.
+
+Change-Id: I75d846af14f6b4cd5278c3833b979e89c92c4203
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56487
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit f81f16cddd6a09dade8a4b99e472ab9863deb986)
+---
+ crypto/asn1/a_bool.c     | 10 +++++-----
+ crypto/asn1/tasn_enc.c   |  2 +-
+ crypto/asn1/tasn_typ.c   |  5 +++--
+ crypto/x509/x509_v3.c    |  4 +++-
+ crypto/x509v3/internal.h |  2 +-
+ crypto/x509v3/v3_utl.c   |  6 +++---
+ include/openssl/asn1.h   | 17 +++++++++++++++--
+ 7 files changed, 31 insertions(+), 15 deletions(-)
+
+diff --git a/crypto/asn1/a_bool.c b/crypto/asn1/a_bool.c
+index 2a4448cc4..8dc84d4c4 100644
+--- a/crypto/asn1/a_bool.c
++++ b/crypto/asn1/a_bool.c
+@@ -78,7 +78,7 @@ int i2d_ASN1_BOOLEAN(ASN1_BOOLEAN a, unsigned char **pp) {
+   }
+ 
+   ASN1_put_object(&p, 0, 1, V_ASN1_BOOLEAN, V_ASN1_UNIVERSAL);
+-  *p = a ? 0xff : 0x00;
++  *p = a ? ASN1_BOOLEAN_TRUE : ASN1_BOOLEAN_FALSE;
+ 
+   // If a new buffer was allocated, just return it back.
+   // If not, return the incremented buffer pointer.
+@@ -94,22 +94,22 @@ ASN1_BOOLEAN d2i_ASN1_BOOLEAN(ASN1_BOOLEAN *a, const unsigned char **pp,
+   inf = ASN1_get_object(&p, &len, &tag, &xclass, length);
+   if (inf & 0x80) {
+     OPENSSL_PUT_ERROR(ASN1, ASN1_R_BAD_OBJECT_HEADER);
+-    return -1;
++    return ASN1_BOOLEAN_NONE;
+   }
+ 
+   if (inf & V_ASN1_CONSTRUCTED) {
+     OPENSSL_PUT_ERROR(ASN1, ASN1_R_TYPE_NOT_PRIMITIVE);
+-    return -1;
++    return ASN1_BOOLEAN_NONE;
+   }
+ 
+   if (tag != V_ASN1_BOOLEAN || xclass != V_ASN1_UNIVERSAL) {
+     OPENSSL_PUT_ERROR(ASN1, ASN1_R_EXPECTING_A_BOOLEAN);
+-    return -1;
++    return ASN1_BOOLEAN_NONE;
+   }
+ 
+   if (len != 1) {
+     OPENSSL_PUT_ERROR(ASN1, ASN1_R_BOOLEAN_IS_WRONG_LENGTH);
+-    return -1;
++    return ASN1_BOOLEAN_NONE;
+   }
+   ASN1_BOOLEAN ret = (ASN1_BOOLEAN) * (p++);
+   if (a != NULL) {
+diff --git a/crypto/asn1/tasn_enc.c b/crypto/asn1/tasn_enc.c
+index 5b9a8d40e..afac17d67 100644
+--- a/crypto/asn1/tasn_enc.c
++++ b/crypto/asn1/tasn_enc.c
+@@ -631,7 +631,7 @@ static int asn1_ex_i2c(ASN1_VALUE **pval, unsigned char *cout, int *out_omit,
+ 
+     case V_ASN1_BOOLEAN:
+       tbool = (ASN1_BOOLEAN *)pval;
+-      if (*tbool == -1) {
++      if (*tbool == ASN1_BOOLEAN_NONE) {
+         *out_omit = 1;
+         return 0;
+       }
+diff --git a/crypto/asn1/tasn_typ.c b/crypto/asn1/tasn_typ.c
+index abfac934d..a9409e2f7 100644
+--- a/crypto/asn1/tasn_typ.c
++++ b/crypto/asn1/tasn_typ.c
+@@ -107,9 +107,10 @@ IMPLEMENT_ASN1_FUNCTIONS_const_fname(ASN1_STRING, DIRECTORYSTRING,
+                                      DIRECTORYSTRING)
+ 
+ // Three separate BOOLEAN type: normal, DEFAULT TRUE and DEFAULT FALSE
+-IMPLEMENT_ASN1_TYPE_ex(ASN1_BOOLEAN, ASN1_BOOLEAN, -1)
++// TODO(davidben): ASN1_TBOOLEAN should be ASN1_BOOLEAN_TRUE, or 0xff.
++IMPLEMENT_ASN1_TYPE_ex(ASN1_BOOLEAN, ASN1_BOOLEAN, ASN1_BOOLEAN_NONE)
+ IMPLEMENT_ASN1_TYPE_ex(ASN1_TBOOLEAN, ASN1_BOOLEAN, 1)
+-IMPLEMENT_ASN1_TYPE_ex(ASN1_FBOOLEAN, ASN1_BOOLEAN, 0)
++IMPLEMENT_ASN1_TYPE_ex(ASN1_FBOOLEAN, ASN1_BOOLEAN, ASN1_BOOLEAN_FALSE)
+ 
+ ASN1_ITEM_TEMPLATE(ASN1_SEQUENCE_ANY) =
+     ASN1_EX_TEMPLATE_TYPE(ASN1_TFLG_SEQUENCE_OF, 0, ASN1_SEQUENCE_ANY, ASN1_ANY)
+diff --git a/crypto/x509/x509_v3.c b/crypto/x509/x509_v3.c
+index 4b88ea707..9153dce19 100644
+--- a/crypto/x509/x509_v3.c
++++ b/crypto/x509/x509_v3.c
+@@ -250,7 +250,9 @@ int X509_EXTENSION_set_critical(X509_EXTENSION *ex, int crit) {
+   if (ex == NULL) {
+     return 0;
+   }
+-  ex->critical = (crit) ? 0xFF : -1;
++  // The critical field is DEFAULT FALSE, so non-critical extensions should omit
++  // the value.
++  ex->critical = crit ? ASN1_BOOLEAN_TRUE : ASN1_BOOLEAN_NONE;
+   return 1;
+ }
+ 
+diff --git a/crypto/x509v3/internal.h b/crypto/x509v3/internal.h
+index 888bf6144..6b8e24b11 100644
+--- a/crypto/x509v3/internal.h
++++ b/crypto/x509v3/internal.h
+@@ -134,7 +134,7 @@ int x509V3_add_value_asn1_string(const char *name, const ASN1_STRING *value,
+ int X509V3_NAME_from_section(X509_NAME *nm, const STACK_OF(CONF_VALUE) *dn_sk,
+                              int chtype);
+ 
+-int X509V3_get_value_bool(const CONF_VALUE *value, int *asn1_bool);
++int X509V3_get_value_bool(const CONF_VALUE *value, ASN1_BOOLEAN *asn1_bool);
+ int X509V3_get_value_int(const CONF_VALUE *value, ASN1_INTEGER **aint);
+ const STACK_OF(CONF_VALUE) *X509V3_get_section(const X509V3_CTX *ctx,
+                                                const char *section);
+diff --git a/crypto/x509v3/v3_utl.c b/crypto/x509v3/v3_utl.c
+index f856e0ea0..3fa3a0b26 100644
+--- a/crypto/x509v3/v3_utl.c
++++ b/crypto/x509v3/v3_utl.c
+@@ -300,19 +300,19 @@ int X509V3_add_value_int(const char *name, const ASN1_INTEGER *aint,
+   return ret;
+ }
+ 
+-int X509V3_get_value_bool(const CONF_VALUE *value, int *asn1_bool) {
++int X509V3_get_value_bool(const CONF_VALUE *value, ASN1_BOOLEAN *asn1_bool) {
+   char *btmp;
+   if (!(btmp = value->value)) {
+     goto err;
+   }
+   if (!strcmp(btmp, "TRUE") || !strcmp(btmp, "true") || !strcmp(btmp, "Y") ||
+       !strcmp(btmp, "y") || !strcmp(btmp, "YES") || !strcmp(btmp, "yes")) {
+-    *asn1_bool = 0xff;
++    *asn1_bool = ASN1_BOOLEAN_TRUE;
+     return 1;
+   } else if (!strcmp(btmp, "FALSE") || !strcmp(btmp, "false") ||
+              !strcmp(btmp, "N") || !strcmp(btmp, "n") || !strcmp(btmp, "NO") ||
+              !strcmp(btmp, "no")) {
+-    *asn1_bool = 0;
++    *asn1_bool = ASN1_BOOLEAN_FALSE;
+     return 1;
+   }
+ err:
+diff --git a/include/openssl/asn1.h b/include/openssl/asn1.h
+index 319cc2a03..9f656af50 100644
+--- a/include/openssl/asn1.h
++++ b/include/openssl/asn1.h
+@@ -447,10 +447,22 @@ OPENSSL_EXPORT ASN1_STRING *ASN1_item_pack(void *obj, const ASN1_ITEM *it,
+ // integer type. FALSE is zero, TRUE is 0xff, and an omitted OPTIONAL BOOLEAN is
+ // -1.
+ 
++// ASN1_BOOLEAN_FALSE is FALSE as an |ASN1_BOOLEAN|.
++#define ASN1_BOOLEAN_FALSE 0
++
++// ASN1_BOOLEAN_TRUE is TRUE as an |ASN1_BOOLEAN|. Some code incorrectly uses
++// 1, so prefer |b != ASN1_BOOLEAN_FALSE| over |b == ASN1_BOOLEAN_TRUE|.
++#define ASN1_BOOLEAN_TRUE 0xff
++
++// ASN1_BOOLEAN_NONE, in contexts where the |ASN1_BOOLEAN| represents an
++// OPTIONAL BOOLEAN, is an omitted value. Using this value in other contexts is
++// undefined and may be misinterpreted as TRUE.
++#define ASN1_BOOLEAN_NONE (-1)
++
+ // d2i_ASN1_BOOLEAN parses a DER-encoded ASN.1 BOOLEAN from up to |len| bytes at
+ // |*inp|. On success, it advances |*inp| by the number of bytes read and
+ // returns the result. If |out| is non-NULL, it additionally writes the result
+-// to |*out|. On error, it returns -1.
++// to |*out|. On error, it returns |ASN1_BOOLEAN_NONE|.
+ //
+ // This function does not reject trailing data in the input. This allows the
+ // caller to parse a sequence of concatenated structures. Callers parsing only
+@@ -472,7 +484,8 @@ OPENSSL_EXPORT int i2d_ASN1_BOOLEAN(ASN1_BOOLEAN a, unsigned char **outp);
+ 
+ // The following |ASN1_ITEM|s have ASN.1 type BOOLEAN and C type |ASN1_BOOLEAN|.
+ // |ASN1_TBOOLEAN| and |ASN1_FBOOLEAN| must be marked OPTIONAL. When omitted,
+-// they are parsed as TRUE and FALSE, respectively, rather than -1.
++// they are parsed as TRUE and FALSE, respectively, rather than
++// |ASN1_BOOLEAN_NONE|.
+ DECLARE_ASN1_ITEM(ASN1_BOOLEAN)
+ DECLARE_ASN1_ITEM(ASN1_TBOOLEAN)
+ DECLARE_ASN1_ITEM(ASN1_FBOOLEAN)

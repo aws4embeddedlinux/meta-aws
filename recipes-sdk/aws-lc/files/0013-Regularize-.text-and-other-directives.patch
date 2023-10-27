@@ -1,0 +1,714 @@
+From eead8361bfb13d0b32bb2c533246de156b077b4d Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Thu, 22 Jul 2021 14:24:30 -0700
+Subject: [PATCH] Regularize .text and other directives
+
+This makes sure each .S file has an explicit .text directive, and
+also regularizes the positioning of these and the .globl ones (plus
+the .intel_syntax ones for x86), collecting them at the beginning
+just after the initial API comment banner. The only even slightly
+non-trivial change is the removal of the global directive for
+bignum_of_word_nontrivial in "x86/generic/bignum_of_word.S"
+(this was not present for ARM, nor was it declared in the header).
+There are no changes to code and hence no changes in the proofs.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/debfd4cbdd1db43c1df861dc185d07551b2503eb
+---
+ arm/fastmul/bignum_emontredc_8n.S | 3 ++-
+ arm/fastmul/bignum_kmul_16_32.S   | 3 ++-
+ arm/fastmul/bignum_ksqr_16_32.S   | 4 +++-
+ arm/fastmul/bignum_ksqr_32_64.S   | 4 +++-
+ arm/generic/bignum_ge.S           | 5 +++--
+ arm/generic/bignum_mul.S          | 5 +++--
+ arm/generic/bignum_optsub.S       | 5 +++--
+ arm/p384/bignum_add_p384.S        | 5 +++--
+ arm/p384/bignum_bigendian_6.S     | 8 ++++----
+ arm/p384/bignum_cmul_p384.S       | 5 +++--
+ arm/p384/bignum_deamont_p384.S    | 3 ++-
+ arm/p384/bignum_demont_p384.S     | 3 ++-
+ arm/p384/bignum_double_p384.S     | 5 +++--
+ arm/p384/bignum_half_p384.S       | 5 +++--
+ arm/p384/bignum_mod_n384.S        | 5 +++--
+ arm/p384/bignum_mod_n384_6.S      | 5 +++--
+ arm/p384/bignum_mod_p384.S        | 5 +++--
+ arm/p384/bignum_mod_p384_6.S      | 5 +++--
+ arm/p384/bignum_montmul_p384.S    | 3 ++-
+ arm/p384/bignum_montsqr_p384.S    | 3 ++-
+ arm/p384/bignum_mux_6.S           | 5 +++--
+ arm/p384/bignum_neg_p384.S        | 5 +++--
+ arm/p384/bignum_nonzero_6.S       | 5 +++--
+ arm/p384/bignum_optneg_p384.S     | 5 +++--
+ arm/p384/bignum_sub_p384.S        | 5 +++--
+ arm/p384/bignum_tomont_p384.S     | 3 ++-
+ arm/p384/bignum_triple_p384.S     | 5 +++--
+ arm/p521/bignum_add_p521.S        | 5 +++--
+ arm/p521/bignum_double_p521.S     | 5 +++--
+ arm/p521/bignum_half_p521.S       | 5 +++--
+ arm/p521/bignum_sub_p521.S        | 5 +++--
+ arm/p521/bignum_triple_p521.S     | 5 +++--
+ 32 files changed, 90 insertions(+), 57 deletions(-)
+
+diff --git a/arm/fastmul/bignum_emontredc_8n.S b/arm/fastmul/bignum_emontredc_8n.S
+index 636f6111c..6b7d4b34b 100644
+--- a/arm/fastmul/bignum_emontredc_8n.S
++++ b/arm/fastmul/bignum_emontredc_8n.S
+@@ -26,7 +26,8 @@
+ // Standard ARM ABI: X0 = k, X1 = z, X2 = m, X3 = w, returns X0
+ // ----------------------------------------------------------------------------
+ 
+-.globl bignum_emontredc_8n
++        .globl  bignum_emontredc_8n
++        .text
+ 
+ // ---------------------------------------------------------------------------
+ // Macro computing (c,h,l) = 3-word 1s complement (x - y) * (w - z)
+diff --git a/arm/fastmul/bignum_kmul_16_32.S b/arm/fastmul/bignum_kmul_16_32.S
+index 0b25e3e8b..12a61fc4e 100644
+--- a/arm/fastmul/bignum_kmul_16_32.S
++++ b/arm/fastmul/bignum_kmul_16_32.S
+@@ -27,7 +27,8 @@
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y, X3 = t
+ // ----------------------------------------------------------------------------
+ 
+-.globl bignum_kmul_16_32
++        .globl  bignum_kmul_16_32
++        .text
+ 
+ // Subroutine-safe copies of the output, inputs and temporary buffer pointers
+ 
+diff --git a/arm/fastmul/bignum_ksqr_16_32.S b/arm/fastmul/bignum_ksqr_16_32.S
+index 61a4adeef..d27b22579 100644
+--- a/arm/fastmul/bignum_ksqr_16_32.S
++++ b/arm/fastmul/bignum_ksqr_16_32.S
+@@ -26,6 +26,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = t
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_ksqr_16_32
++        .text
++
+ // Subroutine-safe copies of the output, inputs and temporary buffer pointers
+ 
+ #define z x23
+@@ -36,7 +39,6 @@
+ 
+ #define s x19
+ 
+-.globl bignum_ksqr_16_32
+ 
+ bignum_ksqr_16_32:
+ 
+diff --git a/arm/fastmul/bignum_ksqr_32_64.S b/arm/fastmul/bignum_ksqr_32_64.S
+index 0afa0d345..96f0206ac 100644
+--- a/arm/fastmul/bignum_ksqr_32_64.S
++++ b/arm/fastmul/bignum_ksqr_32_64.S
+@@ -26,6 +26,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = t
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_ksqr_32_64
++        .text
++
+ #define k 16
+ #define l (k/2)
+ 
+@@ -35,7 +38,6 @@
+ 
+ #define c x16
+ 
+-.globl bignum_ksqr_32_64
+ 
+ bignum_ksqr_32_64:
+ 
+diff --git a/arm/generic/bignum_ge.S b/arm/generic/bignum_ge.S
+index 231f11e5d..8d8188a28 100644
+--- a/arm/generic/bignum_ge.S
++++ b/arm/generic/bignum_ge.S
+@@ -23,6 +23,9 @@
+ // Standard ARM ABI: X0 = m, X1 = x, X2 = n, X3 = y, returns X0
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_ge
++        .text
++
+ #define m x0
+ #define x x1
+ #define n x2
+@@ -31,8 +34,6 @@
+ #define a x5
+ #define d x6
+ 
+-.text
+-.globl bignum_ge
+ 
+ bignum_ge:
+ 
+diff --git a/arm/generic/bignum_mul.S b/arm/generic/bignum_mul.S
+index 067079998..4678ca87c 100644
+--- a/arm/generic/bignum_mul.S
++++ b/arm/generic/bignum_mul.S
+@@ -27,6 +27,9 @@
+ // Standard ARM ABI: X0 = k, X1 = z, X2 = m, X3 = x, X4 = n, X5 = y
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_mul
++        .text
++
+ #define p x0
+ #define z x1
+ #define m x2
+@@ -44,8 +47,6 @@
+ #define xx x14
+ #define yy x15
+ 
+-.text
+-.globl bignum_mul
+ 
+ bignum_mul:
+ 
+diff --git a/arm/generic/bignum_optsub.S b/arm/generic/bignum_optsub.S
+index db3c2972f..14271fcad 100644
+--- a/arm/generic/bignum_optsub.S
++++ b/arm/generic/bignum_optsub.S
+@@ -26,6 +26,9 @@
+ // Standard ARM ABI: X0 = k, X1 = z, X2 = x, X3 = p, X4 = y, returns X0
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_optsub
++        .text
++
+ #define k x0
+ #define z x1
+ #define x x2
+@@ -36,8 +39,6 @@
+ #define b x6
+ #define i x7
+ 
+-.text
+-.globl bignum_optsub
+ 
+ bignum_optsub:
+ 
+diff --git a/arm/p384/bignum_add_p384.S b/arm/p384/bignum_add_p384.S
+index b6ca20263..16a3d22d7 100644
+--- a/arm/p384/bignum_add_p384.S
++++ b/arm/p384/bignum_add_p384.S
+@@ -23,6 +23,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_add_p384
++        .text
++
+ #define z x0
+ #define x x1
+ #define y x2
+@@ -35,8 +38,6 @@
+ #define d4 x9
+ #define d5 x10
+ 
+-.text
+-.globl bignum_add_p384
+ 
+ bignum_add_p384:
+ 
+diff --git a/arm/p384/bignum_bigendian_6.S b/arm/p384/bignum_bigendian_6.S
+index f149b4936..5bdcb8440 100644
+--- a/arm/p384/bignum_bigendian_6.S
++++ b/arm/p384/bignum_bigendian_6.S
+@@ -36,10 +36,10 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
+-.text
+-.globl bignum_bigendian_6
+-.globl bignum_frombytes_6
+-.globl bignum_tobytes_6
++        .globl  bignum_bigendian_6
++        .globl  bignum_frombytes_6
++        .globl  bignum_tobytes_6
++        .text
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p384/bignum_cmul_p384.S b/arm/p384/bignum_cmul_p384.S
+index 26a63cc13..673870050 100644
+--- a/arm/p384/bignum_cmul_p384.S
++++ b/arm/p384/bignum_cmul_p384.S
+@@ -24,6 +24,9 @@
+ // Standard ARM ABI: X0 = z, X1 = c, X2 = x
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_cmul_p384
++        .text
++
+ #define z x0
+ #define c x1
+ #define x x2
+@@ -49,8 +52,6 @@
+ #define m x8
+ #define l x9
+ 
+-.text
+-.globl bignum_cmul_p384
+ 
+ bignum_cmul_p384:
+ 
+diff --git a/arm/p384/bignum_deamont_p384.S b/arm/p384/bignum_deamont_p384.S
+index ed9de1c04..76d33645c 100644
+--- a/arm/p384/bignum_deamont_p384.S
++++ b/arm/p384/bignum_deamont_p384.S
+@@ -26,7 +26,8 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
+-.globl   bignum_deamont_p384
++        .globl  bignum_deamont_p384
++        .text
+ 
+ // ---------------------------------------------------------------------------
+ // Core one-step "short" Montgomery reduction macro. Takes input in
+diff --git a/arm/p384/bignum_demont_p384.S b/arm/p384/bignum_demont_p384.S
+index d9f520071..b6f8f09eb 100644
+--- a/arm/p384/bignum_demont_p384.S
++++ b/arm/p384/bignum_demont_p384.S
+@@ -26,7 +26,8 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
+-.globl   bignum_demont_p384
++        .globl  bignum_demont_p384
++        .text
+ 
+ // ---------------------------------------------------------------------------
+ // Core one-step "short" Montgomery reduction macro. Takes input in
+diff --git a/arm/p384/bignum_double_p384.S b/arm/p384/bignum_double_p384.S
+index 65bc382c4..484d1b6e6 100644
+--- a/arm/p384/bignum_double_p384.S
++++ b/arm/p384/bignum_double_p384.S
+@@ -23,6 +23,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_double_p384
++        .text
++
+ #define z x0
+ #define x x1
+ #define d0 x2
+@@ -39,8 +42,6 @@
+ #define n4 x13
+ #define n5 x14
+ 
+-.text
+-.globl bignum_double_p384
+ 
+ bignum_double_p384:
+ 
+diff --git a/arm/p384/bignum_half_p384.S b/arm/p384/bignum_half_p384.S
+index b7a1e3850..c1b19bb74 100644
+--- a/arm/p384/bignum_half_p384.S
++++ b/arm/p384/bignum_half_p384.S
+@@ -23,6 +23,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_half_p384
++        .text
++
+ #define z x0
+ #define x x1
+ 
+@@ -37,8 +40,6 @@
+ #define m x10
+ #define n x11
+ 
+-.text
+-.globl bignum_half_p384
+ 
+ bignum_half_p384:
+ 
+diff --git a/arm/p384/bignum_mod_n384.S b/arm/p384/bignum_mod_n384.S
+index 08c780459..098e9cbd4 100644
+--- a/arm/p384/bignum_mod_n384.S
++++ b/arm/p384/bignum_mod_n384.S
+@@ -25,6 +25,9 @@
+ // Standard ARM ABI: X0 = z, X1 = k, X2 = x
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_mod_n384
++        .text
++
+ #define z x0
+ #define k x1
+ #define x x2
+@@ -69,8 +72,6 @@
+                 movk    \nn, \n3, lsl #48
+ .endm
+ 
+-.text
+-.globl bignum_mod_n384
+ 
+ bignum_mod_n384:
+ 
+diff --git a/arm/p384/bignum_mod_n384_6.S b/arm/p384/bignum_mod_n384_6.S
+index b1e65c9be..4db84e1d7 100644
+--- a/arm/p384/bignum_mod_n384_6.S
++++ b/arm/p384/bignum_mod_n384_6.S
+@@ -25,6 +25,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_mod_n384_6
++        .text
++
+ #define z x0
+ #define x x1
+ 
+@@ -49,8 +52,6 @@
+                 movk    \x, \n3, lsl #48
+ .endm
+ 
+-.text
+-.globl bignum_mod_n384_6
+ 
+ bignum_mod_n384_6:
+ 
+diff --git a/arm/p384/bignum_mod_p384.S b/arm/p384/bignum_mod_p384.S
+index 24aad7ffb..70fd88c43 100644
+--- a/arm/p384/bignum_mod_p384.S
++++ b/arm/p384/bignum_mod_p384.S
+@@ -23,6 +23,9 @@
+ // Standard ARM ABI: X0 = z, X1 = k, X2 = x
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_mod_p384
++        .text
++
+ #define z x0
+ #define k x1
+ #define x x2
+@@ -45,8 +48,6 @@
+ #define n1 x16
+ #define n2 x17
+ 
+-.text
+-.globl bignum_mod_p384
+ 
+ bignum_mod_p384:
+ 
+diff --git a/arm/p384/bignum_mod_p384_6.S b/arm/p384/bignum_mod_p384_6.S
+index 35465d58f..9c7861f33 100644
+--- a/arm/p384/bignum_mod_p384_6.S
++++ b/arm/p384/bignum_mod_p384_6.S
+@@ -23,6 +23,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_mod_p384_6
++        .text
++
+ #define z x0
+ #define x x1
+ 
+@@ -40,8 +43,6 @@
+ #define d4 x12
+ #define d5 x13
+ 
+-.text
+-.globl bignum_mod_p384_6
+ 
+ bignum_mod_p384_6:
+ 
+diff --git a/arm/p384/bignum_montmul_p384.S b/arm/p384/bignum_montmul_p384.S
+index d2a72ca10..df62e3bef 100644
+--- a/arm/p384/bignum_montmul_p384.S
++++ b/arm/p384/bignum_montmul_p384.S
+@@ -27,7 +27,8 @@
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
+ 
+-.globl   bignum_montmul_p384
++        .globl  bignum_montmul_p384
++        .text
+ 
+ // ---------------------------------------------------------------------------
+ // Macro returning (c,h,l) = 3-word 1s complement (x - y) * (w - z)
+diff --git a/arm/p384/bignum_montsqr_p384.S b/arm/p384/bignum_montsqr_p384.S
+index e0c549b72..098d1ac68 100644
+--- a/arm/p384/bignum_montsqr_p384.S
++++ b/arm/p384/bignum_montsqr_p384.S
+@@ -26,7 +26,8 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
+-.globl   bignum_montsqr_p384
++        .globl  bignum_montsqr_p384
++        .text
+ 
+ // ---------------------------------------------------------------------------
+ // Macro returning (c,h,l) = 3-word 1s complement (x - y) * (w - z)
+diff --git a/arm/p384/bignum_mux_6.S b/arm/p384/bignum_mux_6.S
+index 57f0e709b..b376c0951 100644
+--- a/arm/p384/bignum_mux_6.S
++++ b/arm/p384/bignum_mux_6.S
+@@ -26,14 +26,15 @@
+ // Standard ARM ABI: X0 = p, X1 = z, X2 = x, X3 = y
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_mux_6
++        .text
++
+ #define p x0
+ #define z x1
+ #define x x2
+ #define y x3
+ #define a x4
+ 
+-.text
+-.globl bignum_mux_6
+ 
+ bignum_mux_6:
+ 
+diff --git a/arm/p384/bignum_neg_p384.S b/arm/p384/bignum_neg_p384.S
+index 73b8ce680..1537b347b 100644
+--- a/arm/p384/bignum_neg_p384.S
++++ b/arm/p384/bignum_neg_p384.S
+@@ -22,6 +22,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_neg_p384
++        .text
++
+ #define z x0
+ #define x x1
+ 
+@@ -35,8 +38,6 @@
+ #define d4 x8
+ #define d5 x9
+ 
+-.text
+-.globl bignum_neg_p384
+ 
+ bignum_neg_p384:
+ 
+diff --git a/arm/p384/bignum_nonzero_6.S b/arm/p384/bignum_nonzero_6.S
+index 7f255b6ac..19b670d8d 100644
+--- a/arm/p384/bignum_nonzero_6.S
++++ b/arm/p384/bignum_nonzero_6.S
+@@ -22,13 +22,14 @@
+ // Standard ARM ABI: X0 = x, returns X0
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_nonzero_6
++        .text
++
+ #define x x0
+ #define a x1
+ #define d x2
+ #define c x3
+ 
+-.text
+-.globl  bignum_nonzero_6
+ 
+ bignum_nonzero_6:
+ 
+diff --git a/arm/p384/bignum_optneg_p384.S b/arm/p384/bignum_optneg_p384.S
+index f0312c20a..bf4be841e 100644
+--- a/arm/p384/bignum_optneg_p384.S
++++ b/arm/p384/bignum_optneg_p384.S
+@@ -24,6 +24,9 @@
+ // Standard ARM ABI: X0 = z, X1 = p, X2 = x
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_optneg_p384
++        .text
++
+ #define z x0
+ #define p x1
+ #define x x2
+@@ -41,8 +44,6 @@
+ #define n4 x13
+ #define n5 x14
+ 
+-.text
+-.globl bignum_optneg_p384
+ 
+ bignum_optneg_p384:
+ 
+diff --git a/arm/p384/bignum_sub_p384.S b/arm/p384/bignum_sub_p384.S
+index 4eb6f47f2..c26d968ae 100644
+--- a/arm/p384/bignum_sub_p384.S
++++ b/arm/p384/bignum_sub_p384.S
+@@ -23,6 +23,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_sub_p384
++        .text
++
+ #define z x0
+ #define x x1
+ #define y x2
+@@ -36,8 +39,6 @@
+ #define d4 x9
+ #define d5 x10
+ 
+-.text
+-.globl bignum_sub_p384
+ 
+ bignum_sub_p384:
+ 
+diff --git a/arm/p384/bignum_tomont_p384.S b/arm/p384/bignum_tomont_p384.S
+index 4a5bab24d..618cc5233 100644
+--- a/arm/p384/bignum_tomont_p384.S
++++ b/arm/p384/bignum_tomont_p384.S
+@@ -23,7 +23,8 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
+-.globl   bignum_tomont_p384
++        .globl  bignum_tomont_p384
++        .text
+ 
+ // ----------------------------------------------------------------------------
+ // Core "x |-> (2^64 * x) mod p_384" macro, with x assumed to be < p_384.
+diff --git a/arm/p384/bignum_triple_p384.S b/arm/p384/bignum_triple_p384.S
+index 2f449ff21..b7ebe01db 100644
+--- a/arm/p384/bignum_triple_p384.S
++++ b/arm/p384/bignum_triple_p384.S
+@@ -26,6 +26,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_triple_p384
++        .text
++
+ #define z x0
+ #define x x1
+ 
+@@ -56,8 +59,6 @@
+ #define t0 x9
+ #define t1 x10
+ 
+-.text
+-.globl bignum_triple_p384
+ 
+ bignum_triple_p384:
+ 
+diff --git a/arm/p521/bignum_add_p521.S b/arm/p521/bignum_add_p521.S
+index 6e38bc7d1..0d95e8d4c 100644
+--- a/arm/p521/bignum_add_p521.S
++++ b/arm/p521/bignum_add_p521.S
+@@ -23,6 +23,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_add_p521
++        .text
++
+ #define z x0
+ #define x x1
+ #define y x2
+@@ -38,8 +41,6 @@
+ #define d7 x12
+ #define d8 x13
+ 
+-.text
+-.globl bignum_add_p521
+ 
+ bignum_add_p521:
+ 
+diff --git a/arm/p521/bignum_double_p521.S b/arm/p521/bignum_double_p521.S
+index 49ea92fee..ba0abb3eb 100644
+--- a/arm/p521/bignum_double_p521.S
++++ b/arm/p521/bignum_double_p521.S
+@@ -23,6 +23,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_double_p521
++        .text
++
+ #define z x0
+ #define x x1
+ 
+@@ -30,8 +33,6 @@
+ #define h x3
+ #define l x4
+ 
+-.text
+-.globl bignum_double_p521
+ 
+ bignum_double_p521:
+ 
+diff --git a/arm/p521/bignum_half_p521.S b/arm/p521/bignum_half_p521.S
+index 9e44d79f8..e3363f1fb 100644
+--- a/arm/p521/bignum_half_p521.S
++++ b/arm/p521/bignum_half_p521.S
+@@ -23,6 +23,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_half_p521
++        .text
++
+ #define z x0
+ #define x x1
+ 
+@@ -39,8 +42,6 @@
+ #define d8 x2
+ #define a x6
+ 
+-.text
+-.globl bignum_half_p521
+ 
+ bignum_half_p521:
+ 
+diff --git a/arm/p521/bignum_sub_p521.S b/arm/p521/bignum_sub_p521.S
+index a9846ce24..960a3a5f1 100644
+--- a/arm/p521/bignum_sub_p521.S
++++ b/arm/p521/bignum_sub_p521.S
+@@ -23,6 +23,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_sub_p521
++        .text
++
+ #define z x0
+ #define x x1
+ #define y x2
+@@ -38,8 +41,6 @@
+ #define d7 x12
+ #define d8 x13
+ 
+-.text
+-.globl bignum_sub_p521
+ 
+ bignum_sub_p521:
+ 
+diff --git a/arm/p521/bignum_triple_p521.S b/arm/p521/bignum_triple_p521.S
+index 7e2e22c53..2e2c3ef6b 100644
+--- a/arm/p521/bignum_triple_p521.S
++++ b/arm/p521/bignum_triple_p521.S
+@@ -23,6 +23,9 @@
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
+ 
++        .globl  bignum_triple_p521
++        .text
++
+ #define z x0
+ #define x x1
+ 
+@@ -39,8 +42,6 @@
+ #define d7 x11
+ #define d8 x12
+ 
+-.text
+-.globl bignum_triple_p521
+ 
+ bignum_triple_p521:
+ 

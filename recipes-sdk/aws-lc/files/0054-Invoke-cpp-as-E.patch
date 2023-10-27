@@ -1,0 +1,70 @@
+From f7cc56d2463a323a840ada0f278366dea1c33e80 Mon Sep 17 00:00:00 2001
+From: Justin Smith <justsmth@amazon.com>
+Date: Mon, 23 May 2022 09:40:41 -0400
+Subject: [PATCH] Invoke cpp as ' -E'
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/7685298a7129ba75ee774fb272a8b94fb35fdcb5
+---
+ arm/p384/Makefile              |  2 +-
+ arm/p521/Makefile              |  2 +-
+ include/_internal_s2n_bignum.h | 21 ++++++++-------------
+ 3 files changed, 10 insertions(+), 15 deletions(-)
+
+diff --git a/arm/p384/Makefile b/arm/p384/Makefile
+index 354898b28..d3859296e 100644
+--- a/arm/p384/Makefile
++++ b/arm/p384/Makefile
+@@ -55,7 +55,7 @@ OBJ = bignum_add_p384.o \
+       bignum_tomont_p384.o \
+       bignum_triple_p384.o
+ 
+-%.o : %.S ; cpp $< | $(GAS) -o $@ -
++%.o : %.S ; $(CXX) -E -I../../include $< | $(GAS) -o $@ -
+ 
+ default: $(OBJ);
+ 
+diff --git a/arm/p521/Makefile b/arm/p521/Makefile
+index ac9617fad..70fc7aff2 100644
+--- a/arm/p521/Makefile
++++ b/arm/p521/Makefile
+@@ -55,7 +55,7 @@ OBJ = bignum_add_p521.o \
+       bignum_tomont_p521.o \
+       bignum_triple_p521.o
+ 
+-%.o : %.S ; cpp $< | $(GAS) -o $@ -
++%.o : %.S ; $(CXX) -E -I../../include $< | $(GAS) -o $@ -
+ 
+ default: $(OBJ);
+ 
+diff --git a/include/_internal_s2n_bignum.h b/include/_internal_s2n_bignum.h
+index 255759161..c7bdf160a 100644
+--- a/include/_internal_s2n_bignum.h
++++ b/include/_internal_s2n_bignum.h
+@@ -1,18 +1,13 @@
+ 
+ #ifdef __APPLE__
+-#   define S2N_BN_SYM_VISIBILITY_DIRECTIVE(name) .globl _##name
+-#   ifdef S2N_BN_HIDE_SYMBOLS
+-#      define S2N_BN_SYM_PRIVACY_DIRECTIVE(name) .private_extern _##name
+-#   else
+-#      define S2N_BN_SYM_PRIVACY_DIRECTIVE(name)  /* NO-OP: S2N_BN_SYM_PRIVACY_DIRECTIVE */
+-#   endif
+-#   define S2N_BN_SYMBOL(name) _##name
++#   define S2N_BN_SYMBOL(NAME) _##NAME
+ #else
+-#   define S2N_BN_SYM_VISIBILITY_DIRECTIVE(name) .globl name
+-#   ifdef S2N_BN_HIDE_SYMBOLS
+-#      define S2N_BN_SYM_PRIVACY_DIRECTIVE(name) .hidden name
+-#   else
+-#      define S2N_BN_SYM_PRIVACY_DIRECTIVE(name)  /* NO-OP: S2N_BN_SYM_PRIVACY_DIRECTIVE */
+-#   endif
+ #   define S2N_BN_SYMBOL(name) name
++#endif
++
++#define S2N_BN_SYM_VISIBILITY_DIRECTIVE(name) .globl S2N_BN_SYMBOL(name)
++#ifdef S2N_BN_HIDE_SYMBOLS
++#   define S2N_BN_SYM_PRIVACY_DIRECTIVE(name) .private_extern S2N_BN_SYMBOL(name)
++#else
++#   define S2N_BN_SYM_PRIVACY_DIRECTIVE(name)  /* NO-OP: S2N_BN_SYM_PRIVACY_DIRECTIVE */
+ #endif
+\ No newline at end of file

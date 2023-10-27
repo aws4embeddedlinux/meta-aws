@@ -1,0 +1,313 @@
+From 97e6da8e7ac5b6b1ab19a66210a5af595f6c5a4b Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Fri, 31 Mar 2023 16:45:05 -0700
+Subject: [PATCH] Remove remaining ERR_R_MALLOC_FAILURE calls in code added by
+ AWS-LC
+
+---
+ crypto/cipher_extra/e_tls.c        |  1 -
+ crypto/fipsmodule/evp/evp.c        |  1 -
+ crypto/kem/kem.c                   |  5 -----
+ crypto/ocsp/ocsp_verify.c          |  1 -
+ crypto/rsa_extra/rsassa_pss_asn1.c |  4 ----
+ ssl/ssl_buffer.cc                  |  2 --
+ ssl/ssl_key_share.cc               |  2 --
+ ssl/ssl_transfer_asn1.cc           | 18 ------------------
+ 8 files changed, 34 deletions(-)
+
+diff --git a/crypto/cipher_extra/e_tls.c b/crypto/cipher_extra/e_tls.c
+index 10494538c..93dd3ff6e 100644
+--- a/crypto/cipher_extra/e_tls.c
++++ b/crypto/cipher_extra/e_tls.c
+@@ -75,7 +75,6 @@ static int aead_tls_init(EVP_AEAD_CTX *ctx, const uint8_t *key, size_t key_len,
+ 
+   AEAD_TLS_CTX *tls_ctx = OPENSSL_malloc(sizeof(AEAD_TLS_CTX));
+   if (tls_ctx == NULL) {
+-    OPENSSL_PUT_ERROR(CRYPTO, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+   ctx->state.ptr = (void *)tls_ctx;
+diff --git a/crypto/fipsmodule/evp/evp.c b/crypto/fipsmodule/evp/evp.c
+index a10ded5a0..82772c20b 100644
+--- a/crypto/fipsmodule/evp/evp.c
++++ b/crypto/fipsmodule/evp/evp.c
+@@ -708,7 +708,6 @@ static size_t evp_pkey_get1_tls_encodedpoint_x25519(const EVP_PKEY *pkey,
+   out_len = X25519_SHARED_KEY_LEN;
+   *out_ptr = OPENSSL_malloc(X25519_SHARED_KEY_LEN);
+   if (NULL == *out_ptr) {
+-    OPENSSL_PUT_ERROR(CRYPTO, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/kem/kem.c b/crypto/kem/kem.c
+index 85375d71d..c1e7dd3f4 100644
+--- a/crypto/kem/kem.c
++++ b/crypto/kem/kem.c
+@@ -75,7 +75,6 @@ const KEM *KEM_find_kem_by_nid(int nid) {
+ KEM_KEY *KEM_KEY_new(void) {
+   KEM_KEY *ret = OPENSSL_malloc(sizeof(KEM_KEY));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -102,7 +101,6 @@ int KEM_KEY_init(KEM_KEY *key, const KEM *kem) {
+   key->public_key = OPENSSL_malloc(kem->public_key_len);
+   key->secret_key = OPENSSL_malloc(kem->secret_key_len);
+   if (key->public_key == NULL || key->secret_key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     KEM_KEY_clear(key);
+     return 0;
+   }
+@@ -125,7 +123,6 @@ const KEM *KEM_KEY_get0_kem(KEM_KEY* key) {
+ int KEM_KEY_set_raw_public_key(KEM_KEY *key, const uint8_t *in) {
+   key->public_key = OPENSSL_memdup(in, key->kem->public_key_len);
+   if (key->public_key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -135,7 +132,6 @@ int KEM_KEY_set_raw_public_key(KEM_KEY *key, const uint8_t *in) {
+ int KEM_KEY_set_raw_secret_key(KEM_KEY *key, const uint8_t *in) {
+   key->secret_key = OPENSSL_memdup(in, key->kem->secret_key_len);
+   if (key->secret_key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -147,7 +143,6 @@ int KEM_KEY_set_raw_key(KEM_KEY *key, const uint8_t *in_public,
+   key->public_key = OPENSSL_memdup(in_public, key->kem->public_key_len);
+   key->secret_key = OPENSSL_memdup(in_secret, key->kem->secret_key_len);
+   if (key->public_key == NULL || key->secret_key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     KEM_KEY_clear(key);
+     return 0;
+   }
+diff --git a/crypto/ocsp/ocsp_verify.c b/crypto/ocsp/ocsp_verify.c
+index 20ed0fca6..2c7ab129e 100644
+--- a/crypto/ocsp/ocsp_verify.c
++++ b/crypto/ocsp/ocsp_verify.c
+@@ -135,7 +135,6 @@ static int ocsp_verify_signer(X509 *signer, X509_STORE *st,
+   int ret = -1;
+ 
+   if (ctx == NULL) {
+-    OPENSSL_PUT_ERROR(OCSP, ERR_R_MALLOC_FAILURE);
+     goto end;
+   }
+   if (!X509_STORE_CTX_init(ctx, st, signer, untrusted)) {
+diff --git a/crypto/rsa_extra/rsassa_pss_asn1.c b/crypto/rsa_extra/rsassa_pss_asn1.c
+index 8cf1c8b28..c338f7b9b 100644
+--- a/crypto/rsa_extra/rsassa_pss_asn1.c
++++ b/crypto/rsa_extra/rsassa_pss_asn1.c
+@@ -312,7 +312,6 @@ static int pss_parse_nid(int nid, RSA_ALGOR_IDENTIFIER **out) {
+ RSA_INTEGER *RSA_INTEGER_new(void) {
+   RSA_INTEGER *ret = OPENSSL_malloc(sizeof(RSA_INTEGER));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(ret, 0, sizeof(RSA_INTEGER));
+@@ -322,7 +321,6 @@ RSA_INTEGER *RSA_INTEGER_new(void) {
+ RSA_ALGOR_IDENTIFIER *RSA_ALGOR_IDENTIFIER_new(void) {
+   RSA_ALGOR_IDENTIFIER *ret = OPENSSL_malloc(sizeof(RSA_ALGOR_IDENTIFIER));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(ret, 0, sizeof(RSA_ALGOR_IDENTIFIER));
+@@ -332,7 +330,6 @@ RSA_ALGOR_IDENTIFIER *RSA_ALGOR_IDENTIFIER_new(void) {
+ RSA_MGA_IDENTIFIER *RSA_MGA_IDENTIFIER_new(void) {
+   RSA_MGA_IDENTIFIER *ret = OPENSSL_malloc(sizeof(RSA_MGA_IDENTIFIER));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(ret, 0, sizeof(RSA_MGA_IDENTIFIER));
+@@ -342,7 +339,6 @@ RSA_MGA_IDENTIFIER *RSA_MGA_IDENTIFIER_new(void) {
+ RSASSA_PSS_PARAMS *RSASSA_PSS_PARAMS_new(void) {
+   RSASSA_PSS_PARAMS *ret = OPENSSL_malloc(sizeof(RSASSA_PSS_PARAMS));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(ret, 0, sizeof(RSASSA_PSS_PARAMS));
+diff --git a/ssl/ssl_buffer.cc b/ssl/ssl_buffer.cc
+index 36f5629bf..e8f772191 100644
+--- a/ssl/ssl_buffer.cc
++++ b/ssl/ssl_buffer.cc
+@@ -148,7 +148,6 @@ bool SSLBuffer::DoSerialization(CBB *cbb) {
+       !CBB_add_asn1_uint64(&seq, cap_) ||
+       (buf_allocated_ && !CBB_add_asn1_octet_string(&seq, buf_, buf_size_)) ||
+       (!buf_allocated_ && !CBB_add_asn1_octet_string(&seq, inline_buf_, SSL3_RT_HEADER_LENGTH))) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return false;
+   }
+   return CBB_flush(cbb) == 1;
+@@ -184,7 +183,6 @@ bool SSLBuffer::DoDeserialization(CBS *cbs) {
+     }
+     buf_ = (uint8_t *)malloc(CBS_len(&buf));
+     if (buf_ == NULL) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+     buf_size_ = CBS_len(&buf);
+diff --git a/ssl/ssl_key_share.cc b/ssl/ssl_key_share.cc
+index 531d0c325..8ef1e8a27 100644
+--- a/ssl/ssl_key_share.cc
++++ b/ssl/ssl_key_share.cc
+@@ -204,7 +204,6 @@ class CECPQ2KeyShare : public SSLKeyShare {
+ 
+     Array<uint8_t> hrss_entropy;
+     if (!hrss_entropy.Init(HRSS_GENERATE_KEY_BYTES)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+ 
+@@ -248,7 +247,6 @@ class CECPQ2KeyShare : public SSLKeyShare {
+ 
+     Array<uint8_t> entropy;
+     if (!entropy.Init(HRSS_ENCAP_BYTES)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+ 
+diff --git a/ssl/ssl_transfer_asn1.cc b/ssl/ssl_transfer_asn1.cc
+index 94a2a2368..7644109b6 100644
+--- a/ssl/ssl_transfer_asn1.cc
++++ b/ssl/ssl_transfer_asn1.cc
+@@ -80,7 +80,6 @@ static int parse_optional_string(CBS *cbs, UniquePtr<char> *out, unsigned tag,
+     }
+     char *raw = nullptr;
+     if (!CBS_strdup(&value, &raw)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     out->reset(raw);
+@@ -293,20 +292,17 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, uint16_t protocol_version,
+       !CBB_add_asn1_uint64(&s3, in->empty_record_count) ||
+       !CBB_add_asn1_uint64(&s3, in->warning_alert_count) ||
+       !CBB_add_asn1_uint64(&s3, in->total_renegotiations)) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+   if (!CBB_add_asn1(&s3, &child, kS3EstablishedSessionTag) ||
+       !ssl_session_serialize(in->established_session.get(), &child)) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+   if (in->session_reused) {
+     if (!CBB_add_asn1(&s3, &child, kS3SessionReusedTag) ||
+         !CBB_add_asn1_bool(&child, true)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -316,7 +312,6 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, uint16_t protocol_version,
+         !CBB_add_asn1_octet_string(&child,
+                                    (const uint8_t *)(in->hostname.get()),
+                                    strlen(in->hostname.get()))) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -325,7 +320,6 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, uint16_t protocol_version,
+     if (!CBB_add_asn1(&s3, &child, kS3ALPNSelectedTag) ||
+         !CBB_add_asn1_octet_string(&child, in->alpn_selected.data(),
+                                    in->alpn_selected.size())) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -334,7 +328,6 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, uint16_t protocol_version,
+     if (!CBB_add_asn1(&s3, &child, kS3NextProtoNegotiatedTag) ||
+         !CBB_add_asn1_octet_string(&child, in->next_proto_negotiated.data(),
+                                    in->next_proto_negotiated.size())) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -342,13 +335,11 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, uint16_t protocol_version,
+   if (in->channel_id_valid) {
+     if (!CBB_add_asn1(&s3, &child, kS3ChannelIdValidTag) ||
+         !CBB_add_asn1_bool(&child, true)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     if (!CBB_add_asn1(&s3, &child, kS3ChannelIdTag) ||
+         !CBB_add_asn1_octet_string(&child, in->channel_id,
+                                    SSL3_CHANNEL_ID_SIZE)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -356,7 +347,6 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, uint16_t protocol_version,
+   if (in->send_connection_binding) {
+     if (!CBB_add_asn1(&s3, &child, kS3SendConnectionBindingTag) ||
+         !CBB_add_asn1_bool(&child, true)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -374,7 +364,6 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, uint16_t protocol_version,
+         !CBB_add_asn1(&child, &child2, CBS_ASN1_SEQUENCE) ||
+         !CBB_add_asn1_uint64(&child2, offset) ||
+         !CBB_add_asn1_uint64(&child2, in->pending_app_data.size())) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -390,7 +379,6 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, uint16_t protocol_version,
+   if (in->established_session.get()->not_resumable) {
+     if (!CBB_add_asn1(&s3, &child, kS3NotResumableTag) ||
+         !CBB_add_asn1_bool(&child, true)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -968,21 +956,18 @@ static int SSL_CONFIG_to_bytes(SSL_CONFIG *in, CBB *cbb) {
+       !CBB_add_asn1_uint64(&config, kSSLConfigVersion) ||
+       !CBB_add_asn1_uint64(&config, in->conf_max_version) ||
+       !CBB_add_asn1_uint64(&config, in->conf_min_version)) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+   if (in->ocsp_stapling_enabled) {
+     if (!CBB_add_asn1(&config, &child, kSSLConfigOcspStaplingEnabledTag) ||
+         !CBB_add_asn1_bool(&child, true)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+   if (in->jdk11_workaround) {
+     if (!CBB_add_asn1(&config, &child, kSSLConfigJdk11WorkaroundTag) ||
+         !CBB_add_asn1_bool(&child, true)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -1057,14 +1042,12 @@ static int SSL_to_bytes_full(const SSL *in, CBB *cbb) {
+       !SSL3_STATE_to_bytes(in->s3, ssl_protocol_version(in), &ssl) ||
+       !CBB_add_asn1_uint64(&ssl, in->mode) ||
+       !CBB_add_asn1_uint64(&ssl, in->options)) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+   if (in->quiet_shutdown) {
+     if (!CBB_add_asn1(&ssl, &child, kSSLQuietShutdownTag) ||
+         !CBB_add_asn1_bool(&child, true)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -1072,7 +1055,6 @@ static int SSL_to_bytes_full(const SSL *in, CBB *cbb) {
+   if (in->config) {
+     if (!CBB_add_asn1(&ssl, &child, kSSLConfigTag) ||
+         !SSL_CONFIG_to_bytes(in->config.get(), &child)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }

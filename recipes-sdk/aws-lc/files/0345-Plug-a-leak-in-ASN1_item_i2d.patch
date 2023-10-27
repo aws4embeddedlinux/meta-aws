@@ -1,0 +1,29 @@
+From 2f55cf36eda864ab9562bf495170915d3a56474f Mon Sep 17 00:00:00 2001
+From: Theo Buehler <theorbuehler@gmail.com>
+Date: Sun, 5 Mar 2023 23:41:50 +0100
+Subject: [PATCH] Plug a leak in ASN1_item_i2d()
+
+ASN1_item_ex_i2d() does not take ownership of the memory pointed at by
+*out, so it's the caller's responsibility to free it on error.
+
+Change-Id: Id8cb70e50f280944418629a32b53fd4ca248b0bd
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57805
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: David Benjamin <davidben@google.com>
+(cherry picked from commit 3a7dfdb984434a4b4beef947b2e49602c557c0de)
+---
+ crypto/asn1/tasn_enc.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/crypto/asn1/tasn_enc.c b/crypto/asn1/tasn_enc.c
+index 4dd065355..8b1a0e3a1 100644
+--- a/crypto/asn1/tasn_enc.c
++++ b/crypto/asn1/tasn_enc.c
+@@ -97,6 +97,7 @@ int ASN1_item_i2d(ASN1_VALUE *val, unsigned char **out, const ASN1_ITEM *it) {
+     p = buf;
+     int len2 = ASN1_item_ex_i2d(&val, &p, it, /*tag=*/-1, /*aclass=*/0);
+     if (len2 <= 0) {
++      OPENSSL_free(buf);
+       return len2;
+     }
+     assert(len == len2);

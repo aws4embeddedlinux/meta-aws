@@ -1,0 +1,34 @@
+From 50f9a2bfd2b7dcbf94a239e760d111cbeb37e685 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 10 Feb 2023 16:43:13 -0500
+Subject: [PATCH] Fix a -Wignored-qualifiers warning in trust_token_test.cc
+
+The const bool doesn't do anything. While I'm here, make the methods
+const.
+
+Change-Id: Id8c31d5fcda6d8bc244c64b02b1d758e4eff6849
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57185
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: Steven Valdez <svaldez@google.com>
+Reviewed-by: Steven Valdez <svaldez@google.com>
+(cherry picked from commit ec64d7e01a7ca30957c8bce38f6ad989e0b8ced1)
+---
+ crypto/trust_token/trust_token_test.cc | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/trust_token/trust_token_test.cc b/crypto/trust_token/trust_token_test.cc
+index 8652e87a2..6236f7e50 100644
+--- a/crypto/trust_token/trust_token_test.cc
++++ b/crypto/trust_token/trust_token_test.cc
+@@ -313,9 +313,9 @@ class TrustTokenProtocolTestBase : public ::testing::Test {
+     return static_cast<uint32_t>(7 + i);
+   }
+ 
+-  const TRUST_TOKEN_METHOD *method() { return method_; }
++  const TRUST_TOKEN_METHOD *method() const { return method_; }
+ 
+-  const bool use_message() { return use_msg_; }
++  bool use_message() const { return use_msg_; }
+ 
+  protected:
+   void SetupContexts() {

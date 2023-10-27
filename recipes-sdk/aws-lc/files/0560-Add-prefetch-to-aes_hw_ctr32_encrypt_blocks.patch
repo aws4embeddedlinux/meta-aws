@@ -1,0 +1,131 @@
+From dfdb1b9b1cbadf57a609704b2e0a6771c0d90da1 Mon Sep 17 00:00:00 2001
+From: Ilya Tokar <tokarip@google.com>
+Date: Mon, 22 May 2023 16:06:49 -0400
+Subject: [PATCH] Add prefetch to aes_hw_ctr32_encrypt_blocks
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Similar idea to https://boringssl-review.googlesource.com/c/boringssl/+/55466
+
+Results are pretty close to the current state, AMD (rome):
+BM_Encrypt/64/0          344ns ± 3%   343ns ± 1%    ~     (p=0.728 n=20+19)
+BM_Encrypt/64/1          394ns ± 2%   394ns ± 3%    ~     (p=0.919 n=18+20)
+BM_Encrypt/64/8          391ns ± 1%   390ns ± 2%    ~     (p=0.165 n=17+19)
+BM_Encrypt/64/64         342ns ± 3%   341ns ± 2%    ~     (p=0.686 n=19+19)
+BM_Encrypt/64/97         393ns ± 1%   394ns ± 3%    ~     (p=0.639 n=17+19)
+BM_Encrypt/512/0         437ns ± 2%   437ns ± 1%    ~     (p=0.819 n=20+19)
+BM_Encrypt/512/1         566ns ± 1%   551ns ± 3%  -2.65%  (p=0.000 n=18+18)
+BM_Encrypt/512/8         563ns ± 2%   555ns ± 4%  -1.48%  (p=0.003 n=18+20)
+BM_Encrypt/512/64        434ns ± 3%   439ns ± 3%  +1.03%  (p=0.008 n=19+20)
+BM_Encrypt/512/97        565ns ± 2%   555ns ± 4%  -1.88%  (p=0.001 n=18+20)
+BM_Encrypt/4k/0         1.03µs ± 2%  0.99µs ± 2%  -4.29%  (p=0.000 n=20+20)
+BM_Encrypt/4k/1         1.18µs ± 3%  1.11µs ± 3%  -5.66%  (p=0.000 n=20+20)
+BM_Encrypt/4k/8         1.17µs ± 3%  1.11µs ± 2%  -5.51%  (p=0.000 n=20+20)
+BM_Encrypt/4k/64        1.03µs ± 1%  0.99µs ± 1%  -4.08%  (p=0.000 n=19+19)
+BM_Encrypt/4k/97        1.17µs ± 3%  1.11µs ± 2%  -5.65%  (p=0.000 n=20+19)
+BM_Encrypt/32k/0        5.26µs ± 1%  5.19µs ± 2%  -1.29%  (p=0.000 n=19+20)
+BM_Encrypt/32k/1        5.49µs ± 2%  5.38µs ± 1%  -2.01%  (p=0.000 n=20+20)
+BM_Encrypt/32k/8        5.45µs ± 2%  5.34µs ± 1%  -2.12%  (p=0.000 n=20+19)
+BM_Encrypt/32k/64       5.28µs ± 1%  5.19µs ± 1%  -1.66%  (p=0.000 n=19+20)
+BM_Encrypt/32k/97       5.49µs ± 1%  5.38µs ± 1%  -2.02%  (p=0.000 n=20+17)
+BM_Encrypt/256k/0       38.9µs ± 1%  38.5µs ± 2%  -1.09%  (p=0.000 n=20+20)
+BM_Encrypt/256k/1       40.3µs ± 2%  39.6µs ± 1%  -1.74%  (p=0.000 n=20+20)
+BM_Encrypt/256k/8       39.7µs ± 2%  39.0µs ± 1%  -1.82%  (p=0.000 n=19+18)
+BM_Encrypt/256k/64      38.9µs ± 1%  38.4µs ± 1%  -1.35%  (p=0.000 n=20+18)
+BM_Encrypt/256k/97      40.1µs ± 1%  39.6µs ± 1%  -1.32%  (p=0.000 n=20+20)
+BM_Encrypt/1M/0          154µs ± 1%   153µs ± 1%  -0.62%  (p=0.001 n=17+18)
+BM_Encrypt/1M/1          160µs ± 2%   158µs ± 1%  -1.44%  (p=0.000 n=19+20)
+BM_Encrypt/1M/8          158µs ± 1%   155µs ± 1%  -1.62%  (p=0.000 n=20+19)
+BM_Encrypt/1M/64         155µs ± 2%   153µs ± 1%  -1.48%  (p=0.000 n=20+20)
+BM_Encrypt/1M/97         160µs ± 1%   158µs ± 2%  -1.46%  (p=0.000 n=20+20)
+BM_EncryptCord/1/0       310ns ± 3%   307ns ± 4%    ~     (p=0.101 n=19+20)
+
+Intel (skylake):
+
+BM_Encrypt/64/0          326ns ± 5%   325ns ± 4%    ~     (p=0.817 n=16+17)
+BM_Encrypt/64/1          368ns ± 2%   387ns ±13%    ~     (p=0.845 n=17+20)
+BM_Encrypt/64/8          385ns ±14%   365ns ± 3%  -5.12%  (p=0.013 n=20+18)
+BM_Encrypt/64/64         325ns ± 4%   325ns ± 6%    ~     (p=0.621 n=18+16)
+BM_Encrypt/64/97         367ns ± 3%   366ns ± 3%    ~     (p=0.963 n=18+18)
+BM_Encrypt/512/0         504ns ± 4%   456ns ± 3%  -9.52%  (p=0.000 n=17+20)
+BM_Encrypt/512/1         568ns ± 2%   528ns ± 4%  -7.09%  (p=0.000 n=15+17)
+BM_Encrypt/512/8         580ns ± 3%   541ns ± 4%  -6.66%  (p=0.000 n=20+17)
+BM_Encrypt/512/64        500ns ± 3%   454ns ± 4%  -9.26%  (p=0.000 n=17+17)
+BM_Encrypt/512/97        564ns ± 2%   526ns ± 4%  -6.82%  (p=0.000 n=18+17)
+BM_Encrypt/4k/0         1.26µs ± 2%  1.23µs ± 5%  -2.77%  (p=0.000 n=19+18)
+BM_Encrypt/4k/1         1.33µs ± 2%  1.28µs ± 3%  -4.34%  (p=0.000 n=18+18)
+BM_Encrypt/4k/8         1.35µs ± 3%  1.29µs ± 3%  -4.31%  (p=0.000 n=19+17)
+BM_Encrypt/4k/64        1.27µs ± 3%  1.23µs ± 4%  -3.32%  (p=0.000 n=18+18)
+BM_Encrypt/4k/97        1.34µs ± 3%  1.29µs ± 3%  -3.98%  (p=0.000 n=18+16)
+BM_Encrypt/32k/0        8.24µs ± 4%  7.99µs ± 5%  -3.00%  (p=0.001 n=17+16)
+BM_Encrypt/32k/1        8.23µs ± 2%  7.99µs ± 5%  -2.95%  (p=0.000 n=17+16)
+BM_Encrypt/32k/8        8.64µs ±15%  8.05µs ± 5%  -6.92%  (p=0.000 n=20+18)
+BM_Encrypt/32k/64       8.14µs ± 3%  7.96µs ± 3%  -2.23%  (p=0.000 n=18+17)
+BM_Encrypt/32k/97       8.72µs ±14%  8.01µs ± 4%  -8.20%  (p=0.000 n=20+17)
+BM_Encrypt/256k/0       63.2µs ± 4%  61.7µs ± 3%  -2.35%  (p=0.003 n=19+18)
+BM_Encrypt/256k/1       63.5µs ± 4%  61.8µs ± 3%  -2.75%  (p=0.000 n=17+19)
+BM_Encrypt/256k/8       63.6µs ± 9%  61.0µs ± 1%  -4.08%  (p=0.000 n=18+16)
+BM_Encrypt/256k/64      63.1µs ± 3%  61.5µs ± 5%  -2.60%  (p=0.001 n=18+16)
+BM_Encrypt/256k/97      65.6µs ±16%  61.6µs ± 4%  -6.09%  (p=0.000 n=19+17)
+BM_Encrypt/1M/0          253µs ± 5%   246µs ± 5%  -2.88%  (p=0.001 n=19+19)
+BM_Encrypt/1M/1          253µs ± 6%   244µs ± 1%  -3.71%  (p=0.000 n=16+17)
+BM_Encrypt/1M/8          254µs ± 5%   244µs ± 3%  -4.15%  (p=0.000 n=18+18)
+BM_Encrypt/1M/64         253µs ± 4%   245µs ± 4%  -3.10%  (p=0.000 n=19+19)
+BM_Encrypt/1M/97         267µs ±14%   246µs ± 4%  -8.13%  (p=0.000 n=20+18)
+
+But on AMD with prefetchers disabled and large enough data size,
+to force cache misses this gives >2x improvement:
+BM_Encrypt/64/0          342ns ± 1%   336ns ± 1%   -1.63%  (p=0.000 n=19+19)
+BM_Encrypt/64/1          485ns ± 2%   484ns ± 2%     ~     (p=0.396 n=19+20)
+BM_Encrypt/64/8          490ns ± 1%   488ns ± 2%     ~     (p=0.098 n=18+19)
+BM_Encrypt/64/64         340ns ± 2%   335ns ± 1%   -1.50%  (p=0.000 n=19+19)
+BM_Encrypt/64/97         483ns ± 1%   483ns ± 1%     ~     (p=0.912 n=16+20)
+BM_Encrypt/512/0         566ns ± 3%   521ns ± 2%   -7.99%  (p=0.000 n=18+20)
+BM_Encrypt/512/1         744ns ± 2%   667ns ± 1%  -10.31%  (p=0.000 n=20+20)
+BM_Encrypt/512/8         745ns ± 1%   666ns ± 1%  -10.53%  (p=0.000 n=18+20)
+BM_Encrypt/512/64        566ns ± 3%   520ns ± 2%   -8.05%  (p=0.000 n=17+19)
+BM_Encrypt/512/97        740ns ± 1%   666ns ± 1%   -9.92%  (p=0.000 n=18+19)
+BM_Encrypt/4k/0         2.50µs ± 1%  1.35µs ± 1%  -45.82%  (p=0.000 n=19+19)
+BM_Encrypt/4k/1         2.65µs ± 3%  1.50µs ± 1%  -43.50%  (p=0.000 n=19+19)
+BM_Encrypt/4k/8         2.66µs ± 1%  1.49µs ± 1%  -43.71%  (p=0.000 n=19+19)
+BM_Encrypt/4k/64        2.47µs ± 4%  1.36µs ± 1%  -45.05%  (p=0.000 n=20+20)
+BM_Encrypt/4k/97        2.66µs ± 1%  1.50µs ± 2%  -43.54%  (p=0.000 n=18+19)
+BM_Encrypt/32k/0        18.0µs ± 1%   8.0µs ± 1%  -55.38%  (p=0.000 n=18+19)
+BM_Encrypt/32k/1        18.2µs ± 1%   8.2µs ± 1%  -54.91%  (p=0.000 n=14+20)
+BM_Encrypt/32k/8        18.2µs ± 1%   8.2µs ± 1%  -54.93%  (p=0.000 n=19+18)
+BM_Encrypt/32k/64       18.0µs ± 1%   8.0µs ± 1%  -55.35%  (p=0.000 n=16+20)
+BM_Encrypt/32k/97       18.1µs ± 3%   8.2µs ± 1%  -54.84%  (p=0.000 n=20+19)
+BM_Encrypt/256k/0        148µs ± 1%    63µs ± 1%  -57.59%  (p=0.000 n=18+19)
+BM_Encrypt/256k/1        150µs ± 1%    63µs ± 1%  -57.78%  (p=0.000 n=16+20)
+BM_Encrypt/256k/8        147µs ± 5%    63µs ± 1%  -56.95%  (p=0.000 n=20+20)
+BM_Encrypt/256k/64       148µs ± 2%    63µs ± 1%  -57.40%  (p=0.000 n=18+20)
+BM_Encrypt/256k/97       146µs ± 4%    63µs ± 1%  -56.82%  (p=0.000 n=20+19)
+BM_Encrypt/1M/0          595µs ± 1%   254µs ± 1%  -57.33%  (p=0.000 n=19+20)
+BM_Encrypt/1M/1          590µs ± 4%   255µs ± 1%  -56.78%  (p=0.000 n=20+20)
+BM_Encrypt/1M/8          593µs ± 2%   254µs ± 1%  -57.10%  (p=0.000 n=18+19)
+BM_Encrypt/1M/64         595µs ± 1%   254µs ± 1%  -57.34%  (p=0.000 n=16+19)
+BM_Encrypt/1M/97         589µs ± 4%   255µs ± 1%  -56.74%  (p=0.000 n=20+20)
+
+Change-Id: I13c783ad261093009b2aa5ff56ce569f45ed3300
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/60027
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: David Benjamin <davidben@google.com>
+(cherry picked from commit 5fcd47d137f9b556edc7a392035dc2d2f43282ca)
+---
+ crypto/fipsmodule/aes/asm/aesni-x86_64.pl | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/crypto/fipsmodule/aes/asm/aesni-x86_64.pl b/crypto/fipsmodule/aes/asm/aesni-x86_64.pl
+index 45899542b..e0da1c75d 100644
+--- a/crypto/fipsmodule/aes/asm/aesni-x86_64.pl
++++ b/crypto/fipsmodule/aes/asm/aesni-x86_64.pl
+@@ -1527,6 +1527,8 @@ $code.=<<___;
+ 	pxor		$rndkey0,$in3
+ 	movdqu		0x50($inp),$in5
+ 	pxor		$rndkey0,$in4
++	prefetcht0	0x1c0($inp)	# We process 128 bytes (8*16), so to prefetch 1 iteration
++	prefetcht0	0x200($inp)	# We need to prefetch 2 64 byte lines
+ 	pxor		$rndkey0,$in5
+ 	aesenc		$rndkey1,$inout0
+ 	aesenc		$rndkey1,$inout1

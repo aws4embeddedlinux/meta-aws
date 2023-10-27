@@ -1,0 +1,233 @@
+From dbedeb71618d494edeb16b0d162756720c2ff9a2 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Wed, 19 Apr 2023 17:11:09 -0700
+Subject: [PATCH] Use EVP_DigestSign/Verify for RSA PWCT (#957)
+
+FIPS vendor feedback required us to do our RSA PWCT with the
+`EVP_DigestSign/Verify` functions for RSA. This aligns with what we were doing
+for `EVP_EC_KEY_check_fips` as well.
+
+We were also given feedback that we could consider using an empty message `""`
+for both PWCTs to help us save a bit of time.
+---
+ crypto/fipsmodule/ec/ec_key.c | 16 +++++-----
+ crypto/fipsmodule/rsa/rsa.c   | 58 +++++++++++++++++++++++------------
+ tool/speed.cc                 | 38 +++++++++++++++++------
+ 3 files changed, 74 insertions(+), 38 deletions(-)
+
+diff --git a/crypto/fipsmodule/ec/ec_key.c b/crypto/fipsmodule/ec/ec_key.c
+index 095bda300..ddf33dcaf 100644
+--- a/crypto/fipsmodule/ec/ec_key.c
++++ b/crypto/fipsmodule/ec/ec_key.c
+@@ -332,33 +332,33 @@ static int EVP_EC_KEY_check_fips(EC_KEY *key) {
+   int ret = 0;
+   uint8_t* sig_der = NULL;
+   EVP_PKEY *evp_pkey = EVP_PKEY_new();
+-  EVP_MD_CTX *ctx = EVP_MD_CTX_new();
++  EVP_MD_CTX ctx;
++  EVP_MD_CTX_init(&ctx);
+   const EVP_MD *hash = EVP_sha256();
+   size_t sign_len;
+   if (!evp_pkey ||
+-      !ctx ||
+       !EVP_PKEY_set1_EC_KEY(evp_pkey, key) ||
+-      !EVP_DigestSignInit(ctx, NULL, hash, NULL, evp_pkey) ||
+-      !EVP_DigestSign(ctx, NULL, &sign_len, msg, msg_len)) {
++      !EVP_DigestSignInit(&ctx, NULL, hash, NULL, evp_pkey) ||
++      !EVP_DigestSign(&ctx, NULL, &sign_len, msg, msg_len)) {
+     goto err;
+   }
+   sig_der = OPENSSL_malloc(sign_len);
+   if (!sig_der ||
+-      !EVP_DigestSign(ctx, sig_der, &sign_len, msg, msg_len)) {
++      !EVP_DigestSign(&ctx, sig_der, &sign_len, msg, msg_len)) {
+     goto err;
+   }
+   if (boringssl_fips_break_test("ECDSA_PWCT")) {
+     msg[0] = ~msg[0];
+   }
+-  if (!EVP_DigestVerifyInit(ctx, NULL, hash, NULL, evp_pkey) ||
+-      !EVP_DigestVerify(ctx, sig_der, sign_len, msg, msg_len)) {
++  if (!EVP_DigestVerifyInit(&ctx, NULL, hash, NULL, evp_pkey) ||
++      !EVP_DigestVerify(&ctx, sig_der, sign_len, msg, msg_len)) {
+     goto err;
+   }
+   ret = 1;
+ err:
+   EVP_PKEY_free(evp_pkey);
++  EVP_MD_CTX_cleanse(&ctx);
+   OPENSSL_free(sig_der);
+-  EVP_MD_CTX_free(ctx);
+   return ret;
+ }
+ 
+diff --git a/crypto/fipsmodule/rsa/rsa.c b/crypto/fipsmodule/rsa/rsa.c
+index 5eff5cfaf..8e047b80d 100644
+--- a/crypto/fipsmodule/rsa/rsa.c
++++ b/crypto/fipsmodule/rsa/rsa.c
+@@ -929,6 +929,42 @@ DEFINE_LOCAL_DATA(BIGNUM, g_small_factors) {
+   out->flags = BN_FLG_STATIC_DATA;
+ }
+ 
++static int EVP_RSA_KEY_check_fips(RSA *key) {
++  uint8_t msg[1] = {0};
++  size_t msg_len = 1;
++  int ret = 0;
++  uint8_t* sig_der = NULL;
++  EVP_PKEY *evp_pkey = EVP_PKEY_new();
++  EVP_MD_CTX ctx;
++  EVP_MD_CTX_init(&ctx);
++  const EVP_MD *hash = EVP_sha256();
++  size_t sign_len;
++  if (!evp_pkey ||
++      !EVP_PKEY_set1_RSA(evp_pkey, key) ||
++      !EVP_DigestSignInit(&ctx, NULL, hash, NULL, evp_pkey) ||
++      !EVP_DigestSign(&ctx, NULL, &sign_len, msg, msg_len)) {
++    goto err;
++  }
++  sig_der = OPENSSL_malloc(sign_len);
++  if (!sig_der ||
++      !EVP_DigestSign(&ctx, sig_der, &sign_len, msg, msg_len)) {
++    goto err;
++  }
++  if (boringssl_fips_break_test("RSA_PWCT")) {
++    msg[0] = ~msg[0];
++  }
++  if (!EVP_DigestVerifyInit(&ctx, NULL, hash, NULL, evp_pkey) ||
++      !EVP_DigestVerify(&ctx, sig_der, sign_len, msg, msg_len)) {
++    goto err;
++  }
++  ret = 1;
++err:
++  EVP_PKEY_free(evp_pkey);
++  EVP_MD_CTX_cleanse(&ctx);
++  OPENSSL_free(sig_der);
++  return ret;
++}
++
+ int RSA_check_fips(RSA *key) {
+   if (RSA_is_opaque(key)) {
+     // Opaque keys can't be checked.
+@@ -984,28 +1020,10 @@ int RSA_check_fips(RSA *key) {
+   // section 9.9, it is not known whether |rsa| will be used for signing or
+   // encryption, so either pair-wise consistency self-test is acceptable. We
+   // perform a signing test.
+-  uint8_t data[32] = {0};
+-  unsigned sig_len = RSA_size(key);
+-  uint8_t *sig = OPENSSL_malloc(sig_len);
+-  if (sig == NULL) {
+-    return 0;
+-  }
+-
+-  if (!RSA_sign(NID_sha256, data, sizeof(data), sig, &sig_len, key)) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_INTERNAL_ERROR);
++  if (!EVP_RSA_KEY_check_fips(key)) {
++    OPENSSL_PUT_ERROR(EC, RSA_R_PUBLIC_KEY_VALIDATION_FAILED);
+     ret = 0;
+-    goto cleanup;
+   }
+-  if (boringssl_fips_break_test("RSA_PWCT")) {
+-    data[0] = ~data[0];
+-  }
+-  if (!RSA_verify(NID_sha256, data, sizeof(data), sig, sig_len, key)) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_INTERNAL_ERROR);
+-    ret = 0;
+-  }
+-
+-cleanup:
+-  OPENSSL_free(sig);
+ 
+   return ret;
+ }
+diff --git a/tool/speed.cc b/tool/speed.cc
+index 568126cd3..042b10f44 100644
+--- a/tool/speed.cc
++++ b/tool/speed.cc
+@@ -335,7 +335,7 @@ static bool SpeedRSA(const std::string &selected) {
+   return true;
+ }
+ 
+-static bool SpeedRSAKeyGen(const std::string &selected) {
++static bool SpeedRSAKeyGen(bool is_fips, const std::string &selected) {
+   // Don't run this by default because it's so slow.
+   if (selected != "RSAKeyGen") {
+     return true;
+@@ -357,10 +357,24 @@ static bool SpeedRSAKeyGen(const std::string &selected) {
+       BM_NAMESPACE::UniquePtr<RSA> rsa(RSA_new());
+ 
+       const uint64_t iteration_start = time_now();
+-      if (!RSA_generate_key_ex(rsa.get(), size, e.get(), nullptr)) {
+-        fprintf(stderr, "RSA_generate_key_ex failed.\n");
+-        ERR_print_errors_fp(stderr);
+-        return false;
++      if(is_fips){
++#if !defined(OPENSSL_BENCHMARK)
++        // RSA_generate_key_fips is AWS-LC specific.
++        if (!RSA_generate_key_fips(rsa.get(), size, nullptr)) {
++          fprintf(stderr, "RSA_generate_key_fips failed.\n");
++          ERR_print_errors_fp(stderr);
++          return false;
++        }
++#else
++        return true;
++#endif
++      }
++      else {
++        if (!RSA_generate_key_ex(rsa.get(), size, e.get(), nullptr)) {
++          fprintf(stderr, "RSA_generate_key_ex failed.\n");
++          ERR_print_errors_fp(stderr);
++          return false;
++        }
+       }
+       const uint64_t iteration_end = time_now();
+ 
+@@ -374,8 +388,12 @@ static bool SpeedRSAKeyGen(const std::string &selected) {
+     }
+ 
+     std::sort(durations.begin(), durations.end());
++    std::string rsa_type = std::string("RSA ");
++    if (is_fips) {
++      rsa_type += "FIPS ";
++    }
+     const std::string description =
+-        std::string("RSA ") + std::to_string(size) + std::string(" key-gen");
++        rsa_type + std::to_string(size) + std::string(" key-gen");
+     const TimeResults results = {num_calls, us};
+     results.Print(description);
+     const size_t n = durations.size();
+@@ -1820,7 +1838,7 @@ static bool SpeedTrustToken(std::string name, const TRUST_TOKEN_METHOD *method,
+ #endif
+ #endif
+ 
+-#if defined(BORINGSSL_FIPS)
++#if defined(AWSLC_FIPS)
+ static bool SpeedSelfTest(const std::string &selected) {
+   if (!selected.empty() && selected.find("self-test") == std::string::npos) {
+     return true;
+@@ -2117,7 +2135,7 @@ bool Speed(const std::vector<std::string> &args) {
+      !SpeedScrypt(selected) ||
+ #endif
+      !SpeedRSA(selected) ||
+-     !SpeedRSAKeyGen(selected)
++     !SpeedRSAKeyGen(false, selected)
+ #if !defined(OPENSSL_BENCHMARK)
+      ||
+      !SpeedKEM(selected) ||
+@@ -2138,7 +2156,7 @@ bool Speed(const std::vector<std::string> &args) {
+      !SpeedAEAD(EVP_aead_aes_128_ccm_bluetooth(), "AEAD-AES-128-CCM-Bluetooth", kTLSADLen, selected) ||
+      !Speed25519(selected) ||
+      !SpeedSPAKE2(selected) ||
+-     !SpeedRSAKeyGen(selected) ||
++     !SpeedRSAKeyGen(true, selected) ||
+      !SpeedHRSS(selected) ||
+      !SpeedHash(EVP_blake2b256(), "BLAKE2b-256", selected) ||
+ #if defined(INTERNAL_TOOL)
+@@ -2159,7 +2177,7 @@ bool Speed(const std::vector<std::string> &args) {
+      ) {
+     return false;
+   }
+-#if defined(BORINGSSL_FIPS)
++#if defined(AWSLC_FIPS)
+   if (!SpeedSelfTest(selected) ||
+       !SpeedJitter(selected)) {
+     return false;

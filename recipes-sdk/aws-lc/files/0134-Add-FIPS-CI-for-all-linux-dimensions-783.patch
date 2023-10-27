@@ -1,0 +1,512 @@
+From 1133f01d3b834501476471afd86466dcbe37033a Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Thu, 16 Feb 2023 20:20:42 -0800
+Subject: [PATCH] Add FIPS CI for all linux dimensions (#783)
+
+---
+ tests/ci/README.md                            | 39 +++++++-
+ .../github_ci_linux_arm_omnibus.yaml          | 98 ++++++++++++++-----
+ .../github_ci_linux_x86_omnibus.yaml          | 95 ++++++++++++------
+ 3 files changed, 174 insertions(+), 58 deletions(-)
+
+diff --git a/tests/ci/README.md b/tests/ci/README.md
+index 86111a0fc..d70dd3afb 100644
+--- a/tests/ci/README.md
++++ b/tests/ci/README.md
+@@ -35,7 +35,7 @@ $ ./tests/ci/run_posix_tests.sh
+ 
+ ### Unit tests
+ 
+-General test suite with a varying set of build options (FIPS (shared), non-FIPS, debug,
++General test suite with a varying set of build options (FIPS (shared-build), non-FIPS, debug,
+ shared, static, etc.) is executed on the following combinations:
+ 
+ CI Tool|Compiler|CPU|OS
+@@ -51,6 +51,8 @@ CodeBuild|gcc 7.5.0|x86-64|Ubuntu 20.04
+ CodeBuild|gcc 7.5.0|aarch64|Ubuntu 20.04
+ CodeBuild|gcc 8.4.0|x86-64|Ubuntu 20.04
+ CodeBuild|gcc 8.4.0|aarch64|Ubuntu 20.04
++CodeBuild|gcc 11|x86-64|AL2022
++CodeBuild|gcc 11|aarch64|AL2022
+ CodeBuild|gcc 11|x86-64|Ubuntu 22.04
+ CodeBuild|gcc 11|aarch64|Ubuntu 22.04
+ CodeBuild|gcc 12|x86-64|Ubuntu 22.04
+@@ -67,26 +69,53 @@ CodeBuild|clang 9.0.1|x86-64|Ubuntu 20.04
+ CodeBuild|clang 9.0.1|aarch64|Ubuntu 20.04
+ CodeBuild|clang 10.0.0|x86-64|Ubuntu 20.04
+ CodeBuild|clang 10.0.0|aarch64|Ubuntu 20.04
++CodeBuild|clang 14.0.0|x86-64|AL2022
++CodeBuild|clang 14.0.0|aarch64|AL2022
+ CodeBuild|Visual Studio 2015|x86-64|Windows Server 19
+ CodeBuild|Visual Studio 2017|x86-64|Windows Server 19
+ GitHub Workflow|AppleClang 13.0.0|x86-64|macOS 11
++SSM->EC2 Instance|AppleClang 14.0.0|aarch64|macOS 12
+ AWS Device Farm|Android ndkVersion "21.0.6113669"|aarch64|Android 10
+ AWS Device Farm|Android ndkVersion "21.0.6113669"|aarch64|Android 11
+ AWS Device Farm|Android ndkVersion "21.0.6113669"|aarch64|Android 12
+ 
+ ### FIPS static build tests
+ 
+-Unfortunately, it's a known issue that the FIPS build has limited support when producing a static library. The following platforms are what we currently test on for the static AWS-LC FIPS build.
++Unfortunately, it's a known issue that the FIPS build has limited support when producing a static library. The static AWS-LC FIPS build is only supported on Linux based platforms for x86_64 and aarch64.
+ 
+ CI Tool|Compiler|CPU|OS
+ ------------ | -------------| -------------|-------------
+ CodeBuild|gcc 4.8.5|x86-64|Centos 7
+ CodeBuild|gcc 7.3.1|x86-64|AL2
++CodeBuild|gcc 7.3.1|aarch64|AL2
++CodeBuild|gcc 7.5.0|x86-64|Ubuntu 18.04
+ CodeBuild|gcc 7.5.0|x86-64|Ubuntu 20.04
++CodeBuild|gcc 7.5.0|aarch64|Ubuntu 20.04
++CodeBuild|gcc 8.4.0|x86-64|Ubuntu 20.04
++CodeBuild|gcc 8.4.0|aarch64|Ubuntu 20.04
++CodeBuild|gcc 11|x86-64|AL2022
++CodeBuild|gcc 11|aarch64|AL2022
++CodeBuild|gcc 11|x86-64|Ubuntu 22.04
++CodeBuild|gcc 11|aarch64|Ubuntu 22.04
++CodeBuild|gcc 12|x86-64|Ubuntu 22.04
++CodeBuild|gcc 12|aarch64|Ubuntu 22.04
+ CodeBuild|clang 7.0.1|x86-64|AL2
+ CodeBuild|clang 7.0.1|aarch64|AL2
++CodeBuild|clang 6.0.0|x86-64|Ubuntu 18.04
++CodeBuild|clang 9.0.1|x86-64|Fedora 31
+ CodeBuild|clang 7.0.1|x86-64|Ubuntu 20.04
+ CodeBuild|clang 7.0.1|aarch64|Ubuntu 20.04
++CodeBuild|clang 8.0.1|x86-64|Ubuntu 20.04
++CodeBuild|clang 8.0.1|aarch64|Ubuntu 20.04
++CodeBuild|clang 9.0.1|x86-64|Ubuntu 20.04
++CodeBuild|clang 9.0.1|aarch64|Ubuntu 20.04
++CodeBuild|clang 10.0.0|x86-64|Ubuntu 20.04
++CodeBuild|clang 10.0.0|aarch64|Ubuntu 20.04
++CodeBuild|clang 14.0.0|x86-64|AL2022
++CodeBuild|clang 14.0.0|aarch64|AL2022
++AWS Device Farm|Android ndkVersion "21.0.6113669"|aarch64|Android 10
++AWS Device Farm|Android ndkVersion "21.0.6113669"|aarch64|Android 11
++AWS Device Farm|Android ndkVersion "21.0.6113669"|aarch64|Android 12
+ 
+ ### Sanitizer tests
+ 
+@@ -99,8 +128,8 @@ Runs all tests with:
+ 
+ CI Tool|Compiler|CPU platform|OS
+ ------------ | -------------| -------------|-------------
+-CodeBuild|clang 9.0.1|x86-64|Ubuntu 20.04
+-CodeBuild|clang 9.0.1|aarch64|ubuntu 20.04
++CodeBuild|clang 14.0.0|x86-64|AL2022
++CodeBuild|clang 14.0.0|aarch64|AL2022
+ 
+ ### Valgrind tests
+ 
+@@ -108,7 +137,7 @@ The following Valgrind tests are run for a subset of targets in `utils/all_tests
+ 
+ CI Tool|Compiler|CPU platform|OS| memcheck 
+ ------------ | -------------| -------------|-------------|-------------
+-CodeBuild|gcc 7.3.1|x86-64|AL2 | X
++CodeBuild|gcc 11|x86-64|AL2022 | X
+ 
+ ### Fuzz tests
+ 
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
+index c07021b25..d315d2da7 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
+@@ -14,6 +14,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_gcc-7x_latest
+ 
++    - identifier: ubuntu2004_gcc7x_aarch_fips
++      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      env:
++        type: ARM_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_gcc-7x_latest
++
+     - identifier: ubuntu2004_gcc8x_aarch
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
+       env:
+@@ -22,6 +30,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_gcc-8x_latest
+ 
++    - identifier: ubuntu2004_gcc8x_aarch_fips
++      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      env:
++        type: ARM_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_gcc-8x_latest
++
+     - identifier: ubuntu2204_gcc11x_aarch
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
+       env:
+@@ -30,6 +46,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-22.04_gcc-11x_latest
+ 
++    - identifier: ubuntu2204_gcc11x_aarch_fips
++      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      env:
++        type: ARM_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-22.04_gcc-11x_latest
++
+     - identifier: ubuntu2204_gcc12x_aarch
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
+       env:
+@@ -38,6 +62,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-22.04_gcc-12x_latest
+ 
++    - identifier: ubuntu2204_gcc12x_aarch_fips
++      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      env:
++        type: ARM_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-22.04_gcc-12x_latest
++
+     - identifier: ubuntu2004_clang7x_aarch
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
+       env:
+@@ -50,7 +82,7 @@ batch:
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
+       env:
+         type: ARM_CONTAINER
+-        privileged-mode: true
++        privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-7x_latest
+         variables:
+@@ -58,14 +90,6 @@ batch:
+           AWS_LC_GO_TEST_TIMEOUT: 120m
+           AWSLC_NO_ASM_FIPS: 1
+ 
+-    - identifier: ubuntu2004_gcc7x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
+-      env:
+-        type: ARM_CONTAINER
+-        privileged-mode: true
+-        compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_gcc-7x_latest
+-
+     - identifier: ubuntu2004_clang7x_aarch_minimal
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_minimal_tests.yml
+       env:
+@@ -82,6 +106,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-8x_latest
+ 
++    - identifier: ubuntu2004_clang8x_aarch_fips
++      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      env:
++        type: ARM_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-8x_latest
++
+     - identifier: ubuntu2004_clang9x_aarch
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
+       env:
+@@ -90,6 +122,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-9x_latest
+ 
++    - identifier: ubuntu2004_clang9x_aarch_fips
++      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      env:
++        type: ARM_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-9x_latest
++
+     - identifier: ubuntu2004_clang10x_aarch
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
+       env:
+@@ -98,6 +138,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-10x_latest
+ 
++    - identifier: ubuntu2004_clang10x_aarch_fips
++      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      env:
++        type: ARM_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-10x_latest
++
+     - identifier: ubuntu2004_clang10x_aarch_prefix
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_prefix_tests.yml
+       env:
+@@ -114,6 +162,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2_gcc-7x_latest
+ 
++    - identifier: amazonlinux2_gcc7x_aarch_fips
++      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      env:
++        type: ARM_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2_gcc-7x_latest
++
+     - identifier: amazonlinux2_gcc7x_aarch_prefix
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_prefix_tests.yml
+       env:
+@@ -134,7 +190,7 @@ batch:
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
+       env:
+         type: ARM_CONTAINER
+-        privileged-mode: true
++        privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2_clang-7x_latest
+         variables:
+@@ -142,16 +198,16 @@ batch:
+           # https://github.com/aws/aws-lc/pull/120#issuecomment-808439279
+           AWSLC_NO_ASM_FIPS: 0
+ 
+-    - identifier: amazonlinux2_gcc7x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++    - identifier: amazonlinux2022_gcc11x_aarch
++      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
+       env:
+         type: ARM_CONTAINER
+-        privileged-mode: true
++        privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2_gcc-7x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_gcc-11x_latest
+ 
+-    - identifier: amazonlinux2022_gcc11x_aarch
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++    - identifier: amazonlinux2022_gcc11x_aarch_fips
++      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+@@ -170,18 +226,10 @@ batch:
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
+       env:
+         type: ARM_CONTAINER
+-        privileged-mode: true
++        privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_clang-14x_latest
+ 
+-    - identifier: amazonlinux2022_gcc11x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
+-      env:
+-        type: ARM_CONTAINER
+-        privileged-mode: true
+-        compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_gcc-11x_latest
+-
+     - identifier: amazonlinux_2022_clang_14x_sanitizer
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_sanitizer_tests.yml
+       env:
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+index 58c7968d0..58f103671 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+@@ -32,6 +32,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-18.04_clang-6x_latest
+ 
++    - identifier: ubuntu1804_clang6x_x86_64_fips
++      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: true
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-18.04_clang-6x_latest
++
+     - identifier: ubuntu1804_gcc7x_x86_64
+       buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
+       env:
+@@ -40,6 +48,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-18.04_gcc-7x_latest
+ 
++    - identifier: ubuntu1804_gcc7x_x86_64_fips
++      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: true
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-18.04_gcc-7x_latest
++
+     - identifier: ubuntu2004_gcc7x_x86_64
+       buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
+       env:
+@@ -88,29 +104,29 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-11x_latest
+ 
+-    - identifier: ubuntu2204_gcc12x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++    - identifier: ubuntu2204_gcc11x_x86_64_prefix
++      buildspec: ./tests/ci/codebuild/linux-x86/run_prefix_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-11x_latest
+ 
+-    - identifier: ubuntu2204_gcc12x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++    - identifier: ubuntu2204_gcc12x_x86_64
++      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
+ 
+-    - identifier: ubuntu2204_gcc11x_x86_64_prefix
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_prefix_tests.yml
++    - identifier: ubuntu2204_gcc12x_x86_64_fips
++      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-11x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
+ 
+     - identifier: ubuntu2004_clang7x_x86_64
+       buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
+@@ -138,6 +154,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-8x_latest
+ 
++    - identifier: ubuntu2004_clang8x_x86_64_fips
++      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: true
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-8x_latest
++
+     - identifier: ubuntu2004_clang9x_x86_64
+       buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
+       env:
+@@ -146,6 +170,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-9x_latest
+ 
++    - identifier: ubuntu2004_clang9x_x86_64_fips
++      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: true
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-9x_latest
++
+     - identifier: ubuntu2004_clang10x_x86_64
+       buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
+       env:
+@@ -154,6 +186,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-10x_latest
+ 
++    - identifier: ubuntu2004_clang10x_x86_64_fips
++      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: true
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-10x_latest
++
+     - identifier: centos7_gcc4x_x86
+       buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
+       env:
+@@ -188,30 +228,22 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_gcc-7x_latest
+ 
+-    - identifier: amazonlinux2_clang7x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++    - identifier: amazonlinux2_gcc7x_x86_64_fips
++      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_clang-7x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_gcc-7x_latest
+ 
+-    - identifier: amazonlinux2_clang7x_x86_64_prefix
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_prefix_tests.yml
++    - identifier: amazonlinux2_clang7x_x86_64
++      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_clang-7x_latest
+ 
+-    - identifier: amazonlinux2_gcc7x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
+-      env:
+-        type: LINUX_CONTAINER
+-        privileged-mode: true
+-        compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_gcc-7x_latest
+-
+     - identifier: amazonlinux2_clang7x_x86_64_fips
+       buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
+       env:
+@@ -224,6 +256,14 @@ batch:
+           # https://github.com/aws/aws-lc/pull/120#issuecomment-808439279
+           AWSLC_NO_ASM_FIPS: 0
+ 
++    - identifier: amazonlinux2_clang7x_x86_64_prefix
++      buildspec: ./tests/ci/codebuild/linux-x86/run_prefix_tests.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: true
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_clang-7x_latest
++
+     - identifier: amazonlinux2_gcc7x_intel_sde_x86_64
+       buildspec: ./tests/ci/codebuild/linux-x86/amazonlinux-2_gcc-7x_intel-sde.yml
+       env:
+@@ -248,21 +288,21 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_gcc-11x_latest
+ 
+-    - identifier: amazonlinux2022_clang14x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++    - identifier: amazonlinux2022_gcc11x_x86_64_fips
++      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_clang-14x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_gcc-11x_latest
+ 
+-    - identifier: amazonlinux2022_gcc11x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++    - identifier: amazonlinux2022_clang14x_x86_64
++      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_gcc-11x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_clang-14x_latest
+ 
+     - identifier: amazonlinux2022_clang14x_x86_64_fips
+       buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
+@@ -280,7 +320,6 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_clang-14x_sanitizer_latest
+ 
+-
+     - identifier: s2n_integration
+       buildspec: ./tests/ci/codebuild/linux-x86/s2n_integration.yml
+       env:

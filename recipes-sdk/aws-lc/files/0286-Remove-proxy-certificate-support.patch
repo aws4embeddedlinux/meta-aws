@@ -1,0 +1,610 @@
+From 21751e4b3815e1c57ede50b65f0552ee4fe6c278 Mon Sep 17 00:00:00 2001
+From: Bob Beck <bbe@google.com>
+Date: Tue, 14 Feb 2023 11:08:56 -0700
+Subject: [PATCH] Remove proxy certificate support.
+
+Nothing uses this, and the code is somewhat decrepit. Instead of
+fixing it and continuing to maintain it as attack surface, we
+send this off to the farm where it can run and play all day with
+the other unused X.509 extensions.
+
+Update-note: This removes the proxy certificate extension from
+the recognized certificate extensions. Previously by default
+a certificate with a critical proxy certificate extension would
+have been rejected with "proxy certificate not allowed", but
+will now be rejected with an unrecognized critical extension
+error.
+
+Fixed: 568
+Change-Id: I5f838d69c59517254b4fa83f6e2abe6057fa66c7
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57265
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: David Benjamin <davidben@google.com>
+Auto-Submit: Bob Beck <bbe@google.com>
+(cherry picked from commit 503ba98910d9a838a3cc8ab465ba507abcdac2b2)
+---
+ crypto/CMakeLists.txt    |   2 -
+ crypto/x509/internal.h   |   1 -
+ crypto/x509/x509_vfy.c   |  40 +-----
+ crypto/x509v3/ext_dat.h  |   3 +-
+ crypto/x509v3/v3_pci.c   | 275 ---------------------------------------
+ crypto/x509v3/v3_pcia.c  |  54 --------
+ crypto/x509v3/v3_purp.c  |  25 +---
+ include/openssl/x509.h   |   2 +-
+ include/openssl/x509v3.h |  15 ---
+ 9 files changed, 4 insertions(+), 413 deletions(-)
+ delete mode 100644 crypto/x509v3/v3_pci.c
+ delete mode 100644 crypto/x509v3/v3_pcia.c
+
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index 1c64967d7..87485c106 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -482,8 +482,6 @@ add_library(
+   x509v3/v3_lib.c
+   x509v3/v3_ncons.c
+   x509v3/v3_ocsp.c
+-  x509v3/v3_pci.c
+-  x509v3/v3_pcia.c
+   x509v3/v3_pcons.c
+   x509v3/v3_pmaps.c
+   x509v3/v3_prn.c
+diff --git a/crypto/x509/internal.h b/crypto/x509/internal.h
+index 49b4c8c51..805691773 100644
+--- a/crypto/x509/internal.h
++++ b/crypto/x509/internal.h
+@@ -147,7 +147,6 @@ struct x509_st {
+   CRYPTO_EX_DATA ex_data;
+   // These contain copies of various extension values
+   long ex_pathlen;
+-  long ex_pcpathlen;
+   uint32_t ex_flags;
+   uint32_t ex_kusage;
+   uint32_t ex_xkusage;
+diff --git a/crypto/x509/x509_vfy.c b/crypto/x509/x509_vfy.c
+index 7f3e23273..2f6a38266 100644
+--- a/crypto/x509/x509_vfy.c
++++ b/crypto/x509/x509_vfy.c
+@@ -543,22 +543,18 @@ static int check_chain_extensions(X509_STORE_CTX *ctx) {
+   X509 *x;
+   int proxy_path_length = 0;
+   int purpose;
+-  int allow_proxy_certs;
+ 
+   enum {
+     // ca_or_leaf allows either type of certificate so that direct use of
+     // self-signed certificates works.
+     ca_or_leaf,
+     must_be_ca,
+-    must_not_be_ca,
+   } ca_requirement;
+ 
+   // CRL path validation
+   if (ctx->parent) {
+-    allow_proxy_certs = 0;
+     purpose = X509_PURPOSE_CRL_SIGN;
+   } else {
+-    allow_proxy_certs = !!(ctx->param->flags & X509_V_FLAG_ALLOW_PROXY_CERTS);
+     purpose = ctx->param->purpose;
+   }
+ 
+@@ -578,28 +574,11 @@ static int check_chain_extensions(X509_STORE_CTX *ctx) {
+         goto end;
+       }
+     }
+-    if (!allow_proxy_certs && (x->ex_flags & EXFLAG_PROXY)) {
+-      ctx->error = X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED;
+-      ctx->error_depth = i;
+-      ctx->current_cert = x;
+-      ok = ctx->verify_cb(0, ctx);
+-      if (!ok) {
+-        goto end;
+-      }
+-    }
+ 
+     switch (ca_requirement) {
+       case ca_or_leaf:
+         ret = 1;
+         break;
+-      case must_not_be_ca:
+-        if (X509_check_ca(x)) {
+-          ret = 0;
+-          ctx->error = X509_V_ERR_INVALID_NON_CA;
+-        } else {
+-          ret = 1;
+-        }
+-        break;
+       case must_be_ca:
+         if (!X509_check_ca(x)) {
+           ret = 0;
+@@ -649,24 +628,7 @@ static int check_chain_extensions(X509_STORE_CTX *ctx) {
+     if (!(x->ex_flags & EXFLAG_SI)) {
+       plen++;
+     }
+-    // If this certificate is a proxy certificate, the next certificate
+-    // must be another proxy certificate or a EE certificate.  If not,
+-    // the next certificate must be a CA certificate.
+-    if (x->ex_flags & EXFLAG_PROXY) {
+-      if (x->ex_pcpathlen != -1 && i > x->ex_pcpathlen) {
+-        ctx->error = X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED;
+-        ctx->error_depth = i;
+-        ctx->current_cert = x;
+-        ok = ctx->verify_cb(0, ctx);
+-        if (!ok) {
+-          goto end;
+-        }
+-      }
+-      proxy_path_length++;
+-      ca_requirement = must_not_be_ca;
+-    } else {
+-      ca_requirement = must_be_ca;
+-    }
++    ca_requirement = must_be_ca;
+   }
+   ok = 1;
+ end:
+diff --git a/crypto/x509v3/ext_dat.h b/crypto/x509v3/ext_dat.h
+index 249143105..0d3276990 100644
+--- a/crypto/x509v3/ext_dat.h
++++ b/crypto/x509v3/ext_dat.h
+@@ -69,7 +69,7 @@ extern const X509V3_EXT_METHOD v3_delta_crl, v3_cpols, v3_crld, v3_freshest_crl;
+ extern const X509V3_EXT_METHOD v3_ocsp_nonce, v3_ocsp_accresp, v3_ocsp_acutoff;
+ extern const X509V3_EXT_METHOD v3_ocsp_crlid, v3_ocsp_nocheck,
+     v3_ocsp_serviceloc;
+-extern const X509V3_EXT_METHOD v3_crl_hold, v3_pci;
++extern const X509V3_EXT_METHOD v3_crl_hold;
+ extern const X509V3_EXT_METHOD v3_policy_mappings, v3_policy_constraints;
+ extern const X509V3_EXT_METHOD v3_name_constraints, v3_inhibit_anyp, v3_idp;
+ extern const X509V3_EXT_METHOD v3_addr, v3_asid;
+@@ -116,7 +116,6 @@ static const X509V3_EXT_METHOD *const standard_exts[] = {
+ #ifndef OPENSSL_NO_OCSP
+     &v3_crl_hold,
+ #endif
+-    &v3_pci,
+     &v3_name_constraints,
+     &v3_policy_mappings,
+     &v3_inhibit_anyp,
+diff --git a/crypto/x509v3/v3_pci.c b/crypto/x509v3/v3_pci.c
+deleted file mode 100644
+index f6b380248..000000000
+--- a/crypto/x509v3/v3_pci.c
++++ /dev/null
+@@ -1,275 +0,0 @@
+-/*
+- * Contributed to the OpenSSL Project 2004 by Richard Levitte
+- * (richard@levitte.org)
+- */
+-/* Copyright (c) 2004 Kungliga Tekniska Högskolan
+- * (Royal Institute of Technology, Stockholm, Sweden).
+- * All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions
+- * are met:
+- *
+- * 1. Redistributions of source code must retain the above copyright
+- *    notice, this list of conditions and the following disclaimer.
+- *
+- * 2. Redistributions in binary form must reproduce the above copyright
+- *    notice, this list of conditions and the following disclaimer in the
+- *    documentation and/or other materials provided with the distribution.
+- *
+- * 3. Neither the name of the Institute nor the names of its contributors
+- *    may be used to endorse or promote products derived from this software
+- *    without specific prior written permission.
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE INSTITUTE AND CONTRIBUTORS ``AS IS'' AND
+- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+- * ARE DISCLAIMED.  IN NO EVENT SHALL THE INSTITUTE OR CONTRIBUTORS BE LIABLE
+- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+- * SUCH DAMAGE.
+- */
+-
+-#include <string.h>
+-
+-#include <openssl/conf.h>
+-#include <openssl/err.h>
+-#include <openssl/mem.h>
+-#include <openssl/obj.h>
+-#include <openssl/x509v3.h>
+-
+-#include "../internal.h"
+-#include "internal.h"
+-
+-
+-static int i2r_pci(const X509V3_EXT_METHOD *method, void *ext, BIO *out,
+-                   int indent);
+-static void *r2i_pci(const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+-                     const char *str);
+-
+-const X509V3_EXT_METHOD v3_pci = {
+-    NID_proxyCertInfo,
+-    0,
+-    ASN1_ITEM_ref(PROXY_CERT_INFO_EXTENSION),
+-    0,
+-    0,
+-    0,
+-    0,
+-    0,
+-    0,
+-    NULL,
+-    NULL,
+-    i2r_pci,
+-    r2i_pci,
+-    NULL,
+-};
+-
+-static int i2r_pci(const X509V3_EXT_METHOD *method, void *ext, BIO *out,
+-                   int indent) {
+-  const PROXY_CERT_INFO_EXTENSION *pci = ext;
+-  BIO_printf(out, "%*sPath Length Constraint: ", indent, "");
+-  if (pci->pcPathLengthConstraint) {
+-    i2a_ASN1_INTEGER(out, pci->pcPathLengthConstraint);
+-  } else {
+-    BIO_printf(out, "infinite");
+-  }
+-  BIO_puts(out, "\n");
+-  BIO_printf(out, "%*sPolicy Language: ", indent, "");
+-  i2a_ASN1_OBJECT(out, pci->proxyPolicy->policyLanguage);
+-  BIO_puts(out, "\n");
+-  if (pci->proxyPolicy->policy && pci->proxyPolicy->policy->data) {
+-    BIO_printf(out, "%*sPolicy Text: %.*s\n", indent, "",
+-               pci->proxyPolicy->policy->length,
+-               pci->proxyPolicy->policy->data);
+-  }
+-  return 1;
+-}
+-
+-static int process_pci_value(CONF_VALUE *val, ASN1_OBJECT **language,
+-                             ASN1_INTEGER **pathlen,
+-                             ASN1_OCTET_STRING **policy) {
+-  int free_policy = 0;
+-
+-  if (strcmp(val->name, "language") == 0) {
+-    if (*language) {
+-      OPENSSL_PUT_ERROR(X509V3, X509V3_R_POLICY_LANGUAGE_ALREADY_DEFINED);
+-      X509V3_conf_err(val);
+-      return 0;
+-    }
+-    if (!(*language = OBJ_txt2obj(val->value, 0))) {
+-      OPENSSL_PUT_ERROR(X509V3, X509V3_R_INVALID_OBJECT_IDENTIFIER);
+-      X509V3_conf_err(val);
+-      return 0;
+-    }
+-  } else if (strcmp(val->name, "pathlen") == 0) {
+-    if (*pathlen) {
+-      OPENSSL_PUT_ERROR(X509V3, X509V3_R_POLICY_PATH_LENGTH_ALREADY_DEFINED);
+-      X509V3_conf_err(val);
+-      return 0;
+-    }
+-    if (!X509V3_get_value_int(val, pathlen)) {
+-      OPENSSL_PUT_ERROR(X509V3, X509V3_R_POLICY_PATH_LENGTH);
+-      X509V3_conf_err(val);
+-      return 0;
+-    }
+-  } else if (strcmp(val->name, "policy") == 0) {
+-    unsigned char *tmp_data = NULL;
+-    long val_len;
+-    if (!*policy) {
+-      *policy = ASN1_OCTET_STRING_new();
+-      if (!*policy) {
+-        X509V3_conf_err(val);
+-        return 0;
+-      }
+-      free_policy = 1;
+-    }
+-    if (strncmp(val->value, "hex:", 4) == 0) {
+-      unsigned char *tmp_data2 = x509v3_hex_to_bytes(val->value + 4, &val_len);
+-
+-      if (!tmp_data2) {
+-        OPENSSL_PUT_ERROR(X509V3, X509V3_R_ILLEGAL_HEX_DIGIT);
+-        X509V3_conf_err(val);
+-        goto err;
+-      }
+-
+-      tmp_data =
+-          OPENSSL_realloc((*policy)->data, (*policy)->length + val_len + 1);
+-      if (tmp_data) {
+-        (*policy)->data = tmp_data;
+-        OPENSSL_memcpy(&(*policy)->data[(*policy)->length], tmp_data2, val_len);
+-        (*policy)->length += val_len;
+-        (*policy)->data[(*policy)->length] = '\0';
+-      } else {
+-        OPENSSL_free(tmp_data2);
+-        // realloc failure implies the original data space is b0rked
+-        // too!
+-        (*policy)->data = NULL;
+-        (*policy)->length = 0;
+-        X509V3_conf_err(val);
+-        goto err;
+-      }
+-      OPENSSL_free(tmp_data2);
+-    } else if (strncmp(val->value, "text:", 5) == 0) {
+-      val_len = strlen(val->value + 5);
+-      tmp_data =
+-          OPENSSL_realloc((*policy)->data, (*policy)->length + val_len + 1);
+-      if (tmp_data) {
+-        (*policy)->data = tmp_data;
+-        OPENSSL_memcpy(&(*policy)->data[(*policy)->length], val->value + 5,
+-                       val_len);
+-        (*policy)->length += val_len;
+-        (*policy)->data[(*policy)->length] = '\0';
+-      } else {
+-        // realloc failure implies the original data space is b0rked
+-        // too!
+-        (*policy)->data = NULL;
+-        (*policy)->length = 0;
+-        X509V3_conf_err(val);
+-        goto err;
+-      }
+-    } else {
+-      OPENSSL_PUT_ERROR(X509V3, X509V3_R_INCORRECT_POLICY_SYNTAX_TAG);
+-      X509V3_conf_err(val);
+-      goto err;
+-    }
+-    if (!tmp_data) {
+-      X509V3_conf_err(val);
+-      goto err;
+-    }
+-  }
+-  return 1;
+-err:
+-  if (free_policy) {
+-    ASN1_OCTET_STRING_free(*policy);
+-    *policy = NULL;
+-  }
+-  return 0;
+-}
+-
+-static void *r2i_pci(const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+-                     const char *value) {
+-  PROXY_CERT_INFO_EXTENSION *pci = NULL;
+-  STACK_OF(CONF_VALUE) *vals;
+-  ASN1_OBJECT *language = NULL;
+-  ASN1_INTEGER *pathlen = NULL;
+-  ASN1_OCTET_STRING *policy = NULL;
+-  int nid;
+-
+-  vals = X509V3_parse_list(value);
+-  for (size_t i = 0; i < sk_CONF_VALUE_num(vals); i++) {
+-    CONF_VALUE *cnf = sk_CONF_VALUE_value(vals, i);
+-    if (!cnf->name || (*cnf->name != '@' && !cnf->value)) {
+-      OPENSSL_PUT_ERROR(X509V3, X509V3_R_INVALID_PROXY_POLICY_SETTING);
+-      X509V3_conf_err(cnf);
+-      goto err;
+-    }
+-    if (*cnf->name == '@') {
+-      const STACK_OF(CONF_VALUE) *sect = X509V3_get_section(ctx, cnf->name + 1);
+-      if (!sect) {
+-        OPENSSL_PUT_ERROR(X509V3, X509V3_R_INVALID_SECTION);
+-        X509V3_conf_err(cnf);
+-        goto err;
+-      }
+-      for (size_t j = 0; j < sk_CONF_VALUE_num(sect); j++) {
+-        if (!process_pci_value(sk_CONF_VALUE_value(sect, j), &language,
+-                               &pathlen, &policy)) {
+-          goto err;
+-        }
+-      }
+-    } else {
+-      if (!process_pci_value(cnf, &language, &pathlen, &policy)) {
+-        X509V3_conf_err(cnf);
+-        goto err;
+-      }
+-    }
+-  }
+-
+-  // Language is mandatory
+-  if (!language) {
+-    OPENSSL_PUT_ERROR(X509V3, X509V3_R_NO_PROXY_CERT_POLICY_LANGUAGE_DEFINED);
+-    goto err;
+-  }
+-  nid = OBJ_obj2nid(language);
+-  if ((nid == NID_Independent || nid == NID_id_ppl_inheritAll) && policy) {
+-    OPENSSL_PUT_ERROR(X509V3,
+-                      X509V3_R_POLICY_WHEN_PROXY_LANGUAGE_REQUIRES_NO_POLICY);
+-    goto err;
+-  }
+-
+-  pci = PROXY_CERT_INFO_EXTENSION_new();
+-  if (!pci) {
+-    goto err;
+-  }
+-
+-  pci->proxyPolicy->policyLanguage = language;
+-  language = NULL;
+-  pci->proxyPolicy->policy = policy;
+-  policy = NULL;
+-  pci->pcPathLengthConstraint = pathlen;
+-  pathlen = NULL;
+-  goto end;
+-err:
+-  if (language) {
+-    ASN1_OBJECT_free(language);
+-    language = NULL;
+-  }
+-  if (pathlen) {
+-    ASN1_INTEGER_free(pathlen);
+-    pathlen = NULL;
+-  }
+-  if (policy) {
+-    ASN1_OCTET_STRING_free(policy);
+-    policy = NULL;
+-  }
+-  if (pci) {
+-    PROXY_CERT_INFO_EXTENSION_free(pci);
+-    pci = NULL;
+-  }
+-end:
+-  sk_CONF_VALUE_pop_free(vals, X509V3_conf_free);
+-  return pci;
+-}
+diff --git a/crypto/x509v3/v3_pcia.c b/crypto/x509v3/v3_pcia.c
+deleted file mode 100644
+index e388eb6ab..000000000
+--- a/crypto/x509v3/v3_pcia.c
++++ /dev/null
+@@ -1,54 +0,0 @@
+-/*
+- * Contributed to the OpenSSL Project 2004 by Richard Levitte
+- * (richard@levitte.org)
+- */
+-/* Copyright (c) 2004 Kungliga Tekniska Högskolan
+- * (Royal Institute of Technology, Stockholm, Sweden).
+- * All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions
+- * are met:
+- *
+- * 1. Redistributions of source code must retain the above copyright
+- *    notice, this list of conditions and the following disclaimer.
+- *
+- * 2. Redistributions in binary form must reproduce the above copyright
+- *    notice, this list of conditions and the following disclaimer in the
+- *    documentation and/or other materials provided with the distribution.
+- *
+- * 3. Neither the name of the Institute nor the names of its contributors
+- *    may be used to endorse or promote products derived from this software
+- *    without specific prior written permission.
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE INSTITUTE AND CONTRIBUTORS ``AS IS'' AND
+- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+- * ARE DISCLAIMED.  IN NO EVENT SHALL THE INSTITUTE OR CONTRIBUTORS BE LIABLE
+- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+- * SUCH DAMAGE.
+- */
+-
+-#include <openssl/asn1.h>
+-#include <openssl/asn1t.h>
+-#include <openssl/x509v3.h>
+-
+-
+-ASN1_SEQUENCE(PROXY_POLICY) = {
+-    ASN1_SIMPLE(PROXY_POLICY, policyLanguage, ASN1_OBJECT),
+-    ASN1_OPT(PROXY_POLICY, policy, ASN1_OCTET_STRING),
+-} ASN1_SEQUENCE_END(PROXY_POLICY)
+-
+-IMPLEMENT_ASN1_FUNCTIONS_const(PROXY_POLICY)
+-
+-ASN1_SEQUENCE(PROXY_CERT_INFO_EXTENSION) = {
+-    ASN1_OPT(PROXY_CERT_INFO_EXTENSION, pcPathLengthConstraint, ASN1_INTEGER),
+-    ASN1_SIMPLE(PROXY_CERT_INFO_EXTENSION, proxyPolicy, PROXY_POLICY),
+-} ASN1_SEQUENCE_END(PROXY_CERT_INFO_EXTENSION)
+-
+-IMPLEMENT_ASN1_FUNCTIONS_const(PROXY_CERT_INFO_EXTENSION)
+diff --git a/crypto/x509v3/v3_purp.c b/crypto/x509v3/v3_purp.c
+index 9f22f1ace..71b2c6d1c 100644
+--- a/crypto/x509v3/v3_purp.c
++++ b/crypto/x509v3/v3_purp.c
+@@ -330,7 +330,6 @@ int X509_supported_extension(const X509_EXTENSION *ex) {
+       NID_certificate_policies,  // 89
+       NID_ext_key_usage,         // 126
+       NID_policy_constraints,    // 401
+-      NID_proxyCertInfo,         // 663
+       NID_name_constraints,      // 666
+       NID_policy_mappings,       // 747
+       NID_inhibit_any_policy     // 748
+@@ -396,7 +395,6 @@ static int setup_crldp(X509 *x) {
+ 
+ int x509v3_cache_extensions(X509 *x) {
+   BASIC_CONSTRAINTS *bs;
+-  PROXY_CERT_INFO_EXTENSION *pci;
+   ASN1_BIT_STRING *usage;
+   ASN1_BIT_STRING *ns;
+   EXTENDED_KEY_USAGE *extusage;
+@@ -449,23 +447,6 @@ int x509v3_cache_extensions(X509 *x) {
+   } else if (j != -1) {
+     x->ex_flags |= EXFLAG_INVALID;
+   }
+-  // Handle proxy certificates
+-  if ((pci = X509_get_ext_d2i(x, NID_proxyCertInfo, &j, NULL))) {
+-    if (x->ex_flags & EXFLAG_CA ||
+-        X509_get_ext_by_NID(x, NID_subject_alt_name, -1) >= 0 ||
+-        X509_get_ext_by_NID(x, NID_issuer_alt_name, -1) >= 0) {
+-      x->ex_flags |= EXFLAG_INVALID;
+-    }
+-    if (pci->pcPathLengthConstraint) {
+-      x->ex_pcpathlen = ASN1_INTEGER_get(pci->pcPathLengthConstraint);
+-    } else {
+-      x->ex_pcpathlen = -1;
+-    }
+-    PROXY_CERT_INFO_EXTENSION_free(pci);
+-    x->ex_flags |= EXFLAG_PROXY;
+-  } else if (j != -1) {
+-    x->ex_flags |= EXFLAG_INVALID;
+-  }
+   // Handle key usage
+   if ((usage = X509_get_ext_d2i(x, NID_key_usage, &j, NULL))) {
+     if (usage->length > 0) {
+@@ -797,11 +778,7 @@ int X509_check_issued(X509 *issuer, X509 *subject) {
+     }
+   }
+ 
+-  if (subject->ex_flags & EXFLAG_PROXY) {
+-    if (ku_reject(issuer, KU_DIGITAL_SIGNATURE)) {
+-      return X509_V_ERR_KEYUSAGE_NO_DIGITAL_SIGNATURE;
+-    }
+-  } else if (ku_reject(issuer, KU_KEY_CERT_SIGN)) {
++  if (ku_reject(issuer, KU_KEY_CERT_SIGN)) {
+     return X509_V_ERR_KEYUSAGE_NO_CERTSIGN;
+   }
+   return X509_V_OK;
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index 5f97ffa33..67ff61ac4 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -2565,7 +2565,7 @@ OPENSSL_EXPORT void X509_STORE_CTX_set_depth(X509_STORE_CTX *ctx, int depth);
+ #define X509_V_FLAG_IGNORE_CRITICAL 0x10
+ // Does nothing as its functionality has been enabled by default.
+ #define X509_V_FLAG_X509_STRICT 0x00
+-// Enable proxy certificate validation
++// This flag does nothing as proxy certificate support has been removed.
+ #define X509_V_FLAG_ALLOW_PROXY_CERTS 0x40
+ // Enable policy checking
+ #define X509_V_FLAG_POLICY_CHECK 0x80
+diff --git a/include/openssl/x509v3.h b/include/openssl/x509v3.h
+index 1071e2eeb..bab5ee998 100644
+--- a/include/openssl/x509v3.h
++++ b/include/openssl/x509v3.h
+@@ -297,20 +297,6 @@ typedef struct POLICY_CONSTRAINTS_st {
+   ASN1_INTEGER *inhibitPolicyMapping;
+ } POLICY_CONSTRAINTS;
+ 
+-// Proxy certificate structures, see RFC 3820
+-typedef struct PROXY_POLICY_st {
+-  ASN1_OBJECT *policyLanguage;
+-  ASN1_OCTET_STRING *policy;
+-} PROXY_POLICY;
+-
+-typedef struct PROXY_CERT_INFO_EXTENSION_st {
+-  ASN1_INTEGER *pcPathLengthConstraint;
+-  PROXY_POLICY *proxyPolicy;
+-} PROXY_CERT_INFO_EXTENSION;
+-
+-DECLARE_ASN1_FUNCTIONS_const(PROXY_POLICY)
+-DECLARE_ASN1_FUNCTIONS_const(PROXY_CERT_INFO_EXTENSION)
+-
+ struct ISSUING_DIST_POINT_st {
+   DIST_POINT_NAME *distpoint;
+   int onlyuser;
+@@ -352,7 +338,6 @@ struct ISSUING_DIST_POINT_st {
+ #define EXFLAG_INVALID 0x80
+ #define EXFLAG_SET 0x100
+ #define EXFLAG_CRITICAL 0x200
+-#define EXFLAG_PROXY 0x400
+ 
+ #define EXFLAG_FRESHEST 0x1000
+ // Self signed

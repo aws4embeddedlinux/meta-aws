@@ -1,0 +1,110 @@
+From ae87faf735c0241a115542b1c1022d125564bf55 Mon Sep 17 00:00:00 2001
+From: dkostic <25055813+dkostic@users.noreply.github.com>
+Date: Wed, 26 Apr 2023 12:57:09 -0700
+Subject: [PATCH] P-384/521 runtime check for s2n-bignum on aarch64 (#983)
+
+Decide in runtime which s2n-bignum functions to call for P-384/521
+field arithmetic. This gives us small improvement in the performance
+of P-384/521 operations on Graviton 3 (and any other non-Apple aarch64
+processor). Performance (ops/s) measured on GV 3 c7g.4xlarge instance:
+
+```
+Operation           |  Before  |  After  | Speedup  |
+----------------------------------------------------
+P-384 ECDH          |   2975   |  3329   |  x1.12   |
+P-384 ECDSA sign    |   8345   |  8871   |  x1.06   |
+P-384 ECDSA verify  |   3306   |  3659   |  x1.11   |
+P-521 ECDH          |   1603   |  2141   |  x1.33   |
+P-521 ECDSA sign    |   3819   |  4466   |  x1.17   |
+P-521 ECDSA verify  |   1599   |  2025   |  x1.27   |
+```
+
+While I'm here, replace calls to `OPENSSL_ia32cap_get()` with
+corresponding `CRYPTO_is_ABC_capable()` for x86.
+
+Co-authored-by: dkostic <dkostic@amazon.com>
+---
+ crypto/fipsmodule/ec/p384.c | 14 +++-----------
+ crypto/fipsmodule/ec/p521.c | 14 +++-----------
+ 2 files changed, 6 insertions(+), 22 deletions(-)
+
+diff --git a/crypto/fipsmodule/ec/p384.c b/crypto/fipsmodule/ec/p384.c
+index 8e9ca8a18..c2ee2aa31 100644
+--- a/crypto/fipsmodule/ec/p384.c
++++ b/crypto/fipsmodule/ec/p384.c
+@@ -11,6 +11,7 @@
+ #include <openssl/mem.h>
+ 
+ #include "../bn/internal.h"
++#include "../cpucap/internal.h"
+ #include "../delocate.h"
+ #include "internal.h"
+ 
+@@ -77,8 +78,7 @@ static const p384_felem p384_felem_one = {
+ // every x86 CPU so we have to check if they are available and in case
+ // they are not we fallback to slightly slower but generic implementation.
+ static inline uint8_t p384_use_s2n_bignum_alt(void) {
+-  return ((OPENSSL_ia32cap_get()[2] & (1u <<  8)) == 0) || // bmi2
+-         ((OPENSSL_ia32cap_get()[2] & (1u << 19)) == 0);   // adx
++  return (!CRYPTO_is_BMI2_capable() || !CRYPTO_is_ADX_capable());
+ }
+ #else
+ // On aarch64 platforms s2n-bignum has two implementations of certain
+@@ -86,16 +86,8 @@ static inline uint8_t p384_use_s2n_bignum_alt(void) {
+ // Depending on the architecture one version is faster than the other.
+ // Generally, the "_alt" functions are faster on architectures with higher
+ // multiplier throughput, for example, Graviton 3, Apple's M1 and iPhone chips.
+-// Until we find a clear way to determine in runtime which architecture we
+-// are running on we stick with the default s2n-bignum functions. Except in
+-// the case of Apple, because we know that on Apple's Arm chips the "_alt"
+-// functions are faster.
+ static inline uint8_t p384_use_s2n_bignum_alt(void) {
+-#if defined(OPENSSL_APPLE)
+-  return 1;
+-#else
+-  return 0;
+-#endif
++  return CRYPTO_is_ARMv8_wide_multiplier_capable();
+ }
+ #endif
+ 
+diff --git a/crypto/fipsmodule/ec/p521.c b/crypto/fipsmodule/ec/p521.c
+index 200247814..3b6635868 100644
+--- a/crypto/fipsmodule/ec/p521.c
++++ b/crypto/fipsmodule/ec/p521.c
+@@ -14,6 +14,7 @@
+ #include <openssl/mem.h>
+ 
+ #include "../bn/internal.h"
++#include "../cpucap/internal.h"
+ #include "../delocate.h"
+ #include "internal.h"
+ 
+@@ -80,8 +81,7 @@ static const p521_limb_t p521_felem_p[P521_NLIMBS] = {
+ // every x86 CPU so we have to check if they are available and in case
+ // they are not we fallback to slightly slower but generic implementation.
+ static inline uint8_t p521_use_s2n_bignum_alt(void) {
+-  return ((OPENSSL_ia32cap_get()[2] & (1u <<  8)) == 0) || // bmi2
+-         ((OPENSSL_ia32cap_get()[2] & (1u << 19)) == 0);   // adx
++  return (!CRYPTO_is_BMI2_capable() || !CRYPTO_is_ADX_capable());
+ }
+ #else
+ // On aarch64 platforms s2n-bignum has two implementations of certain
+@@ -89,16 +89,8 @@ static inline uint8_t p521_use_s2n_bignum_alt(void) {
+ // Depending on the architecture one version is faster than the other.
+ // Generally, the "_alt" functions are faster on architectures with higher
+ // multiplier throughput, for example, Graviton 3, Apple's M1 and iPhone chips.
+-// Until we find a clear way to determine in runtime which architecture we
+-// are running on we stick with the default s2n-bignum functions. Except in
+-// the case of Apple, because we know that on Apple's Arm chips the "_alt"
+-// functions are faster.
+ static inline uint8_t p521_use_s2n_bignum_alt(void) {
+-#if defined(OPENSSL_APPLE)
+-  return 1;
+-#else
+-  return 0;
+-#endif
++  return CRYPTO_is_ARMv8_wide_multiplier_capable();
+ }
+ #endif
+ 

@@ -1,0 +1,42 @@
+From e28c479b7698f861df792d1aa14752219a14d108 Mon Sep 17 00:00:00 2001
+From: torben-hansen <50673096+torben-hansen@users.noreply.github.com>
+Date: Tue, 21 Feb 2023 17:36:28 +0100
+Subject: [PATCH] Measure entire X25519 work for easy comparison with ECDH
+ (#821)
+
+For e.g. TLS, the entire flow is really "public key" generation and computation of the shared secret. For X25519, the AWS-LC functions doing that are: `X25519_public_from_private()` and `X25519()`. Where the latter also includes the randomness generation work.
+
+But to make comparison with e.g. `bssl speed -filter ECDH` easy, we should output the performance of the entire flow as well.
+---
+ tool/speed.cc | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/tool/speed.cc b/tool/speed.cc
+index 9db2d96b0..e960b088f 100644
+--- a/tool/speed.cc
++++ b/tool/speed.cc
+@@ -1314,6 +1314,24 @@ static bool Speed25519(const std::string &selected) {
+ 
+   results.Print("Curve25519 arbitrary point multiplication");
+ 
++  if (!TimeFunction(&results, []() -> bool {
++        uint8_t out_base[32], in_base[32];
++        BM_memset(in_base, 0, sizeof(in_base));
++        X25519_public_from_private(out_base, in_base);
++
++        uint8_t out[32], in1[32], in2[32];
++        BM_memset(in1, 0, sizeof(in1));
++        BM_memset(in2, 0, sizeof(in2));
++        in1[0] = 1;
++        in2[0] = 9;
++        return X25519(out, in1, in2) == 1;
++      })) {
++    fprintf(stderr, "ECDH X25519 failed.\n");
++    return false;
++  }
++
++  results.Print("ECDH X25519");
++
+   return true;
+ }
+ 

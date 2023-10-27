@@ -1,0 +1,32 @@
+From 769995e9afbb0d576c247ac02d66ef60a5ece81a Mon Sep 17 00:00:00 2001
+From: torben-hansen <50673096+torben-hansen@users.noreply.github.com>
+Date: Thu, 20 Jul 2023 08:58:19 -0700
+Subject: [PATCH] Silence static analyser by validating pointer prior to
+ function call (#1107)
+
+EC_KEY_get0_public_key doesn't validate the pointer argument and can de-reference NULL. This is common for the getters. Avoid changing that behaviour and just fix-up the speed tool code instead using a non-owning pointer.
+---
+ tool/speed.cc | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/tool/speed.cc b/tool/speed.cc
+index 9487a9f9d..4459d8c48 100644
+--- a/tool/speed.cc
++++ b/tool/speed.cc
+@@ -1490,9 +1490,14 @@ static bool SpeedEvpEcdhCurve(const std::string &name, int nid,
+     BM_NAMESPACE::UniquePtr<EVP_PKEY> only_public_key_evp_pkey(EVP_PKEY_new());
+     BM_NAMESPACE::UniquePtr<EC_KEY> only_public_key_ec_key(EC_KEY_new_by_curve_name(nid));
+     if (only_public_key_ec_key == nullptr ||
+-        only_public_key_evp_pkey == nullptr ||
++        only_public_key_evp_pkey == nullptr) {
++      return false;
++    }
++    // Non-owning reference.
++    const EC_KEY *peer_key_ec_key = EVP_PKEY_get0_EC_KEY(peer_key.get());
++    if (peer_key_ec_key == nullptr ||
+         !EC_KEY_set_public_key(only_public_key_ec_key.get(),
+-          EC_KEY_get0_public_key(EVP_PKEY_get0_EC_KEY(peer_key.get()))) ||
++          EC_KEY_get0_public_key(peer_key_ec_key)) ||
+         !EVP_PKEY_assign_EC_KEY(only_public_key_evp_pkey.get(), only_public_key_ec_key.release())) {
+       return false;
+     }

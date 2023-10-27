@@ -1,0 +1,232 @@
+From e1ba2b3e527d792c381ed7a93162d57811a0af48 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Thu, 6 Jul 2023 10:11:15 -0700
+Subject: [PATCH] Save leaf certificate in SSL early to avoid losing external
+ data (#1074)
+
+This reverts some of the changes done in
+https://github.com/aws/aws-lc/commit/3a2b47ab5be5c75edacb8cdc246dc2dc8fb2c0cd.
+AWS-LC/BoringSSL also allows external data to be associated with the
+X509 structures with the same APIs. However, our SSL connections don't
+directly save the X509 certificate as a structure within `SSL_CTX`. We
+"fold" the certificate and convert it into a binary blob to maintain
+within `SSL_CTX`. The certificate is not parsed back into an `X509`
+until the user asks for it.
+This creates issues when the user attempts to associate data with the
+certificate with `X509_set_ex_data` and passes the certificate into
+`SSL_CTX`. The data usually associated is not ASN.1 code, thus
+non-parsable, and the associated data gets lost during the translation
+to pure bytes. This creates issues with codebases like nginx, who was
+associating their own OCSP stapling data structures with X509 structures
+ in SSL_CTX.
+
+I've changed this to cache the leaf certificate early, so that the
+external data is kept for that cert. The same behavior is kept for the
+rest of the change. This keeps the changes needed contained and avoids an
+entire restructure of the use of `CRYPTO_BUFFER` in `CERT`.
+The leaf certificate could still be NULL if the user decides to pass in
+a cert directly with ASN.1 encoding, so we keep the original behavior to
+parse the cert on demand in this circumstance. This doesn't effect
+`X509_set_ex_data` usage since external data can't be parsed.
+
+This lets us pass more ssl_stapling in nginx. There are some more subtle
+OCSP changes required, but I'll open another PR for that.
+---
+ ssl/internal.h  |  9 +++----
+ ssl/ssl_cert.cc |  7 +++--
+ ssl/ssl_test.cc | 72 +++++++++++++++++++++++++++++++++++++++++++++++++
+ ssl/ssl_x509.cc | 15 ++++++++---
+ 4 files changed, 92 insertions(+), 11 deletions(-)
+
+diff --git a/ssl/internal.h b/ssl/internal.h
+index 68b2b5c11..68ce5a6f2 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -2605,14 +2605,13 @@ struct SSL_X509_METHOD {
+   void (*cert_clear)(CERT *cert);
+   // cert_free frees all X509-related state.
+   void (*cert_free)(CERT *cert);
+-  // cert_flush_cached_chain drops any cached |X509|-based certificate chain
+-  // from |cert|.
+   // cert_dup duplicates any needed fields from |cert| to |new_cert|.
+   void (*cert_dup)(CERT *new_cert, const CERT *cert);
+-  void (*cert_flush_cached_chain)(CERT *cert);
+-  // cert_flush_cached_chain drops any cached |X509|-based leaf certificate
++  // cert_flush_cached_chain drops any cached |X509|-based certificate chain
+   // from |cert|.
+-  void (*cert_flush_cached_leaf)(CERT *cert);
++  void (*cert_flush_cached_chain)(CERT *cert);
++  // cert_flush_leaf drops the |X509|-based leaf certificate from |cert|.
++  void (*cert_flush_leaf)(CERT *cert);
+ 
+   // session_cache_objects fills out |sess->x509_peer| and |sess->x509_chain|
+   // from |sess->certs| and erases |sess->x509_chain_without_leaf|. It returns
+diff --git a/ssl/ssl_cert.cc b/ssl/ssl_cert.cc
+index bd22c36ab..bd9e6a1d0 100644
+--- a/ssl/ssl_cert.cc
++++ b/ssl/ssl_cert.cc
+@@ -161,6 +161,11 @@ UniquePtr<CERT> ssl_cert_dup(CERT *cert) {
+     }
+   }
+ 
++  if (cert->x509_leaf != nullptr) {
++    X509_up_ref(cert->x509_leaf);
++    ret->x509_leaf = cert->x509_leaf;
++  }
++
+   ret->privatekey = UpRef(cert->privatekey);
+   ret->key_method = cert->key_method;
+ 
+@@ -316,8 +321,6 @@ bool ssl_set_cert(CERT *cert, UniquePtr<CRYPTO_BUFFER> buffer) {
+       break;
+   }
+ 
+-  cert->x509_method->cert_flush_cached_leaf(cert);
+-
+   if (cert->chain != nullptr) {
+     CRYPTO_BUFFER_free(sk_CRYPTO_BUFFER_value(cert->chain.get(), 0));
+     sk_CRYPTO_BUFFER_set(cert->chain.get(), 0, buffer.release());
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index ed4613053..796f53b3b 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -4783,6 +4783,7 @@ TEST(SSLTest, GetCertificate) {
+ 
+   X509 *cert2 = SSL_CTX_get0_certificate(ctx.get());
+   ASSERT_TRUE(cert2);
++
+   X509 *cert3 = SSL_get_certificate(ssl.get());
+   ASSERT_TRUE(cert3);
+ 
+@@ -4810,6 +4811,77 @@ TEST(SSLTest, GetCertificate) {
+   EXPECT_EQ(Bytes(der, der_len), Bytes(der3, der3_len));
+ }
+ 
++TEST(SSLTest, GetCertificateExData) {
++  bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
++  ASSERT_TRUE(ctx);
++  bssl::UniquePtr<X509> cert = GetTestCertificate();
++  ASSERT_TRUE(cert);
++
++  int ex_data_index =
++      X509_get_ex_new_index(0, nullptr, nullptr, nullptr, nullptr);
++  const char ex_data[] = "AWS-LC external data";
++  ASSERT_TRUE(X509_set_ex_data(cert.get(), ex_data_index, (void *)ex_data));
++  ASSERT_TRUE(X509_get_ex_data(cert.get(), ex_data_index));
++
++  ASSERT_TRUE(SSL_CTX_use_certificate(ctx.get(), cert.get()));
++  bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
++  ASSERT_TRUE(ssl);
++
++  X509 *cert2 = SSL_CTX_get0_certificate(ctx.get());
++  ASSERT_TRUE(cert2);
++  const char *ex_data2 = (const char *)X509_get_ex_data(cert2, ex_data_index);
++  EXPECT_TRUE(ex_data2);
++
++  X509 *cert3 = SSL_get_certificate(ssl.get());
++  ASSERT_TRUE(cert3);
++  const char *ex_data3 = (const char *)X509_get_ex_data(cert3, ex_data_index);
++  EXPECT_TRUE(ex_data3);
++
++  // The external data extracted must be identical.
++  EXPECT_EQ(ex_data2, ex_data);
++  EXPECT_EQ(ex_data3, ex_data);
++}
++
++TEST(SSLTest, GetCertificateASN1) {
++  bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
++  ASSERT_TRUE(ctx);
++  bssl::UniquePtr<X509> cert = GetTestCertificate();
++  ASSERT_TRUE(cert);
++
++  // Convert cert to ASN1 to pass in.
++  uint8_t *der = nullptr;
++  size_t der_len = i2d_X509(cert.get(), &der);
++  bssl::UniquePtr<uint8_t> free_der(der);
++
++  ASSERT_TRUE(SSL_CTX_use_certificate_ASN1(ctx.get(), der_len, der));
++  bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
++  ASSERT_TRUE(ssl);
++
++  X509 *cert2 = SSL_CTX_get0_certificate(ctx.get());
++  ASSERT_TRUE(cert2);
++
++  X509 *cert3 = SSL_get_certificate(ssl.get());
++  ASSERT_TRUE(cert3);
++
++  // The old and new certificates must be identical.
++  EXPECT_EQ(0, X509_cmp(cert.get(), cert2));
++  EXPECT_EQ(0, X509_cmp(cert.get(), cert3));
++
++  uint8_t *der2 = nullptr;
++  long der2_len = i2d_X509(cert2, &der2);
++  ASSERT_LT(0, der2_len);
++  bssl::UniquePtr<uint8_t> free_der2(der2);
++
++  uint8_t *der3 = nullptr;
++  long der3_len = i2d_X509(cert3, &der3);
++  ASSERT_LT(0, der3_len);
++  bssl::UniquePtr<uint8_t> free_der3(der3);
++
++  // They must also encode identically.
++  EXPECT_EQ(Bytes(der, der_len), Bytes(der2, der2_len));
++  EXPECT_EQ(Bytes(der, der_len), Bytes(der3, der3_len));
++}
++
+ TEST(SSLTest, SetChainAndKeyMismatch) {
+   bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_with_buffers_method()));
+   ASSERT_TRUE(ctx);
+diff --git a/ssl/ssl_x509.cc b/ssl/ssl_x509.cc
+index 25780ad90..14ee86077 100644
+--- a/ssl/ssl_x509.cc
++++ b/ssl/ssl_x509.cc
+@@ -234,7 +234,7 @@ static bool ssl_cert_set_chain(CERT *cert, STACK_OF(X509) *chain) {
+   return true;
+ }
+ 
+-static void ssl_crypto_x509_cert_flush_cached_leaf(CERT *cert) {
++static void ssl_crypto_x509_cert_flush_leaf(CERT *cert) {
+   X509_free(cert->x509_leaf);
+   cert->x509_leaf = nullptr;
+ }
+@@ -260,7 +260,7 @@ static bool ssl_crypto_x509_check_client_CA_list(
+ }
+ 
+ static void ssl_crypto_x509_cert_clear(CERT *cert) {
+-  ssl_crypto_x509_cert_flush_cached_leaf(cert);
++  ssl_crypto_x509_cert_flush_leaf(cert);
+   ssl_crypto_x509_cert_flush_cached_chain(cert);
+ 
+   X509_free(cert->x509_stash);
+@@ -526,7 +526,7 @@ const SSL_X509_METHOD ssl_crypto_x509_method = {
+   ssl_crypto_x509_cert_free,
+   ssl_crypto_x509_cert_dup,
+   ssl_crypto_x509_cert_flush_cached_chain,
+-  ssl_crypto_x509_cert_flush_cached_leaf,
++  ssl_crypto_x509_cert_flush_leaf,
+   ssl_crypto_x509_session_cache_objects,
+   ssl_crypto_x509_session_dup,
+   ssl_crypto_x509_session_clear,
+@@ -758,6 +758,12 @@ static int ssl_use_certificate(CERT *cert, X509 *x) {
+     return 0;
+   }
+ 
++  // We set the |x509_leaf| here to prevent any external data set from being
++  // lost. The rest of the chain still uses |CRYPTO_BUFFER|s.
++  X509_free(cert->x509_leaf);
++  X509_up_ref(x);
++  cert->x509_leaf = x;
++
+   UniquePtr<CRYPTO_BUFFER> buffer = x509_to_buffer(x);
+   if (!buffer) {
+     return 0;
+@@ -780,7 +786,8 @@ int SSL_CTX_use_certificate(SSL_CTX *ctx, X509 *x) {
+ }
+ 
+ // ssl_cert_cache_leaf_cert sets |cert->x509_leaf|, if currently NULL, from the
+-// first element of |cert->chain|.
++// first element of |cert->chain|. This is the case when certs are set with
++// |SSL_CTX_use_certificate_ASN1| or |SSL_use_certificate_ASN1| in AWS-LC.
+ static int ssl_cert_cache_leaf_cert(CERT *cert) {
+   assert(cert->x509_method);
+ 

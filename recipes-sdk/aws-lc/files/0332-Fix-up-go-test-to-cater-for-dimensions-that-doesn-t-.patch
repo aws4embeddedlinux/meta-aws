@@ -1,0 +1,76 @@
+From d81f5b27d3571f3dd1ba2bf93fdf4ccde07879b5 Mon Sep 17 00:00:00 2001
+From: Torben Hansen <50673096+torben-hansen@users.noreply.github.com>
+Date: Tue, 2 May 2023 12:38:47 -0700
+Subject: [PATCH] Fix-up go test to cater for dimensions that doesn't support
+ running the delocator
+
+---
+ CMakeLists.txt         | 18 +++++++++++++++++-
+ util/go_fips_tests.txt |  2 ++
+ util/go_tests.txt      |  4 +---
+ 3 files changed, 20 insertions(+), 4 deletions(-)
+ create mode 100644 util/go_fips_tests.txt
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3b1b0ee05..2d6de163b 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -885,6 +885,19 @@ if(BUILD_TESTING)
+         set(ACVP_TOOL ${PROJECT_BINARY_DIR}/acvptool)
+         set(TEST_WRAPPER ${PROJECT_BINARY_DIR}/testmodulewrapper)
+       endif()
++
++      # Read util/go_fips_tests.txt into a CMake variable.
++      file(READ util/go_fips_tests.txt GO_FIPS_TESTS)
++      string(REPLACE "\n" ";" GO_FIPS_TESTS "${GO_FIPS_TESTS}")
++      list(REMOVE_ITEM GO_FIPS_TESTS "")
++      set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
++        util/go_fips_tests.txt)
++
++      if(MSVC)
++        # Delocator doesn't support Windows. So, this test would fail.
++        string(REGEX REPLACE "./util/fipstools/delocate" "" GO_FIPS_TESTS "${GO_FIPS_TESTS}")
++      endif()
++
+       add_custom_target(
+         acvp_tests
+         COMMAND ${GO_EXECUTABLE} build -o ${ACVP_TOOL}
+@@ -910,6 +923,9 @@ if(BUILD_TESTING)
+ 
+     # Read util/go_tests.txt into a CMake variable.
+     file(READ util/go_tests.txt GO_TESTS)
++    foreach(fips_specific_test ${GO_FIPS_TESTS})
++      set(GO_TESTS "${GO_TESTS}\n${fips_specific_test}")
++    endforeach()
+     string(REPLACE "\n" ";" GO_TESTS "${GO_TESTS}")
+     list(REMOVE_ITEM GO_TESTS "")
+     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+@@ -937,7 +953,7 @@ if(BUILD_TESTING)
+       add_custom_target(
+           run_tests
+           COMMAND ${GO_EXECUTABLE} run util/all_tests.go -build-dir
+-                  ${PROJECT_BINARY_DIR}
++                 ${PROJECT_BINARY_DIR}
+           COMMAND ${GO_EXECUTABLE} test ${GO_TESTS}
+           WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+           DEPENDS all_tests run_ssl_runner_tests
+diff --git a/util/go_fips_tests.txt b/util/go_fips_tests.txt
+new file mode 100644
+index 000000000..dbe921ebf
+--- /dev/null
++++ b/util/go_fips_tests.txt
+@@ -0,0 +1,2 @@
++./util/fipstools/acvp/acvptool/testmodulewrapper
++./util/fipstools/delocate
+\ No newline at end of file
+diff --git a/util/go_tests.txt b/util/go_tests.txt
+index 0f43cf687..b51b6b216 100644
+--- a/util/go_tests.txt
++++ b/util/go_tests.txt
+@@ -1,4 +1,2 @@
+ ./ssl/test/runner/hpke
+-./util/ar
+-./util/fipstools/acvp/acvptool/testmodulewrapper
+-./util/fipstools/delocate
++./util/ar
+\ No newline at end of file

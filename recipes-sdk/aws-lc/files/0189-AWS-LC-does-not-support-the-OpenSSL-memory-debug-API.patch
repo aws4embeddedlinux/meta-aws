@@ -1,0 +1,22 @@
+From b4e955237a890a745234153064f8c3feda7960ff Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Mon, 13 Mar 2023 10:41:21 -0700
+Subject: [PATCH] AWS-LC does not support the OpenSSL memory debug APIs, define
+ OPENSSL_NO_CRYPTO_MDEBUG to signal this to our customers (#868)
+
+---
+ include/openssl/opensslconf.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/openssl/opensslconf.h b/include/openssl/opensslconf.h
+index 9879746e1..572f1397b 100644
+--- a/include/openssl/opensslconf.h
++++ b/include/openssl/opensslconf.h
+@@ -28,6 +28,7 @@
+ #define OPENSSL_NO_CAST
+ #define OPENSSL_NO_CMS
+ #define OPENSSL_NO_COMP
++#define OPENSSL_NO_CRYPTO_MDEBUG
+ #define OPENSSL_NO_CT
+ #define OPENSSL_NO_DANE
+ #define OPENSSL_NO_DEPRECATED

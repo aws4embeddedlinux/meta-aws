@@ -1,0 +1,302 @@
+From 0b9f068b23160d3e12cb6916155419f1ec6e6c8b Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Fri, 23 Jun 2023 14:59:50 -0700
+Subject: [PATCH] Add SSL_get0_verified_chain  (#1055)
+
+Add SSL_get0_verified_chain which returns the verified chain from an SSL. The built in X509
+verifier is responsible for saving the reference to the verified chain if verification is
+successful.
+---
+ include/openssl/ssl.h  |  11 +++-
+ include/openssl/x509.h |  10 ++++
+ ssl/internal.h         |  10 +++-
+ ssl/ssl_test.cc        | 119 +++++++++++++++++++++++++++++++++++++++++
+ ssl/ssl_x509.cc        |  26 +++++++++
+ 5 files changed, 173 insertions(+), 3 deletions(-)
+
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index fd0d88622..ec26b7986 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -1653,11 +1653,20 @@ OPENSSL_EXPORT STACK_OF(X509) *SSL_get_peer_cert_chain(const SSL *ssl);
+ //
+ // This is the same as |SSL_get_peer_cert_chain| except that this function
+ // always returns the full chain, i.e. the first element of the return value
+-// (if any) will be the leaf certificate. In constrast,
++// (if any) will be the leaf certificate. In contrast,
+ // |SSL_get_peer_cert_chain| returns only the intermediate certificates if the
+ // |ssl| is a server.
+ OPENSSL_EXPORT STACK_OF(X509) *SSL_get_peer_full_cert_chain(const SSL *ssl);
+ 
++// SSL_get0_verified_chain returns the verified certificate chain of the peer
++// including the peer's end entity certificate. It must be called after a
++// session has been successfully established. If peer verification was not
++// successful (as indicated by |SSL_get_verify_result| not returning |X509_V_OK|)
++// the result will be null. If a verification callback was set with
++// |SSL_CTX_set_cert_verify_callback| or |SSL_set_custom_verify|
++// this function's behavior is undefined.
++OPENSSL_EXPORT STACK_OF(X509) *SSL_get0_verified_chain(const SSL *ssl);
++
+ // SSL_get0_peer_certificates returns the peer's certificate chain, or NULL if
+ // unavailable or the peer did not use certificates. This is the unverified list
+ // of certificates as sent by the peer, not the final chain built during
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index 19f4aa9e4..d50cbde1d 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -2849,8 +2849,18 @@ OPENSSL_EXPORT X509 *X509_STORE_CTX_get0_current_issuer(X509_STORE_CTX *ctx);
+ OPENSSL_EXPORT X509_CRL *X509_STORE_CTX_get0_current_crl(X509_STORE_CTX *ctx);
+ OPENSSL_EXPORT X509_STORE_CTX *X509_STORE_CTX_get0_parent_ctx(
+     X509_STORE_CTX *ctx);
++
++// X509_STORE_CTX_get_chain returns the pointer to the verified chain if
++// verification was successful. If unsuccessful it may return null or a partial
++// chain. The reference count is not incremented and must not be freed.
+ OPENSSL_EXPORT STACK_OF(X509) *X509_STORE_CTX_get_chain(X509_STORE_CTX *ctx);
++
++// X509_STORE_CTX_get0_chain behaves like |X509_STORE_CTX_get_chain|.
+ OPENSSL_EXPORT STACK_OF(X509) *X509_STORE_CTX_get0_chain(X509_STORE_CTX *ctx);
++
++// X509_STORE_CTX_get1_chain behaves like |X509_STORE_CTX_get0_chain| and also
++// increments the reference counter. The |STACK_OF(X509)| must be freed with
++// |sk_X509_pop_free|
+ OPENSSL_EXPORT STACK_OF(X509) *X509_STORE_CTX_get1_chain(X509_STORE_CTX *ctx);
+ OPENSSL_EXPORT void X509_STORE_CTX_set_cert(X509_STORE_CTX *c, X509 *x);
+ OPENSSL_EXPORT void X509_STORE_CTX_set_chain(X509_STORE_CTX *c,
+diff --git a/ssl/internal.h b/ssl/internal.h
+index dfca8be89..704f4a49a 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -2581,8 +2581,8 @@ struct SSL_X509_METHOD {
+   // session_clear frees any X509-related state from |session|.
+   void (*session_clear)(SSL_SESSION *session);
+   // session_verify_cert_chain verifies the certificate chain in |session|,
+-  // sets |session->verify_result| and returns true on success or false on
+-  // error.
++  // and sets |session->verify_result| and |session->x509_verified_chain|. It
++  // returns true on success or false on error.
+   bool (*session_verify_cert_chain)(SSL_SESSION *session, SSL_HANDSHAKE *ssl,
+                                     uint8_t *out_alert);
+ 
+@@ -3957,6 +3957,12 @@ struct ssl_session_st {
+   // a chain without, it is stored here.
+   STACK_OF(X509) *x509_chain_without_leaf = nullptr;
+ 
++  // x509_verified_chain is a lazily constructed copy of the chain that has
++  // been verified. This is not necessarily the same as |x509_chain| which
++  // may include additional certificates that were not used.
++  STACK_OF(X509) *x509_verified_chain = nullptr;
++
++
+   // verify_result is the result of certificate verification in the case of
+   // non-fatal certificate errors.
+   long verify_result = X509_V_ERR_INVALID_CALL;
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index 70b73dc3f..9935ec349 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -4353,6 +4353,11 @@ TEST_P(SSLVersionTest, AutoChain) {
+       ChainsEqual(SSL_get_peer_full_cert_chain(client_.get()), {cert_.get()}));
+   EXPECT_TRUE(
+       ChainsEqual(SSL_get_peer_full_cert_chain(server_.get()), {cert_.get()}));
++  // This test overrides the verification logic  with VerifySucceed to always
++  // succeed without actually verifying anything and setting the verified chain
++  // on success
++  EXPECT_EQ(SSL_get0_verified_chain(server_.get()), nullptr);
++  EXPECT_EQ(SSL_get0_verified_chain(client_.get()), nullptr);
+ 
+   // If auto-chaining is enabled, then the intermediate is sent.
+   SSL_CTX_clear_mode(client_ctx_.get(), SSL_MODE_NO_AUTO_CHAIN);
+@@ -6510,6 +6515,9 @@ TEST_P(SSLVersionTest, SessionPropertiesThreads) {
+     EXPECT_TRUE(SSL_get_peer_cert_chain(ssl));
+     bssl::UniquePtr<X509> peer(SSL_get_peer_certificate(ssl));
+     EXPECT_TRUE(peer);
++    STACK_OF(X509) *verified_chain= SSL_get0_verified_chain(ssl);
++    // This test sets a custom verifier callback which doesn't actually do any verification
++    EXPECT_FALSE(verified_chain);
+     EXPECT_TRUE(SSL_get_current_cipher(ssl));
+     EXPECT_TRUE(SSL_get_curve_id(ssl));
+   };
+@@ -6528,6 +6536,117 @@ TEST_P(SSLVersionTest, SessionPropertiesThreads) {
+ }
+ #endif  // OPENSSL_THREADS
+ 
++TEST_P(SSLVersionTest, SimpleVerifiedChain) {
++  ASSERT_TRUE(UseCertAndKey(server_ctx_.get()));
++  ASSERT_TRUE(X509_STORE_add_cert(SSL_CTX_get_cert_store(client_ctx_.get()),
++                                  cert_.get()));
++  SSL_CTX_set_verify(client_ctx_.get(),
++                     SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
++                     nullptr);
++  X509_VERIFY_PARAM_set_flags(SSL_CTX_get0_param(client_ctx_.get()),
++                              X509_V_FLAG_NO_CHECK_TIME);
++
++
++  UniquePtr<SSL> client_ssl, server_ssl;
++  ClientConfig config;
++  ASSERT_TRUE(ConnectClientAndServer(&client_ssl, &server_ssl, client_ctx_.get(),
++                                     server_ctx_.get(), config));
++
++  STACK_OF(X509) *client_chain = SSL_get_peer_full_cert_chain(client_ssl.get());
++  STACK_OF(X509) *verified_client_chain = SSL_get0_verified_chain(client_ssl.get());
++  EXPECT_TRUE(verified_client_chain);
++
++  STACK_OF(X509) *verified_server_chain = SSL_get0_verified_chain(server_ssl.get());
++  // The client didn't send a certificate so the server shouldn't have anything
++  EXPECT_FALSE(verified_server_chain);
++
++  // UseCertAndKey sets a single cert that is directly trusted, it is the only
++  // one sent, and only one needed for verification
++  EXPECT_EQ(sk_X509_num(client_chain), 1UL);
++  EXPECT_EQ(X509_cmp(sk_X509_value(client_chain, 0), cert_.get()), 0);
++
++  EXPECT_EQ(sk_X509_num(verified_client_chain), 1UL);
++  EXPECT_EQ(X509_cmp(sk_X509_value(verified_client_chain, 0), cert_.get()), 0);
++}
++
++TEST_P(SSLVersionTest, VerifiedChain) {
++  ASSERT_TRUE(X509_STORE_add_cert(SSL_CTX_get_cert_store(client_ctx_.get()),
++                                  cert_.get()));
++  SSL_CTX_set_verify(client_ctx_.get(),
++                     SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
++                     nullptr);
++  X509_VERIFY_PARAM_set_flags(SSL_CTX_get0_param(client_ctx_.get()),
++                              X509_V_FLAG_NO_CHECK_TIME);
++
++  // UseCertAndKey sets the leaf cert the server will use and ensures the client
++  // trusts the server's cert
++  ASSERT_TRUE(UseCertAndKey(server_ctx_.get()));
++
++  // Add two extra certs to the chain
++  bssl::UniquePtr<STACK_OF(X509)> chain(sk_X509_new_null());
++  bssl::UniquePtr<X509> cert1 = GetECDSATestCertificate();
++  ASSERT_TRUE(sk_X509_push(chain.get(), cert1.get()));
++  X509_up_ref(cert1.get());
++
++  bssl::UniquePtr<X509> cert2 = GetTestCertificate();
++  ASSERT_TRUE(sk_X509_push(chain.get(), cert2.get()));
++  X509_up_ref(cert2.get());
++
++  SSL_CTX_set1_chain(server_ctx_.get(), chain.get());
++
++  UniquePtr<SSL> client_ssl, server_ssl;
++  ClientConfig config;
++  ASSERT_TRUE(ConnectClientAndServer(&client_ssl, &server_ssl, client_ctx_.get(),
++                                     server_ctx_.get(), config));
++
++  // The client didn't send a certificate so the server shouldn't have anything
++  STACK_OF(X509) *verified_client_chain = SSL_get0_verified_chain(server_ssl.get());
++  EXPECT_FALSE(verified_client_chain);
++  STACK_OF(X509) *client_chain = SSL_get_peer_full_cert_chain(server_ssl.get());
++  EXPECT_FALSE(client_chain);
++
++  // The server sent a chain that the client can verify, the client directly
++  // trusts the server's certificate
++  STACK_OF(X509) *verified_server_chain = SSL_get0_verified_chain(client_ssl.get());
++  EXPECT_EQ(sk_X509_num(verified_server_chain), 1UL);
++  EXPECT_EQ(X509_cmp(sk_X509_value(verified_server_chain, 0), cert_.get()), 0);
++
++  // The server sent two extra certs that are unneeded for verification,
++  // but it is included in the unverified chain
++  STACK_OF(X509) *server_chain = SSL_get_peer_full_cert_chain(client_ssl.get());
++  EXPECT_EQ(sk_X509_num(server_chain), 3UL);
++  EXPECT_EQ(X509_cmp(sk_X509_value(server_chain, 0), cert_.get()), 0);
++  EXPECT_EQ(X509_cmp(sk_X509_value(server_chain, 1), cert1.get()), 0);
++  EXPECT_EQ(X509_cmp(sk_X509_value(server_chain, 2), cert2.get()), 0);
++}
++
++TEST_P(SSLVersionTest, FailedHandshakeVerifiedChain) {
++  SSL_CTX_set_verify(client_ctx_.get(),
++                     SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
++                     nullptr);
++  X509_VERIFY_PARAM_set_flags(SSL_CTX_get0_param(client_ctx_.get()),
++                              X509_V_FLAG_NO_CHECK_TIME);
++
++  ASSERT_TRUE(UseCertAndKey(server_ctx_.get()));
++  UniquePtr<SSL> client_ssl, server_ssl;
++  ClientConfig config;
++
++  ASSERT_TRUE(CreateClientAndServer(&client_ssl, &server_ssl, client_ctx_.get(), server_ctx_.get()));
++  ASSERT_FALSE(CompleteHandshakes(client_ssl.get(), server_ssl.get()));
++  EXPECT_NE(SSL_get_verify_result(client_ssl.get()), X509_V_OK);
++
++  STACK_OF(X509) *client_chain = SSL_get_peer_full_cert_chain(client_ssl.get());
++  ASSERT_TRUE(client_chain);
++  EXPECT_EQ(sk_X509_num(client_chain), 1UL);
++  EXPECT_EQ(X509_cmp(sk_X509_value(client_chain, 0), cert_.get()), 0);
++
++
++  // For a failed handshake SSL_get0_verified_chain will return null
++  STACK_OF(X509) *verified_client_chain = SSL_get0_verified_chain(client_ssl.get());
++  EXPECT_FALSE(verified_client_chain);
++}
++
++
+ TEST_P(SSLVersionTest, SessionMissCache) {
+   if (version() == TLS1_3_VERSION) {
+     // Our TLS 1.3 implementation does not support stateful resumption.
+diff --git a/ssl/ssl_x509.cc b/ssl/ssl_x509.cc
+index e4b3775b3..25780ad90 100644
+--- a/ssl/ssl_x509.cc
++++ b/ssl/ssl_x509.cc
+@@ -322,6 +322,10 @@ static bool ssl_crypto_x509_session_cache_objects(SSL_SESSION *sess) {
+ 
+   X509_free(sess->x509_peer);
+   sess->x509_peer = leaf.release();
++
++  sk_X509_pop_free(sess->x509_verified_chain, X509_free);
++  sess->x509_verified_chain = nullptr;
++
+   return true;
+ }
+ 
+@@ -341,6 +345,13 @@ static bool ssl_crypto_x509_session_dup(SSL_SESSION *new_session,
+       return false;
+     }
+   }
++  if (session->x509_verified_chain != nullptr) {
++    new_session->x509_verified_chain =
++        X509_chain_up_ref(session->x509_verified_chain);
++    if (new_session->x509_verified_chain == nullptr) {
++      return false;
++    }
++  }
+ 
+   return true;
+ }
+@@ -352,6 +363,8 @@ static void ssl_crypto_x509_session_clear(SSL_SESSION *session) {
+   session->x509_chain = nullptr;
+   sk_X509_pop_free(session->x509_chain_without_leaf, X509_free);
+   session->x509_chain_without_leaf = nullptr;
++  sk_X509_pop_free(session->x509_verified_chain, X509_free);
++  session->x509_verified_chain = nullptr;
+ }
+ 
+ static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,
+@@ -415,6 +428,9 @@ static bool ssl_crypto_x509_session_verify_cert_chain(SSL_SESSION *session,
+     return false;
+   }
+ 
++  sk_X509_pop_free(session->x509_verified_chain, X509_free);
++  session->x509_verified_chain = X509_STORE_CTX_get1_chain(ctx.get());
++
+   ERR_clear_error();
+   return true;
+ }
+@@ -567,6 +583,16 @@ STACK_OF(X509) *SSL_get_peer_full_cert_chain(const SSL *ssl) {
+   return session->x509_chain;
+ }
+ 
++STACK_OF(X509) *SSL_get0_verified_chain(const SSL *ssl) {
++  check_ssl_x509_method(ssl);
++  SSL_SESSION *session = SSL_get_session(ssl);
++  if (session == NULL || SSL_get_verify_result(ssl) != X509_V_OK) {
++    return NULL;
++  }
++  
++  return session->x509_verified_chain;
++}
++
+ int SSL_CTX_set_purpose(SSL_CTX *ctx, int purpose) {
+   check_ssl_ctx_x509_method(ctx);
+   return X509_VERIFY_PARAM_set_purpose(ctx->param, purpose);

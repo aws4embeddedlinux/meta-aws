@@ -1,0 +1,83 @@
+From d87b7815b2ec7b8d8d35e46a8d0c1ba755b952bf Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 31 Jan 2023 21:06:58 -0500
+Subject: [PATCH] Make X509V3_get_value_int free the old value before
+ overwriting it.
+
+This is an unexported API, so it's okay to change it. Many extension
+types work by parsing a list of key:value pairs and then setting fields
+based on it. If a key appears twice, it'll just overwrite the old value.
+
+But X509V3_get_value_int forgot to free the old value when doing so.
+
+Bug: oss-fuzz:55572
+Change-Id: I2b39aa7e9214e82fb40ee2e3481697338fe88e1a
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56745
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 62ab404cb560a6886196fe65cd3381f2ae3166ca)
+---
+ crypto/x509/x509_test.cc | 13 +++++++++++++
+ crypto/x509v3/internal.h | 10 ++++++++++
+ crypto/x509v3/v3_utl.c   |  1 +
+ 3 files changed, 24 insertions(+)
+
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 2117c4804..24def514b 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -5400,6 +5400,19 @@ TEST(X509Test, ExtensionFromConf) {
+        {0x30, 0x0f, 0x06, 0x03, 0x55, 0x1d, 0x13, 0x01, 0x01, 0xff, 0x04, 0x05,
+         0x30, 0x03, 0x01, 0x01, 0xff}},
+ 
++      {"basicConstraints",
++       "critical,CA:true,pathlen:1",
++       nullptr,
++       {0x30, 0x12, 0x06, 0x03, 0x55, 0x1d, 0x13, 0x01, 0x01, 0xff,
++        0x04, 0x08, 0x30, 0x06, 0x01, 0x01, 0xff, 0x02, 0x01, 0x01}},
++
++      // key:value tuples can be repeated and just override the previous value.
++      {"basicConstraints",
++       "critical,CA:true,pathlen:100,pathlen:1",
++       nullptr,
++       {0x30, 0x12, 0x06, 0x03, 0x55, 0x1d, 0x13, 0x01, 0x01, 0xff,
++        0x04, 0x08, 0x30, 0x06, 0x01, 0x01, 0xff, 0x02, 0x01, 0x01}},
++
+       // Extension contents may be referenced from a config section.
+       {"basicConstraints",
+        "critical,@section",
+diff --git a/crypto/x509v3/internal.h b/crypto/x509v3/internal.h
+index 7b475036f..f1aa42aa1 100644
+--- a/crypto/x509v3/internal.h
++++ b/crypto/x509v3/internal.h
+@@ -138,8 +138,18 @@ int X509V3_NAME_from_section(X509_NAME *nm, const STACK_OF(CONF_VALUE) *dn_sk,
+ // one and sets |*out_bool| to resulting value. Otherwise, it returns zero.
+ int X509V3_bool_from_string(const char *str, ASN1_BOOLEAN *out_bool);
+ 
++// X509V3_get_value_bool decodes |value| as a boolean. On success, it returns
++// one and sets |*out_bool| to the resulting value. Otherwise, it returns zero.
+ int X509V3_get_value_bool(const CONF_VALUE *value, ASN1_BOOLEAN *out_bool);
++
++// X509V3_get_value_int decodes |value| as an integer. On success, it returns
++// one and sets |*aint| to the resulting value. Otherwise, it returns zero. If
++// |*aint| was non-NULL at the start of the function, it frees the previous
++// value before writing a new one.
+ int X509V3_get_value_int(const CONF_VALUE *value, ASN1_INTEGER **aint);
++
++// X509V3_get_section behaves like |NCONF_get_section| but queries |ctx|'s
++// config database.
+ const STACK_OF(CONF_VALUE) *X509V3_get_section(const X509V3_CTX *ctx,
+                                                const char *section);
+ 
+diff --git a/crypto/x509v3/v3_utl.c b/crypto/x509v3/v3_utl.c
+index aa44d3993..c8f40f8ae 100644
+--- a/crypto/x509v3/v3_utl.c
++++ b/crypto/x509v3/v3_utl.c
+@@ -337,6 +337,7 @@ int X509V3_get_value_int(const CONF_VALUE *value, ASN1_INTEGER **aint) {
+     X509V3_conf_err(value);
+     return 0;
+   }
++  ASN1_INTEGER_free(*aint);
+   *aint = itmp;
+   return 1;
+ }

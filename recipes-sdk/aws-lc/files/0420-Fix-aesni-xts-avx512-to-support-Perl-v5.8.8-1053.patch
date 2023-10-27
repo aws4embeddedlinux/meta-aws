@@ -1,0 +1,24 @@
+From 876cc1a5b9e01b07283aa0430189ffe1594ea6e2 Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Thu, 8 Jun 2023 10:38:32 -0700
+Subject: [PATCH] Fix aesni-xts-avx512 to support Perl v5.8.8 (#1053)
+
+---
+ crypto/fipsmodule/aes/asm/aesni-xts-avx512.pl | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/fipsmodule/aes/asm/aesni-xts-avx512.pl b/crypto/fipsmodule/aes/asm/aesni-xts-avx512.pl
+index 72ccf7223..804f88f28 100644
+--- a/crypto/fipsmodule/aes/asm/aesni-xts-avx512.pl
++++ b/crypto/fipsmodule/aes/asm/aesni-xts-avx512.pl
+@@ -3057,8 +3057,8 @@ ___
+ sub evex_byte1 {
+   my ($mm, $src1, $dst) = @_;
+   # set default to zero
+-  $src1 //= 0;
+-  $dst //= 0;
++  $src1 = 0 if (!defined($src1));
++  $dst = 0 if (!defined($dst));
+ 
+   my $byte = 0xf0 | $mm;
+ 

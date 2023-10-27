@@ -1,0 +1,105 @@
+From baa8aef71c7a326577911e89deb47922d2e67533 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Mon, 22 May 2023 13:12:19 -0700
+Subject: [PATCH] Add additional no-op symbols for support mySQL (#1002)
+
+1. CONF_modules_unload
+mySQL consumes the CONF_modules_unload API when building with OpenSSL1.1.1.
+CONF_modules_unload is used to finish and unload configuration modules in
+OpenSSL, but AWS-LC doesn't use the same configuration module logic. The
+Conf_modules_* family of functions in AWS-LC are all no-op functions, so we
+follow the same pattern here.
+
+2. SSL_CTX_get_security_level
+mySQL consumes the SSL_CTX_get_security_level API. The definition of security
+levels is defined here in OpenSSL's documentation.
+We should only be using SSL_CTX_get_security_level to retrieve a security level
+number. Actually using SSL_CTX_set_security_level to configure security levels
+in AWS-LC is not supported at this time. I've set the returned number to 3,
+since we only support cipher suites that are at least 128 bits in security.
+---
+ crypto/conf/conf.c     |  2 ++
+ include/openssl/conf.h |  3 +++
+ include/openssl/err.h  |  1 +
+ include/openssl/ssl.h  | 18 ++++++++++++++++++
+ ssl/ssl_cert.cc        |  2 ++
+ 5 files changed, 26 insertions(+)
+
+diff --git a/crypto/conf/conf.c b/crypto/conf/conf.c
+index 622c13ed0..2ca3ea94a 100644
+--- a/crypto/conf/conf.c
++++ b/crypto/conf/conf.c
+@@ -812,6 +812,8 @@ int CONF_modules_load_file(const char *filename, const char *appname,
+ 
+ void CONF_modules_free(void) {}
+ 
++void CONF_modules_unload(int all) {}
++
+ void OPENSSL_config(const char *config_name) {}
+ 
+ void OPENSSL_no_config(void) {}
+diff --git a/include/openssl/conf.h b/include/openssl/conf.h
+index 908c16ea5..fe759036d 100644
+--- a/include/openssl/conf.h
++++ b/include/openssl/conf.h
+@@ -137,6 +137,9 @@ OPENSSL_EXPORT int CONF_modules_load_file(const char *filename,
+ // CONF_modules_free does nothing.
+ OPENSSL_EXPORT void CONF_modules_free(void);
+ 
++// CONF_modules_unload does nothing.
++OPENSSL_EXPORT void CONF_modules_unload(int all);
++
+ // OPENSSL_config does nothing.
+ OPENSSL_EXPORT void OPENSSL_config(const char *config_name);
+ 
+diff --git a/include/openssl/err.h b/include/openssl/err.h
+index 934f3d931..097061a0a 100644
+--- a/include/openssl/err.h
++++ b/include/openssl/err.h
+@@ -112,6 +112,7 @@
+ #include <stdio.h>
+ 
+ #include <openssl/base.h>
++#include <openssl/crypto.h>
+ 
+ #if defined(__cplusplus)
+ extern "C" {
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index 65a093743..9a7f2a556 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -4886,6 +4886,24 @@ OPENSSL_EXPORT int SSL_CTX_set1_sigalgs_list(SSL_CTX *ctx, const char *str);
+ // more convenient to codesearch for specific algorithm values.
+ OPENSSL_EXPORT int SSL_set1_sigalgs_list(SSL *ssl, const char *str);
+ 
++// SSL_CTX_get_security_level returns 3. This is only to maintain compatibility
++// with OpenSSL and no security assumptions should be based on the number this
++// function returns.
++//
++// Per OpenSSL's definition of Level 3:
++// Level 3:
++// Security level set to 128 bits of security. As a result RSA, DSA and DH keys
++// shorter than 3072 bits and ECC keys shorter than 256 bits are prohibited. In
++// addition to the level 2 exclusions cipher suites not offering forward secrecy
++// are prohibited. TLS versions below 1.1 are not permitted. Session tickets are
++// disabled.
++//
++// AWS-LC only supports atl least 128 bits of security, but we don't directly
++// prohibit session tickets and TLS 1.0 like Level 3 in OpenSSL states. This
++// behavior may change if we're asked to support actual Security level setting
++// in AWS-LC.
++OPENSSL_EXPORT int SSL_CTX_get_security_level(const SSL_CTX *ctx);
++
+ #define SSL_set_app_data(s, arg) (SSL_set_ex_data(s, 0, (char *)(arg)))
+ #define SSL_get_app_data(s) (SSL_get_ex_data(s, 0))
+ #define SSL_SESSION_set_app_data(s, a) \
+diff --git a/ssl/ssl_cert.cc b/ssl/ssl_cert.cc
+index aa46a8bb6..bd22c36ab 100644
+--- a/ssl/ssl_cert.cc
++++ b/ssl/ssl_cert.cc
+@@ -1008,3 +1008,5 @@ int SSL_set1_delegated_credential(SSL *ssl, CRYPTO_BUFFER *dc, EVP_PKEY *pkey,
+ int SSL_delegated_credential_used(const SSL *ssl) {
+   return ssl->s3->delegated_credential_used;
+ }
++
++int SSL_CTX_get_security_level(const SSL_CTX *ctx) { return 3; }

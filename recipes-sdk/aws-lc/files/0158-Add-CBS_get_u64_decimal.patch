@@ -1,0 +1,183 @@
+From 6cadb3d15398108e48a945d997ddff4032453392 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 28 Dec 2022 18:33:18 -0500
+Subject: [PATCH] Add CBS_get_u64_decimal.
+
+ASN1_generate_v8 has a number of calls to strtoul. strtoul has two
+problems for that function.
+
+First, strtoul keeps reading until NUL, but all the functions in that
+file act on pointer/length pairs. It's fine because the underlying
+string is always NUL-terminated, but this is fragile.
+
+Second, strtoul is actually defined to parse "-1" as
+(unsigned long)(-1)! Rather than deal with this, extract the decimal
+string parser out of the OID parser as a CBS strotul equivalent.
+
+Change-Id: I1b7a1867d185e34e752be09f8c8103b82e364f35
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56165
+Reviewed-by: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit 50a5caf506f12bd4ac4843358ce03dcc2c667aaf)
+---
+ crypto/bytestring/bytestring_test.cc | 50 ++++++++++++++++++++++++++++
+ crypto/bytestring/cbb.c              | 31 +++++------------
+ crypto/bytestring/cbs.c              | 24 +++++++++++++
+ include/openssl/bytestring.h         |  7 ++++
+ 4 files changed, 89 insertions(+), 23 deletions(-)
+
+diff --git a/crypto/bytestring/bytestring_test.cc b/crypto/bytestring/bytestring_test.cc
+index e35b1bc7e..ca22c41c3 100644
+--- a/crypto/bytestring/bytestring_test.cc
++++ b/crypto/bytestring/bytestring_test.cc
+@@ -1657,3 +1657,53 @@ TEST(CBSTest, BogusTime) {
+     EXPECT_FALSE(CBS_parse_utc_time(&cbs, NULL, /*allow_timezone_offset=*/1));
+   }
+ }
++
++TEST(CBSTest, GetU64Decimal) {
++  const struct {
++    uint64_t val;
++    const char *text;
++  } kTests[] = {
++      {0, "0"},
++      {1, "1"},
++      {123456, "123456"},
++      // 2^64 - 1
++      {UINT64_C(18446744073709551615), "18446744073709551615"},
++  };
++  for (const auto &t : kTests) {
++    SCOPED_TRACE(t.text);
++    CBS cbs;
++    CBS_init(&cbs, reinterpret_cast<const uint8_t*>(t.text), strlen(t.text));
++    uint64_t v;
++    ASSERT_TRUE(CBS_get_u64_decimal(&cbs, &v));
++    EXPECT_EQ(v, t.val);
++    EXPECT_EQ(CBS_data(&cbs),
++              reinterpret_cast<const uint8_t *>(t.text) + strlen(t.text));
++    EXPECT_EQ(CBS_len(&cbs), 0u);
++
++    std::string str(t.text);
++    str += "Z";
++    CBS_init(&cbs, reinterpret_cast<const uint8_t *>(str.data()), str.size());
++    ASSERT_TRUE(CBS_get_u64_decimal(&cbs, &v));
++    EXPECT_EQ(v, t.val);
++    EXPECT_EQ(CBS_data(&cbs),
++              reinterpret_cast<const uint8_t *>(str.data()) + strlen(t.text));
++    EXPECT_EQ(CBS_len(&cbs), 1u);
++  }
++
++  static const char *kInvalidTests[] = {
++      "",
++      "nope",
++      "-1",
++      // 2^64
++      "18446744073709551616",
++      // Overflows at multiplying by 10.
++      "18446744073709551620",
++  };
++  for (const char *invalid : kInvalidTests) {
++    SCOPED_TRACE(invalid);
++    CBS cbs;
++    CBS_init(&cbs, reinterpret_cast<const uint8_t *>(invalid), strlen(invalid));
++    uint64_t v;
++    EXPECT_FALSE(CBS_get_u64_decimal(&cbs, &v));
++  }
++}
+diff --git a/crypto/bytestring/cbb.c b/crypto/bytestring/cbb.c
+index 86625fe42..1692b4ea6 100644
+--- a/crypto/bytestring/cbb.c
++++ b/crypto/bytestring/cbb.c
+@@ -560,30 +560,15 @@ int CBB_add_asn1_bool(CBB *cbb, int value) {
+ // component and the dot, so |cbs| may be passed into the function again for the
+ // next value.
+ static int parse_dotted_decimal(CBS *cbs, uint64_t *out) {
+-  *out = 0;
+-  int seen_digit = 0;
+-  for (;;) {
+-    // Valid terminators for a component are the end of the string or a
+-    // non-terminal dot. If the string ends with a dot, this is not a valid OID
+-    // string.
+-    uint8_t u;
+-    if (!CBS_get_u8(cbs, &u) ||
+-        (u == '.' && CBS_len(cbs) > 0)) {
+-      break;
+-    }
+-    if (u < '0' || u > '9' ||
+-        // Forbid stray leading zeros.
+-        (seen_digit && *out == 0) ||
+-        // Check for overflow.
+-        *out > UINT64_MAX / 10 ||
+-        *out * 10 > UINT64_MAX - (u - '0')) {
+-      return 0;
+-    }
+-    *out = *out * 10 + (u - '0');
+-    seen_digit = 1;
++  if (!CBS_get_u64_decimal(cbs, out)) {
++    return 0;
+   }
+-  // The empty string is not a legal OID component.
+-  return seen_digit;
++
++  // The integer must have either ended at the end of the string, or a
++  // non-terminal dot, which should be consumed. If the string ends with a dot,
++  // this is not a valid OID string.
++  uint8_t dot;
++  return !CBS_get_u8(cbs, &dot) || (dot == '.' && CBS_len(cbs) > 0);
+ }
+ 
+ int CBB_add_asn1_oid_from_text(CBB *cbb, const char *text, size_t len) {
+diff --git a/crypto/bytestring/cbs.c b/crypto/bytestring/cbs.c
+index a2d179e25..f5a42f0ca 100644
+--- a/crypto/bytestring/cbs.c
++++ b/crypto/bytestring/cbs.c
+@@ -232,6 +232,30 @@ int CBS_get_until_first(CBS *cbs, CBS *out, uint8_t c) {
+   return CBS_get_bytes(cbs, out, split - CBS_data(cbs));
+ }
+ 
++int CBS_get_u64_decimal(CBS *cbs, uint64_t *out) {
++  uint64_t v = 0;
++  int seen_digit = 0;
++  while (CBS_len(cbs) != 0) {
++    uint8_t c = CBS_data(cbs)[0];
++    if (!isdigit(c)) {
++      break;
++    }
++    CBS_skip(cbs, 1);
++    if (// Forbid stray leading zeros.
++        (v == 0 && seen_digit) ||
++        // Check for overflow.
++        v > UINT64_MAX / 10 ||  //
++        v * 10 > UINT64_MAX - (c - '0')) {
++      return 0;
++    }
++    v = v * 10 + (c - '0');
++    seen_digit = 1;
++  }
++
++  *out = v;
++  return seen_digit;
++}
++
+ // parse_base128_integer reads a big-endian base-128 integer from |cbs| and sets
+ // |*out| to the result. This is the encoding used in DER for both high tag
+ // number form and OID components.
+diff --git a/include/openssl/bytestring.h b/include/openssl/bytestring.h
+index dceecf2db..100d18b90 100644
+--- a/include/openssl/bytestring.h
++++ b/include/openssl/bytestring.h
+@@ -160,6 +160,13 @@ OPENSSL_EXPORT int CBS_get_u24_length_prefixed(CBS *cbs, CBS *out);
+ // one. Otherwise, it returns zero and leaves |cbs| unmodified.
+ OPENSSL_EXPORT int CBS_get_until_first(CBS *cbs, CBS *out, uint8_t c);
+ 
++// CBS_get_u64_decimal reads a decimal integer from |cbs| and writes it to
++// |*out|. It stops reading at the end of the string, or the first non-digit
++// character. It returns one on success and zero on error. This function behaves
++// analogously to |strtoul| except it does not accept empty inputs, leading
++// zeros, or negative values.
++OPENSSL_EXPORT int CBS_get_u64_decimal(CBS *cbs, uint64_t *out);
++
+ 
+ // Parsing ASN.1
+ //

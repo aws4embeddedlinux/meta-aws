@@ -1,0 +1,1556 @@
+From 5f4ae673b118be7c0a8c2b3bfcac3ab67627111a Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Wed, 12 Jul 2023 10:51:46 -0700
+Subject: [PATCH] Merge and remove duplicate yml files in CI (#1088)
+
+Inspired by #1083, this is making a quick change to remove some duplicate
+yml files we had in our CI.
+---
+ .../github_ci_analytics_omnibus.yaml          |   8 +-
+ .../codebuild/github_ci_fuzzing_omnibus.yaml  |  16 +-
+ .../github_ci_linux_arm_omnibus.yaml          | 137 +++++++++---
+ .../github_ci_linux_x86_omnibus.yaml          | 196 +++++++++++++-----
+ tests/ci/codebuild/common/run_analytics.yml   |  18 --
+ .../common/run_ssl_runner_valgrind_tests.yml  |  17 --
+ .../codebuild/common/run_valgrind_tests.yml   |  17 --
+ .../codebuild/linux-aarch/run_fips_tests.yml  |  18 --
+ .../linux-aarch/run_minimal_tests.yml         |  18 --
+ .../codebuild/linux-aarch/run_posix_tests.yml |  18 --
+ .../linux-aarch/run_prefix_tests.yml          |  18 --
+ .../linux-aarch/run_sanitizer_tests.yml       |  21 --
+ .../linux-aarch/run_ssl_asan_tests.yml        |  21 --
+ .../linux-x86/install_shared_and_static.yml   |  13 --
+ .../codebuild/linux-x86/run_bm_build_test.yml |  18 --
+ .../ci/codebuild/linux-x86/run_cryptofuzz.yml |  18 --
+ .../ci/codebuild/linux-x86/run_fips_tests.yml |  18 --
+ .../ci/codebuild/linux-x86/run_fuzz_tests.yml |  18 --
+ .../codebuild/linux-x86/run_legacy_build.yml  |  18 --
+ .../codebuild/linux-x86/run_minimal_tests.yml |  18 --
+ .../codebuild/linux-x86/run_posix_tests.yml   |  18 --
+ .../codebuild/linux-x86/run_prefix_tests.yml  |  18 --
+ .../linux-x86/run_sanitizer_tests.yml         |  18 --
+ 23 files changed, 267 insertions(+), 431 deletions(-)
+ delete mode 100644 tests/ci/codebuild/common/run_analytics.yml
+ delete mode 100644 tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml
+ delete mode 100644 tests/ci/codebuild/common/run_valgrind_tests.yml
+ delete mode 100644 tests/ci/codebuild/linux-aarch/run_fips_tests.yml
+ delete mode 100644 tests/ci/codebuild/linux-aarch/run_minimal_tests.yml
+ delete mode 100644 tests/ci/codebuild/linux-aarch/run_posix_tests.yml
+ delete mode 100644 tests/ci/codebuild/linux-aarch/run_prefix_tests.yml
+ delete mode 100644 tests/ci/codebuild/linux-aarch/run_sanitizer_tests.yml
+ delete mode 100644 tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
+ delete mode 100644 tests/ci/codebuild/linux-x86/install_shared_and_static.yml
+ delete mode 100644 tests/ci/codebuild/linux-x86/run_bm_build_test.yml
+ delete mode 100644 tests/ci/codebuild/linux-x86/run_cryptofuzz.yml
+ delete mode 100644 tests/ci/codebuild/linux-x86/run_fips_tests.yml
+ delete mode 100644 tests/ci/codebuild/linux-x86/run_fuzz_tests.yml
+ delete mode 100644 tests/ci/codebuild/linux-x86/run_legacy_build.yml
+ delete mode 100644 tests/ci/codebuild/linux-x86/run_minimal_tests.yml
+ delete mode 100644 tests/ci/codebuild/linux-x86/run_posix_tests.yml
+ delete mode 100644 tests/ci/codebuild/linux-x86/run_prefix_tests.yml
+ delete mode 100644 tests/ci/codebuild/linux-x86/run_sanitizer_tests.yml
+
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_analytics_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_analytics_omnibus.yaml
+index 3ed2732bf..66bdbbac0 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_analytics_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_analytics_omnibus.yaml
+@@ -8,17 +8,21 @@ batch:
+   build-list:
+ 
+     - identifier: amazonlinux2_gcc7x_x86_64_analytics
+-      buildspec: ./tests/ci/codebuild/common/run_analytics.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_analytics.sh"
+ 
+     - identifier: amazonlinux2_gcc7x_arm_analytics
+-      buildspec: ./tests/ci/codebuild/common/run_analytics.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_analytics.sh"
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_fuzzing_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_fuzzing_omnibus.yaml
+index 1cdf74115..9320a9c33 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_fuzzing_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_fuzzing_omnibus.yaml
+@@ -8,33 +8,41 @@ batch:
+   build-list:
+ 
+     - identifier: al2023_clang15_x86_64_fuzz
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fuzz_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_sanitizer_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fuzz_tests.sh"
+ 
+     - identifier: al2023_clang14_arm_fuzz
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fuzz_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_sanitizer_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fuzz_tests.sh"
+ 
+     - identifier: al2023_clang15_x86_64_cryptofuzz
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_cryptofuzz.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_cryptofuzz_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_cryptofuzz.sh"
+ 
+     - identifier: al2023_clang15_arm_cryptofuzz
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_cryptofuzz.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_cryptofuzz_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_cryptofuzz.sh"
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
+index e55c2979c..73cfc7f70 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
+@@ -7,79 +7,97 @@ version: 0.2
+ batch:
+   build-list:
+     - identifier: ubuntu2004_gcc7x_aarch
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2004_gcc7x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2004_gcc8x_aarch
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_gcc-8x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2004_gcc8x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_gcc-8x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2204_gcc11x_aarch
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-22.04_gcc-11x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2204_gcc11x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-22.04_gcc-11x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2204_gcc12x_aarch
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-22.04_gcc-12x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2204_gcc12x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-22.04_gcc-12x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2004_clang7x_aarch
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2004_clang7x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+@@ -89,105 +107,130 @@ batch:
+           # AWS_LC_GO_TEST_TIMEOUT is needed on aarch when ASAN is enabled because the ASAN is very slow.
+           AWS_LC_GO_TEST_TIMEOUT: 120m
+           AWSLC_NO_ASM_FIPS: 1
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2004_clang7x_aarch_minimal
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_minimal_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_minimal_tests.sh"
+ 
+     - identifier: ubuntu2004_clang8x_aarch
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-8x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2004_clang8x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-8x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2004_clang9x_aarch
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-9x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2004_clang9x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-9x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2004_clang10x_aarch
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-10x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2004_clang10x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-10x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2004_clang10x_aarch_prefix
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_prefix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-20.04_clang-10x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_prefix_tests.sh"
+ 
+     - identifier: amazonlinux2_gcc7x_aarch
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: amazonlinux2_gcc7x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: amazonlinux2_gcc7x_aarch_prefix
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_prefix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_prefix_tests.sh"
+ 
+     - identifier: amazonlinux2_clang7x_aarch
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2_clang-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: amazonlinux2_clang7x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+@@ -197,46 +240,60 @@ batch:
+           # AL2 Clang-7 does not support AddressSanitizer. Related ticket is linked in CryptoAlg-694.
+           # https://github.com/aws/aws-lc/pull/120#issuecomment-808439279
+           AWSLC_NO_ASM_FIPS: 0
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: amazonlinux2023_gcc11x_aarch
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_gcc-11x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: amazonlinux2023_gcc11x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_gcc-11x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: amazonlinux2023_clang15x_aarch
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: amazonlinux2023_clang15x_aarch_fips
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
++    # Sanitizer is very slow on ARM.
++    # https://github.com/google/sanitizers/issues/1331
+     - identifier: amazonlinux_2023_clang_14x_sanitizer
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_sanitizer_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_sanitizer_latest
++        variables:
++          AWS_LC_GO_TEST_TIMEOUT: '60m'
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_sanitizers.sh"
+ 
+     # BoringSSL has 7k+ ssl runner tests, and the total number of the runner tests keep increasing.
+     # When ASAN enabled, the tests take more than 1 hour to finish. The cause relates to https://github.com/google/sanitizers/issues/1331,
+@@ -248,59 +305,71 @@ batch:
+     #   4. amazonlinux_2023_clang_14x_ssl_asan4
+     # Env var |AWS_LC_SSL_RUNNER_START_INDEX| and |AWS_LC_SSL_RUNNER_END_INDEX| are used to filter the runner tests.
+     - identifier: amazonlinux_2023_clang_14x_ssl_asan1
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_sanitizer_latest
+         variables:
++          AWS_LC_GO_TEST_TIMEOUT: '60m'
+           AWS_LC_SSL_RUNNER_END_INDEX: 3500
++          AWS_LC_CI_TARGET: "tests/ci/run_ssl_asan_tests.sh"
+ 
+     - identifier: amazonlinux_2023_clang_14x_ssl_asan2
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_sanitizer_latest
+         variables:
++          AWS_LC_GO_TEST_TIMEOUT: '60m'
+           AWS_LC_SSL_RUNNER_START_INDEX: 3501
+           AWS_LC_SSL_RUNNER_END_INDEX: 5500
++          AWS_LC_CI_TARGET: "tests/ci/run_ssl_asan_tests.sh"
+ 
+     - identifier: amazonlinux_2023_clang_14x_ssl_asan3
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_sanitizer_latest
+         variables:
++          AWS_LC_GO_TEST_TIMEOUT: '60m'
+           AWS_LC_SSL_RUNNER_START_INDEX: 5501
+           AWS_LC_SSL_RUNNER_END_INDEX: 7000
++          AWS_LC_CI_TARGET: "tests/ci/run_ssl_asan_tests.sh"
+ 
+     - identifier: amazonlinux_2023_clang_14x_ssl_asan4
+-      buildspec: ./tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_sanitizer_latest
+         variables:
++          AWS_LC_GO_TEST_TIMEOUT: '60m'
+           AWS_LC_SSL_RUNNER_START_INDEX: 7001
++          AWS_LC_CI_TARGET: "tests/ci/run_ssl_asan_tests.sh"
+ 
+     - identifier: amazonlinux2023_gcc11x_aarch_valgrind
+-      buildspec: ./tests/ci/codebuild/common/run_valgrind_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_gcc-11x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_valgrind_tests.sh"
+ 
+     - identifier: amazonlinux2023_gcc11x_aarch_ssl_runner_valgrind
+-      buildspec: ./tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_gcc-11x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_ssl_runner_valgrind_tests.sh"
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+index e4f33f04c..2d127c7b0 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+@@ -15,7 +15,7 @@ batch:
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-8x_latest
+ 
+     - identifier: ubuntu1604_gcc5x_x86
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: false
+@@ -23,121 +23,150 @@ batch:
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-16.04_gcc-5x_latest
+         variables:
+           AWSLC_32BIT: 1
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu1804_clang6x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-18.04_clang-6x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu1804_clang6x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-18.04_clang-6x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu1804_gcc7x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-18.04_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu1804_gcc7x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-18.04_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2004_gcc7x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2004_gcc7x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2004_gcc8x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_gcc-8x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2004_gcc8x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_gcc-8x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2204_gcc11x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-11x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2204_gcc11x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-11x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2204_gcc11x_x86_64_prefix
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_prefix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-11x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_prefix_tests.sh"
+ 
+     - identifier: ubuntu2204_gcc12x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2204_gcc12x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2004_clang7x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2004_clang7x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+@@ -145,57 +174,70 @@ batch:
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-7x_latest
+         variables:
+           AWSLC_NO_ASM_FIPS: 1
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2004_clang8x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-8x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2004_clang8x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-8x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2004_clang9x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-9x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2004_clang9x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-9x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: ubuntu2004_clang10x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-10x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: ubuntu2004_clang10x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-10x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: centos7_gcc4x_x86
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: false
+@@ -203,66 +245,81 @@ batch:
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:centos-7_gcc-4x_latest
+         variables:
+           AWSLC_32BIT: 1
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: centos7_gcc4x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:centos-7_gcc-4x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: centos7_gcc4x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:centos-7_gcc-4x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: centos8_gcc8x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:centos-8_gcc-8x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: centos8_gcc8x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:centos-8_gcc-8x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+ 
+     - identifier: amazonlinux2_gcc7x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: amazonlinux2_gcc7x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: amazonlinux2_clang7x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_clang-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: amazonlinux2_clang7x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+@@ -272,14 +329,17 @@ batch:
+           # AL2 Clang-7 does not support AddressSanitizer. Related ticket is linked in CryptoAlg-694.
+           # https://github.com/aws/aws-lc/pull/120#issuecomment-808439279
+           AWSLC_NO_ASM_FIPS: 0
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: amazonlinux2_clang7x_x86_64_prefix
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_prefix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_clang-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_prefix_tests.sh"
+ 
+     - identifier: amazonlinux2_gcc7x_intel_sde_x86_64
+       buildspec: ./tests/ci/codebuild/linux-x86/amazonlinux-2_gcc-7x_intel-sde.yml
+@@ -290,68 +350,84 @@ batch:
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_gcc-7x_intel-sde_latest
+ 
+     - identifier: amazonlinux2023_gcc11x_x86_64_valgrind
+-      buildspec: ./tests/ci/codebuild/common/run_valgrind_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_gcc-11x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_valgrind_tests.sh"
+ 
+     - identifier: amazonlinux2023_gcc11x_x86_64_ssl_runner_valgrind
+-      buildspec: ./tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_2XLARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_gcc-11x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_ssl_runner_valgrind_tests.sh"
+ 
+     - identifier: amazonlinux2023_gcc11x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_gcc-11x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: amazonlinux2023_gcc11x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_gcc-11x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: amazonlinux2023_clang15x_x86_64
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_tests.sh"
+ 
+     - identifier: amazonlinux2023_clang15x_x86_64_fips
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_fips_tests.sh"
+ 
+     - identifier: amazonlinux2023_clang15x_x86_64_sanitizer
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_sanitizer_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_sanitizer_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_posix_sanitizers.sh"
+ 
+     - identifier: install_shared_and_static
+-      buildspec: ./tests/ci/codebuild/linux-x86/install_shared_and_static.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_SMALL
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-9x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_install_shared_and_static.sh"
+ 
+     - identifier: fedora31_clang9x_x86_64
+       buildspec: ./tests/ci/codebuild/linux-x86/fedora-31_clang-9x.yml
+@@ -464,81 +540,101 @@ batch:
+ 
+     # Build and test aws-lc without Perl/Go.
+     - identifier: amazonlinux2_gcc7x_x86_64_minimal
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_minimal_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_SMALL
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_minimal_tests.sh"
+ 
+     - identifier: centos7_gcc4x_x86_64_minimal
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_minimal_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_SMALL
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:centos-7_gcc-4x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_minimal_tests.sh"
+ 
+     - identifier: ubuntu1604_gcc5x_x86_minimal
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_minimal_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_SMALL
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-16.04_gcc-5x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_minimal_tests.sh"
+ 
+     - identifier: ubuntu2004_gcc7x_x86_64_minimal
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_minimal_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_SMALL
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_gcc-7x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_minimal_tests.sh"
+ 
+     - identifier: ubuntu2004_gcc8x_x86_64_minimal
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_minimal_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_SMALL
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_gcc-8x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_minimal_tests.sh"
+ 
+     - identifier: ubuntu1804_clang6x_x86_64_minimal
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_minimal_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_SMALL
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-18.04_clang-6x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_minimal_tests.sh"
+ 
+     - identifier: ubuntu2004_clang8x_x86_64_minimal
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_minimal_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_SMALL
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-8x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_minimal_tests.sh"
+ 
+     - identifier: ubuntu2004_clang9x_x86_64_minimal
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_minimal_tests.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_SMALL
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-9x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_minimal_tests.sh"
+ 
+     - identifier: ubuntu2004_clang7x_x86_64_benchmark
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_bm_build_test.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-7x-bm-framework_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_benchmark_build_tests.sh"
+ 
+     - identifier: ubuntu1004_gcc4_1x_x86_64_build
+-      buildspec: ./tests/ci/codebuild/linux-x86/run_legacy_build.yml
++      buildspec: ./tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_SMALL
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-10.04_gcc-4.1x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/run_legacy_build.sh"
+diff --git a/tests/ci/codebuild/common/run_analytics.yml b/tests/ci/codebuild/common/run_analytics.yml
+deleted file mode 100644
+index f4ad43b7a..000000000
+--- a/tests/ci/codebuild/common/run_analytics.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be defined before build.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found correct CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found correct CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_analytics.sh
+diff --git a/tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml b/tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml
+deleted file mode 100644
+index 13921aa0a..000000000
+--- a/tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml
++++ /dev/null
+@@ -1,17 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_ssl_runner_valgrind_tests.sh
+diff --git a/tests/ci/codebuild/common/run_valgrind_tests.yml b/tests/ci/codebuild/common/run_valgrind_tests.yml
+deleted file mode 100644
+index 98c9f51a7..000000000
+--- a/tests/ci/codebuild/common/run_valgrind_tests.yml
++++ /dev/null
+@@ -1,17 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_valgrind_tests.sh
+diff --git a/tests/ci/codebuild/linux-aarch/run_fips_tests.yml b/tests/ci/codebuild/linux-aarch/run_fips_tests.yml
+deleted file mode 100644
+index 26e2f655f..000000000
+--- a/tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be pre-defined.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_fips_tests.sh
+diff --git a/tests/ci/codebuild/linux-aarch/run_minimal_tests.yml b/tests/ci/codebuild/linux-aarch/run_minimal_tests.yml
+deleted file mode 100644
+index 9e3848298..000000000
+--- a/tests/ci/codebuild/linux-aarch/run_minimal_tests.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be defined before build.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found correct CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found correct CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_minimal_tests.sh
+diff --git a/tests/ci/codebuild/linux-aarch/run_posix_tests.yml b/tests/ci/codebuild/linux-aarch/run_posix_tests.yml
+deleted file mode 100644
+index 067850809..000000000
+--- a/tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be defined before build.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found correct CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found correct CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_posix_tests.sh
+diff --git a/tests/ci/codebuild/linux-aarch/run_prefix_tests.yml b/tests/ci/codebuild/linux-aarch/run_prefix_tests.yml
+deleted file mode 100644
+index 339dbf95a..000000000
+--- a/tests/ci/codebuild/linux-aarch/run_prefix_tests.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be defined before build.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found correct CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found correct CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_prefix_tests.sh
+diff --git a/tests/ci/codebuild/linux-aarch/run_sanitizer_tests.yml b/tests/ci/codebuild/linux-aarch/run_sanitizer_tests.yml
+deleted file mode 100644
+index 278f65ec0..000000000
+--- a/tests/ci/codebuild/linux-aarch/run_sanitizer_tests.yml
++++ /dev/null
+@@ -1,21 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be pre-defined.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found CXX."; fi
+-      # Sanitizer is very slow on ARM.
+-      # https://github.com/google/sanitizers/issues/1331
+-      - export AWS_LC_GO_TEST_TIMEOUT='60m'
+-  build:
+-    commands:
+-      - ./tests/ci/run_posix_sanitizers.sh
+diff --git a/tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml b/tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
+deleted file mode 100644
+index 5f95f4baf..000000000
+--- a/tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
++++ /dev/null
+@@ -1,21 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be pre-defined.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found CXX."; fi
+-      # Sanitizer is very slow on ARM.
+-      # https://github.com/google/sanitizers/issues/1331
+-      - export AWS_LC_GO_TEST_TIMEOUT='60m'
+-  build:
+-    commands:
+-      - ./tests/ci/run_ssl_asan_tests.sh 
+diff --git a/tests/ci/codebuild/linux-x86/install_shared_and_static.yml b/tests/ci/codebuild/linux-x86/install_shared_and_static.yml
+deleted file mode 100644
+index 1028db571..000000000
+--- a/tests/ci/codebuild/linux-x86/install_shared_and_static.yml
++++ /dev/null
+@@ -1,13 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  build:
+-    commands:
+-      - ./tests/ci/run_install_shared_and_static.sh
+diff --git a/tests/ci/codebuild/linux-x86/run_bm_build_test.yml b/tests/ci/codebuild/linux-x86/run_bm_build_test.yml
+deleted file mode 100644
+index eea804aef..000000000
+--- a/tests/ci/codebuild/linux-x86/run_bm_build_test.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be defined before build.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found correct CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found correct CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_benchmark_build_tests.sh
+diff --git a/tests/ci/codebuild/linux-x86/run_cryptofuzz.yml b/tests/ci/codebuild/linux-x86/run_cryptofuzz.yml
+deleted file mode 100644
+index 070132b81..000000000
+--- a/tests/ci/codebuild/linux-x86/run_cryptofuzz.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be defined before build.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found correct CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found correct CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_cryptofuzz.sh
+diff --git a/tests/ci/codebuild/linux-x86/run_fips_tests.yml b/tests/ci/codebuild/linux-x86/run_fips_tests.yml
+deleted file mode 100644
+index 26e2f655f..000000000
+--- a/tests/ci/codebuild/linux-x86/run_fips_tests.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be pre-defined.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_fips_tests.sh
+diff --git a/tests/ci/codebuild/linux-x86/run_fuzz_tests.yml b/tests/ci/codebuild/linux-x86/run_fuzz_tests.yml
+deleted file mode 100644
+index 844abe6ae..000000000
+--- a/tests/ci/codebuild/linux-x86/run_fuzz_tests.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be defined before build.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found correct CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found correct CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_fuzz_tests.sh
+diff --git a/tests/ci/codebuild/linux-x86/run_legacy_build.yml b/tests/ci/codebuild/linux-x86/run_legacy_build.yml
+deleted file mode 100644
+index af6e8b397..000000000
+--- a/tests/ci/codebuild/linux-x86/run_legacy_build.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be defined before build.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found correct CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found correct CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_legacy_build.sh
+diff --git a/tests/ci/codebuild/linux-x86/run_minimal_tests.yml b/tests/ci/codebuild/linux-x86/run_minimal_tests.yml
+deleted file mode 100644
+index 9e3848298..000000000
+--- a/tests/ci/codebuild/linux-x86/run_minimal_tests.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be defined before build.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found correct CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found correct CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_minimal_tests.sh
+diff --git a/tests/ci/codebuild/linux-x86/run_posix_tests.yml b/tests/ci/codebuild/linux-x86/run_posix_tests.yml
+deleted file mode 100644
+index 067850809..000000000
+--- a/tests/ci/codebuild/linux-x86/run_posix_tests.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be defined before build.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found correct CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found correct CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_posix_tests.sh
+diff --git a/tests/ci/codebuild/linux-x86/run_prefix_tests.yml b/tests/ci/codebuild/linux-x86/run_prefix_tests.yml
+deleted file mode 100644
+index 339dbf95a..000000000
+--- a/tests/ci/codebuild/linux-x86/run_prefix_tests.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be defined before build.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found correct CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found correct CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_prefix_tests.sh
+diff --git a/tests/ci/codebuild/linux-x86/run_sanitizer_tests.yml b/tests/ci/codebuild/linux-x86/run_sanitizer_tests.yml
+deleted file mode 100644
+index 925b4548d..000000000
+--- a/tests/ci/codebuild/linux-x86/run_sanitizer_tests.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  pre_build:
+-    commands:
+-      # To use this build spec file, CMake environment variable CC and CXX compiler should be pre-defined.
+-      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found CC."; fi
+-      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found CXX."; fi
+-  build:
+-    commands:
+-      - ./tests/ci/run_posix_sanitizers.sh

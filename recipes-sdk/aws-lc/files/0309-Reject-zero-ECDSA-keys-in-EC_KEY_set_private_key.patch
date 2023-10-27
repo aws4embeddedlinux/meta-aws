@@ -1,0 +1,88 @@
+From 2ae0a6bc87520eb47cdb2793eb1e6b1886388236 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sat, 11 Feb 2023 09:51:23 -0500
+Subject: [PATCH] Reject zero ECDSA keys in EC_KEY_set_private_key
+
+We already reject values that are out of bounds. Also we were using the
+wrong error, so fix that. Zero should additionally be rejected,
+otherwise, when signing an all-zero digest (impossible unless your
+system signs untrusted, pre-hashed inputs), ECDSA can infinite loop.
+Thanks to Guido Vranken who reported an analogous issue with DSA in
+https://github.com/openssl/openssl/issues/20268
+
+When EC_KEYs are obtained through the parser, this CL is a no-op. The
+corresponding public key is the point at infinity, which we'll reject at
+both parse time and in EC_KEY_check_key. But as EC_KEY runs into
+OpenSSL's usual API design flaw (mutable, field-by-field setters over
+constructor functions for immutable objects), we should reject this in
+EC_KEY_set_private_key too.
+
+Update-Note: Systems that manually construct an EC_KEY (i.e. not from
+parsing), and either omit the public key or don't call EC_KEY_check_key
+will start rejecting the zero private key. If such a system *also* signs
+untrusted digests, this fixes an infinite loop in ECDSA.
+
+Change-Id: I3cc9cd2cc59eb6d16826beab3db71d66b23e83ff
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57226
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit aa8d3b5a53ecff9befb7b0edcbbe56bb94dd3ae0)
+---
+ crypto/evp_extra/evp_tests.txt  | 10 ++++++++++
+ crypto/fipsmodule/ec/ec_key.c   |  5 +++--
+ crypto/fipsmodule/ec/ec_test.cc |  5 +++++
+ 3 files changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/evp_extra/evp_tests.txt b/crypto/evp_extra/evp_tests.txt
+index 778288f6e..7d354498f 100644
+--- a/crypto/evp_extra/evp_tests.txt
++++ b/crypto/evp_extra/evp_tests.txt
+@@ -128,6 +128,16 @@ PrivateKey = P-256-ExplicitParameters-CofactorTwo
+ Input = 308201610201003081ec06072a8648ce3d02013081e0020101302c06072a8648ce3d0101022100ffffffff00000001000000000000000000000000ffffffffffffffffffffffff30440420ffffffff00000001000000000000000000000000fffffffffffffffffffffffc04205ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b0441046b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5022100ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551020102046d306b02010104208a872fb62893c4d1ffc5b9f0f91758069f8352e08fa05a49f8db926cb5728725a144034200042c150f429ce70f216c252cf5e062ce1f639cd5d165c7f89424072c27197d78b33b920e95cdb664e990dcf0cfea0d94e2a8e6af9d0e58056e653104925b9fe6c9
+ Error = UNKNOWN_GROUP
+ 
++# A zero ECDSA key, with the optional public key encoded.
++PrivateKey = P-256-Zero
++Input = 3047020100301306072a8648ce3d020106082a8648ce3d030107042d302b02010104200000000000000000000000000000000000000000000000000000000000000000a10403020000
++Error = INVALID_PRIVATE_KEY
++
++# A zero ECDSA key, with the optional public key omitted.
++PrivateKey = P-256-Zero-NoPublic
++Input = 3041020100301306072a8648ce3d020106082a8648ce3d0301070427302502010104200000000000000000000000000000000000000000000000000000000000000000
++Error = INVALID_PRIVATE_KEY
++
+ # The public half of the same key encoded as a PublicKey.
+ PublicKey = P-256-SPKI
+ Type = EC
+diff --git a/crypto/fipsmodule/ec/ec_key.c b/crypto/fipsmodule/ec/ec_key.c
+index ddf33dcaf..cb5c7a943 100644
+--- a/crypto/fipsmodule/ec/ec_key.c
++++ b/crypto/fipsmodule/ec/ec_key.c
+@@ -244,8 +244,9 @@ int EC_KEY_set_private_key(EC_KEY *key, const BIGNUM *priv_key) {
+   if (scalar == NULL) {
+     return 0;
+   }
+-  if (!ec_bignum_to_scalar(key->group, &scalar->scalar, priv_key)) {
+-    OPENSSL_PUT_ERROR(EC, EC_R_WRONG_ORDER);
++  if (!ec_bignum_to_scalar(key->group, &scalar->scalar, priv_key) ||
++      ec_scalar_is_zero(key->group, &scalar->scalar)) {
++    OPENSSL_PUT_ERROR(EC, EC_R_INVALID_PRIVATE_KEY);
+     ec_wrapped_scalar_free(scalar);
+     return 0;
+   }
+diff --git a/crypto/fipsmodule/ec/ec_test.cc b/crypto/fipsmodule/ec/ec_test.cc
+index 025afa030..edafe32cf 100644
+--- a/crypto/fipsmodule/ec/ec_test.cc
++++ b/crypto/fipsmodule/ec/ec_test.cc
+@@ -1660,6 +1660,11 @@ TEST_P(ECCurveTest, SetInvalidPrivateKey) {
+   EXPECT_FALSE(EC_KEY_set_private_key(key.get(), bn.get()))
+       << "Unexpectedly set a key of the group order.";
+   ERR_clear_error();
++
++  BN_zero(bn.get());
++  EXPECT_FALSE(EC_KEY_set_private_key(key.get(), bn.get()))
++      << "Unexpectedly set a key of 0";
++  ERR_clear_error();
+ }
+ 
+ TEST_P(ECCurveTest, IgnoreOct2PointReturnValue) {

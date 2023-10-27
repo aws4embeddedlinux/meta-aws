@@ -1,0 +1,49 @@
+From 007ea98d25d6f7a93427b11baa5448ad8c0cfa20 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 8 Feb 2023 09:29:31 -0500
+Subject: [PATCH] Don't use negative values for unimplemented modes
+
+Our EVP_CIPHER_mode returns an unsigned value and including negative
+numbers in switch/case when the value is unsigned causes some warnings.
+This should avoid the need for https://github.com/nodejs/node/pull/46564
+
+(Having them be positive shouldn't have compat impacts. CCM is 8, but no
+cipher will report CCM, so any path checking for it will just be dead
+code.)
+
+Change-Id: I8dcf5ea55fad9732a09d6da73114cde5d69397d3
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57025
+Reviewed-by: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit d9ea5553c3c9af6460257b035e9ebfbffbc78a1d)
+---
+ include/openssl/cipher.h | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/include/openssl/cipher.h b/include/openssl/cipher.h
+index d0f58bb41..4df95f2d6 100644
+--- a/include/openssl/cipher.h
++++ b/include/openssl/cipher.h
+@@ -343,6 +343,11 @@ OPENSSL_EXPORT int EVP_BytesToKey(const EVP_CIPHER *type, const EVP_MD *md,
+ 
+ // Buffer length in bits not bytes: CFB1 mode only.
+ # define EVP_CIPH_FLAG_LENGTH_BITS 0x2000
++// The following values are never returned from |EVP_CIPHER_mode| and are
++// included only to make it easier to compile code with BoringSSL.
++#define EVP_CIPH_CCM_MODE 0x8
++#define EVP_CIPH_OCB_MODE 0x9
++#define EVP_CIPH_WRAP_MODE 0xa
+ 
+ 
+ // Cipher flags (for |EVP_CIPHER_flags|).
+@@ -531,9 +536,6 @@ OPENSSL_EXPORT const EVP_CIPHER *EVP_bf_cfb(void);
+ 
+ // The following flags do nothing and are included only to make it easier to
+ // compile code with BoringSSL.
+-#define EVP_CIPH_CCM_MODE (-1)
+-#define EVP_CIPH_OCB_MODE (-2)
+-#define EVP_CIPH_WRAP_MODE (-3)
+ #define EVP_CIPHER_CTX_FLAG_WRAP_ALLOW 0
+ 
+ // EVP_CIPHER_CTX_set_flags does nothing.

@@ -1,0 +1,47 @@
+From e469b756a67f8c6b4bacb3dab2f878b8ce1b8824 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 1 May 2023 15:25:18 -0400
+Subject: [PATCH] Disable BlindingCacheConcurrency on FreeBSD.
+
+Per the bug discussion, FreeBSD seems to default to a cap of 1500
+threads per process. Just turn the test off.
+
+But enable the test unconditionally if building with TSan. With TSan on,
+we only spawn two threads, which should be within everyone's bounds.
+
+Fixed: 603
+Change-Id: Ic8c49e5ce7c3f2d09487debc72b7e4c54b04a77c
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59445
+Reviewed-by: Adam Langley <agl@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 048d21cc1412429f2fa3c470ac95d2e4b2d2abf9)
+---
+ crypto/rsa_extra/rsa_test.cc | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/crypto/rsa_extra/rsa_test.cc b/crypto/rsa_extra/rsa_test.cc
+index 4b958ad70..2dedfa849 100644
+--- a/crypto/rsa_extra/rsa_test.cc
++++ b/crypto/rsa_extra/rsa_test.cc
+@@ -1496,8 +1496,10 @@ TEST(RSATest, Threads) {
+ // platforms when running tests standalone via all_tests.go.
+ //
+ // Additionally, even when running disabled tests standalone, limit this to
+-// x86_64. On other platforms, this test hits resource limits or is too slow.
+-#if defined(OPENSSL_X86_64)
++// x86_64. On other platforms, this test hits resource limits or is too slow. We
++// also disable on FreeBSD. See https://crbug.com/boringssl/603.
++#if defined(OPENSSL_TSAN) || \
++    (defined(OPENSSL_X86_64) && !defined(OPENSSL_FREEBSD))
+ TEST(RSATest, DISABLED_BlindingCacheConcurrency) {
+   bssl::UniquePtr<RSA> rsa(
+       RSA_private_key_from_bytes(kKey1, sizeof(kKey1) - 1));
+@@ -1538,6 +1540,6 @@ TEST(RSATest, DISABLED_BlindingCacheConcurrency) {
+     thread.join();
+   }
+ }
+-#endif  // X86_64
++#endif  // TSAN || (X86_64 && !FREEBSD)
+ 
+ #endif  // THREADS

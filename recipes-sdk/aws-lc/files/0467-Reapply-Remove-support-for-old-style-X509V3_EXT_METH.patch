@@ -1,0 +1,304 @@
+From 2f9c3b66d73c0e777f26474f05a2d267fc9d050e Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Fri, 30 Jun 2023 16:00:56 -0700
+Subject: [PATCH] Reapply "Remove support for "old-style" X509V3_EXT_METHODs"
+ (#1065)
+
+* Remove support for "old-style" X509V3_EXT_METHODs.
+
+I don't believe these codepaths have ever been run. All the built-in
+X509V3_EXT_METHODs are ASN1_ITEM-based, as are all callers I found of
+X509V3_EXT_add and X509V3_EXT_add_list.
+
+Also document not to use those APIs because they're pointless and (for
+now) not even thread-safe. Making them thread-safe is doable, but it'd
+add rwlock contention in certificate verification, unless we first
+rework certificate verification to ignore custom registrations, because
+it never uses them anyway. But that only proves that this whole feature
+was pointless, so this time may be better spent trying to get rid of
+this API.
+
+Update-Note: Externally-installed X509V3_EXT_METHODs now must be
+ASN1_ITEM-based. I believe all existing ones already are. If there are
+any that aren't, let us know. We'll either revert this for now, or
+export a way to implement custom ASN1_ITEMs, or, most likely, try to
+move the caller off custom X509V3_EXT_METHODs altogether. Like most of
+OpenSSL's other global registration APIs, this one is unsafe (two
+callers may conflict) and there isn't much reason to register it with
+the library because OpenSSL doesn't do much with the registration
+anyway.
+
+Bug: 590
+Change-Id: Ice0e246d50069e10e6cca8949f60fac474d0846c
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58687
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 8abd1b5e8c5391dcc4d8574d06fb9727635f9606)
+(cherry picked from commit 736a28388873faa25d892197e5777d32356c5084)
+
+* revert the necessary parts for OCSP; still enforce |it| definition externally
+
+This reapplies the commit that was reverted during the OCSP merge to
+main. OCSP nonce extensions can't migrate directly to the "new-style"
+X509V3_EXT_METHODs, so there's still some code we have to keep around.
+On the bright side, we can still enforce the new `ext->it` non-NULL
+requirement in `X509V3_EXT_add`  for external users. Not all of the code is
+used for OCSP nonce extensions, so I've kept most of the optimizations from
+the BoringSSL commit. Only the code necessary for OCSP is left (in
+`crypto/x509v3/v3_conf.c` and `crypto/x509v3/v3_prn.c`).
+
+---------
+
+Co-authored-by: David Benjamin <davidben@google.com>
+---
+ crypto/x509v3/v3_conf.c  | 16 +++++------
+ crypto/x509v3/v3_lib.c   | 29 ++++++-------------
+ crypto/x509v3/v3_prn.c   | 24 +++++++---------
+ include/openssl/x509v3.h | 62 ++++++++++++++++++++++++++++++++++++++--
+ 4 files changed, 87 insertions(+), 44 deletions(-)
+
+diff --git a/crypto/x509v3/v3_conf.c b/crypto/x509v3/v3_conf.c
+index 598fba3db..d42523820 100644
+--- a/crypto/x509v3/v3_conf.c
++++ b/crypto/x509v3/v3_conf.c
+@@ -192,11 +192,7 @@ static X509_EXTENSION *do_ext_nconf(const CONF *conf, const X509V3_CTX *ctx,
+   }
+ 
+   ext = do_ext_i2d(method, ext_nid, crit, ext_struc);
+-  if (method->it) {
+-    ASN1_item_free(ext_struc, ASN1_ITEM_ptr(method->it));
+-  } else {
+-    method->ext_free(ext_struc);
+-  }
++  ASN1_item_free(ext_struc, ASN1_ITEM_ptr(method->it));
+   return ext;
+ }
+ 
+@@ -212,9 +208,13 @@ static X509_EXTENSION *do_ext_i2d(const X509V3_EXT_METHOD *method, int ext_nid,
+       return NULL;
+     }
+   } else {
+-    // TODO(davidben): Remove support for the "old-style" ASN.1 callbacks. Every
+-    // |X509V3_EXT_METHOD|, both inside and outside the library, has an
+-    // |ASN1_ITEM|, and this codepath is missing handling.
++    // This is using the "old-style" ASN.1 callbacks. The only X509v3 extension
++    // that's still dependent on this code internally are OCSP nonce extensions.
++    // We can't easily migrate OCSP nonce extensions to use the "new" callbacks
++    // either, since OCSP nonces are handled differently in the code (according
++    // to OpenSSL and us having to maintain backwards compatibility with them).
++    // Every other |X509V3_EXT_METHOD|, both inside and outside the library, has
++    // and should have an |ASN1_ITEM|.
+     ext_len = method->i2d(ext_struc, NULL);
+     if (!(ext_der = OPENSSL_malloc(ext_len))) {
+       return NULL;
+diff --git a/crypto/x509v3/v3_lib.c b/crypto/x509v3/v3_lib.c
+index 0a58e3c15..52528eac0 100644
+--- a/crypto/x509v3/v3_lib.c
++++ b/crypto/x509v3/v3_lib.c
+@@ -57,6 +57,7 @@
+  */
+ /* X509 v3 extension utilities */
+ 
++#include <assert.h>
+ #include <stdio.h>
+ 
+ #include <openssl/conf.h>
+@@ -76,6 +77,9 @@ static int ext_stack_cmp(const X509V3_EXT_METHOD *const *a,
+ }
+ 
+ int X509V3_EXT_add(X509V3_EXT_METHOD *ext) {
++  // We only support |ASN1_ITEM|-based extensions.
++  assert(ext->it != NULL);
++
+   // TODO(davidben): This should be locked. Also check for duplicates.
+   if (!ext_list && !(ext_list = sk_X509V3_EXT_METHOD_new(ext_stack_cmp))) {
+     return 0;
+@@ -132,15 +136,7 @@ int X509V3_EXT_free(int nid, void *ext_data) {
+     return 0;
+   }
+ 
+-  if (ext_method->it != NULL) {
+-    ASN1_item_free(ext_data, ASN1_ITEM_ptr(ext_method->it));
+-  } else if (ext_method->ext_free != NULL) {
+-    ext_method->ext_free(ext_data);
+-  } else {
+-    OPENSSL_PUT_ERROR(X509V3, X509V3_R_CANNOT_FIND_FREE_FUNCTION);
+-    return 0;
+-  }
+-
++  ASN1_item_free(ext_data, ASN1_ITEM_ptr(ext_method->it));
+   return 1;
+ }
+ 
+@@ -180,23 +176,14 @@ void *X509V3_EXT_d2i(const X509_EXTENSION *ext) {
+     return NULL;
+   }
+   p = ext->value->data;
+-  void *ret;
+-  if (method->it) {
+-    ret =
+-        ASN1_item_d2i(NULL, &p, ext->value->length, ASN1_ITEM_ptr(method->it));
+-  } else {
+-    ret = method->d2i(NULL, &p, ext->value->length);
+-  }
++  void *ret =
++      ASN1_item_d2i(NULL, &p, ext->value->length, ASN1_ITEM_ptr(method->it));
+   if (ret == NULL) {
+     return NULL;
+   }
+   // Check for trailing data.
+   if (p != ext->value->data + ext->value->length) {
+-    if (method->it) {
+-      ASN1_item_free(ret, ASN1_ITEM_ptr(method->it));
+-    } else {
+-      method->ext_free(ret);
+-    }
++    ASN1_item_free(ret, ASN1_ITEM_ptr(method->it));
+     OPENSSL_PUT_ERROR(X509V3, X509V3_R_TRAILING_DATA_IN_EXTENSION);
+     return NULL;
+   }
+diff --git a/crypto/x509v3/v3_prn.c b/crypto/x509v3/v3_prn.c
+index ce9c18770..6811f4016 100644
+--- a/crypto/x509v3/v3_prn.c
++++ b/crypto/x509v3/v3_prn.c
+@@ -106,12 +106,8 @@ void X509V3_EXT_val_prn(BIO *out, const STACK_OF(CONF_VALUE) *val, int indent,
+ int X509V3_EXT_print(BIO *out, const X509_EXTENSION *ext, unsigned long flag,
+                      int indent) {
+   void *ext_str = NULL;
+-  char *value = NULL;
+-  const X509V3_EXT_METHOD *method;
+-  STACK_OF(CONF_VALUE) *nval = NULL;
+-  int ok = 1;
+-
+-  if (!(method = X509V3_EXT_get(ext))) {
++  const X509V3_EXT_METHOD *method = X509V3_EXT_get(ext);
++  if (method == NULL) {
+     return unknown_ext_print(out, ext, flag, indent, 0);
+   }
+   const ASN1_STRING *ext_data = X509_EXTENSION_get_data(ext);
+@@ -127,32 +123,34 @@ int X509V3_EXT_print(BIO *out, const X509_EXTENSION *ext, unsigned long flag,
+     return unknown_ext_print(out, ext, flag, indent, 1);
+   }
+ 
++  char *value = NULL;
++  STACK_OF(CONF_VALUE) *nval = NULL;
++  int ok = 0;
+   if (method->i2s) {
+     if (!(value = method->i2s(method, ext_str))) {
+-      ok = 0;
+       goto err;
+     }
+     BIO_printf(out, "%*s%s", indent, "", value);
+   } else if (method->i2v) {
+     if (!(nval = method->i2v(method, ext_str, NULL))) {
+-      ok = 0;
+       goto err;
+     }
+     X509V3_EXT_val_prn(out, nval, indent,
+                        method->ext_flags & X509V3_EXT_MULTILINE);
+   } else if (method->i2r) {
+     if (!method->i2r(method, ext_str, out, indent)) {
+-      ok = 0;
++      goto err;
+     }
+   } else {
+-    ok = 0;
++    OPENSSL_PUT_ERROR(X509V3, X509V3_R_OPERATION_NOT_DEFINED);
++    goto err;
+   }
+ 
++  ok = 1;
++
+ err:
+   sk_CONF_VALUE_pop_free(nval, X509V3_conf_free);
+-  if (value) {
+-    OPENSSL_free(value);
+-  }
++  OPENSSL_free(value);
+   if (method->it) {
+     ASN1_item_free(ext_str, ASN1_ITEM_ptr(method->it));
+   } else {
+diff --git a/include/openssl/x509v3.h b/include/openssl/x509v3.h
+index a2e9fb5a1..3bd01bfa7 100644
+--- a/include/openssl/x509v3.h
++++ b/include/openssl/x509v3.h
+@@ -104,9 +104,20 @@ typedef void *(*X509V3_EXT_R2I)(const X509V3_EXT_METHOD *method,
+ struct v3_ext_method {
+   int ext_nid;
+   int ext_flags;
+-  // If this is set the following four fields are ignored
++
++  // it determines how values of this extension are allocated, released, parsed,
++  // and marshalled. This must be non-NULL.
+   ASN1_ITEM_EXP *it;
+-  // Old style ASN1 calls
++
++  // The following functions are ignored in favor of |it|. They are retained in
++  // the struct only for source compatibility with existing struct definitions.
++  //
++  // Only OCSP nonce extensions currently rely on these functions with AWS-LC.
++  // This is to maintain backwards compatibility with how OCSP nonce extensions
++  // are handled in OpenSSL. This can't be easily removed because OpenSSL
++  // considers the OCSP nonce to be "special".
++  // |X509V3_EXT_add| enforces |it| to be non-NULL, so external users are not
++  // allowed to use the following functions.
+   X509V3_EXT_NEW ext_new;
+   X509V3_EXT_FREE ext_free;
+   X509V3_EXT_D2I d2i;
+@@ -662,9 +673,56 @@ OPENSSL_EXPORT ASN1_INTEGER *s2i_ASN1_INTEGER(const X509V3_EXT_METHOD *meth,
+                                               const char *value);
+ OPENSSL_EXPORT char *i2s_ASN1_ENUMERATED(const X509V3_EXT_METHOD *meth,
+                                          const ASN1_ENUMERATED *aint);
++
++// X509V3_EXT_add registers |ext| as a custom extension for the extension type
++// |ext->ext_nid|. |ext| must be valid for the remainder of the address space's
++// lifetime. It returns one on success and zero on error.
++//
++// WARNING: This function modifies global state. If other code in the same
++// address space also registers an extension with type |ext->ext_nid|, the two
++// registrations will conflict. Which registration takes effect is undefined. If
++// the two registrations use incompatible in-memory representations, code
++// expecting the other registration will then cast a type to the wrong type,
++// resulting in a potentially exploitable memory error. This conflict can also
++// occur if BoringSSL later adds support for |ext->ext_nid|, with a different
++// in-memory representation than the one expected by |ext|.
++//
++// This function, additionally, is not thread-safe and cannot be called
++// concurrently with any other BoringSSL function.
++//
++// As a result, it is impossible to safely use this function. Registering a
++// custom extension has no impact on certificate verification so, instead,
++// callers should simply handle the custom extension with the byte-based
++// |X509_EXTENSION| APIs directly. Registering |ext| with the library has little
++// practical value.
+ OPENSSL_EXPORT int X509V3_EXT_add(X509V3_EXT_METHOD *ext);
++
++// X509V3_EXT_add_list calls |X509V3_EXT_add| on |&extlist[0]|, |&extlist[1]|,
++// and so on, until some |extlist[i]->ext_nid| is -1. It returns one on success
++// and zero on error.
++//
++// WARNING: Do not use this function. See |X509V3_EXT_add|.
++OPENSSL_EXPORT int X509V3_EXT_add_list(X509V3_EXT_METHOD *extlist);
++
++// X509V3_EXT_add_alias registers a custom extension with NID |nid_to|. The
++// corresponding ASN.1 type is copied from |nid_from|. It returns one on success
++// and zero on error.
++//
++// WARNING: Do not use this function. See |X509V3_EXT_add|.
+ OPENSSL_EXPORT int X509V3_EXT_add_alias(int nid_to, int nid_from);
+ 
++// X509V3_EXT_cleanup removes all custom extensions registered with
++// |X509V3_EXT_add*|.
++//
++// WARNING: This function modifies global state and will impact custom
++// extensions registered by any code in the same address space. It,
++// additionally, is not thread-safe and cannot be called concurrently with any
++// other BoringSSL function.
++//
++// Instead of calling this function, allow memory from custom extensions to be
++// released on process exit, along with other global program state.
++OPENSSL_EXPORT void X509V3_EXT_cleanup(void);
++
+ OPENSSL_EXPORT const X509V3_EXT_METHOD *X509V3_EXT_get(
+     const X509_EXTENSION *ext);
+ OPENSSL_EXPORT const X509V3_EXT_METHOD *X509V3_EXT_get_nid(int nid);

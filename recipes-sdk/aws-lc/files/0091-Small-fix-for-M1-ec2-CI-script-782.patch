@@ -1,0 +1,58 @@
+From 1ccaebeb9a1c877d309337a93ff2c2c75d36f4e8 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Wed, 1 Feb 2023 16:00:10 -0800
+Subject: [PATCH] Small fix for M1 ec2 CI script  (#782)
+
+---
+ tests/ci/run_m1_ec2_instance.sh | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/tests/ci/run_m1_ec2_instance.sh b/tests/ci/run_m1_ec2_instance.sh
+index 995c692cb..c253825dc 100755
+--- a/tests/ci/run_m1_ec2_instance.sh
++++ b/tests/ci/run_m1_ec2_instance.sh
+@@ -55,8 +55,8 @@ ${m1_ssm_command_id}\$252F${ec2_instance}\$252FrunShellScript\$252Fstdout"
+ echo "Actual Run in EC2 can be observered at CloudWatch URL: ${run_url}"
+ 
+ # Give some time for the commands to run
+-done=true
+-success=true
++done=false
++success=false
+ for i in {1..45}; do
+   echo "${i}: Continue to wait 2 min for SSM commands to finish."
+   sleep 120
+@@ -66,10 +66,13 @@ for i in {1..45}; do
+   ssm_completed_count="$(aws ssm list-commands --command-id "${m1_ssm_command_id}" --query Commands[*].CompletedCount --output text)"
+   if [[ ${ssm_command_status} == 'Success' && ${ssm_completed_count} == "${ssm_target_count}" ]]; then
+     echo "SSM command ${m1_ssm_command_id} finished successfully."
++    success=true
++    done=true
+   elif [[ ${ssm_command_status} == 'Failed' && ${ssm_completed_count} == "${ssm_target_count}" ]]; then
+     echo "SSM command ${m1_ssm_command_id} failed."
+-    success=false
++    done=true
+   else
++    # Still running.
+     done=false
+   fi
+ 
+@@ -78,10 +81,14 @@ for i in {1..45}; do
+     echo "M1 SSM command has finished."
+ 
+     # if success is still true here, then none of the commands failed
+-    if [ "${success}" != true ]; then
++    if [ "${success}" == true ]; then
++      echo "M1 SSM command succeeded!"
++      exit 0
++    else
+       echo "M1 SSM command failed!"
+       exit 1
+     fi
+     break
+   fi
+-done
+\ No newline at end of file
++done
++exit 1
+\ No newline at end of file

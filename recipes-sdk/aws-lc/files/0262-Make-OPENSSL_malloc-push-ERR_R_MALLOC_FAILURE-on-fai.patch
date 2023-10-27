@@ -1,0 +1,3811 @@
+From 84c5dee7f00efa567d67ca36b466ebf18d7f0234 Mon Sep 17 00:00:00 2001
+From: Bob Beck <bbe@google.com>
+Date: Tue, 7 Feb 2023 19:06:08 -0700
+Subject: [PATCH] Make OPENSSL_malloc push ERR_R_MALLOC_FAILURE on failure.
+
+Remove all the other ERR_R_MALLOC_FAILURES from the
+codebase.
+
+Also changes cbb to push to the error stack, to correctly
+report cbb failures instead of now only reporting
+malloc failures. Previously it turned all cbb failures
+into a malloc failure
+
+Bug: 564
+
+Change-Id: Ic13208bf9d9aaa470e83b2f15782fc94946bbc7b
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57046
+Auto-Submit: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: David Benjamin <davidben@google.com>
+(cherry picked from commit dcabfe2d8940529a69e007660fa7bf6c15954ecc)
+---
+ crypto/asn1/a_bitstr.c                        |  2 --
+ crypto/asn1/a_bool.c                          |  1 -
+ crypto/asn1/a_dup.c                           |  1 -
+ crypto/asn1/a_i2d_fp.c                        |  1 -
+ crypto/asn1/a_mbstr.c                         |  3 --
+ crypto/asn1/a_object.c                        |  4 ---
+ crypto/asn1/asn1_lib.c                        |  2 --
+ crypto/asn1/asn_pack.c                        |  1 -
+ crypto/asn1/tasn_dec.c                        |  4 ---
+ crypto/asn1/tasn_enc.c                        |  2 --
+ crypto/asn1/tasn_new.c                        |  2 --
+ crypto/bio/bio.c                              |  2 --
+ crypto/bio/pair.c                             |  2 --
+ crypto/bio/printf.c                           |  1 -
+ crypto/bn_extra/convert.c                     | 14 +++-----
+ crypto/buf/buf.c                              |  8 ++---
+ crypto/bytestring/cbb.c                       |  7 ++++
+ crypto/conf/conf.c                            |  5 ---
+ crypto/digest_extra/digest_extra.c            |  3 --
+ crypto/dsa/dsa.c                              |  1 -
+ crypto/ec_extra/ec_asn1.c                     |  1 -
+ crypto/evp_extra/p_ed25519.c                  |  1 -
+ crypto/evp_extra/p_ed25519_asn1.c             |  2 --
+ crypto/evp_extra/p_x25519.c                   |  1 -
+ crypto/evp_extra/p_x25519_asn1.c              |  2 --
+ crypto/evp_extra/print.c                      |  1 -
+ crypto/evp_extra/scrypt.c                     |  1 -
+ crypto/ex_data.c                              |  6 ----
+ crypto/fipsmodule/bn/bn.c                     |  2 --
+ crypto/fipsmodule/bn/ctx.c                    |  2 --
+ crypto/fipsmodule/bn/gcd.c                    |  1 -
+ crypto/fipsmodule/bn/prime.c                  |  1 -
+ crypto/fipsmodule/bn/sqrt.c                   |  1 -
+ crypto/fipsmodule/cipher/cipher.c             |  2 --
+ crypto/fipsmodule/dh/dh.c                     |  1 -
+ crypto/fipsmodule/digest/digest.c             |  3 --
+ crypto/fipsmodule/ec/ec.c                     |  3 --
+ crypto/fipsmodule/ec/ec_key.c                 |  3 --
+ crypto/fipsmodule/ec/wnaf.c                   |  1 -
+ crypto/fipsmodule/evp/evp.c                   |  1 -
+ crypto/fipsmodule/evp/evp_ctx.c               |  1 -
+ crypto/fipsmodule/evp/p_hkdf.c                |  8 -----
+ crypto/fipsmodule/rsa/blinding.c              |  1 -
+ crypto/fipsmodule/rsa/padding.c               |  4 ---
+ crypto/fipsmodule/rsa/rsa.c                   |  8 -----
+ crypto/fipsmodule/rsa/rsa_impl.c              |  6 ----
+ .../service_indicator/service_indicator.c     |  1 -
+ crypto/hpke/hpke.c                            |  2 --
+ crypto/internal.h                             |  2 +-
+ crypto/mem.c                                  | 28 ++++++++-------
+ crypto/obj/obj.c                              |  1 -
+ crypto/pem/pem_info.c                         |  1 -
+ crypto/pem/pem_lib.c                          |  8 -----
+ crypto/pkcs7/pkcs7_x509.c                     |  1 -
+ crypto/pkcs8/pkcs8.c                          |  3 --
+ crypto/pkcs8/pkcs8_x509.c                     |  4 ---
+ crypto/trust_token/pmbtoken.c                 | 17 ----------
+ crypto/trust_token/trust_token.c              | 14 --------
+ crypto/trust_token/voprf.c                    | 13 -------
+ crypto/x509/a_digest.c                        |  1 -
+ crypto/x509/a_sign.c                          |  1 -
+ crypto/x509/a_verify.c                        |  1 -
+ crypto/x509/asn1_gen.c                        |  1 -
+ crypto/x509/by_dir.c                          |  2 --
+ crypto/x509/policy.c                          | 11 ------
+ crypto/x509/x509_att.c                        |  8 ++---
+ crypto/x509/x509_cmp.c                        |  1 -
+ crypto/x509/x509_lu.c                         |  1 -
+ crypto/x509/x509_obj.c                        |  6 ++--
+ crypto/x509/x509_trs.c                        |  4 ---
+ crypto/x509/x509_v3.c                         |  2 --
+ crypto/x509/x509_vfy.c                        |  7 ----
+ crypto/x509/x509name.c                        |  1 -
+ crypto/x509/x509spki.c                        |  3 --
+ crypto/x509/x_crl.c                           |  1 -
+ crypto/x509/x_info.c                          |  1 -
+ crypto/x509/x_name.c                          | 13 +++----
+ crypto/x509/x_pkey.c                          |  1 -
+ crypto/x509v3/v3_akey.c                       |  1 -
+ crypto/x509v3/v3_alt.c                        |  8 -----
+ crypto/x509v3/v3_bcons.c                      |  1 -
+ crypto/x509v3/v3_bitst.c                      |  2 --
+ crypto/x509v3/v3_conf.c                       |  2 --
+ crypto/x509v3/v3_cpols.c                      | 34 +++++++------------
+ crypto/x509v3/v3_crld.c                       | 20 +++++------
+ crypto/x509v3/v3_extku.c                      |  1 -
+ crypto/x509v3/v3_ia5.c                        |  2 --
+ crypto/x509v3/v3_info.c                       |  4 ---
+ crypto/x509v3/v3_lib.c                        |  3 --
+ crypto/x509v3/v3_ncons.c                      |  6 ++--
+ crypto/x509v3/v3_pci.c                        |  5 ---
+ crypto/x509v3/v3_pcons.c                      |  1 -
+ crypto/x509v3/v3_pmaps.c                      |  2 --
+ crypto/x509v3/v3_purp.c                       |  4 ---
+ crypto/x509v3/v3_skey.c                       |  3 --
+ crypto/x509v3/v3_utl.c                        | 18 +++-------
+ include/openssl/mem.h                         |  3 +-
+ ssl/d1_both.cc                                |  3 --
+ ssl/encrypted_client_hello.cc                 |  5 ---
+ ssl/extensions.cc                             |  1 -
+ ssl/handshake_client.cc                       |  3 --
+ ssl/handshake_server.cc                       |  4 ---
+ ssl/internal.h                                |  2 --
+ ssl/s3_both.cc                                |  1 -
+ ssl/ssl_aead_ctx.cc                           |  1 -
+ ssl/ssl_asn1.cc                               | 29 ----------------
+ ssl/ssl_cert.cc                               |  4 ---
+ ssl/ssl_key_share.cc                          |  3 --
+ ssl/ssl_lib.cc                                |  1 -
+ ssl/ssl_session.cc                            |  1 -
+ ssl/ssl_x509.cc                               |  5 ---
+ ssl/t1_enc.cc                                 |  1 -
+ ssl/tls13_both.cc                             |  7 ----
+ ssl/tls13_client.cc                           |  1 -
+ ssl/tls13_enc.cc                              |  1 -
+ 115 files changed, 69 insertions(+), 415 deletions(-)
+
+diff --git a/crypto/asn1/a_bitstr.c b/crypto/asn1/a_bitstr.c
+index 3d60d3bd8..2be07a45a 100644
+--- a/crypto/asn1/a_bitstr.c
++++ b/crypto/asn1/a_bitstr.c
+@@ -184,7 +184,6 @@ ASN1_BIT_STRING *c2i_ASN1_BIT_STRING(ASN1_BIT_STRING **a,
+   if (len > 0) {
+     s = OPENSSL_memdup(p, len);
+     if (s == NULL) {
+-      OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     p += len;
+@@ -236,7 +235,6 @@ int ASN1_BIT_STRING_set_bit(ASN1_BIT_STRING *a, int n, int value) {
+       c = (unsigned char *)OPENSSL_realloc(a->data, w + 1);
+     }
+     if (c == NULL) {
+-      OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     if (w + 1 - a->length > 0) {
+diff --git a/crypto/asn1/a_bool.c b/crypto/asn1/a_bool.c
+index 8dc84d4c4..67d6813a4 100644
+--- a/crypto/asn1/a_bool.c
++++ b/crypto/asn1/a_bool.c
+@@ -70,7 +70,6 @@ int i2d_ASN1_BOOLEAN(ASN1_BOOLEAN a, unsigned char **pp) {
+ 
+   if (*pp == NULL) {
+     if ((p = allocated = OPENSSL_malloc(r)) == NULL) {
+-      OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+       return -1;
+     }
+   } else {
+diff --git a/crypto/asn1/a_dup.c b/crypto/asn1/a_dup.c
+index 8ee0c7eb7..b37a5c61b 100644
+--- a/crypto/asn1/a_dup.c
++++ b/crypto/asn1/a_dup.c
+@@ -75,7 +75,6 @@ void *ASN1_item_dup(const ASN1_ITEM *it, void *x) {
+ 
+   i = ASN1_item_i2d(x, &b, it);
+   if (b == NULL) {
+-    OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   p = b;
+diff --git a/crypto/asn1/a_i2d_fp.c b/crypto/asn1/a_i2d_fp.c
+index 4a14f2bcc..e0713faec 100644
+--- a/crypto/asn1/a_i2d_fp.c
++++ b/crypto/asn1/a_i2d_fp.c
+@@ -76,7 +76,6 @@ int ASN1_item_i2d_bio(const ASN1_ITEM *it, BIO *out, void *x) {
+   unsigned char *b = NULL;
+   int n = ASN1_item_i2d(x, &b, it);
+   if (b == NULL) {
+-    OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/asn1/a_mbstr.c b/crypto/asn1/a_mbstr.c
+index e1a3df2e7..80cfac44e 100644
+--- a/crypto/asn1/a_mbstr.c
++++ b/crypto/asn1/a_mbstr.c
+@@ -218,7 +218,6 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+     free_dest = 1;
+     dest = ASN1_STRING_type_new(str_type);
+     if (!dest) {
+-      OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+       return -1;
+     }
+   }
+@@ -226,7 +225,6 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+   // If both the same type just copy across
+   if (inform == outform) {
+     if (!ASN1_STRING_set(dest, in, len)) {
+-      OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     dest->type = str_type;
+@@ -236,7 +234,6 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+ 
+   CBB cbb;
+   if (!CBB_init(&cbb, size_estimate + 1)) {
+-    OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+   CBS_init(&cbs, in, len);
+diff --git a/crypto/asn1/a_object.c b/crypto/asn1/a_object.c
+index 8c420c613..56219e1f8 100644
+--- a/crypto/asn1/a_object.c
++++ b/crypto/asn1/a_object.c
+@@ -86,7 +86,6 @@ int i2d_ASN1_OBJECT(const ASN1_OBJECT *a, unsigned char **pp) {
+   unsigned char *p, *allocated = NULL;
+   if (*pp == NULL) {
+     if ((p = allocated = OPENSSL_malloc(objsize)) == NULL) {
+-      OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+       return -1;
+     }
+   } else {
+@@ -211,7 +210,6 @@ ASN1_OBJECT *c2i_ASN1_OBJECT(ASN1_OBJECT **a, const unsigned char **pp,
+     OPENSSL_free(data);
+     data = (unsigned char *)OPENSSL_malloc(length);
+     if (data == NULL) {
+-      i = ERR_R_MALLOC_FAILURE;
+       goto err;
+     }
+     ret->flags |= ASN1_OBJECT_FLAG_DYNAMIC_DATA;
+@@ -236,7 +234,6 @@ ASN1_OBJECT *c2i_ASN1_OBJECT(ASN1_OBJECT **a, const unsigned char **pp,
+   *pp = p;
+   return ret;
+ err:
+-  OPENSSL_PUT_ERROR(ASN1, i);
+   if ((ret != NULL) && ((a == NULL) || (*a != ret))) {
+     ASN1_OBJECT_free(ret);
+   }
+@@ -248,7 +245,6 @@ ASN1_OBJECT *ASN1_OBJECT_new(void) {
+ 
+   ret = (ASN1_OBJECT *)OPENSSL_malloc(sizeof(ASN1_OBJECT));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   ret->length = 0;
+diff --git a/crypto/asn1/asn1_lib.c b/crypto/asn1/asn1_lib.c
+index 73f828efb..3b97b38e0 100644
+--- a/crypto/asn1/asn1_lib.c
++++ b/crypto/asn1/asn1_lib.c
+@@ -299,7 +299,6 @@ int ASN1_STRING_set(ASN1_STRING *str, const void *_data, ossl_ssize_t len_s) {
+     }
+ 
+     if (str->data == NULL) {
+-      OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+       str->data = c;
+       return 0;
+     }
+@@ -331,7 +330,6 @@ ASN1_STRING *ASN1_STRING_type_new(int type) {
+ 
+   ret = (ASN1_STRING *)OPENSSL_malloc(sizeof(ASN1_STRING));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   ret->length = 0;
+diff --git a/crypto/asn1/asn_pack.c b/crypto/asn1/asn_pack.c
+index 069cef0b3..c42cc05ea 100644
+--- a/crypto/asn1/asn_pack.c
++++ b/crypto/asn1/asn_pack.c
+@@ -72,7 +72,6 @@ ASN1_STRING *ASN1_item_pack(void *obj, const ASN1_ITEM *it, ASN1_STRING **out) {
+   if (out == NULL || *out == NULL) {
+     ret = ASN1_STRING_new();
+     if (ret == NULL) {
+-      OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+       OPENSSL_free(new_data);
+       return NULL;
+     }
+diff --git a/crypto/asn1/tasn_dec.c b/crypto/asn1/tasn_dec.c
+index 1ce96cfc9..f3cea052f 100644
+--- a/crypto/asn1/tasn_dec.c
++++ b/crypto/asn1/tasn_dec.c
+@@ -564,7 +564,6 @@ static int asn1_template_noexp_d2i(ASN1_VALUE **val, const unsigned char **in,
+     }
+ 
+     if (!*val) {
+-      OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+ 
+@@ -581,7 +580,6 @@ static int asn1_template_noexp_d2i(ASN1_VALUE **val, const unsigned char **in,
+       len -= p - q;
+       if (!sk_ASN1_VALUE_push((STACK_OF(ASN1_VALUE) *)*val, skfield)) {
+         ASN1_item_ex_free(&skfield, ASN1_ITEM_ptr(tt->item));
+-        OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+         goto err;
+       }
+     }
+@@ -827,7 +825,6 @@ static int asn1_ex_c2i(ASN1_VALUE **pval, const unsigned char *cont, int len,
+       if (!*pval) {
+         stmp = ASN1_STRING_type_new(utype);
+         if (!stmp) {
+-          OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+           goto err;
+         }
+         *pval = (ASN1_VALUE *)stmp;
+@@ -836,7 +833,6 @@ static int asn1_ex_c2i(ASN1_VALUE **pval, const unsigned char *cont, int len,
+         stmp->type = utype;
+       }
+       if (!ASN1_STRING_set(stmp, cont, len)) {
+-        OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+         ASN1_STRING_free(stmp);
+         *pval = NULL;
+         goto err;
+diff --git a/crypto/asn1/tasn_enc.c b/crypto/asn1/tasn_enc.c
+index 0a0fdb09b..4dd065355 100644
+--- a/crypto/asn1/tasn_enc.c
++++ b/crypto/asn1/tasn_enc.c
+@@ -92,7 +92,6 @@ int ASN1_item_i2d(ASN1_VALUE *val, unsigned char **out, const ASN1_ITEM *it) {
+     }
+     buf = OPENSSL_malloc(len);
+     if (!buf) {
+-      OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+       return -1;
+     }
+     p = buf;
+@@ -457,7 +456,6 @@ static int asn1_set_seq_out(STACK_OF(ASN1_VALUE) *sk, unsigned char **out,
+   unsigned char *const buf = OPENSSL_malloc(skcontlen);
+   DER_ENC *encoded = OPENSSL_malloc(sk_ASN1_VALUE_num(sk) * sizeof(*encoded));
+   if (encoded == NULL || buf == NULL) {
+-    OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+diff --git a/crypto/asn1/tasn_new.c b/crypto/asn1/tasn_new.c
+index 563674d79..38b1d2635 100644
+--- a/crypto/asn1/tasn_new.c
++++ b/crypto/asn1/tasn_new.c
+@@ -186,7 +186,6 @@ static int asn1_item_ex_combine_new(ASN1_VALUE **pval, const ASN1_ITEM *it,
+ memerr2:
+   asn1_item_combine_free(pval, it, combine);
+ memerr:
+-  OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+   return 0;
+ 
+ auxerr2:
+@@ -246,7 +245,6 @@ static int ASN1_template_new(ASN1_VALUE **pval, const ASN1_TEMPLATE *tt) {
+     STACK_OF(ASN1_VALUE) *skval;
+     skval = sk_ASN1_VALUE_new_null();
+     if (!skval) {
+-      OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+       ret = 0;
+       goto done;
+     }
+diff --git a/crypto/bio/bio.c b/crypto/bio/bio.c
+index 375ca53db..e11d82a33 100644
+--- a/crypto/bio/bio.c
++++ b/crypto/bio/bio.c
+@@ -97,7 +97,6 @@ static int call_bio_callback_with_processed(BIO *bio, const int oper,
+ BIO *BIO_new(const BIO_METHOD *method) {
+   BIO *ret = OPENSSL_malloc(sizeof(BIO));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(BIO, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -664,7 +663,6 @@ int BIO_read_asn1(BIO *bio, uint8_t **out, size_t *out_len, size_t max_len) {
+ 
+   *out = OPENSSL_malloc(len);
+   if (*out == NULL) {
+-    OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+   OPENSSL_memcpy(*out, header, header_len);
+diff --git a/crypto/bio/pair.c b/crypto/bio/pair.c
+index 8f47568de..c4d09c14a 100644
+--- a/crypto/bio/pair.c
++++ b/crypto/bio/pair.c
+@@ -317,7 +317,6 @@ static int bio_make_pair(BIO *bio1, BIO *bio2, size_t writebuf1_len,
+     }
+     b1->buf = OPENSSL_malloc(b1->size);
+     if (b1->buf == NULL) {
+-      OPENSSL_PUT_ERROR(BIO, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     b1->len = 0;
+@@ -330,7 +329,6 @@ static int bio_make_pair(BIO *bio1, BIO *bio2, size_t writebuf1_len,
+     }
+     b2->buf = OPENSSL_malloc(b2->size);
+     if (b2->buf == NULL) {
+-      OPENSSL_PUT_ERROR(BIO, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     b2->len = 0;
+diff --git a/crypto/bio/printf.c b/crypto/bio/printf.c
+index 253546b7c..102256bcc 100644
+--- a/crypto/bio/printf.c
++++ b/crypto/bio/printf.c
+@@ -83,7 +83,6 @@ int BIO_printf(BIO *bio, const char *format, ...) {
+     out = OPENSSL_malloc(requested_len + 1);
+     out_malloced = 1;
+     if (out == NULL) {
+-      OPENSSL_PUT_ERROR(BIO, ERR_R_MALLOC_FAILURE);
+       return -1;
+     }
+     va_start(args, format);
+diff --git a/crypto/bn_extra/convert.c b/crypto/bn_extra/convert.c
+index 78fe102e2..29234effd 100644
+--- a/crypto/bn_extra/convert.c
++++ b/crypto/bn_extra/convert.c
+@@ -81,7 +81,6 @@ char *BN_bn2hex(const BIGNUM *bn) {
+   char *buf = OPENSSL_malloc(1 /* leading '-' */ + 1 /* zero is non-empty */ +
+                              width * BN_BYTES * 2 + 1 /* trailing NUL */);
+   if (buf == NULL) {
+-    OPENSSL_PUT_ERROR(BN, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -241,12 +240,12 @@ char *BN_bn2dec(const BIGNUM *a) {
+   CBB cbb;
+   if (!CBB_init(&cbb, 16) ||
+       !CBB_add_u8(&cbb, 0 /* trailing NUL */)) {
+-    goto cbb_err;
++    goto err;
+   }
+ 
+   if (BN_is_zero(a)) {
+     if (!CBB_add_u8(&cbb, '0')) {
+-      goto cbb_err;
++      goto err;
+     }
+   } else {
+     copy = BN_dup(a);
+@@ -263,7 +262,7 @@ char *BN_bn2dec(const BIGNUM *a) {
+       const int add_leading_zeros = !BN_is_zero(copy);
+       for (int i = 0; i < BN_DEC_NUM && (add_leading_zeros || word != 0); i++) {
+         if (!CBB_add_u8(&cbb, '0' + word % 10)) {
+-          goto cbb_err;
++          goto err;
+         }
+         word /= 10;
+       }
+@@ -273,13 +272,13 @@ char *BN_bn2dec(const BIGNUM *a) {
+ 
+   if (BN_is_negative(a) &&
+       !CBB_add_u8(&cbb, '-')) {
+-    goto cbb_err;
++    goto err;
+   }
+ 
+   uint8_t *data;
+   size_t len;
+   if (!CBB_finish(&cbb, &data, &len)) {
+-    goto cbb_err;
++    goto err;
+   }
+ 
+   // Reverse the buffer.
+@@ -292,8 +291,6 @@ char *BN_bn2dec(const BIGNUM *a) {
+   BN_free(copy);
+   return (char *)data;
+ 
+-cbb_err:
+-  OPENSSL_PUT_ERROR(BN, ERR_R_MALLOC_FAILURE);
+ err:
+   BN_free(copy);
+   CBB_cleanup(&cbb);
+@@ -427,7 +424,6 @@ BIGNUM *BN_mpi2bn(const uint8_t *in, size_t len, BIGNUM *out) {
+   if (out == NULL) {
+     out = BN_new();
+     if (out == NULL) {
+-      OPENSSL_PUT_ERROR(BN, ERR_R_MALLOC_FAILURE);
+       return NULL;
+     }
+     out_is_alloced = 1;
+diff --git a/crypto/buf/buf.c b/crypto/buf/buf.c
+index bd97dd347..57bf34d4b 100644
+--- a/crypto/buf/buf.c
++++ b/crypto/buf/buf.c
+@@ -69,7 +69,6 @@ BUF_MEM *BUF_MEM_new(void) {
+ 
+   ret = OPENSSL_malloc(sizeof(BUF_MEM));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(BUF, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -93,21 +92,18 @@ int BUF_MEM_reserve(BUF_MEM *buf, size_t cap) {
+ 
+   size_t n = cap + 3;
+   if (n < cap) {
+-    // overflow
+-    OPENSSL_PUT_ERROR(BUF, ERR_R_MALLOC_FAILURE);
++    OPENSSL_PUT_ERROR(BUF, ERR_R_OVERFLOW);
+     return 0;
+   }
+   n = n / 3;
+   size_t alloc_size = n * 4;
+   if (alloc_size / 4 != n) {
+-    // overflow
+-    OPENSSL_PUT_ERROR(BUF, ERR_R_MALLOC_FAILURE);
++    OPENSSL_PUT_ERROR(BUF, ERR_R_OVERFLOW);
+     return 0;
+   }
+ 
+   char *new_buf = OPENSSL_realloc(buf->data, alloc_size);
+   if (new_buf == NULL) {
+-    OPENSSL_PUT_ERROR(BUF, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/bytestring/cbb.c b/crypto/bytestring/cbb.c
+index 1692b4ea6..5280dc8f9 100644
+--- a/crypto/bytestring/cbb.c
++++ b/crypto/bytestring/cbb.c
+@@ -19,6 +19,7 @@
+ #include <string.h>
+ 
+ #include <openssl/mem.h>
++#include <openssl/err.h>
+ 
+ #include "../internal.h"
+ 
+@@ -77,11 +78,13 @@ static int cbb_buffer_reserve(struct cbb_buffer_st *base, uint8_t **out,
+   size_t newlen = base->len + len;
+   if (newlen < base->len) {
+     // Overflow
++    OPENSSL_PUT_ERROR(CRYPTO, ERR_R_OVERFLOW);
+     goto err;
+   }
+ 
+   if (newlen > base->cap) {
+     if (!base->can_resize) {
++      OPENSSL_PUT_ERROR(CRYPTO, ERR_R_OVERFLOW);
+       goto err;
+     }
+ 
+@@ -121,6 +124,7 @@ static int cbb_buffer_add(struct cbb_buffer_st *base, uint8_t **out,
+ 
+ int CBB_finish(CBB *cbb, uint8_t **out_data, size_t *out_len) {
+   if (cbb->is_child) {
++    OPENSSL_PUT_ERROR(CRYPTO, ERR_R_SHOULD_NOT_HAVE_BEEN_CALLED);
+     return 0;
+   }
+ 
+@@ -191,6 +195,7 @@ int CBB_flush(CBB *cbb) {
+     assert (child->pending_len_len == 1);
+ 
+     if (len > 0xfffffffe) {
++      OPENSSL_PUT_ERROR(CRYPTO, ERR_R_OVERFLOW);
+       // Too large.
+       goto err;
+     } else if (len > 0xffffff) {
+@@ -229,6 +234,7 @@ int CBB_flush(CBB *cbb) {
+     len >>= 8;
+   }
+   if (len != 0) {
++    OPENSSL_PUT_ERROR(CRYPTO, ERR_R_OVERFLOW);
+     goto err;
+   }
+ 
+@@ -634,6 +640,7 @@ int CBB_flush_asn1_set_of(CBB *cbb) {
+   CBS_init(&cbs, CBB_data(cbb), CBB_len(cbb));
+   while (CBS_len(&cbs) != 0) {
+     if (!CBS_get_any_asn1_element(&cbs, NULL, NULL, NULL)) {
++      OPENSSL_PUT_ERROR(CRYPTO, ERR_R_SHOULD_NOT_HAVE_BEEN_CALLED);
+       return 0;
+     }
+     num_children++;
+diff --git a/crypto/conf/conf.c b/crypto/conf/conf.c
+index 887489611..622c13ed0 100644
+--- a/crypto/conf/conf.c
++++ b/crypto/conf/conf.c
+@@ -132,7 +132,6 @@ CONF *NCONF_new(void *method) {
+ CONF_VALUE *CONF_VALUE_new(void) {
+   CONF_VALUE *v = OPENSSL_malloc(sizeof(CONF_VALUE));
+   if (!v) {
+-    OPENSSL_PUT_ERROR(CONF, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(v, 0, sizeof(CONF_VALUE));
+@@ -340,7 +339,6 @@ static int str_copy(CONF *conf, char *section, char **pto, char *from) {
+         goto err;
+       }
+       if (!BUF_MEM_grow_clean(buf, newsize)) {
+-        OPENSSL_PUT_ERROR(CONF, ERR_R_MALLOC_FAILURE);
+         goto err;
+       }
+       while (*p) {
+@@ -552,7 +550,6 @@ static int def_load_bio(CONF *conf, BIO *in, long *out_error_line) {
+ 
+   section = OPENSSL_strdup(kDefaultSectionName);
+   if (section == NULL) {
+-    OPENSSL_PUT_ERROR(CONF, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -687,7 +684,6 @@ static int def_load_bio(CONF *conf, BIO *in, long *out_error_line) {
+       }
+       v->name = OPENSSL_strdup(pname);
+       if (v->name == NULL) {
+-        OPENSSL_PUT_ERROR(CONF, ERR_R_MALLOC_FAILURE);
+         goto err;
+       }
+       if (!str_copy(conf, psection, &(v->value), start)) {
+@@ -706,7 +702,6 @@ static int def_load_bio(CONF *conf, BIO *in, long *out_error_line) {
+         tv = sv;
+       }
+       if (add_string(conf, tv, v) == 0) {
+-        OPENSSL_PUT_ERROR(CONF, ERR_R_MALLOC_FAILURE);
+         goto err;
+       }
+       v = NULL;
+diff --git a/crypto/digest_extra/digest_extra.c b/crypto/digest_extra/digest_extra.c
+index e0e5ee509..46fe50028 100644
+--- a/crypto/digest_extra/digest_extra.c
++++ b/crypto/digest_extra/digest_extra.c
+@@ -203,7 +203,6 @@ int EVP_marshal_digest_algorithm(CBB *cbb, const EVP_MD *md) {
+   CBB algorithm, oid, null;
+   if (!CBB_add_asn1(cbb, &algorithm, CBS_ASN1_SEQUENCE) ||
+       !CBB_add_asn1(&algorithm, &oid, CBS_ASN1_OBJECT)) {
+-    OPENSSL_PUT_ERROR(DIGEST, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -212,7 +211,6 @@ int EVP_marshal_digest_algorithm(CBB *cbb, const EVP_MD *md) {
+   for (size_t i = 0; i < OPENSSL_ARRAY_SIZE(kMDOIDs); i++) {
+     if (nid == kMDOIDs[i].nid) {
+       if (!CBB_add_bytes(&oid, kMDOIDs[i].oid, kMDOIDs[i].oid_len)) {
+-        OPENSSL_PUT_ERROR(DIGEST, ERR_R_MALLOC_FAILURE);
+         return 0;
+       }
+       found = 1;
+@@ -227,7 +225,6 @@ int EVP_marshal_digest_algorithm(CBB *cbb, const EVP_MD *md) {
+ 
+   if (!CBB_add_asn1(&algorithm, &null, CBS_ASN1_NULL) ||
+       !CBB_flush(cbb)) {
+-    OPENSSL_PUT_ERROR(DIGEST, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/dsa/dsa.c b/crypto/dsa/dsa.c
+index 5d6b6d286..342f2fa75 100644
+--- a/crypto/dsa/dsa.c
++++ b/crypto/dsa/dsa.c
+@@ -90,7 +90,6 @@ static CRYPTO_EX_DATA_CLASS g_ex_data_class = CRYPTO_EX_DATA_CLASS_INIT;
+ DSA *DSA_new(void) {
+   DSA *dsa = OPENSSL_malloc(sizeof(DSA));
+   if (dsa == NULL) {
+-    OPENSSL_PUT_ERROR(DSA, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+diff --git a/crypto/ec_extra/ec_asn1.c b/crypto/ec_extra/ec_asn1.c
+index ee75165df..5c0dab1a4 100644
+--- a/crypto/ec_extra/ec_asn1.c
++++ b/crypto/ec_extra/ec_asn1.c
+@@ -504,7 +504,6 @@ EC_KEY *o2i_ECPublicKey(EC_KEY **keyp, const uint8_t **inp, long len) {
+   ret = *keyp;
+   if (ret->pub_key == NULL &&
+       (ret->pub_key = EC_POINT_new(ret->group)) == NULL) {
+-    OPENSSL_PUT_ERROR(EC, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   if (!EC_POINT_oct2point(ret->group, ret->pub_key, *inp, len, NULL)) {
+diff --git a/crypto/evp_extra/p_ed25519.c b/crypto/evp_extra/p_ed25519.c
+index 9ad09f6e6..32008631e 100644
+--- a/crypto/evp_extra/p_ed25519.c
++++ b/crypto/evp_extra/p_ed25519.c
+@@ -28,7 +28,6 @@ static int pkey_ed25519_copy(EVP_PKEY_CTX *dst, EVP_PKEY_CTX *src) { return 1; }
+ static int pkey_ed25519_keygen(EVP_PKEY_CTX *ctx, EVP_PKEY *pkey) {
+   ED25519_KEY *key = OPENSSL_malloc(sizeof(ED25519_KEY));
+   if (key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/evp_extra/p_ed25519_asn1.c b/crypto/evp_extra/p_ed25519_asn1.c
+index ffbe490d7..37b6cd00d 100644
+--- a/crypto/evp_extra/p_ed25519_asn1.c
++++ b/crypto/evp_extra/p_ed25519_asn1.c
+@@ -44,7 +44,6 @@ static int ed25519_set_priv_raw(EVP_PKEY *pkey, const uint8_t *privkey,
+ 
+   ED25519_KEY *key = OPENSSL_malloc(sizeof(ED25519_KEY));
+   if (key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -74,7 +73,6 @@ static int ed25519_set_pub_raw(EVP_PKEY *pkey, const uint8_t *in, size_t len) {
+ 
+   ED25519_KEY *key = OPENSSL_malloc(sizeof(ED25519_KEY));
+   if (key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/evp_extra/p_x25519.c b/crypto/evp_extra/p_x25519.c
+index 3cf60c9ab..65e67be7a 100644
+--- a/crypto/evp_extra/p_x25519.c
++++ b/crypto/evp_extra/p_x25519.c
+@@ -28,7 +28,6 @@ static int pkey_x25519_copy(EVP_PKEY_CTX *dst, EVP_PKEY_CTX *src) { return 1; }
+ static int pkey_x25519_keygen(EVP_PKEY_CTX *ctx, EVP_PKEY *pkey) {
+   X25519_KEY *key = OPENSSL_malloc(sizeof(X25519_KEY));
+   if (key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/evp_extra/p_x25519_asn1.c b/crypto/evp_extra/p_x25519_asn1.c
+index 56fdfc259..5149f8da4 100644
+--- a/crypto/evp_extra/p_x25519_asn1.c
++++ b/crypto/evp_extra/p_x25519_asn1.c
+@@ -42,7 +42,6 @@ static int x25519_set_priv_raw(EVP_PKEY *pkey, const uint8_t *privkey, size_t pr
+ 
+   X25519_KEY *key = OPENSSL_malloc(sizeof(X25519_KEY));
+   if (key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -70,7 +69,6 @@ static int x25519_set_pub_raw(EVP_PKEY *pkey, const uint8_t *in, size_t len) {
+ 
+   X25519_KEY *key = OPENSSL_malloc(sizeof(X25519_KEY));
+   if (key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/evp_extra/print.c b/crypto/evp_extra/print.c
+index 11fad3cef..ed0fb0eec 100644
+--- a/crypto/evp_extra/print.c
++++ b/crypto/evp_extra/print.c
+@@ -117,7 +117,6 @@ static int bn_print(BIO *bp, const char *name, const BIGNUM *num, int off) {
+   size_t len = BN_num_bytes(num);
+   uint8_t *buf = OPENSSL_malloc(len + 1);
+   if (buf == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/evp_extra/scrypt.c b/crypto/evp_extra/scrypt.c
+index eb1948836..28d6e4963 100644
+--- a/crypto/evp_extra/scrypt.c
++++ b/crypto/evp_extra/scrypt.c
+@@ -178,7 +178,6 @@ int EVP_PBE_scrypt(const char *password, size_t password_len,
+   size_t V_blocks = N * 2 * r;
+   block_t *B = OPENSSL_malloc((B_blocks + T_blocks + V_blocks) * sizeof(block_t));
+   if (B == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/ex_data.c b/crypto/ex_data.c
+index 532a3ad5e..867ced3c9 100644
+--- a/crypto/ex_data.c
++++ b/crypto/ex_data.c
+@@ -137,7 +137,6 @@ int CRYPTO_get_ex_new_index(CRYPTO_EX_DATA_CLASS *ex_data_class, int *out_index,
+ 
+   funcs = OPENSSL_malloc(sizeof(CRYPTO_EX_DATA_FUNCS));
+   if (funcs == NULL) {
+-    OPENSSL_PUT_ERROR(CRYPTO, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -152,7 +151,6 @@ int CRYPTO_get_ex_new_index(CRYPTO_EX_DATA_CLASS *ex_data_class, int *out_index,
+   }
+ 
+   if (ex_data_class->meth == NULL) {
+-    OPENSSL_PUT_ERROR(CRYPTO, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -164,7 +162,6 @@ int CRYPTO_get_ex_new_index(CRYPTO_EX_DATA_CLASS *ex_data_class, int *out_index,
+   }
+ 
+   if (!sk_CRYPTO_EX_DATA_FUNCS_push(ex_data_class->meth, funcs)) {
+-    OPENSSL_PUT_ERROR(CRYPTO, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+   funcs = NULL;  // |sk_CRYPTO_EX_DATA_FUNCS_push| takes ownership.
+@@ -190,7 +187,6 @@ int CRYPTO_set_ex_data(CRYPTO_EX_DATA *ad, int index, void *val) {
+   if (ad->sk == NULL) {
+     ad->sk = sk_void_new_null();
+     if (ad->sk == NULL) {
+-      OPENSSL_PUT_ERROR(CRYPTO, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -198,7 +194,6 @@ int CRYPTO_set_ex_data(CRYPTO_EX_DATA *ad, int index, void *val) {
+   // Add NULL values until the stack is long enough.
+   for (size_t i = sk_void_num(ad->sk); i <= (size_t)index; i++) {
+     if (!sk_void_push(ad->sk, NULL)) {
+-      OPENSSL_PUT_ERROR(CRYPTO, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -235,7 +230,6 @@ static int get_func_pointers(STACK_OF(CRYPTO_EX_DATA_FUNCS) **out,
+   CRYPTO_STATIC_MUTEX_unlock_read(&ex_data_class->lock);
+ 
+   if (n > 0 && *out == NULL) {
+-    OPENSSL_PUT_ERROR(CRYPTO, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/fipsmodule/bn/bn.c b/crypto/fipsmodule/bn/bn.c
+index 7dad53402..e0de0648b 100644
+--- a/crypto/fipsmodule/bn/bn.c
++++ b/crypto/fipsmodule/bn/bn.c
+@@ -75,7 +75,6 @@ BIGNUM *BN_new(void) {
+   BIGNUM *bn = OPENSSL_malloc(sizeof(BIGNUM));
+ 
+   if (bn == NULL) {
+-    OPENSSL_PUT_ERROR(BN, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -363,7 +362,6 @@ int bn_wexpand(BIGNUM *bn, size_t words) {
+ 
+   a = OPENSSL_malloc(sizeof(BN_ULONG) * words);
+   if (a == NULL) {
+-    OPENSSL_PUT_ERROR(BN, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/fipsmodule/bn/ctx.c b/crypto/fipsmodule/bn/ctx.c
+index f8c7ebfa6..007316110 100644
+--- a/crypto/fipsmodule/bn/ctx.c
++++ b/crypto/fipsmodule/bn/ctx.c
+@@ -108,7 +108,6 @@ struct bignum_ctx {
+ BN_CTX *BN_CTX_new(void) {
+   BN_CTX *ret = OPENSSL_malloc(sizeof(BN_CTX));
+   if (!ret) {
+-    OPENSSL_PUT_ERROR(BN, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -162,7 +161,6 @@ BIGNUM *BN_CTX_get(BN_CTX *ctx) {
+   if (ctx->bignums == NULL) {
+     ctx->bignums = sk_BIGNUM_new_null();
+     if (ctx->bignums == NULL) {
+-      OPENSSL_PUT_ERROR(BN, ERR_R_MALLOC_FAILURE);
+       ctx->error = 1;
+       return NULL;
+     }
+diff --git a/crypto/fipsmodule/bn/gcd.c b/crypto/fipsmodule/bn/gcd.c
+index bd0fa6f5d..e8cc764cf 100644
+--- a/crypto/fipsmodule/bn/gcd.c
++++ b/crypto/fipsmodule/bn/gcd.c
+@@ -286,7 +286,6 @@ BIGNUM *BN_mod_inverse(BIGNUM *out, const BIGNUM *a, const BIGNUM *n,
+   if (out == NULL) {
+     new_out = BN_new();
+     if (new_out == NULL) {
+-      OPENSSL_PUT_ERROR(BN, ERR_R_MALLOC_FAILURE);
+       return NULL;
+     }
+     out = new_out;
+diff --git a/crypto/fipsmodule/bn/prime.c b/crypto/fipsmodule/bn/prime.c
+index 3f32869c3..7da074013 100644
+--- a/crypto/fipsmodule/bn/prime.c
++++ b/crypto/fipsmodule/bn/prime.c
+@@ -362,7 +362,6 @@ static int probable_prime_dh_safe(BIGNUM *rnd, int bits, const BIGNUM *add,
+ BN_GENCB *BN_GENCB_new(void) {
+   BN_GENCB *callback = OPENSSL_malloc(sizeof(BN_GENCB));
+   if (callback == NULL) {
+-    OPENSSL_PUT_ERROR(BN, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(callback, 0, sizeof(BN_GENCB));
+diff --git a/crypto/fipsmodule/bn/sqrt.c b/crypto/fipsmodule/bn/sqrt.c
+index c0d17d1cd..4f636f655 100644
+--- a/crypto/fipsmodule/bn/sqrt.c
++++ b/crypto/fipsmodule/bn/sqrt.c
+@@ -446,7 +446,6 @@ int BN_sqrt(BIGNUM *out_sqrt, const BIGNUM *in, BN_CTX *ctx) {
+   last_delta = BN_CTX_get(ctx);
+   delta = BN_CTX_get(ctx);
+   if (estimate == NULL || tmp == NULL || last_delta == NULL || delta == NULL) {
+-    OPENSSL_PUT_ERROR(BN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+diff --git a/crypto/fipsmodule/cipher/cipher.c b/crypto/fipsmodule/cipher/cipher.c
+index 903b68451..f2b9ab123 100644
+--- a/crypto/fipsmodule/cipher/cipher.c
++++ b/crypto/fipsmodule/cipher/cipher.c
+@@ -115,7 +115,6 @@ int EVP_CIPHER_CTX_copy(EVP_CIPHER_CTX *out, const EVP_CIPHER_CTX *in) {
+     out->cipher_data = OPENSSL_malloc(in->cipher->ctx_size);
+     if (!out->cipher_data) {
+       out->cipher = NULL;
+-      OPENSSL_PUT_ERROR(CIPHER, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     OPENSSL_memcpy(out->cipher_data, in->cipher_data, in->cipher->ctx_size);
+@@ -164,7 +163,6 @@ int EVP_CipherInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
+       ctx->cipher_data = OPENSSL_malloc(ctx->cipher->ctx_size);
+       if (!ctx->cipher_data) {
+         ctx->cipher = NULL;
+-        OPENSSL_PUT_ERROR(CIPHER, ERR_R_MALLOC_FAILURE);
+         return 0;
+       }
+     } else {
+diff --git a/crypto/fipsmodule/dh/dh.c b/crypto/fipsmodule/dh/dh.c
+index 3660c1631..642b76927 100644
+--- a/crypto/fipsmodule/dh/dh.c
++++ b/crypto/fipsmodule/dh/dh.c
+@@ -74,7 +74,6 @@
+ DH *DH_new(void) {
+   DH *dh = OPENSSL_malloc(sizeof(DH));
+   if (dh == NULL) {
+-    OPENSSL_PUT_ERROR(DH, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+diff --git a/crypto/fipsmodule/digest/digest.c b/crypto/fipsmodule/digest/digest.c
+index 6c6bba270..4799f2f30 100644
+--- a/crypto/fipsmodule/digest/digest.c
++++ b/crypto/fipsmodule/digest/digest.c
+@@ -152,7 +152,6 @@ int EVP_MD_CTX_copy_ex(EVP_MD_CTX *out, const EVP_MD_CTX *in) {
+   if (in->pctx) {
+     pctx = in->pctx_ops->dup(in->pctx);
+     if (!pctx) {
+-      OPENSSL_PUT_ERROR(DIGEST, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -166,7 +165,6 @@ int EVP_MD_CTX_copy_ex(EVP_MD_CTX *out, const EVP_MD_CTX *in) {
+         if (pctx) {
+           in->pctx_ops->free(pctx);
+         }
+-        OPENSSL_PUT_ERROR(DIGEST, ERR_R_MALLOC_FAILURE);
+         return 0;
+       }
+     } else {
+@@ -215,7 +213,6 @@ int EVP_DigestInit_ex(EVP_MD_CTX *ctx, const EVP_MD *type, ENGINE *engine) {
+     assert(type->ctx_size != 0);
+     uint8_t *md_data = OPENSSL_malloc(type->ctx_size);
+     if (md_data == NULL) {
+-      OPENSSL_PUT_ERROR(DIGEST, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+ 
+diff --git a/crypto/fipsmodule/ec/ec.c b/crypto/fipsmodule/ec/ec.c
+index 75597463b..d070adbf3 100644
+--- a/crypto/fipsmodule/ec/ec.c
++++ b/crypto/fipsmodule/ec/ec.c
+@@ -322,7 +322,6 @@ EC_GROUP *ec_group_new(const EC_METHOD *meth) {
+ 
+   ret = OPENSSL_malloc(sizeof(EC_GROUP));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(EC, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(ret, 0, sizeof(EC_GROUP));
+@@ -484,7 +483,6 @@ static EC_GROUP *ec_group_new_from_data(const struct built_in_curve *curve) {
+ 
+   BN_CTX *ctx = BN_CTX_new();
+   if (ctx == NULL) {
+-    OPENSSL_PUT_ERROR(EC, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -723,7 +721,6 @@ EC_POINT *EC_POINT_new(const EC_GROUP *group) {
+ 
+   EC_POINT *ret = OPENSSL_malloc(sizeof *ret);
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(EC, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+diff --git a/crypto/fipsmodule/ec/ec_key.c b/crypto/fipsmodule/ec/ec_key.c
+index 2f06c4544..095bda300 100644
+--- a/crypto/fipsmodule/ec/ec_key.c
++++ b/crypto/fipsmodule/ec/ec_key.c
+@@ -88,7 +88,6 @@ DEFINE_STATIC_EX_DATA_CLASS(g_ec_ex_data_class)
+ static EC_WRAPPED_SCALAR *ec_wrapped_scalar_new(const EC_GROUP *group) {
+   EC_WRAPPED_SCALAR *wrapped = OPENSSL_malloc(sizeof(EC_WRAPPED_SCALAR));
+   if (wrapped == NULL) {
+-    OPENSSL_PUT_ERROR(EC, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -109,7 +108,6 @@ EC_KEY *EC_KEY_new(void) { return EC_KEY_new_method(NULL); }
+ EC_KEY *EC_KEY_new_method(const ENGINE *engine) {
+   EC_KEY *ret = OPENSSL_malloc(sizeof(EC_KEY));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(EC, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -142,7 +140,6 @@ EC_KEY *EC_KEY_new_method(const ENGINE *engine) {
+ EC_KEY *EC_KEY_new_by_curve_name(int nid) {
+   EC_KEY *ret = EC_KEY_new();
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(EC, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   ret->group = EC_GROUP_new_by_curve_name(nid);
+diff --git a/crypto/fipsmodule/ec/wnaf.c b/crypto/fipsmodule/ec/wnaf.c
+index 65cc89459..ce0d4b8b6 100644
+--- a/crypto/fipsmodule/ec/wnaf.c
++++ b/crypto/fipsmodule/ec/wnaf.c
+@@ -205,7 +205,6 @@ int ec_GFp_mont_mul_public_batch(const EC_GROUP *group, EC_RAW_POINT *r,
+     wNAF_alloc = OPENSSL_malloc(num * sizeof(wNAF_alloc[0]));
+     precomp_alloc = OPENSSL_malloc(num * sizeof(precomp_alloc[0]));
+     if (wNAF_alloc == NULL || precomp_alloc == NULL) {
+-      OPENSSL_PUT_ERROR(EC, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     wNAF = wNAF_alloc;
+diff --git a/crypto/fipsmodule/evp/evp.c b/crypto/fipsmodule/evp/evp.c
+index 70263e7cf..a10ded5a0 100644
+--- a/crypto/fipsmodule/evp/evp.c
++++ b/crypto/fipsmodule/evp/evp.c
+@@ -86,7 +86,6 @@ EVP_PKEY *EVP_PKEY_new(void) {
+ 
+   ret = OPENSSL_malloc(sizeof(EVP_PKEY));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+diff --git a/crypto/fipsmodule/evp/evp_ctx.c b/crypto/fipsmodule/evp/evp_ctx.c
+index 90ec00786..e24737793 100644
+--- a/crypto/fipsmodule/evp/evp_ctx.c
++++ b/crypto/fipsmodule/evp/evp_ctx.c
+@@ -125,7 +125,6 @@ static EVP_PKEY_CTX *evp_pkey_ctx_new(EVP_PKEY *pkey, ENGINE *e, int id) {
+ 
+   ret = OPENSSL_malloc(sizeof(EVP_PKEY_CTX));
+   if (!ret) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(ret, 0, sizeof(EVP_PKEY_CTX));
+diff --git a/crypto/fipsmodule/evp/p_hkdf.c b/crypto/fipsmodule/evp/p_hkdf.c
+index 61ce4caff..938da19bd 100644
+--- a/crypto/fipsmodule/evp/p_hkdf.c
++++ b/crypto/fipsmodule/evp/p_hkdf.c
+@@ -37,13 +37,11 @@ typedef struct {
+ static int pkey_hkdf_init(EVP_PKEY_CTX *ctx) {
+   HKDF_PKEY_CTX *hctx = OPENSSL_malloc(sizeof(HKDF_PKEY_CTX));
+   if (hctx == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+   OPENSSL_memset(hctx, 0, sizeof(HKDF_PKEY_CTX));
+   if (!CBB_init(&hctx->info, 0)) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     OPENSSL_free(hctx);
+     return 0;
+   }
+@@ -65,7 +63,6 @@ static int pkey_hkdf_copy(EVP_PKEY_CTX *dst, EVP_PKEY_CTX *src) {
+   if (hctx_src->key_len != 0) {
+     hctx_dst->key = OPENSSL_memdup(hctx_src->key, hctx_src->key_len);
+     if (hctx_dst->key == NULL) {
+-      OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     hctx_dst->key_len = hctx_src->key_len;
+@@ -74,7 +71,6 @@ static int pkey_hkdf_copy(EVP_PKEY_CTX *dst, EVP_PKEY_CTX *src) {
+   if (hctx_src->salt_len != 0) {
+     hctx_dst->salt = OPENSSL_memdup(hctx_src->salt, hctx_src->salt_len);
+     if (hctx_dst->salt == NULL) {
+-      OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     hctx_dst->salt_len = hctx_src->salt_len;
+@@ -82,7 +78,6 @@ static int pkey_hkdf_copy(EVP_PKEY_CTX *dst, EVP_PKEY_CTX *src) {
+ 
+   if (!CBB_add_bytes(&hctx_dst->info, CBB_data(&hctx_src->info),
+                      CBB_len(&hctx_src->info))) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -159,7 +154,6 @@ static int pkey_hkdf_ctrl(EVP_PKEY_CTX *ctx, int type, int p1, void *p2) {
+     case EVP_PKEY_CTRL_HKDF_KEY: {
+       const CBS *key = p2;
+       if (!CBS_stow(key, &hctx->key, &hctx->key_len)) {
+-        OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+         return 0;
+       }
+       return 1;
+@@ -167,7 +161,6 @@ static int pkey_hkdf_ctrl(EVP_PKEY_CTX *ctx, int type, int p1, void *p2) {
+     case EVP_PKEY_CTRL_HKDF_SALT: {
+       const CBS *salt = p2;
+       if (!CBS_stow(salt, &hctx->salt, &hctx->salt_len)) {
+-        OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+         return 0;
+       }
+       return 1;
+@@ -177,7 +170,6 @@ static int pkey_hkdf_ctrl(EVP_PKEY_CTX *ctx, int type, int p1, void *p2) {
+       // |EVP_PKEY_CTX_add1_hkdf_info| appends to the info string, rather than
+       // replacing it.
+       if (!CBB_add_bytes(&hctx->info, CBS_data(info), CBS_len(info))) {
+-        OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+         return 0;
+       }
+       return 1;
+diff --git a/crypto/fipsmodule/rsa/blinding.c b/crypto/fipsmodule/rsa/blinding.c
+index 29477bd75..c4cfcc231 100644
+--- a/crypto/fipsmodule/rsa/blinding.c
++++ b/crypto/fipsmodule/rsa/blinding.c
+@@ -132,7 +132,6 @@ static int bn_blinding_create_param(BN_BLINDING *b, const BIGNUM *e,
+ BN_BLINDING *BN_BLINDING_new(void) {
+   BN_BLINDING *ret = OPENSSL_malloc(sizeof(BN_BLINDING));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(ret, 0, sizeof(BN_BLINDING));
+diff --git a/crypto/fipsmodule/rsa/padding.c b/crypto/fipsmodule/rsa/padding.c
+index 3f33e9e09..36e068ec2 100644
+--- a/crypto/fipsmodule/rsa/padding.c
++++ b/crypto/fipsmodule/rsa/padding.c
+@@ -333,7 +333,6 @@ int RSA_padding_add_PKCS1_OAEP_mgf1(uint8_t *to, size_t to_len,
+   size_t emlen = to_len - 1;
+   uint8_t *dbmask = OPENSSL_malloc(emlen - mdlen);
+   if (dbmask == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     goto out;
+   }
+ 
+@@ -420,7 +419,6 @@ int RSA_padding_check_PKCS1_OAEP_mgf1(uint8_t *out, size_t *out_len,
+   size_t dblen = from_len - mdlen - 1;
+   db = OPENSSL_malloc(dblen);
+   if (db == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -546,7 +544,6 @@ int RSA_verify_PKCS1_PSS_mgf1(const RSA *rsa, const uint8_t *mHash,
+   const uint8_t *H = EM + maskedDBLen;
+   DB = OPENSSL_malloc(maskedDBLen);
+   if (!DB) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+   if (!PKCS1_MGF1(DB, maskedDBLen, H, hLen, mgf1Hash)) {
+@@ -658,7 +655,6 @@ int RSA_padding_add_PKCS1_PSS_mgf1(const RSA *rsa, unsigned char *EM,
+   if (sLen > 0) {
+     salt = OPENSSL_malloc(sLen);
+     if (!salt) {
+-      OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     if (!RAND_bytes(salt, sLen)) {
+diff --git a/crypto/fipsmodule/rsa/rsa.c b/crypto/fipsmodule/rsa/rsa.c
+index fd0331648..28bcf4d0c 100644
+--- a/crypto/fipsmodule/rsa/rsa.c
++++ b/crypto/fipsmodule/rsa/rsa.c
+@@ -89,7 +89,6 @@ RSA *RSA_new(void) { return RSA_new_method(NULL); }
+ RSA *RSA_new_method(const ENGINE *engine) {
+   RSA *rsa = OPENSSL_malloc(sizeof(RSA));
+   if (rsa == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -532,7 +531,6 @@ int RSA_add_pkcs1_prefix(uint8_t **out_msg, size_t *out_msg_len,
+ 
+     uint8_t *signed_msg = OPENSSL_malloc(signed_msg_len);
+     if (!signed_msg) {
+-      OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+ 
+@@ -612,7 +610,6 @@ int RSA_sign_pss_mgf1(RSA *rsa, size_t *out_len, uint8_t *out, size_t max_out,
+   size_t padded_len = RSA_size(rsa);
+   uint8_t *padded = OPENSSL_malloc(padded_len);
+   if (padded == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -646,7 +643,6 @@ int rsa_verify_no_self_test(int hash_nid, const uint8_t *digest,
+ 
+   buf = OPENSSL_malloc(rsa_size);
+   if (!buf) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -698,7 +694,6 @@ int RSA_verify_pss_mgf1(RSA *rsa, const uint8_t *digest, size_t digest_len,
+   size_t em_len = RSA_size(rsa);
+   uint8_t *em = OPENSSL_malloc(em_len);
+   if (em == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -790,7 +785,6 @@ int RSA_validate_key(const RSA *key, rsa_asn1_key_encoding_t key_enc_type) {
+ 
+   BN_CTX *ctx = BN_CTX_new();
+   if (ctx == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -922,7 +916,6 @@ int RSA_check_fips(RSA *key) {
+ 
+   BN_CTX *ctx = BN_CTX_new();
+   if (ctx == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -969,7 +962,6 @@ int RSA_check_fips(RSA *key) {
+   unsigned sig_len = RSA_size(key);
+   uint8_t *sig = OPENSSL_malloc(sig_len);
+   if (sig == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/fipsmodule/rsa/rsa_impl.c b/crypto/fipsmodule/rsa/rsa_impl.c
+index c260b98c1..a9efaf559 100644
+--- a/crypto/fipsmodule/rsa/rsa_impl.c
++++ b/crypto/fipsmodule/rsa/rsa_impl.c
+@@ -304,7 +304,6 @@ int RSA_encrypt(RSA *rsa, size_t *out_len, uint8_t *out, size_t max_out,
+   result = BN_CTX_get(ctx);
+   buf = OPENSSL_malloc(rsa_size);
+   if (!f || !result || !buf) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -508,7 +507,6 @@ int rsa_default_sign_raw(RSA *rsa, size_t *out_len, uint8_t *out,
+ 
+   buf = OPENSSL_malloc(rsa_size);
+   if (buf == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -561,7 +559,6 @@ int rsa_default_decrypt(RSA *rsa, size_t *out_len, uint8_t *out, size_t max_out,
+     // Allocate a temporary buffer to hold the padded plaintext.
+     buf = OPENSSL_malloc(rsa_size);
+     if (buf == NULL) {
+-      OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+   }
+@@ -643,7 +640,6 @@ int rsa_verify_raw_no_self_test(RSA *rsa, size_t *out_len, uint8_t *out,
+   f = BN_CTX_get(ctx);
+   result = BN_CTX_get(ctx);
+   if (f == NULL || result == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -653,7 +649,6 @@ int rsa_verify_raw_no_self_test(RSA *rsa, size_t *out_len, uint8_t *out,
+     // Allocate a temporary buffer to hold the padded plaintext.
+     buf = OPENSSL_malloc(rsa_size);
+     if (buf == NULL) {
+-      OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+   }
+@@ -735,7 +730,6 @@ int rsa_default_private_transform(RSA *rsa, uint8_t *out, const uint8_t *in,
+   result = BN_CTX_get(ctx);
+ 
+   if (f == NULL || result == NULL) {
+-    OPENSSL_PUT_ERROR(RSA, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+diff --git a/crypto/fipsmodule/service_indicator/service_indicator.c b/crypto/fipsmodule/service_indicator/service_indicator.c
+index ab673094e..ebaaa42c8 100644
+--- a/crypto/fipsmodule/service_indicator/service_indicator.c
++++ b/crypto/fipsmodule/service_indicator/service_indicator.c
+@@ -45,7 +45,6 @@ static struct fips_service_indicator_state * service_indicator_get(void) {
+   if (indicator == NULL) {
+     indicator = OPENSSL_malloc(sizeof(struct fips_service_indicator_state));
+     if (indicator == NULL) {
+-      OPENSSL_PUT_ERROR(CRYPTO, ERR_R_MALLOC_FAILURE);
+       return NULL;
+     }
+ 
+diff --git a/crypto/hpke/hpke.c b/crypto/hpke/hpke.c
+index faea2eea0..3dfdb29b0 100644
+--- a/crypto/hpke/hpke.c
++++ b/crypto/hpke/hpke.c
+@@ -250,7 +250,6 @@ void EVP_HPKE_KEY_cleanup(EVP_HPKE_KEY *key) {
+ EVP_HPKE_KEY *EVP_HPKE_KEY_new(void) {
+   EVP_HPKE_KEY *key = OPENSSL_malloc(sizeof(EVP_HPKE_KEY));
+   if (key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   EVP_HPKE_KEY_zero(key);
+@@ -465,7 +464,6 @@ void EVP_HPKE_CTX_cleanup(EVP_HPKE_CTX *ctx) {
+ EVP_HPKE_CTX *EVP_HPKE_CTX_new(void) {
+   EVP_HPKE_CTX *ctx = OPENSSL_malloc(sizeof(EVP_HPKE_CTX));
+   if (ctx == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   EVP_HPKE_CTX_zero(ctx);
+diff --git a/crypto/internal.h b/crypto/internal.h
+index cfed915f6..5571b7233 100644
+--- a/crypto/internal.h
++++ b/crypto/internal.h
+@@ -1028,7 +1028,7 @@ extern uint8_t BORINGSSL_function_hit[8];
+ // This function is defined in |bcm.c|, see the comment therein for explanation.
+ void dummy_func_for_constructor(void);
+ #endif
+-// OPENSSL_vasprintf_internal is just like |vasprintf(3)|. if |system_malloc| is
++// OPENSSL_vasprintf_internal is just like |vasprintf(3)|. If |system_malloc| is
+ // 0, memory will be allocated with |OPENSSL_malloc| and must be freed with
+ // |OPENSSL_free|. Otherwise the system |malloc| function is used and the memory
+ // must be freed with the system |free| function.
+diff --git a/crypto/mem.c b/crypto/mem.c
+index c402fea77..7a84e9ccd 100644
+--- a/crypto/mem.c
++++ b/crypto/mem.c
+@@ -200,7 +200,11 @@ void *OPENSSL_malloc(size_t size) {
+   if (OPENSSL_memory_alloc != NULL) {
+     assert(OPENSSL_memory_free != NULL);
+     assert(OPENSSL_memory_get_size != NULL);
+-    return OPENSSL_memory_alloc(size);
++    void *ptr = OPENSSL_memory_alloc(size);
++    if (ptr == NULL && size != 0) {
++      goto err;
++    }
++    return ptr;
+   }
+ 
+   if (size + OPENSSL_MALLOC_PREFIX < size) {
+@@ -212,18 +216,23 @@ void *OPENSSL_malloc(size_t size) {
+     // rare code path.
+     uint8_t unused = *(volatile uint8_t *)kBoringSSLBinaryTag;
+     (void) unused;
+-    return NULL;
++    goto err;
+   }
+ 
+   void *ptr = malloc(size + OPENSSL_MALLOC_PREFIX);
+   if (ptr == NULL) {
+-    return NULL;
++    goto err;
+   }
+ 
+   *(size_t *)ptr = size;
+ 
+   __asan_poison_memory_region(ptr, OPENSSL_MALLOC_PREFIX);
+   return ((uint8_t *)ptr) + OPENSSL_MALLOC_PREFIX;
++
++ err:
++  // This only works because ERR does not call OPENSSL_malloc.
++  OPENSSL_PUT_ERROR(CRYPTO, ERR_R_MALLOC_FAILURE);
++  return NULL;
+ }
+ 
+ void OPENSSL_free(void *orig_ptr) {
+@@ -493,24 +502,21 @@ int OPENSSL_vasprintf_internal(char **str, const char *format, va_list args,
+   va_copy(args_copy, args);
+   int ret = vsnprintf(candidate, candidate_len, format, args_copy);
+   va_end(args_copy);
+-  if (ret == INT_MAX || ret < 0) {
+-    // Failed, or size not int representable.
++  if (ret < 0) {
+     goto err;
+   }
+   if ((size_t)ret >= candidate_len) {
+     // Too big to fit in allocation.
+     char *tmp;
+ 
+-    candidate_len = ret + 1;
++    candidate_len = (size_t)ret + 1;
+     if ((tmp = reallocate(candidate, candidate_len)) == NULL) {
+       goto err;
+     }
+     candidate = tmp;
+-    va_copy(args_copy, args);
+-    ret = vsnprintf(candidate, candidate_len, format, args_copy);
+-    va_end(args_copy);
++    ret = vsnprintf(candidate, candidate_len, format, args);
+   }
+-  // At this point this can't happen unless vsnprintf is insane.
++  // At this point this should not happen unless vsnprintf is insane.
+   if (ret < 0 || (size_t)ret >= candidate_len) {
+     goto err;
+   }
+@@ -547,7 +553,6 @@ char *OPENSSL_strndup(const char *str, size_t size) {
+   }
+   char *ret = OPENSSL_malloc(alloc_size);
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(CRYPTO, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -586,7 +591,6 @@ void *OPENSSL_memdup(const void *data, size_t size) {
+ 
+   void *ret = OPENSSL_malloc(size);
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(CRYPTO, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+diff --git a/crypto/obj/obj.c b/crypto/obj/obj.c
+index 05d18215f..5725ee621 100644
+--- a/crypto/obj/obj.c
++++ b/crypto/obj/obj.c
+@@ -159,7 +159,6 @@ ASN1_OBJECT *OBJ_dup(const ASN1_OBJECT *o) {
+   return r;
+ 
+ err:
+-  OPENSSL_PUT_ERROR(OBJ, ERR_R_MALLOC_FAILURE);
+   OPENSSL_free(ln);
+   OPENSSL_free(sn);
+   OPENSSL_free(data);
+diff --git a/crypto/pem/pem_info.c b/crypto/pem/pem_info.c
+index 80c06b81c..c097013d4 100644
+--- a/crypto/pem/pem_info.c
++++ b/crypto/pem/pem_info.c
+@@ -139,7 +139,6 @@ STACK_OF(X509_INFO) *PEM_X509_INFO_read_bio(BIO *bp, STACK_OF(X509_INFO) *sk,
+   if (sk == NULL) {
+     ret = sk_X509_INFO_new_null();
+     if (ret == NULL) {
+-      OPENSSL_PUT_ERROR(PEM, ERR_R_MALLOC_FAILURE);
+       return NULL;
+     }
+   } else {
+diff --git a/crypto/pem/pem_lib.c b/crypto/pem/pem_lib.c
+index fc1144e00..28ed438b9 100644
+--- a/crypto/pem/pem_lib.c
++++ b/crypto/pem/pem_lib.c
+@@ -298,7 +298,6 @@ int PEM_ASN1_write_bio(i2d_of_void *i2d, const char *name, BIO *bp, void *x,
+   // actually it needs the cipher block size extra...
+   data = (unsigned char *)OPENSSL_malloc((unsigned int)dsize + 20);
+   if (data == NULL) {
+-    OPENSSL_PUT_ERROR(PEM, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+   p = data;
+@@ -552,7 +551,6 @@ int PEM_write_bio(BIO *bp, const char *name, const char *header,
+ 
+   buf = OPENSSL_malloc(PEM_BUFSIZE * 8);
+   if (buf == NULL) {
+-    reason = ERR_R_MALLOC_FAILURE;
+     goto err;
+   }
+ 
+@@ -615,7 +613,6 @@ int PEM_read_bio(BIO *bp, char **name, char **header, unsigned char **data,
+     BUF_MEM_free(nameB);
+     BUF_MEM_free(headerB);
+     BUF_MEM_free(dataB);
+-    OPENSSL_PUT_ERROR(PEM, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -641,7 +638,6 @@ int PEM_read_bio(BIO *bp, char **name, char **header, unsigned char **data,
+         continue;
+       }
+       if (!BUF_MEM_grow(nameB, i + 9)) {
+-        OPENSSL_PUT_ERROR(PEM, ERR_R_MALLOC_FAILURE);
+         goto err;
+       }
+       OPENSSL_memcpy(nameB->data, &(buf[11]), i - 6);
+@@ -651,7 +647,6 @@ int PEM_read_bio(BIO *bp, char **name, char **header, unsigned char **data,
+   }
+   hl = 0;
+   if (!BUF_MEM_grow(headerB, 256)) {
+-    OPENSSL_PUT_ERROR(PEM, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+   headerB->data[0] = '\0';
+@@ -671,7 +666,6 @@ int PEM_read_bio(BIO *bp, char **name, char **header, unsigned char **data,
+       break;
+     }
+     if (!BUF_MEM_grow(headerB, hl + i + 9)) {
+-      OPENSSL_PUT_ERROR(PEM, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     if (strncmp(buf, "-----END ", 9) == 0) {
+@@ -685,7 +679,6 @@ int PEM_read_bio(BIO *bp, char **name, char **header, unsigned char **data,
+ 
+   bl = 0;
+   if (!BUF_MEM_grow(dataB, 1024)) {
+-    OPENSSL_PUT_ERROR(PEM, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+   dataB->data[0] = '\0';
+@@ -712,7 +705,6 @@ int PEM_read_bio(BIO *bp, char **name, char **header, unsigned char **data,
+         break;
+       }
+       if (!BUF_MEM_grow_clean(dataB, i + bl + 9)) {
+-        OPENSSL_PUT_ERROR(PEM, ERR_R_MALLOC_FAILURE);
+         goto err;
+       }
+       OPENSSL_memcpy(&(dataB->data[bl]), buf, i);
+diff --git a/crypto/pkcs7/pkcs7_x509.c b/crypto/pkcs7/pkcs7_x509.c
+index 773c5923d..fd71bd7b3 100644
+--- a/crypto/pkcs7/pkcs7_x509.c
++++ b/crypto/pkcs7/pkcs7_x509.c
+@@ -328,7 +328,6 @@ int i2d_PKCS7(const PKCS7 *p7, uint8_t **out) {
+   if (*out == NULL) {
+     *out = OPENSSL_malloc(p7->ber_len);
+     if (*out == NULL) {
+-      OPENSSL_PUT_ERROR(PKCS8, ERR_R_MALLOC_FAILURE);
+       return -1;
+     }
+     OPENSSL_memcpy(*out, p7->ber_bytes, p7->ber_len);
+diff --git a/crypto/pkcs8/pkcs8.c b/crypto/pkcs8/pkcs8.c
+index 84b7b1271..6dd111b85 100644
+--- a/crypto/pkcs8/pkcs8.c
++++ b/crypto/pkcs8/pkcs8.c
+@@ -76,7 +76,6 @@ static int pkcs12_encode_password(const char *in, size_t in_len, uint8_t **out,
+                                   size_t *out_len) {
+   CBB cbb;
+   if (!CBB_init(&cbb, in_len * 2)) {
+-    OPENSSL_PUT_ERROR(PKCS8, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -162,7 +161,6 @@ int pkcs12_key_gen(const char *pass, size_t pass_len, const uint8_t *salt,
+ 
+   I = OPENSSL_malloc(I_len);
+   if (I_len != 0 && I == NULL) {
+-    OPENSSL_PUT_ERROR(PKCS8, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -390,7 +388,6 @@ int pkcs8_pbe_decrypt(uint8_t **out, size_t *out_len, CBS *algorithm,
+ 
+   buf = OPENSSL_malloc(in_len);
+   if (buf == NULL) {
+-    OPENSSL_PUT_ERROR(PKCS8, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+diff --git a/crypto/pkcs8/pkcs8_x509.c b/crypto/pkcs8/pkcs8_x509.c
+index de5056712..83d34e6a1 100644
+--- a/crypto/pkcs8/pkcs8_x509.c
++++ b/crypto/pkcs8/pkcs8_x509.c
+@@ -334,7 +334,6 @@ static int parse_bag_attributes(CBS *attrs, uint8_t **out_friendly_name,
+       // Convert the friendly name to UTF-8.
+       CBB cbb;
+       if (!CBB_init(&cbb, CBS_len(&value))) {
+-        OPENSSL_PUT_ERROR(PKCS8, ERR_R_MALLOC_FAILURE);
+         goto err;
+       }
+       while (CBS_len(&value) != 0) {
+@@ -347,7 +346,6 @@ static int parse_bag_attributes(CBS *attrs, uint8_t **out_friendly_name,
+         }
+       }
+       if (!CBB_finish(&cbb, out_friendly_name, out_friendly_name_len)) {
+-        OPENSSL_PUT_ERROR(PKCS8, ERR_R_MALLOC_FAILURE);
+         CBB_cleanup(&cbb);
+         goto err;
+       }
+@@ -844,7 +842,6 @@ int i2d_PKCS12(const PKCS12 *p12, uint8_t **out) {
+   if (*out == NULL) {
+     *out = OPENSSL_malloc(p12->ber_len);
+     if (*out == NULL) {
+-      OPENSSL_PUT_ERROR(PKCS8, ERR_R_MALLOC_FAILURE);
+       return -1;
+     }
+     OPENSSL_memcpy(*out, p12->ber_bytes, p12->ber_len);
+@@ -883,7 +880,6 @@ int PKCS12_parse(const PKCS12 *p12, const char *password, EVP_PKEY **out_pkey,
+   if (!ca_certs) {
+     ca_certs = sk_X509_new_null();
+     if (ca_certs == NULL) {
+-      OPENSSL_PUT_ERROR(PKCS8, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     ca_certs_alloced = 1;
+diff --git a/crypto/trust_token/pmbtoken.c b/crypto/trust_token/pmbtoken.c
+index 7a95a7d14..2e25cf52e 100644
+--- a/crypto/trust_token/pmbtoken.c
++++ b/crypto/trust_token/pmbtoken.c
+@@ -332,7 +332,6 @@ static STACK_OF(TRUST_TOKEN_PRETOKEN) *pmbtoken_blind(
+   const EC_GROUP *group = method->group;
+   STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens = sk_TRUST_TOKEN_PRETOKEN_new_null();
+   if (pretokens == NULL) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -341,7 +340,6 @@ static STACK_OF(TRUST_TOKEN_PRETOKEN) *pmbtoken_blind(
+     TRUST_TOKEN_PRETOKEN *pretoken = OPENSSL_malloc(sizeof(TRUST_TOKEN_PRETOKEN));
+     if (pretoken == NULL ||
+         !sk_TRUST_TOKEN_PRETOKEN_push(pretokens, pretoken)) {
+-      OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+       TRUST_TOKEN_PRETOKEN_free(pretoken);
+       goto err;
+     }
+@@ -360,7 +358,6 @@ static STACK_OF(TRUST_TOKEN_PRETOKEN) *pmbtoken_blind(
+     // We sample |pretoken->r| in Montgomery form to simplify inverting.
+     if (!ec_random_nonzero_scalar(group, &pretoken->r,
+                                   kDefaultAdditionalData)) {
+-      OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+ 
+@@ -395,7 +392,6 @@ static int scalar_to_cbb(CBB *out, const EC_GROUP *group,
+   uint8_t *buf;
+   size_t scalar_len = BN_num_bytes(&group->order);
+   if (!CBB_add_space(out, &buf, scalar_len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+   ec_scalar_to_bytes(group, buf, &scalar_len, scalar);
+@@ -435,7 +431,6 @@ static int hash_c_dleq(const PMBTOKEN_METHOD *method, EC_SCALAR *out,
+       !point_to_cbb(&cbb, method->group, K1) ||
+       !CBB_finish(&cbb, &buf, &len) ||
+       !method->hash_c(method->group, out, buf, len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -473,7 +468,6 @@ static int hash_c_dleqor(const PMBTOKEN_METHOD *method, EC_SCALAR *out,
+       !point_to_cbb(&cbb, method->group, K11) ||
+       !CBB_finish(&cbb, &buf, &len) ||
+       !method->hash_c(method->group, out, buf, len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -505,7 +499,6 @@ static int hash_c_batch(const PMBTOKEN_METHOD *method, EC_SCALAR *out,
+       !CBB_add_u16(&cbb, (uint16_t)index) ||
+       !CBB_finish(&cbb, &buf, &len) ||
+       !method->hash_c(method->group, out, buf, len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -640,7 +633,6 @@ static int dleq_generate(const PMBTOKEN_METHOD *method, CBB *cbb,
+   if (!scalar_to_cbb(cbb, group, &cs) ||
+       !scalar_to_cbb(cbb, group, &us) ||
+       !scalar_to_cbb(cbb, group, &vs)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -676,7 +668,6 @@ static int dleq_generate(const PMBTOKEN_METHOD *method, CBB *cbb,
+       !scalar_to_cbb(cbb, group, &u1) ||
+       !scalar_to_cbb(cbb, group, &v0) ||
+       !scalar_to_cbb(cbb, group, &v1)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -835,7 +826,6 @@ static int pmbtoken_sign(const PMBTOKEN_METHOD *method,
+       !point_to_cbb(&batch_cbb, method->group, &key->pubs) ||
+       !point_to_cbb(&batch_cbb, method->group, &key->pub0) ||
+       !point_to_cbb(&batch_cbb, method->group, &key->pub1)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -876,7 +866,6 @@ static int pmbtoken_sign(const PMBTOKEN_METHOD *method,
+         !point_to_cbb(&batch_cbb, group, &affines[0]) ||
+         !point_to_cbb(&batch_cbb, group, &affines[1]) ||
+         !point_to_cbb(&batch_cbb, group, &affines[2])) {
+-      OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     Tps[i] = Tp;
+@@ -958,7 +947,6 @@ static STACK_OF(TRUST_TOKEN) *pmbtoken_unblind(
+   int ok = 0;
+   STACK_OF(TRUST_TOKEN) *ret = sk_TRUST_TOKEN_new_null();
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -983,7 +971,6 @@ static STACK_OF(TRUST_TOKEN) *pmbtoken_unblind(
+       !point_to_cbb(&batch_cbb, method->group, &key->pubs) ||
+       !point_to_cbb(&batch_cbb, method->group, &key->pub0) ||
+       !point_to_cbb(&batch_cbb, method->group, &key->pub1)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -1014,7 +1001,6 @@ static STACK_OF(TRUST_TOKEN) *pmbtoken_unblind(
+         !point_to_cbb(&batch_cbb, group, &Sp_affine) ||
+         !point_to_cbb(&batch_cbb, group, &Wp_affine) ||
+         !point_to_cbb(&batch_cbb, group, &Wsp_affine)) {
+-      OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+ 
+@@ -1052,7 +1038,6 @@ static STACK_OF(TRUST_TOKEN) *pmbtoken_unblind(
+     CBB_cleanup(&token_cbb);
+     if (token == NULL ||
+         !sk_TRUST_TOKEN_push(ret, token)) {
+-      OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+       TRUST_TOKEN_free(token);
+       goto err;
+     }
+@@ -1202,7 +1187,6 @@ static int pmbtoken_exp1_hash_s(const EC_GROUP *group, EC_RAW_POINT *out,
+       !CBB_finish(&cbb, &buf, &len) ||
+       !ec_hash_to_curve_p384_xmd_sha512_sswu_draft07(
+           group, out, kHashSLabel, sizeof(kHashSLabel), buf, len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -1376,7 +1360,6 @@ static int pmbtoken_exp2_hash_s(const EC_GROUP *group, EC_RAW_POINT *out,
+       !CBB_finish(&cbb, &buf, &len) ||
+       !ec_hash_to_curve_p384_xmd_sha512_sswu_draft07(
+           group, out, kHashSLabel, sizeof(kHashSLabel), buf, len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+diff --git a/crypto/trust_token/trust_token.c b/crypto/trust_token/trust_token.c
+index 51b40ad1c..7cccf1afc 100644
+--- a/crypto/trust_token/trust_token.c
++++ b/crypto/trust_token/trust_token.c
+@@ -85,13 +85,11 @@ void TRUST_TOKEN_PRETOKEN_free(TRUST_TOKEN_PRETOKEN *pretoken) {
+ TRUST_TOKEN *TRUST_TOKEN_new(const uint8_t *data, size_t len) {
+   TRUST_TOKEN *ret = OPENSSL_malloc(sizeof(TRUST_TOKEN));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(ret, 0, sizeof(TRUST_TOKEN));
+   ret->data = OPENSSL_memdup(data, len);
+   if (len != 0 && ret->data == NULL) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     OPENSSL_free(ret);
+     return NULL;
+   }
+@@ -174,7 +172,6 @@ TRUST_TOKEN_CLIENT *TRUST_TOKEN_CLIENT_new(const TRUST_TOKEN_METHOD *method,
+ 
+   TRUST_TOKEN_CLIENT *ret = OPENSSL_malloc(sizeof(TRUST_TOKEN_CLIENT));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(ret, 0, sizeof(TRUST_TOKEN_CLIENT));
+@@ -238,7 +235,6 @@ static int trust_token_client_begin_issuance_impl(
+   STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens = NULL;
+   if (!CBB_init(&request, 0) ||
+       !CBB_add_u16(&request, count)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -249,7 +245,6 @@ static int trust_token_client_begin_issuance_impl(
+   }
+ 
+   if (!CBB_finish(&request, out, out_len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -345,7 +340,6 @@ int TRUST_TOKEN_CLIENT_begin_redemption(TRUST_TOKEN_CLIENT *ctx, uint8_t **out,
+       !CBB_add_bytes(&inner, data, data_len) ||
+       (ctx->method->has_srr && !CBB_add_u64(&request, time)) ||
+       !CBB_finish(&request, out, out_len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     CBB_cleanup(&request);
+     return 0;
+   }
+@@ -361,7 +355,6 @@ int TRUST_TOKEN_CLIENT_finish_redemption(TRUST_TOKEN_CLIENT *ctx,
+   CBS_init(&in, response, response_len);
+   if (!ctx->method->has_srr) {
+     if (!CBS_stow(&in, out_rr, out_rr_len)) {
+-      OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+ 
+@@ -398,7 +391,6 @@ int TRUST_TOKEN_CLIENT_finish_redemption(TRUST_TOKEN_CLIENT *ctx,
+   size_t srr_len, sig_len;
+   if (!CBS_stow(&srr, &srr_buf, &srr_len) ||
+       !CBS_stow(&sig, &sig_buf, &sig_len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     OPENSSL_free(srr_buf);
+     OPENSSL_free(sig_buf);
+     return 0;
+@@ -421,7 +413,6 @@ TRUST_TOKEN_ISSUER *TRUST_TOKEN_ISSUER_new(const TRUST_TOKEN_METHOD *method,
+ 
+   TRUST_TOKEN_ISSUER *ret = OPENSSL_malloc(sizeof(TRUST_TOKEN_ISSUER));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(ret, 0, sizeof(TRUST_TOKEN_ISSUER));
+@@ -479,7 +470,6 @@ int TRUST_TOKEN_ISSUER_set_metadata_key(TRUST_TOKEN_ISSUER *ctx,
+   ctx->metadata_key_len = 0;
+   ctx->metadata_key = OPENSSL_memdup(key, len);
+   if (ctx->metadata_key == NULL) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+   ctx->metadata_key_len = len;
+@@ -531,7 +521,6 @@ int TRUST_TOKEN_ISSUER_issue(const TRUST_TOKEN_ISSUER *ctx, uint8_t **out,
+   if (!CBB_init(&response, 0) ||
+       !CBB_add_u16(&response, num_to_issue) ||
+       !CBB_add_u32(&response, public_metadata)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -546,7 +535,6 @@ int TRUST_TOKEN_ISSUER_issue(const TRUST_TOKEN_ISSUER *ctx, uint8_t **out,
+   }
+ 
+   if (!CBB_finish(&response, out, out_len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -601,13 +589,11 @@ static int trust_token_issuer_redeem_impl(
+   uint8_t *client_data_buf = NULL;
+   size_t client_data_len = 0;
+   if (!CBS_stow(&client_data, &client_data_buf, &client_data_len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+   TRUST_TOKEN *token = TRUST_TOKEN_new(nonce, TRUST_TOKEN_NONCE_SIZE);
+   if (token == NULL) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+   *out_public = public_metadata;
+diff --git a/crypto/trust_token/voprf.c b/crypto/trust_token/voprf.c
+index da29c8564..adf02a78d 100644
+--- a/crypto/trust_token/voprf.c
++++ b/crypto/trust_token/voprf.c
+@@ -91,7 +91,6 @@ static int scalar_to_cbb(CBB *out, const EC_GROUP *group,
+   uint8_t *buf;
+   size_t scalar_len = BN_num_bytes(&group->order);
+   if (!CBB_add_space(out, &buf, scalar_len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+   ec_scalar_to_bytes(group, buf, &scalar_len, scalar);
+@@ -212,7 +211,6 @@ static STACK_OF(TRUST_TOKEN_PRETOKEN) *voprf_blind(const VOPRF_METHOD *method,
+   STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens =
+       sk_TRUST_TOKEN_PRETOKEN_new_null();
+   if (pretokens == NULL) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -222,7 +220,6 @@ static STACK_OF(TRUST_TOKEN_PRETOKEN) *voprf_blind(const VOPRF_METHOD *method,
+         OPENSSL_malloc(sizeof(TRUST_TOKEN_PRETOKEN));
+     if (pretoken == NULL ||
+         !sk_TRUST_TOKEN_PRETOKEN_push(pretokens, pretoken)) {
+-      OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+       TRUST_TOKEN_PRETOKEN_free(pretoken);
+       goto err;
+     }
+@@ -242,7 +239,6 @@ static STACK_OF(TRUST_TOKEN_PRETOKEN) *voprf_blind(const VOPRF_METHOD *method,
+     EC_SCALAR r;
+     if (!ec_random_nonzero_scalar(group, &r,
+                                   kDefaultAdditionalData)) {
+-      OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+ 
+@@ -292,7 +288,6 @@ static int hash_to_scalar_dleq(const VOPRF_METHOD *method, EC_SCALAR *out,
+       !cbb_add_point(&cbb, method->group, K1) ||
+       !CBB_finish(&cbb, &buf, &len) ||
+       !method->hash_to_scalar(method->group, out, buf, len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -324,7 +319,6 @@ static int hash_to_scalar_batch(const VOPRF_METHOD *method, EC_SCALAR *out,
+       !CBB_add_u16(&cbb, (uint16_t)index) ||
+       !CBB_finish(&cbb, &buf, &len) ||
+       !method->hash_to_scalar(method->group, out, buf, len)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -387,7 +381,6 @@ static int dleq_generate(const VOPRF_METHOD *method, CBB *cbb,
+   // Store DLEQ proof in transcript.
+   if (!scalar_to_cbb(cbb, group, &c) ||
+       !scalar_to_cbb(cbb, group, &u)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -488,7 +481,6 @@ static int voprf_sign(const VOPRF_METHOD *method,
+       !es ||
+       !CBB_init(&batch_cbb, 0) ||
+       !cbb_add_point(&batch_cbb, method->group, &key->pubs)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -508,7 +500,6 @@ static int voprf_sign(const VOPRF_METHOD *method,
+ 
+     if (!cbb_add_point(&batch_cbb, group, &BT_affine) ||
+         !cbb_add_point(&batch_cbb, group, &Z_affine)) {
+-      OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     BTs[i] = BT;
+@@ -575,7 +566,6 @@ static STACK_OF(TRUST_TOKEN) *voprf_unblind(
+   int ok = 0;
+   STACK_OF(TRUST_TOKEN) *ret = sk_TRUST_TOKEN_new_null();
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -594,7 +584,6 @@ static STACK_OF(TRUST_TOKEN) *voprf_unblind(
+       !es ||
+       !CBB_init(&batch_cbb, 0) ||
+       !cbb_add_point(&batch_cbb, method->group, &key->pubs)) {
+-    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -613,7 +602,6 @@ static STACK_OF(TRUST_TOKEN) *voprf_unblind(
+ 
+     if (!cbb_add_point(&batch_cbb, group, &pretoken->Tp) ||
+         !cbb_add_point(&batch_cbb, group, &Z_affine)) {
+-      OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+ 
+@@ -644,7 +632,6 @@ static STACK_OF(TRUST_TOKEN) *voprf_unblind(
+     CBB_cleanup(&token_cbb);
+     if (token == NULL ||
+         !sk_TRUST_TOKEN_push(ret, token)) {
+-      OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_MALLOC_FAILURE);
+       TRUST_TOKEN_free(token);
+       goto err;
+     }
+diff --git a/crypto/x509/a_digest.c b/crypto/x509/a_digest.c
+index d7dcecc73..4686993e7 100644
+--- a/crypto/x509/a_digest.c
++++ b/crypto/x509/a_digest.c
+@@ -68,7 +68,6 @@ int ASN1_digest(i2d_of_void *i2d, const EVP_MD *type, char *data,
+ 
+   i = i2d(data, NULL);
+   if ((str = (unsigned char *)OPENSSL_malloc(i)) == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+   p = str;
+diff --git a/crypto/x509/a_sign.c b/crypto/x509/a_sign.c
+index 3711a0049..de89fabd7 100644
+--- a/crypto/x509/a_sign.c
++++ b/crypto/x509/a_sign.c
+@@ -107,7 +107,6 @@ int ASN1_item_sign_ctx(const ASN1_ITEM *it, X509_ALGOR *algor1,
+   buf_out = OPENSSL_malloc((unsigned int)outl);
+   if ((buf_in == NULL) || (buf_out == NULL)) {
+     outl = 0;
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+diff --git a/crypto/x509/a_verify.c b/crypto/x509/a_verify.c
+index af2c91455..a70769fd0 100644
+--- a/crypto/x509/a_verify.c
++++ b/crypto/x509/a_verify.c
+@@ -98,7 +98,6 @@ int ASN1_item_verify(const ASN1_ITEM *it, const X509_ALGOR *a,
+   inl = ASN1_item_i2d(asn, &buf_in, it);
+ 
+   if (buf_in == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+diff --git a/crypto/x509/asn1_gen.c b/crypto/x509/asn1_gen.c
+index 989deee1b..937069e88 100644
+--- a/crypto/x509/asn1_gen.c
++++ b/crypto/x509/asn1_gen.c
+@@ -581,7 +581,6 @@ static int bitstr_cb(const char *elem, size_t len, void *bitstr) {
+     return 0;
+   }
+   if (!ASN1_BIT_STRING_set_bit(bitstr, (int)bitnum, 1)) {
+-    OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+   return 1;
+diff --git a/crypto/x509/by_dir.c b/crypto/x509/by_dir.c
+index 3ad8128cd..0283a0dba 100644
+--- a/crypto/x509/by_dir.c
++++ b/crypto/x509/by_dir.c
+@@ -211,7 +211,6 @@ static int add_cert_dir(BY_DIR *ctx, const char *dir, int type) {
+       if (ctx->dirs == NULL) {
+         ctx->dirs = sk_BY_DIR_ENTRY_new_null();
+         if (!ctx->dirs) {
+-          OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+           return 0;
+         }
+       }
+@@ -300,7 +299,6 @@ static int get_cert_by_subject(X509_LOOKUP *xl, int type, X509_NAME *name,
+       ent = sk_BY_DIR_ENTRY_value(ctx->dirs, i);
+       j = strlen(ent->dir) + 1 + 8 + 6 + 1 + 1;
+       if (!BUF_MEM_grow(b, j)) {
+-        OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+         goto finish;
+       }
+       if (type == X509_LU_CRL && ent->hashes) {
+diff --git a/crypto/x509/policy.c b/crypto/x509/policy.c
+index 393cb84c2..47ac2d8c5 100644
+--- a/crypto/x509/policy.c
++++ b/crypto/x509/policy.c
+@@ -109,7 +109,6 @@ static X509_POLICY_NODE *x509_policy_node_new(const ASN1_OBJECT *policy) {
+   assert(!is_any_policy(policy));
+   X509_POLICY_NODE *node = OPENSSL_malloc(sizeof(X509_POLICY_NODE));
+   if (node == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(node, 0, sizeof(X509_POLICY_NODE));
+@@ -137,13 +136,11 @@ static void x509_policy_level_free(X509_POLICY_LEVEL *level) {
+ static X509_POLICY_LEVEL *x509_policy_level_new(void) {
+   X509_POLICY_LEVEL *level = OPENSSL_malloc(sizeof(X509_POLICY_LEVEL));
+   if (level == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memset(level, 0, sizeof(X509_POLICY_LEVEL));
+   level->nodes = sk_X509_POLICY_NODE_new(x509_policy_node_cmp);
+   if (level->nodes == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     x509_policy_level_free(level);
+     return NULL;
+   }
+@@ -188,7 +185,6 @@ static int x509_policy_level_add_nodes(X509_POLICY_LEVEL *level,
+   for (size_t i = 0; i < sk_X509_POLICY_NODE_num(nodes); i++) {
+     X509_POLICY_NODE *node = sk_X509_POLICY_NODE_value(nodes, i);
+     if (!sk_X509_POLICY_NODE_push(level->nodes, node)) {
+-      OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     sk_X509_POLICY_NODE_set(nodes, i, NULL);
+@@ -287,7 +283,6 @@ static int process_certificate_policies(const X509 *x509,
+   if (previous_level_has_any_policy) {
+     new_nodes = sk_X509_POLICY_NODE_new_null();
+     if (new_nodes == NULL) {
+-      OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     for (size_t i = 0; i < sk_POLICYINFO_num(policies); i++) {
+@@ -300,7 +295,6 @@ static int process_certificate_policies(const X509 *x509,
+         if (node == NULL ||  //
+             !sk_X509_POLICY_NODE_push(new_nodes, node)) {
+           x509_policy_node_free(node);
+-          OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+           goto err;
+         }
+       }
+@@ -397,7 +391,6 @@ static X509_POLICY_LEVEL *process_policy_mappings(const X509 *cert,
+       // as part of RFC 5280, section 6.1.4, step (b.1).
+       new_nodes = sk_X509_POLICY_NODE_new_null();
+       if (new_nodes == NULL) {
+-        OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+         goto err;
+       }
+       const ASN1_OBJECT *last_policy = NULL;
+@@ -442,7 +435,6 @@ static X509_POLICY_LEVEL *process_policy_mappings(const X509 *cert,
+   if (mappings == NULL) {
+     mappings = sk_POLICY_MAPPING_new_null();
+     if (mappings == NULL) {
+-      OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+   }
+@@ -471,7 +463,6 @@ static X509_POLICY_LEVEL *process_policy_mappings(const X509 *cert,
+   // Convert |mappings| to our "expected_policy_set" representation.
+   next = x509_policy_level_new();
+   if (next == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+   next->has_any_policy = level->has_any_policy;
+@@ -689,7 +680,6 @@ int X509_policy_check(const STACK_OF(X509) *certs,
+ 
+   levels = sk_X509_POLICY_LEVEL_new_null();
+   if (levels == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+@@ -727,7 +717,6 @@ int X509_policy_check(const STACK_OF(X509) *certs,
+ 
+     // Insert into the list.
+     if (!sk_X509_POLICY_LEVEL_push(levels, level)) {
+-      OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     X509_POLICY_LEVEL *current_level = level;
+diff --git a/crypto/x509/x509_att.c b/crypto/x509/x509_att.c
+index 4a4ee476d..0dda757f5 100644
+--- a/crypto/x509/x509_att.c
++++ b/crypto/x509/x509_att.c
+@@ -125,7 +125,7 @@ STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr(STACK_OF(X509_ATTRIBUTE) **x,
+ 
+   if (x == NULL) {
+     OPENSSL_PUT_ERROR(X509, ERR_R_PASSED_NULL_PARAMETER);
+-    goto err2;
++    goto err;
+   }
+ 
+   if (*x == NULL) {
+@@ -137,7 +137,7 @@ STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr(STACK_OF(X509_ATTRIBUTE) **x,
+   }
+ 
+   if ((new_attr = X509_ATTRIBUTE_dup(attr)) == NULL) {
+-    goto err2;
++    goto err;
+   }
+   if (!sk_X509_ATTRIBUTE_push(sk, new_attr)) {
+     goto err;
+@@ -147,8 +147,6 @@ STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr(STACK_OF(X509_ATTRIBUTE) **x,
+   }
+   return sk;
+ err:
+-  OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+-err2:
+   if (new_attr != NULL) {
+     X509_ATTRIBUTE_free(new_attr);
+   }
+@@ -226,7 +224,6 @@ X509_ATTRIBUTE *X509_ATTRIBUTE_create_by_OBJ(X509_ATTRIBUTE **attr,
+ 
+   if ((attr == NULL) || (*attr == NULL)) {
+     if ((ret = X509_ATTRIBUTE_new()) == NULL) {
+-      OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+       return NULL;
+     }
+   } else {
+@@ -326,7 +323,6 @@ int X509_ATTRIBUTE_set1_data(X509_ATTRIBUTE *attr, int attrtype,
+   }
+   return 1;
+ err:
+-  OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+   ASN1_TYPE_free(ttmp);
+   ASN1_STRING_free(stmp);
+   return 0;
+diff --git a/crypto/x509/x509_cmp.c b/crypto/x509/x509_cmp.c
+index b640413cd..b696b9491 100644
+--- a/crypto/x509/x509_cmp.c
++++ b/crypto/x509/x509_cmp.c
+@@ -286,7 +286,6 @@ int X509_check_private_key(X509 *x, const EVP_PKEY *k) {
+ STACK_OF(X509) *X509_chain_up_ref(STACK_OF(X509) *chain) {
+   STACK_OF(X509) *ret = sk_X509_dup(chain);
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   for (size_t i = 0; i < sk_X509_num(ret); i++) {
+diff --git a/crypto/x509/x509_lu.c b/crypto/x509/x509_lu.c
+index 7a2d3a261..2ec8971bd 100644
+--- a/crypto/x509/x509_lu.c
++++ b/crypto/x509/x509_lu.c
+@@ -320,7 +320,6 @@ static int x509_store_add(X509_STORE *ctx, void *x, int is_crl) {
+ 
+   X509_OBJECT *const obj = (X509_OBJECT *)OPENSSL_malloc(sizeof(X509_OBJECT));
+   if (obj == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/crypto/x509/x509_obj.c b/crypto/x509/x509_obj.c
+index 6caae4d62..ed6dcc663 100644
+--- a/crypto/x509/x509_obj.c
++++ b/crypto/x509/x509_obj.c
+@@ -119,7 +119,7 @@ char *X509_NAME_oneline(const X509_NAME *a, char *buf, int len) {
+     num = ne->value->length;
+     if (num > NAME_ONELINE_MAX) {
+       OPENSSL_PUT_ERROR(X509, X509_R_NAME_TOO_LONG);
+-      goto end;
++      goto err;
+     }
+     q = ne->value->data;
+ 
+@@ -155,7 +155,7 @@ char *X509_NAME_oneline(const X509_NAME *a, char *buf, int len) {
+     l += 1 + l1 + 1 + l2;
+     if (l > NAME_ONELINE_MAX) {
+       OPENSSL_PUT_ERROR(X509, X509_R_NAME_TOO_LONG);
+-      goto end;
++      goto err;
+     }
+     if (b != NULL) {
+       if (!BUF_MEM_grow(b, l + 1)) {
+@@ -201,8 +201,6 @@ char *X509_NAME_oneline(const X509_NAME *a, char *buf, int len) {
+   }
+   return p;
+ err:
+-  OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+-end:
+   BUF_MEM_free(b);
+   return NULL;
+ }
+diff --git a/crypto/x509/x509_trs.c b/crypto/x509/x509_trs.c
+index 49c66c169..1329a9f95 100644
+--- a/crypto/x509/x509_trs.c
++++ b/crypto/x509/x509_trs.c
+@@ -183,7 +183,6 @@ int X509_TRUST_add(int id, int flags, int (*ck)(X509_TRUST *, X509 *, int),
+   // Need a new entry
+   if (idx == -1) {
+     if (!(trtmp = OPENSSL_malloc(sizeof(X509_TRUST)))) {
+-      OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     trtmp->flags = X509_TRUST_DYNAMIC;
+@@ -194,7 +193,6 @@ int X509_TRUST_add(int id, int flags, int (*ck)(X509_TRUST *, X509 *, int),
+   // Duplicate the supplied name.
+   name_dup = OPENSSL_strdup(name);
+   if (name_dup == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     if (idx == -1) {
+       OPENSSL_free(trtmp);
+     }
+@@ -219,12 +217,10 @@ int X509_TRUST_add(int id, int flags, int (*ck)(X509_TRUST *, X509 *, int),
+   // If its a new entry manage the dynamic table
+   if (idx == -1) {
+     if (!trtable && !(trtable = sk_X509_TRUST_new(tr_cmp))) {
+-      OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+       trtable_free(trtmp);
+       return 0;
+     }
+     if (!sk_X509_TRUST_push(trtable, trtmp)) {
+-      OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+       trtable_free(trtmp);
+       return 0;
+     }
+diff --git a/crypto/x509/x509_v3.c b/crypto/x509/x509_v3.c
+index dd8435243..0d4ecfa22 100644
+--- a/crypto/x509/x509_v3.c
++++ b/crypto/x509/x509_v3.c
+@@ -182,7 +182,6 @@ STACK_OF(X509_EXTENSION) *X509v3_add_ext(STACK_OF(X509_EXTENSION) **x,
+   }
+   return sk;
+ err:
+-  OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+ err2:
+   X509_EXTENSION_free(new_ex);
+   if (free_sk) {
+@@ -213,7 +212,6 @@ X509_EXTENSION *X509_EXTENSION_create_by_OBJ(X509_EXTENSION **ex,
+ 
+   if ((ex == NULL) || (*ex == NULL)) {
+     if ((ret = X509_EXTENSION_new()) == NULL) {
+-      OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+       return NULL;
+     }
+   } else {
+diff --git a/crypto/x509/x509_vfy.c b/crypto/x509/x509_vfy.c
+index 92882921e..7f3e23273 100644
+--- a/crypto/x509/x509_vfy.c
++++ b/crypto/x509/x509_vfy.c
+@@ -205,7 +205,6 @@ int X509_verify_cert(X509_STORE_CTX *ctx) {
+   // the first entry is in place
+   ctx->chain = sk_X509_new_null();
+   if (ctx->chain == NULL || !sk_X509_push(ctx->chain, ctx->cert)) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     ctx->error = X509_V_ERR_OUT_OF_MEM;
+     goto end;
+   }
+@@ -214,7 +213,6 @@ int X509_verify_cert(X509_STORE_CTX *ctx) {
+ 
+   // We use a temporary STACK so we can chop and hack at it.
+   if (ctx->untrusted != NULL && (sktmp = sk_X509_dup(ctx->untrusted)) == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     ctx->error = X509_V_ERR_OUT_OF_MEM;
+     goto end;
+   }
+@@ -262,7 +260,6 @@ int X509_verify_cert(X509_STORE_CTX *ctx) {
+       xtmp = find_issuer(ctx, sktmp, x);
+       if (xtmp != NULL) {
+         if (!sk_X509_push(ctx->chain, xtmp)) {
+-          OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+           ctx->error = X509_V_ERR_OUT_OF_MEM;
+           ok = 0;
+           goto end;
+@@ -358,7 +355,6 @@ int X509_verify_cert(X509_STORE_CTX *ctx) {
+       x = xtmp;
+       if (!sk_X509_push(ctx->chain, x)) {
+         X509_free(xtmp);
+-        OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+         ctx->error = X509_V_ERR_OUT_OF_MEM;
+         ok = 0;
+         goto end;
+@@ -1994,7 +1990,6 @@ X509_CRL *X509_CRL_diff(X509_CRL *base, X509_CRL *newer, EVP_PKEY *skey,
+   return crl;
+ 
+ memerr:
+-  OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+   if (crl) {
+     X509_CRL_free(crl);
+   }
+@@ -2145,7 +2140,6 @@ X509_STORE_CTX *X509_STORE_CTX_new(void) {
+   X509_STORE_CTX *ctx;
+   ctx = (X509_STORE_CTX *)OPENSSL_malloc(sizeof(X509_STORE_CTX));
+   if (!ctx) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   X509_STORE_CTX_zero(ctx);
+@@ -2265,7 +2259,6 @@ err:
+   }
+ 
+   OPENSSL_memset(ctx, 0, sizeof(X509_STORE_CTX));
+-  OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+   return 0;
+ }
+ 
+diff --git a/crypto/x509/x509name.c b/crypto/x509/x509name.c
+index fcfbc0c91..cc86e289a 100644
+--- a/crypto/x509/x509name.c
++++ b/crypto/x509/x509name.c
+@@ -263,7 +263,6 @@ int X509_NAME_add_entry(X509_NAME *name, const X509_NAME_ENTRY *entry, int loc,
+   }
+   new_name->set = set;
+   if (!sk_X509_NAME_ENTRY_insert(sk, new_name, loc)) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+   if (inc) {
+diff --git a/crypto/x509/x509spki.c b/crypto/x509/x509spki.c
+index 825153416..8ff2053ae 100644
+--- a/crypto/x509/x509spki.c
++++ b/crypto/x509/x509spki.c
+@@ -90,7 +90,6 @@ NETSCAPE_SPKI *NETSCAPE_SPKI_b64_decode(const char *str, int len) {
+     return NULL;
+   }
+   if (!(spki_der = OPENSSL_malloc(spki_len))) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   if (!EVP_DecodeBase64(spki_der, &spki_len, spki_len, (const uint8_t *)str,
+@@ -119,13 +118,11 @@ char *NETSCAPE_SPKI_b64_encode(NETSCAPE_SPKI *spki) {
+   }
+   der_spki = OPENSSL_malloc(der_len);
+   if (der_spki == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   b64_str = OPENSSL_malloc(b64_len);
+   if (b64_str == NULL) {
+     OPENSSL_free(der_spki);
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   p = der_spki;
+diff --git a/crypto/x509/x_crl.c b/crypto/x509/x_crl.c
+index 1480448e5..9c4c116c3 100644
+--- a/crypto/x509/x_crl.c
++++ b/crypto/x509/x_crl.c
+@@ -372,7 +372,6 @@ int X509_CRL_add0_revoked(X509_CRL *crl, X509_REVOKED *rev) {
+     inf->revoked = sk_X509_REVOKED_new(X509_REVOKED_cmp);
+   }
+   if (!inf->revoked || !sk_X509_REVOKED_push(inf->revoked, rev)) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+   asn1_encoding_clear(&inf->enc);
+diff --git a/crypto/x509/x_info.c b/crypto/x509/x_info.c
+index e6f9be2c0..0f074f613 100644
+--- a/crypto/x509/x_info.c
++++ b/crypto/x509/x_info.c
+@@ -66,7 +66,6 @@ X509_INFO *X509_INFO_new(void) {
+ 
+   ret = (X509_INFO *)OPENSSL_malloc(sizeof(X509_INFO));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+diff --git a/crypto/x509/x_name.c b/crypto/x509/x_name.c
+index 3e7cb94da..846398246 100644
+--- a/crypto/x509/x_name.c
++++ b/crypto/x509/x_name.c
+@@ -154,7 +154,6 @@ static int x509_name_ex_new(ASN1_VALUE **val, const ASN1_ITEM *it) {
+   return 1;
+ 
+ memerr:
+-  OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+   if (ret) {
+     if (ret->entries) {
+       sk_X509_NAME_ENTRY_free(ret->entries);
+@@ -281,23 +280,23 @@ static int x509_name_encode(X509_NAME *a) {
+   STACK_OF(STACK_OF_X509_NAME_ENTRY) *intname =
+       sk_STACK_OF_X509_NAME_ENTRY_new_null();
+   if (!intname) {
+-    goto memerr;
++    goto err;
+   }
+   for (i = 0; i < sk_X509_NAME_ENTRY_num(a->entries); i++) {
+     entry = sk_X509_NAME_ENTRY_value(a->entries, i);
+     if (entry->set != set) {
+       entries = sk_X509_NAME_ENTRY_new_null();
+       if (!entries) {
+-        goto memerr;
++        goto err;
+       }
+       if (!sk_STACK_OF_X509_NAME_ENTRY_push(intname, entries)) {
+         sk_X509_NAME_ENTRY_free(entries);
+-        goto memerr;
++        goto err;
+       }
+       set = entry->set;
+     }
+     if (!sk_X509_NAME_ENTRY_push(entries, entry)) {
+-      goto memerr;
++      goto err;
+     }
+   }
+   ASN1_VALUE *intname_val = (ASN1_VALUE *)intname;
+@@ -307,7 +306,7 @@ static int x509_name_encode(X509_NAME *a) {
+     goto err;
+   }
+   if (!BUF_MEM_grow(a->bytes, len)) {
+-    goto memerr;
++    goto err;
+   }
+   p = (unsigned char *)a->bytes->data;
+   if (ASN1_item_ex_i2d(&intname_val, &p, ASN1_ITEM_rptr(X509_NAME_INTERNAL),
+@@ -317,8 +316,6 @@ static int x509_name_encode(X509_NAME *a) {
+   sk_STACK_OF_X509_NAME_ENTRY_pop_free(intname, local_sk_X509_NAME_ENTRY_free);
+   a->modified = 0;
+   return 1;
+-memerr:
+-  OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+ err:
+   sk_STACK_OF_X509_NAME_ENTRY_pop_free(intname, local_sk_X509_NAME_ENTRY_free);
+   return 0;
+diff --git a/crypto/x509/x_pkey.c b/crypto/x509/x_pkey.c
+index 52bc5b673..d48ecd111 100644
+--- a/crypto/x509/x_pkey.c
++++ b/crypto/x509/x_pkey.c
+@@ -69,7 +69,6 @@
+ X509_PKEY *X509_PKEY_new(void) {
+   X509_PKEY *ret = OPENSSL_malloc(sizeof(X509_PKEY));
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+   OPENSSL_memset(ret, 0, sizeof(X509_PKEY));
+diff --git a/crypto/x509v3/v3_akey.c b/crypto/x509v3/v3_akey.c
+index b4093bf15..2af596af0 100644
+--- a/crypto/x509v3/v3_akey.c
++++ b/crypto/x509v3/v3_akey.c
+@@ -201,7 +201,6 @@ static void *v2i_AUTHORITY_KEYID(const X509V3_EXT_METHOD *method,
+   if (isname) {
+     if (!(gens = sk_GENERAL_NAME_new_null()) || !(gen = GENERAL_NAME_new()) ||
+         !sk_GENERAL_NAME_push(gens, gen)) {
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     gen->type = GEN_DIRNAME;
+diff --git a/crypto/x509v3/v3_alt.c b/crypto/x509v3/v3_alt.c
+index f10c1ce2e..858ef4d13 100644
+--- a/crypto/x509v3/v3_alt.c
++++ b/crypto/x509v3/v3_alt.c
+@@ -275,7 +275,6 @@ static void *v2i_issuer_alt(const X509V3_EXT_METHOD *method,
+                             const STACK_OF(CONF_VALUE) *nval) {
+   GENERAL_NAMES *gens = sk_GENERAL_NAME_new_null();
+   if (gens == NULL) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   for (size_t i = 0; i < sk_CONF_VALUE_num(nval); i++) {
+@@ -326,7 +325,6 @@ static int copy_issuer(const X509V3_CTX *ctx, GENERAL_NAMES *gens) {
+   for (size_t j = 0; j < sk_GENERAL_NAME_num(ialt); j++) {
+     GENERAL_NAME *gen = sk_GENERAL_NAME_value(ialt, j);
+     if (!sk_GENERAL_NAME_push(gens, gen)) {
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     // Ownership of |gen| has moved from |ialt| to |gens|.
+@@ -345,7 +343,6 @@ static void *v2i_subject_alt(const X509V3_EXT_METHOD *method,
+                              const STACK_OF(CONF_VALUE) *nval) {
+   GENERAL_NAMES *gens = sk_GENERAL_NAME_new_null();
+   if (gens == NULL) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   for (size_t i = 0; i < sk_CONF_VALUE_num(nval); i++) {
+@@ -407,14 +404,12 @@ static int copy_email(const X509V3_CTX *ctx, GENERAL_NAMES *gens, int move_p) {
+       i--;
+     }
+     if (!email || !(gen = GENERAL_NAME_new())) {
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     gen->d.ia5 = email;
+     email = NULL;
+     gen->type = GEN_EMAIL;
+     if (!sk_GENERAL_NAME_push(gens, gen)) {
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     gen = NULL;
+@@ -433,7 +428,6 @@ GENERAL_NAMES *v2i_GENERAL_NAMES(const X509V3_EXT_METHOD *method,
+                                  const STACK_OF(CONF_VALUE) *nval) {
+   GENERAL_NAMES *gens = sk_GENERAL_NAME_new_null();
+   if (gens == NULL) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   for (size_t i = 0; i < sk_CONF_VALUE_num(nval); i++) {
+@@ -470,7 +464,6 @@ GENERAL_NAME *a2i_GENERAL_NAME(GENERAL_NAME *out,
+   } else {
+     gen = GENERAL_NAME_new();
+     if (gen == NULL) {
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       return NULL;
+     }
+   }
+@@ -482,7 +475,6 @@ GENERAL_NAME *a2i_GENERAL_NAME(GENERAL_NAME *out,
+       ASN1_IA5STRING *str = ASN1_IA5STRING_new();
+       if (str == NULL || !ASN1_STRING_set(str, value, strlen(value))) {
+         ASN1_STRING_free(str);
+-        OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+         goto err;
+       }
+       gen->type = gen_type;
+diff --git a/crypto/x509v3/v3_bcons.c b/crypto/x509v3/v3_bcons.c
+index c558c78e6..e614b8ec6 100644
+--- a/crypto/x509v3/v3_bcons.c
++++ b/crypto/x509v3/v3_bcons.c
+@@ -110,7 +110,6 @@ static void *v2i_BASIC_CONSTRAINTS(const X509V3_EXT_METHOD *method,
+                                    const STACK_OF(CONF_VALUE) *values) {
+   BASIC_CONSTRAINTS *bcons = NULL;
+   if (!(bcons = BASIC_CONSTRAINTS_new())) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   for (size_t i = 0; i < sk_CONF_VALUE_num(values); i++) {
+diff --git a/crypto/x509v3/v3_bitst.c b/crypto/x509v3/v3_bitst.c
+index d87dcf995..1201738b5 100644
+--- a/crypto/x509v3/v3_bitst.c
++++ b/crypto/x509v3/v3_bitst.c
+@@ -105,7 +105,6 @@ static void *v2i_ASN1_BIT_STRING(const X509V3_EXT_METHOD *method,
+                                  const STACK_OF(CONF_VALUE) *nval) {
+   ASN1_BIT_STRING *bs;
+   if (!(bs = ASN1_BIT_STRING_new())) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   for (size_t i = 0; i < sk_CONF_VALUE_num(nval); i++) {
+@@ -114,7 +113,6 @@ static void *v2i_ASN1_BIT_STRING(const X509V3_EXT_METHOD *method,
+     for (bnam = method->usr_data; bnam->lname; bnam++) {
+       if (!strcmp(bnam->sname, val->name) || !strcmp(bnam->lname, val->name)) {
+         if (!ASN1_BIT_STRING_set_bit(bs, bnam->bitnum, 1)) {
+-          OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+           ASN1_BIT_STRING_free(bs);
+           return NULL;
+         }
+diff --git a/crypto/x509v3/v3_conf.c b/crypto/x509v3/v3_conf.c
+index a4f172d3f..ebf33f182 100644
+--- a/crypto/x509v3/v3_conf.c
++++ b/crypto/x509v3/v3_conf.c
+@@ -236,7 +236,6 @@ static X509_EXTENSION *do_ext_i2d(const X509V3_EXT_METHOD *method, int ext_nid,
+   return ext;
+ 
+ merr:
+-  OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+   return NULL;
+ }
+ 
+@@ -314,7 +313,6 @@ static X509_EXTENSION *v3_generic_extension(const char *ext, const char *value,
+   }
+ 
+   if (!(oct = ASN1_OCTET_STRING_new())) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+diff --git a/crypto/x509v3/v3_cpols.c b/crypto/x509v3/v3_cpols.c
+index 84d458c65..e66e260b0 100644
+--- a/crypto/x509v3/v3_cpols.c
++++ b/crypto/x509v3/v3_cpols.c
+@@ -153,7 +153,6 @@ static void *r2i_certpol(const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+                          const char *value) {
+   STACK_OF(POLICYINFO) *pols = sk_POLICYINFO_new_null();
+   if (pols == NULL) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   STACK_OF(CONF_VALUE) *vals = X509V3_parse_list(value);
+@@ -195,7 +194,6 @@ static void *r2i_certpol(const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+       }
+       pol = POLICYINFO_new();
+       if (pol == NULL) {
+-        OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+         ASN1_OBJECT_free(pobj);
+         goto err;
+       }
+@@ -203,7 +201,6 @@ static void *r2i_certpol(const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+     }
+     if (!sk_POLICYINFO_push(pols, pol)) {
+       POLICYINFO_free(pol);
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+   }
+@@ -221,7 +218,7 @@ static POLICYINFO *policy_section(const X509V3_CTX *ctx,
+   POLICYINFO *pol;
+   POLICYQUALINFO *qual;
+   if (!(pol = POLICYINFO_new())) {
+-    goto merr;
++    goto err;
+   }
+   for (size_t i = 0; i < sk_CONF_VALUE_num(polstrs); i++) {
+     const CONF_VALUE *cnf = sk_CONF_VALUE_value(polstrs, i);
+@@ -239,10 +236,10 @@ static POLICYINFO *policy_section(const X509V3_CTX *ctx,
+         pol->qualifiers = sk_POLICYQUALINFO_new_null();
+       }
+       if (!(qual = POLICYQUALINFO_new())) {
+-        goto merr;
++        goto err;
+       }
+       if (!sk_POLICYQUALINFO_push(pol->qualifiers, qual)) {
+-        goto merr;
++        goto err;
+       }
+       qual->pqualid = OBJ_nid2obj(NID_id_qt_cps);
+       if (qual->pqualid == NULL) {
+@@ -254,7 +251,7 @@ static POLICYINFO *policy_section(const X509V3_CTX *ctx,
+         goto err;
+       }
+       if (!ASN1_STRING_set(qual->d.cpsuri, cnf->value, strlen(cnf->value))) {
+-        goto merr;
++        goto err;
+       }
+     } else if (x509v3_conf_name_matches(cnf->name, "userNotice")) {
+       if (*cnf->value != '@') {
+@@ -277,7 +274,7 @@ static POLICYINFO *policy_section(const X509V3_CTX *ctx,
+         pol->qualifiers = sk_POLICYQUALINFO_new_null();
+       }
+       if (!sk_POLICYQUALINFO_push(pol->qualifiers, qual)) {
+-        goto merr;
++        goto err;
+       }
+     } else {
+       OPENSSL_PUT_ERROR(X509V3, X509V3_R_INVALID_OPTION);
+@@ -293,9 +290,6 @@ static POLICYINFO *policy_section(const X509V3_CTX *ctx,
+ 
+   return pol;
+ 
+-merr:
+-  OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+-
+ err:
+   POLICYINFO_free(pol);
+   return NULL;
+@@ -307,7 +301,7 @@ static POLICYQUALINFO *notice_section(const X509V3_CTX *ctx,
+   USERNOTICE *notice;
+   POLICYQUALINFO *qual;
+   if (!(qual = POLICYQUALINFO_new())) {
+-    goto merr;
++    goto err;
+   }
+   qual->pqualid = OBJ_nid2obj(NID_id_qt_unotice);
+   if (qual->pqualid == NULL) {
+@@ -315,7 +309,7 @@ static POLICYQUALINFO *notice_section(const X509V3_CTX *ctx,
+     goto err;
+   }
+   if (!(notice = USERNOTICE_new())) {
+-    goto merr;
++    goto err;
+   }
+   qual->d.usernotice = notice;
+   for (size_t i = 0; i < sk_CONF_VALUE_num(unot); i++) {
+@@ -323,16 +317,16 @@ static POLICYQUALINFO *notice_section(const X509V3_CTX *ctx,
+     if (!strcmp(cnf->name, "explicitText")) {
+       notice->exptext = ASN1_VISIBLESTRING_new();
+       if (notice->exptext == NULL) {
+-        goto merr;
++        goto err;
+       }
+       if (!ASN1_STRING_set(notice->exptext, cnf->value, strlen(cnf->value))) {
+-        goto merr;
++        goto err;
+       }
+     } else if (!strcmp(cnf->name, "organization")) {
+       NOTICEREF *nref;
+       if (!notice->noticeref) {
+         if (!(nref = NOTICEREF_new())) {
+-          goto merr;
++          goto err;
+         }
+         notice->noticeref = nref;
+       } else {
+@@ -345,14 +339,14 @@ static POLICYQUALINFO *notice_section(const X509V3_CTX *ctx,
+       }
+       if (!ASN1_STRING_set(nref->organization, cnf->value,
+                            strlen(cnf->value))) {
+-        goto merr;
++        goto err;
+       }
+     } else if (!strcmp(cnf->name, "noticeNumbers")) {
+       NOTICEREF *nref;
+       STACK_OF(CONF_VALUE) *nos;
+       if (!notice->noticeref) {
+         if (!(nref = NOTICEREF_new())) {
+-          goto merr;
++          goto err;
+         }
+         notice->noticeref = nref;
+       } else {
+@@ -384,9 +378,6 @@ static POLICYQUALINFO *notice_section(const X509V3_CTX *ctx,
+ 
+   return qual;
+ 
+-merr:
+-  OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+-
+ err:
+   POLICYQUALINFO_free(qual);
+   return NULL;
+@@ -403,7 +394,6 @@ static int nref_nos(STACK_OF(ASN1_INTEGER) *nnums,
+     }
+     if (!sk_ASN1_INTEGER_push(nnums, aint)) {
+       ASN1_INTEGER_free(aint);
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+diff --git a/crypto/x509v3/v3_crld.c b/crypto/x509v3/v3_crld.c
+index a3cae4269..4162c3538 100644
+--- a/crypto/x509v3/v3_crld.c
++++ b/crypto/x509v3/v3_crld.c
+@@ -319,7 +319,7 @@ static void *v2i_crld(const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+   GENERAL_NAMES *gens = NULL;
+   GENERAL_NAME *gen = NULL;
+   if (!(crld = sk_DIST_POINT_new_null())) {
+-    goto merr;
++    goto err;
+   }
+   for (size_t i = 0; i < sk_CONF_VALUE_num(nval); i++) {
+     DIST_POINT *point;
+@@ -335,28 +335,28 @@ static void *v2i_crld(const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+       }
+       if (!sk_DIST_POINT_push(crld, point)) {
+         DIST_POINT_free(point);
+-        goto merr;
++        goto err;
+       }
+     } else {
+       if (!(gen = v2i_GENERAL_NAME(method, ctx, cnf))) {
+         goto err;
+       }
+       if (!(gens = GENERAL_NAMES_new())) {
+-        goto merr;
++        goto err;
+       }
+       if (!sk_GENERAL_NAME_push(gens, gen)) {
+-        goto merr;
++        goto err;
+       }
+       gen = NULL;
+       if (!(point = DIST_POINT_new())) {
+-        goto merr;
++        goto err;
+       }
+       if (!sk_DIST_POINT_push(crld, point)) {
+         DIST_POINT_free(point);
+-        goto merr;
++        goto err;
+       }
+       if (!(point->distpoint = DIST_POINT_NAME_new())) {
+-        goto merr;
++        goto err;
+       }
+       point->distpoint->name.fullname = gens;
+       point->distpoint->type = 0;
+@@ -365,8 +365,6 @@ static void *v2i_crld(const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+   }
+   return crld;
+ 
+-merr:
+-  OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+ err:
+   GENERAL_NAME_free(gen);
+   GENERAL_NAMES_free(gens);
+@@ -449,7 +447,7 @@ static void *v2i_idp(const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+                      const STACK_OF(CONF_VALUE) *nval) {
+   ISSUING_DIST_POINT *idp = ISSUING_DIST_POINT_new();
+   if (!idp) {
+-    goto merr;
++    goto err;
+   }
+   for (size_t i = 0; i < sk_CONF_VALUE_num(nval); i++) {
+     const CONF_VALUE *cnf = sk_CONF_VALUE_value(nval, i);
+@@ -490,8 +488,6 @@ static void *v2i_idp(const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+   }
+   return idp;
+ 
+-merr:
+-  OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+ err:
+   ISSUING_DIST_POINT_free(idp);
+   return NULL;
+diff --git a/crypto/x509v3/v3_extku.c b/crypto/x509v3/v3_extku.c
+index 46f40a78d..d678ac781 100644
+--- a/crypto/x509v3/v3_extku.c
++++ b/crypto/x509v3/v3_extku.c
+@@ -129,7 +129,6 @@ static void *v2i_EXTENDED_KEY_USAGE(const X509V3_EXT_METHOD *method,
+                                     const STACK_OF(CONF_VALUE) *nval) {
+   EXTENDED_KEY_USAGE *extku = sk_ASN1_OBJECT_new_null();
+   if (extku == NULL) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+diff --git a/crypto/x509v3/v3_ia5.c b/crypto/x509v3/v3_ia5.c
+index 8104e7bef..e0f9e6bfd 100644
+--- a/crypto/x509v3/v3_ia5.c
++++ b/crypto/x509v3/v3_ia5.c
+@@ -76,7 +76,6 @@ static char *i2s_ASN1_IA5STRING(const X509V3_EXT_METHOD *method, void *ext) {
+     return NULL;
+   }
+   if (!(tmp = OPENSSL_malloc(ia5->length + 1))) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   OPENSSL_memcpy(tmp, ia5->data, ia5->length);
+@@ -100,7 +99,6 @@ static void *s2i_ASN1_IA5STRING(const X509V3_EXT_METHOD *method,
+   }
+   return ia5;
+ err:
+-  OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+   return NULL;
+ }
+ 
+diff --git a/crypto/x509v3/v3_info.c b/crypto/x509v3/v3_info.c
+index e6b3cc593..2ac92213f 100644
+--- a/crypto/x509v3/v3_info.c
++++ b/crypto/x509v3/v3_info.c
+@@ -157,7 +157,6 @@ static STACK_OF(CONF_VALUE) *i2v_AUTHORITY_INFO_ACCESS(
+ 
+   return tret;
+ err:
+-  OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+   if (ret == NULL && tret != NULL) {
+     sk_CONF_VALUE_pop_free(tret, X509V3_conf_free);
+   }
+@@ -171,14 +170,12 @@ static void *v2i_AUTHORITY_INFO_ACCESS(const X509V3_EXT_METHOD *method,
+   ACCESS_DESCRIPTION *acc;
+   char *objtmp, *ptmp;
+   if (!(ainfo = sk_ACCESS_DESCRIPTION_new_null())) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   for (size_t i = 0; i < sk_CONF_VALUE_num(nval); i++) {
+     const CONF_VALUE *cnf = sk_CONF_VALUE_value(nval, i);
+     if (!(acc = ACCESS_DESCRIPTION_new()) ||
+         !sk_ACCESS_DESCRIPTION_push(ainfo, acc)) {
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     ptmp = strchr(cnf->name, ';');
+@@ -194,7 +191,6 @@ static void *v2i_AUTHORITY_INFO_ACCESS(const X509V3_EXT_METHOD *method,
+       goto err;
+     }
+     if (!(objtmp = OPENSSL_malloc(objlen + 1))) {
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+     OPENSSL_strlcpy(objtmp, cnf->name, objlen + 1);
+diff --git a/crypto/x509v3/v3_lib.c b/crypto/x509v3/v3_lib.c
+index 51d15bb6a..d006a5ee8 100644
+--- a/crypto/x509v3/v3_lib.c
++++ b/crypto/x509v3/v3_lib.c
+@@ -79,12 +79,10 @@ static int ext_stack_cmp(const X509V3_EXT_METHOD **a,
+ 
+ int X509V3_EXT_add(X509V3_EXT_METHOD *ext) {
+   if (!ext_list && !(ext_list = sk_X509V3_EXT_METHOD_new(ext_stack_cmp))) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     ext_list_free(ext);
+     return 0;
+   }
+   if (!sk_X509V3_EXT_METHOD_push(ext_list, ext)) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     ext_list_free(ext);
+     return 0;
+   }
+@@ -168,7 +166,6 @@ int X509V3_EXT_add_alias(int nid_to, int nid_from) {
+   }
+   if (!(tmpext =
+             (X509V3_EXT_METHOD *)OPENSSL_malloc(sizeof(X509V3_EXT_METHOD)))) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+   *tmpext = *ext;
+diff --git a/crypto/x509v3/v3_ncons.c b/crypto/x509v3/v3_ncons.c
+index 1b3b9f8a1..ac9559f5c 100644
+--- a/crypto/x509v3/v3_ncons.c
++++ b/crypto/x509v3/v3_ncons.c
+@@ -127,7 +127,7 @@ static void *v2i_NAME_CONSTRAINTS(const X509V3_EXT_METHOD *method,
+   GENERAL_SUBTREE *sub = NULL;
+   ncons = NAME_CONSTRAINTS_new();
+   if (!ncons) {
+-    goto memerr;
++    goto err;
+   }
+   for (size_t i = 0; i < sk_CONF_VALUE_num(nval); i++) {
+     const CONF_VALUE *val = sk_CONF_VALUE_value(nval, i);
+@@ -151,15 +151,13 @@ static void *v2i_NAME_CONSTRAINTS(const X509V3_EXT_METHOD *method,
+       *ptree = sk_GENERAL_SUBTREE_new_null();
+     }
+     if (!*ptree || !sk_GENERAL_SUBTREE_push(*ptree, sub)) {
+-      goto memerr;
++      goto err;
+     }
+     sub = NULL;
+   }
+ 
+   return ncons;
+ 
+-memerr:
+-  OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+ err:
+   NAME_CONSTRAINTS_free(ncons);
+   GENERAL_SUBTREE_free(sub);
+diff --git a/crypto/x509v3/v3_pci.c b/crypto/x509v3/v3_pci.c
+index e680b5b36..f6b380248 100644
+--- a/crypto/x509v3/v3_pci.c
++++ b/crypto/x509v3/v3_pci.c
+@@ -122,7 +122,6 @@ static int process_pci_value(CONF_VALUE *val, ASN1_OBJECT **language,
+     if (!*policy) {
+       *policy = ASN1_OCTET_STRING_new();
+       if (!*policy) {
+-        OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+         X509V3_conf_err(val);
+         return 0;
+       }
+@@ -150,7 +149,6 @@ static int process_pci_value(CONF_VALUE *val, ASN1_OBJECT **language,
+         // too!
+         (*policy)->data = NULL;
+         (*policy)->length = 0;
+-        OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+         X509V3_conf_err(val);
+         goto err;
+       }
+@@ -170,7 +168,6 @@ static int process_pci_value(CONF_VALUE *val, ASN1_OBJECT **language,
+         // too!
+         (*policy)->data = NULL;
+         (*policy)->length = 0;
+-        OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+         X509V3_conf_err(val);
+         goto err;
+       }
+@@ -180,7 +177,6 @@ static int process_pci_value(CONF_VALUE *val, ASN1_OBJECT **language,
+       goto err;
+     }
+     if (!tmp_data) {
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       X509V3_conf_err(val);
+       goto err;
+     }
+@@ -246,7 +242,6 @@ static void *r2i_pci(const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+ 
+   pci = PROXY_CERT_INFO_EXTENSION_new();
+   if (!pci) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+diff --git a/crypto/x509v3/v3_pcons.c b/crypto/x509v3/v3_pcons.c
+index 4cb554157..7b70a4e43 100644
+--- a/crypto/x509v3/v3_pcons.c
++++ b/crypto/x509v3/v3_pcons.c
+@@ -112,7 +112,6 @@ static void *v2i_POLICY_CONSTRAINTS(const X509V3_EXT_METHOD *method,
+                                     const STACK_OF(CONF_VALUE) *values) {
+   POLICY_CONSTRAINTS *pcons = NULL;
+   if (!(pcons = POLICY_CONSTRAINTS_new())) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+   for (size_t i = 0; i < sk_CONF_VALUE_num(values); i++) {
+diff --git a/crypto/x509v3/v3_pmaps.c b/crypto/x509v3/v3_pmaps.c
+index dae4b6664..cd8efd6d2 100644
+--- a/crypto/x509v3/v3_pmaps.c
++++ b/crypto/x509v3/v3_pmaps.c
+@@ -117,7 +117,6 @@ static void *v2i_POLICY_MAPPINGS(const X509V3_EXT_METHOD *method,
+                                  const STACK_OF(CONF_VALUE) *nval) {
+   POLICY_MAPPINGS *pmaps = sk_POLICY_MAPPING_new_null();
+   if (pmaps == NULL) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -132,7 +131,6 @@ static void *v2i_POLICY_MAPPINGS(const X509V3_EXT_METHOD *method,
+     POLICY_MAPPING *pmap = POLICY_MAPPING_new();
+     if (pmap == NULL || !sk_POLICY_MAPPING_push(pmaps, pmap)) {
+       POLICY_MAPPING_free(pmap);
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       goto err;
+     }
+ 
+diff --git a/crypto/x509v3/v3_purp.c b/crypto/x509v3/v3_purp.c
+index 44151328a..9f22f1ace 100644
+--- a/crypto/x509v3/v3_purp.c
++++ b/crypto/x509v3/v3_purp.c
+@@ -224,7 +224,6 @@ int X509_PURPOSE_add(int id, int trust, int flags,
+   // Need a new entry
+   if (idx == -1) {
+     if (!(ptmp = OPENSSL_malloc(sizeof(X509_PURPOSE)))) {
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     ptmp->flags = X509_PURPOSE_DYNAMIC;
+@@ -236,7 +235,6 @@ int X509_PURPOSE_add(int id, int trust, int flags,
+   name_dup = OPENSSL_strdup(name);
+   sname_dup = OPENSSL_strdup(sname);
+   if (name_dup == NULL || sname_dup == NULL) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     if (name_dup != NULL) {
+       OPENSSL_free(name_dup);
+     }
+@@ -270,12 +268,10 @@ int X509_PURPOSE_add(int id, int trust, int flags,
+   // If its a new entry manage the dynamic table
+   if (idx == -1) {
+     if (!xptable && !(xptable = sk_X509_PURPOSE_new(xp_cmp))) {
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       xptable_free(ptmp);
+       return 0;
+     }
+     if (!sk_X509_PURPOSE_push(xptable, ptmp)) {
+-      OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+       xptable_free(ptmp);
+       return 0;
+     }
+diff --git a/crypto/x509v3/v3_skey.c b/crypto/x509v3/v3_skey.c
+index eac7c1d05..cae776f68 100644
+--- a/crypto/x509v3/v3_skey.c
++++ b/crypto/x509v3/v3_skey.c
+@@ -78,7 +78,6 @@ ASN1_OCTET_STRING *s2i_ASN1_OCTET_STRING(const X509V3_EXT_METHOD *method,
+   long length;
+ 
+   if (!(oct = ASN1_OCTET_STRING_new())) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -109,7 +108,6 @@ static void *s2i_skey_id(const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+   }
+ 
+   if (!(oct = ASN1_OCTET_STRING_new())) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+@@ -138,7 +136,6 @@ static void *s2i_skey_id(const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+   }
+ 
+   if (!ASN1_OCTET_STRING_set(oct, pkey_dig, diglen)) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+ 
+diff --git a/crypto/x509v3/v3_utl.c b/crypto/x509v3/v3_utl.c
+index c1ee94313..45daafddc 100644
+--- a/crypto/x509v3/v3_utl.c
++++ b/crypto/x509v3/v3_utl.c
+@@ -96,7 +96,7 @@ static int x509V3_add_len_value(const char *name, const char *value,
+   char *tname = NULL, *tvalue = NULL;
+   int extlist_was_null = *extlist == NULL;
+   if (name && !(tname = OPENSSL_strdup(name))) {
+-    goto malloc_err;
++    goto err;
+   }
+   if (!omit_value) {
+     // |CONF_VALUE| cannot represent strings with NULs.
+@@ -106,24 +106,22 @@ static int x509V3_add_len_value(const char *name, const char *value,
+     }
+     tvalue = OPENSSL_strndup(value, value_len);
+     if (tvalue == NULL) {
+-      goto malloc_err;
++      goto err;
+     }
+   }
+   if (!(vtmp = CONF_VALUE_new())) {
+-    goto malloc_err;
++    goto err;
+   }
+   if (!*extlist && !(*extlist = sk_CONF_VALUE_new_null())) {
+-    goto malloc_err;
++    goto err;
+   }
+   vtmp->section = NULL;
+   vtmp->name = tname;
+   vtmp->value = tvalue;
+   if (!sk_CONF_VALUE_push(*extlist, vtmp)) {
+-    goto malloc_err;
++    goto err;
+   }
+   return 1;
+-malloc_err:
+-  OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+ err:
+   if (extlist_was_null) {
+     sk_CONF_VALUE_free(*extlist);
+@@ -186,7 +184,6 @@ static char *bignum_to_string(const BIGNUM *bn) {
+   len = strlen(tmp) + 3;
+   ret = OPENSSL_malloc(len);
+   if (ret == NULL) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     OPENSSL_free(tmp);
+     return NULL;
+   }
+@@ -212,7 +209,6 @@ char *i2s_ASN1_ENUMERATED(const X509V3_EXT_METHOD *method,
+   }
+   if (!(bntmp = ASN1_ENUMERATED_to_BN(a, NULL)) ||
+       !(strtmp = bignum_to_string(bntmp))) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+   }
+   BN_free(bntmp);
+   return strtmp;
+@@ -226,7 +222,6 @@ char *i2s_ASN1_INTEGER(const X509V3_EXT_METHOD *method, const ASN1_INTEGER *a) {
+   }
+   if (!(bntmp = ASN1_INTEGER_to_BN(a, NULL)) ||
+       !(strtmp = bignum_to_string(bntmp))) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+   }
+   BN_free(bntmp);
+   return strtmp;
+@@ -366,7 +361,6 @@ STACK_OF(CONF_VALUE) *X509V3_parse_list(const char *line) {
+   // We are going to modify the line so copy it first
+   linebuf = OPENSSL_strdup(line);
+   if (linebuf == NULL) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+     goto err;
+   }
+   state = HDR_NAME;
+@@ -496,7 +490,6 @@ char *x509v3_bytes_to_hex(const uint8_t *in, size_t len) {
+   return (char *)ret;
+ 
+ err:
+-  OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+   CBB_cleanup(&cbb);
+   return NULL;
+ }
+@@ -540,7 +533,6 @@ unsigned char *x509v3_hex_to_bytes(const char *str, long *len) {
+ 
+ err:
+   OPENSSL_free(hexbuf);
+-  OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+   return NULL;
+ 
+ badhex:
+diff --git a/include/openssl/mem.h b/include/openssl/mem.h
+index dacd6c94b..0a2ac7c3a 100644
+--- a/include/openssl/mem.h
++++ b/include/openssl/mem.h
+@@ -84,7 +84,8 @@ OPENSSL_EXPORT void *OPENSSL_malloc(size_t size);
+ #endif // !_BORINGSSL_PROHIBIT_OPENSSL_MALLOC
+ 
+ // OPENSSL_free does nothing if |ptr| is NULL. Otherwise it zeros out the
+-// memory allocated at |ptr| and frees it.
++// memory allocated at |ptr| and frees it along with the private data.
++// It must only be used on on |ptr| values obtained from |OPENSSL_malloc|
+ OPENSSL_EXPORT void OPENSSL_free(void *ptr);
+ 
+ #ifndef _BORINGSSL_PROHIBIT_OPENSSL_MALLOC
+diff --git a/ssl/d1_both.cc b/ssl/d1_both.cc
+index 9a1567d45..55c92fad8 100644
+--- a/ssl/d1_both.cc
++++ b/ssl/d1_both.cc
+@@ -163,7 +163,6 @@ static UniquePtr<hm_fragment> dtls1_hm_fragment_new(
+   frag->data =
+       (uint8_t *)OPENSSL_malloc(DTLS1_HM_HEADER_LENGTH + msg_hdr->msg_len);
+   if (frag->data == NULL) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return nullptr;
+   }
+ 
+@@ -174,7 +173,6 @@ static UniquePtr<hm_fragment> dtls1_hm_fragment_new(
+       !CBB_add_u24(cbb.get(), 0 /* frag_off */) ||
+       !CBB_add_u24(cbb.get(), msg_hdr->msg_len) ||
+       !CBB_finish(cbb.get(), NULL, NULL)) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return nullptr;
+   }
+ 
+@@ -188,7 +186,6 @@ static UniquePtr<hm_fragment> dtls1_hm_fragment_new(
+     size_t bitmask_len = (msg_hdr->msg_len + 7) / 8;
+     frag->reassembly = (uint8_t *)OPENSSL_malloc(bitmask_len);
+     if (frag->reassembly == NULL) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return nullptr;
+     }
+     OPENSSL_memset(frag->reassembly, 0, bitmask_len);
+diff --git a/ssl/encrypted_client_hello.cc b/ssl/encrypted_client_hello.cc
+index e5b04005d..8d35f18b4 100644
+--- a/ssl/encrypted_client_hello.cc
++++ b/ssl/encrypted_client_hello.cc
+@@ -571,7 +571,6 @@ bool ECHServerConfig::SetupContext(EVP_HPKE_CTX *ctx, uint16_t kdf_id,
+                      sizeof(kInfoLabel) /* includes trailing NUL */) ||
+       !CBB_add_bytes(info_cbb.get(), ech_config_.raw.data(),
+                      ech_config_.raw.size())) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return false;
+   }
+ 
+@@ -668,7 +667,6 @@ bool ssl_select_ech_config(SSL_HANDSHAKE *hs, Span<uint8_t> out_enc,
+             !CBB_add_bytes(info.get(), kInfoLabel, sizeof(kInfoLabel)) ||
+             !CBB_add_bytes(info.get(), ech_config.raw.data(),
+                            ech_config.raw.size())) {
+-          OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+           return false;
+         }
+ 
+@@ -1036,7 +1034,6 @@ int SSL_ECH_KEYS_add(SSL_ECH_KEYS *configs, int is_retry_config,
+     return 0;
+   }
+   if (!configs->configs.Push(std::move(parsed_config))) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+   return 1;
+@@ -1059,14 +1056,12 @@ int SSL_ECH_KEYS_marshal_retry_configs(const SSL_ECH_KEYS *keys, uint8_t **out,
+   CBB child;
+   if (!CBB_init(cbb.get(), 128) ||
+       !CBB_add_u16_length_prefixed(cbb.get(), &child)) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return false;
+   }
+   for (const auto &config : keys->configs) {
+     if (config->is_retry_config() &&
+         !CBB_add_bytes(&child, config->ech_config().raw.data(),
+                        config->ech_config().raw.size())) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+   }
+diff --git a/ssl/extensions.cc b/ssl/extensions.cc
+index ef4219444..e061c8e72 100644
+--- a/ssl/extensions.cc
++++ b/ssl/extensions.cc
+@@ -3937,7 +3937,6 @@ static enum ssl_ticket_aead_result_t ssl_decrypt_ticket_with_method(
+     Span<const uint8_t> ticket) {
+   Array<uint8_t> plaintext;
+   if (!plaintext.Init(ticket.size())) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return ssl_ticket_aead_error;
+   }
+ 
+diff --git a/ssl/handshake_client.cc b/ssl/handshake_client.cc
+index bd0432f45..de940b62a 100644
+--- a/ssl/handshake_client.cc
++++ b/ssl/handshake_client.cc
+@@ -1123,7 +1123,6 @@ static enum ssl_hs_wait_t do_read_server_key_exchange(SSL_HANDSHAKE *hs) {
+     char *raw = nullptr;
+     if (CBS_len(&psk_identity_hint) != 0 &&
+         !CBS_strdup(&psk_identity_hint, &raw)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
+       return ssl_hs_error;
+     }
+@@ -1448,7 +1447,6 @@ static enum ssl_hs_wait_t do_send_client_key_exchange(SSL_HANDSHAKE *hs) {
+ 
+     hs->new_session->psk_identity.reset(OPENSSL_strdup(identity));
+     if (hs->new_session->psk_identity == nullptr) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return ssl_hs_error;
+     }
+ 
+@@ -1536,7 +1534,6 @@ static enum ssl_hs_wait_t do_send_client_key_exchange(SSL_HANDSHAKE *hs) {
+         !CBB_add_u16_length_prefixed(pms_cbb.get(), &child) ||
+         !CBB_add_bytes(&child, psk, psk_len) ||
+         !CBBFinishArray(pms_cbb.get(), &pms)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return ssl_hs_error;
+     }
+   }
+diff --git a/ssl/handshake_server.cc b/ssl/handshake_server.cc
+index 8b008486d..b4d8071f9 100644
+--- a/ssl/handshake_server.cc
++++ b/ssl/handshake_server.cc
+@@ -272,7 +272,6 @@ static UniquePtr<STACK_OF(SSL_CIPHER)> ssl_parse_client_cipher_list(
+ 
+   UniquePtr<STACK_OF(SSL_CIPHER)> sk(sk_SSL_CIPHER_new_null());
+   if (!sk) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return nullptr;
+   }
+ 
+@@ -286,7 +285,6 @@ static UniquePtr<STACK_OF(SSL_CIPHER)> ssl_parse_client_cipher_list(
+ 
+     const SSL_CIPHER *c = SSL_get_cipher_by_value(cipher_suite);
+     if (c != NULL && !sk_SSL_CIPHER_push(sk.get(), c)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return nullptr;
+     }
+   }
+@@ -1409,7 +1407,6 @@ static enum ssl_hs_wait_t do_read_client_key_exchange(SSL_HANDSHAKE *hs) {
+     }
+     char *raw = nullptr;
+     if (!CBS_strdup(&psk_identity, &raw)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
+       return ssl_hs_error;
+     }
+@@ -1562,7 +1559,6 @@ static enum ssl_hs_wait_t do_read_client_key_exchange(SSL_HANDSHAKE *hs) {
+         !CBB_add_u16_length_prefixed(new_premaster.get(), &child) ||
+         !CBB_add_bytes(&child, psk, psk_len) ||
+         !CBBFinishArray(new_premaster.get(), &premaster_secret)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return ssl_hs_error;
+     }
+   }
+diff --git a/ssl/internal.h b/ssl/internal.h
+index 684cf6379..217fefb98 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -195,7 +195,6 @@ template <typename T, typename... Args>
+ T *New(Args &&...args) {
+   void *t = OPENSSL_malloc(sizeof(T));
+   if (t == nullptr) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return nullptr;
+   }
+   return new (t) T(std::forward<Args>(args)...);
+@@ -323,7 +322,6 @@ class Array {
+     }
+     data_ = reinterpret_cast<T *>(OPENSSL_malloc(new_size * sizeof(T)));
+     if (data_ == nullptr) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+     size_ = new_size;
+diff --git a/ssl/s3_both.cc b/ssl/s3_both.cc
+index d02434685..99bb966fe 100644
+--- a/ssl/s3_both.cc
++++ b/ssl/s3_both.cc
+@@ -439,7 +439,6 @@ static ssl_open_record_t read_v2_client_hello(SSL *ssl, size_t *out_consumed,
+       // No session id.
+       !CBB_add_u8(&hello_body, 0) ||
+       !CBB_add_u16_length_prefixed(&hello_body, &cipher_suites)) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return ssl_open_record_error;
+   }
+ 
+diff --git a/ssl/ssl_aead_ctx.cc b/ssl/ssl_aead_ctx.cc
+index 814839820..d789a697a 100644
+--- a/ssl/ssl_aead_ctx.cc
++++ b/ssl/ssl_aead_ctx.cc
+@@ -92,7 +92,6 @@ UniquePtr<SSLAEADContext> SSLAEADContext::Create(
+   UniquePtr<SSLAEADContext> aead_ctx =
+       MakeUnique<SSLAEADContext>(version, is_dtls, cipher);
+   if (!aead_ctx) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return nullptr;
+   }
+ 
+diff --git a/ssl/ssl_asn1.cc b/ssl/ssl_asn1.cc
+index c25dbd807..7c702fd5a 100644
+--- a/ssl/ssl_asn1.cc
++++ b/ssl/ssl_asn1.cc
+@@ -223,7 +223,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+       !CBB_add_asn1_uint64(&child, in->time) ||
+       !CBB_add_asn1(&session, &child, kTimeoutTag) ||
+       !CBB_add_asn1_uint64(&child, in->timeout)) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -234,7 +233,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+     if (!CBB_add_asn1(&session, &child, kPeerTag) ||
+         !CBB_add_bytes(&child, CRYPTO_BUFFER_data(buffer),
+                        CRYPTO_BUFFER_len(buffer))) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -243,14 +241,12 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+   // historically always encoded the sid_ctx.
+   if (!CBB_add_asn1(&session, &child, kSessionIDContextTag) ||
+       !CBB_add_asn1_octet_string(&child, in->sid_ctx, in->sid_ctx_length)) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+   if (in->verify_result != X509_V_OK) {
+     if (!CBB_add_asn1(&session, &child, kVerifyResultTag) ||
+         !CBB_add_asn1_uint64(&child, in->verify_result)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -260,7 +256,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+         !CBB_add_asn1_octet_string(&child,
+                                    (const uint8_t *)in->psk_identity.get(),
+                                    strlen(in->psk_identity.get()))) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -268,7 +263,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+   if (in->ticket_lifetime_hint > 0) {
+     if (!CBB_add_asn1(&session, &child, kTicketLifetimeHintTag) ||
+         !CBB_add_asn1_uint64(&child, in->ticket_lifetime_hint)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -277,7 +271,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+     if (!CBB_add_asn1(&session, &child, kTicketTag) ||
+         !CBB_add_asn1_octet_string(&child, in->ticket.data(),
+                                    in->ticket.size())) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -286,7 +279,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+     if (!CBB_add_asn1(&session, &child, kPeerSHA256Tag) ||
+         !CBB_add_asn1_octet_string(&child, in->peer_sha256,
+                                    sizeof(in->peer_sha256))) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -295,7 +287,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+     if (!CBB_add_asn1(&session, &child, kOriginalHandshakeHashTag) ||
+         !CBB_add_asn1_octet_string(&child, in->original_handshake_hash,
+                                    in->original_handshake_hash_len)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -305,7 +296,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+         !CBB_add_asn1_octet_string(
+             &child, CRYPTO_BUFFER_data(in->signed_cert_timestamp_list.get()),
+             CRYPTO_BUFFER_len(in->signed_cert_timestamp_list.get()))) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -315,7 +305,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+         !CBB_add_asn1_octet_string(
+             &child, CRYPTO_BUFFER_data(in->ocsp_response.get()),
+             CRYPTO_BUFFER_len(in->ocsp_response.get()))) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -323,7 +312,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+   if (in->extended_master_secret) {
+     if (!CBB_add_asn1(&session, &child, kExtendedMasterSecretTag) ||
+         !CBB_add_asn1_bool(&child, true)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -331,7 +319,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+   if (in->group_id > 0 &&
+       (!CBB_add_asn1(&session, &child, kGroupIDTag) ||
+        !CBB_add_asn1_uint64(&child, in->group_id))) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -341,14 +328,12 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+       !in->peer_sha256_valid &&
+       sk_CRYPTO_BUFFER_num(in->certs.get()) >= 2) {
+     if (!CBB_add_asn1(&session, &child, kCertChainTag)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     for (size_t i = 1; i < sk_CRYPTO_BUFFER_num(in->certs.get()); i++) {
+       const CRYPTO_BUFFER *buffer = sk_CRYPTO_BUFFER_value(in->certs.get(), i);
+       if (!CBB_add_bytes(&child, CRYPTO_BUFFER_data(buffer),
+                          CRYPTO_BUFFER_len(buffer))) {
+-        OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+         return 0;
+       }
+     }
+@@ -358,7 +343,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+     if (!CBB_add_asn1(&session, &child, kTicketAgeAddTag) ||
+         !CBB_add_asn1(&child, &child2, CBS_ASN1_OCTETSTRING) ||
+         !CBB_add_u32(&child2, in->ticket_age_add)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -366,7 +350,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+   if (!in->is_server) {
+     if (!CBB_add_asn1(&session, &child, kIsServerTag) ||
+         !CBB_add_asn1_bool(&child, false)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -374,21 +357,18 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+   if (in->peer_signature_algorithm != 0 &&
+       (!CBB_add_asn1(&session, &child, kPeerSignatureAlgorithmTag) ||
+        !CBB_add_asn1_uint64(&child, in->peer_signature_algorithm))) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+   if (in->ticket_max_early_data != 0 &&
+       (!CBB_add_asn1(&session, &child, kTicketMaxEarlyDataTag) ||
+        !CBB_add_asn1_uint64(&child, in->ticket_max_early_data))) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+   if (in->timeout != in->auth_timeout &&
+       (!CBB_add_asn1(&session, &child, kAuthTimeoutTag) ||
+        !CBB_add_asn1_uint64(&child, in->auth_timeout))) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+@@ -396,7 +376,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+     if (!CBB_add_asn1(&session, &child, kEarlyALPNTag) ||
+         !CBB_add_asn1_octet_string(&child, in->early_alpn.data(),
+                                    in->early_alpn.size())) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -404,7 +383,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+   if (in->is_quic) {
+     if (!CBB_add_asn1(&session, &child, kIsQuicTag) ||
+         !CBB_add_asn1_bool(&child, true)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -413,7 +391,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+     if (!CBB_add_asn1(&session, &child, kQuicEarlyDataContextTag) ||
+         !CBB_add_asn1_octet_string(&child, in->quic_early_data_context.data(),
+                                    in->quic_early_data_context.size())) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -426,7 +403,6 @@ static int SSL_SESSION_to_bytes_full(const SSL_SESSION *in, CBB *cbb,
+         !CBB_add_asn1(&session, &child, kPeerALPSTag) ||
+         !CBB_add_asn1_octet_string(&child, in->peer_application_settings.data(),
+                                    in->peer_application_settings.size())) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+   }
+@@ -453,7 +429,6 @@ static int SSL_SESSION_parse_string(CBS *cbs, UniquePtr<char> *out,
+     }
+     char *raw = nullptr;
+     if (!CBS_strdup(&value, &raw)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+     out->reset(raw);
+@@ -493,7 +468,6 @@ static int SSL_SESSION_parse_crypto_buffer(CBS *cbs,
+   }
+   out->reset(CRYPTO_BUFFER_new_from_CBS(&value, pool));
+   if (*out == nullptr) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+   return 1;
+@@ -712,7 +686,6 @@ UniquePtr<SSL_SESSION> SSL_SESSION_parse(CBS *cbs,
+   if (has_peer || has_cert_chain) {
+     ret->certs.reset(sk_CRYPTO_BUFFER_new_null());
+     if (ret->certs == nullptr) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return nullptr;
+     }
+ 
+@@ -720,7 +693,6 @@ UniquePtr<SSL_SESSION> SSL_SESSION_parse(CBS *cbs,
+       UniquePtr<CRYPTO_BUFFER> buffer(CRYPTO_BUFFER_new_from_CBS(&peer, pool));
+       if (!buffer ||
+           !PushToStack(ret->certs.get(), std::move(buffer))) {
+-        OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+         return nullptr;
+       }
+     }
+@@ -736,7 +708,6 @@ UniquePtr<SSL_SESSION> SSL_SESSION_parse(CBS *cbs,
+       UniquePtr<CRYPTO_BUFFER> buffer(CRYPTO_BUFFER_new_from_CBS(&cert, pool));
+       if (buffer == nullptr ||
+           !PushToStack(ret->certs.get(), std::move(buffer))) {
+-        OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+         return nullptr;
+       }
+     }
+diff --git a/ssl/ssl_cert.cc b/ssl/ssl_cert.cc
+index b6f1e6108..ec7738198 100644
+--- a/ssl/ssl_cert.cc
++++ b/ssl/ssl_cert.cc
+@@ -365,7 +365,6 @@ bool ssl_parse_cert_chain(uint8_t *out_alert,
+   UniquePtr<STACK_OF(CRYPTO_BUFFER)> chain(sk_CRYPTO_BUFFER_new_null());
+   if (!chain) {
+     *out_alert = SSL_AD_INTERNAL_ERROR;
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return false;
+   }
+ 
+@@ -397,7 +396,6 @@ bool ssl_parse_cert_chain(uint8_t *out_alert,
+     if (!buf ||
+         !PushToStack(chain.get(), std::move(buf))) {
+       *out_alert = SSL_AD_INTERNAL_ERROR;
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+   }
+@@ -623,7 +621,6 @@ UniquePtr<STACK_OF(CRYPTO_BUFFER)> ssl_parse_client_CA_list(SSL *ssl,
+   UniquePtr<STACK_OF(CRYPTO_BUFFER)> ret(sk_CRYPTO_BUFFER_new_null());
+   if (!ret) {
+     *out_alert = SSL_AD_INTERNAL_ERROR;
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return nullptr;
+   }
+ 
+@@ -647,7 +644,6 @@ UniquePtr<STACK_OF(CRYPTO_BUFFER)> ssl_parse_client_CA_list(SSL *ssl,
+     if (!buffer ||
+         !PushToStack(ret.get(), std::move(buffer))) {
+       *out_alert = SSL_AD_INTERNAL_ERROR;
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return nullptr;
+     }
+   }
+diff --git a/ssl/ssl_key_share.cc b/ssl/ssl_key_share.cc
+index 201c1cafa..531d0c325 100644
+--- a/ssl/ssl_key_share.cc
++++ b/ssl/ssl_key_share.cc
+@@ -162,7 +162,6 @@ class X25519KeyShare : public SSLKeyShare {
+ 
+     Array<uint8_t> secret;
+     if (!secret.Init(32)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+ 
+@@ -232,7 +231,6 @@ class CECPQ2KeyShare : public SSLKeyShare {
+               uint8_t *out_alert, Span<const uint8_t> peer_key) override {
+     Array<uint8_t> secret;
+     if (!secret.Init(32 + HRSS_KEY_BYTES)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+ 
+@@ -274,7 +272,6 @@ class CECPQ2KeyShare : public SSLKeyShare {
+ 
+     Array<uint8_t> secret;
+     if (!secret.Init(32 + HRSS_KEY_BYTES)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+ 
+diff --git a/ssl/ssl_lib.cc b/ssl/ssl_lib.cc
+index 8a981161a..6f222ff50 100644
+--- a/ssl/ssl_lib.cc
++++ b/ssl/ssl_lib.cc
+@@ -2144,7 +2144,6 @@ int SSL_set_tlsext_host_name(SSL *ssl, const char *name) {
+   }
+   ssl->hostname.reset(OPENSSL_strdup(name));
+   if (ssl->hostname == nullptr) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+   return 1;
+diff --git a/ssl/ssl_session.cc b/ssl/ssl_session.cc
+index 74601e04e..d9c3b188e 100644
+--- a/ssl/ssl_session.cc
++++ b/ssl/ssl_session.cc
+@@ -221,7 +221,6 @@ UniquePtr<SSL_SESSION> SSL_SESSION_dup(SSL_SESSION *session, int dup_flags) {
+     new_session->certs.reset(sk_CRYPTO_BUFFER_deep_copy(
+         session->certs.get(), buf_up_ref, CRYPTO_BUFFER_free));
+     if (new_session->certs == nullptr) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return nullptr;
+     }
+   }
+diff --git a/ssl/ssl_x509.cc b/ssl/ssl_x509.cc
+index c89d4edb5..e4b3775b3 100644
+--- a/ssl/ssl_x509.cc
++++ b/ssl/ssl_x509.cc
+@@ -284,7 +284,6 @@ static bool ssl_crypto_x509_session_cache_objects(SSL_SESSION *sess) {
+   if (sk_CRYPTO_BUFFER_num(sess->certs.get()) > 0) {
+     chain.reset(sk_X509_new_null());
+     if (!chain) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+     if (sess->is_server) {
+@@ -292,7 +291,6 @@ static bool ssl_crypto_x509_session_cache_objects(SSL_SESSION *sess) {
+       // |SSL_get_peer_cert_chain|.
+       chain_without_leaf.reset(sk_X509_new_null());
+       if (!chain_without_leaf) {
+-        OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+         return false;
+       }
+     }
+@@ -309,11 +307,9 @@ static bool ssl_crypto_x509_session_cache_objects(SSL_SESSION *sess) {
+       leaf = UpRef(x509);
+     } else if (chain_without_leaf &&
+                !PushToStack(chain_without_leaf.get(), UpRef(x509))) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+     if (!PushToStack(chain.get(), std::move(x509))) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+   }
+@@ -1104,7 +1100,6 @@ static STACK_OF(X509_NAME) *
+ 
+   UniquePtr<STACK_OF(X509_NAME)> new_cache(sk_X509_NAME_new_null());
+   if (!new_cache) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return NULL;
+   }
+ 
+diff --git a/ssl/t1_enc.cc b/ssl/t1_enc.cc
+index 46ebeaa2f..a985d38bb 100644
+--- a/ssl/t1_enc.cc
++++ b/ssl/t1_enc.cc
+@@ -366,7 +366,6 @@ int SSL_export_keying_material(SSL *ssl, uint8_t *out, size_t out_len,
+   }
+   Array<uint8_t> seed;
+   if (!seed.Init(seed_len)) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+ 
+diff --git a/ssl/tls13_both.cc b/ssl/tls13_both.cc
+index e44489fb6..99ce56d6e 100644
+--- a/ssl/tls13_both.cc
++++ b/ssl/tls13_both.cc
+@@ -53,13 +53,11 @@ bool tls13_get_cert_verify_signature_input(
+     enum ssl_cert_verify_context_t cert_verify_context) {
+   ScopedCBB cbb;
+   if (!CBB_init(cbb.get(), 64 + 33 + 1 + 2 * EVP_MAX_MD_SIZE)) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return false;
+   }
+ 
+   for (size_t i = 0; i < 64; i++) {
+     if (!CBB_add_u8(cbb.get(), 0x20)) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+   }
+@@ -75,7 +73,6 @@ bool tls13_get_cert_verify_signature_input(
+     static const char kContext[] = "TLS 1.3, Channel ID";
+     context = kContext;
+   } else {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return false;
+   }
+ 
+@@ -83,7 +80,6 @@ bool tls13_get_cert_verify_signature_input(
+   if (!CBB_add_bytes(cbb.get(),
+                      reinterpret_cast<const uint8_t *>(context.data()),
+                      context.size())) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return false;
+   }
+ 
+@@ -92,7 +88,6 @@ bool tls13_get_cert_verify_signature_input(
+   if (!hs->transcript.GetHash(context_hash, &context_hash_len) ||
+       !CBB_add_bytes(cbb.get(), context_hash, context_hash_len) ||
+       !CBBFinishArray(cbb.get(), out)) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return false;
+   }
+ 
+@@ -181,7 +176,6 @@ bool tls13_process_certificate(SSL_HANDSHAKE *hs, const SSLMessage &msg,
+   UniquePtr<STACK_OF(CRYPTO_BUFFER)> certs(sk_CRYPTO_BUFFER_new_null());
+   if (!certs) {
+     ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return false;
+   }
+ 
+@@ -225,7 +219,6 @@ bool tls13_process_certificate(SSL_HANDSHAKE *hs, const SSLMessage &msg,
+     if (!buf ||
+         !PushToStack(certs.get(), std::move(buf))) {
+       ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return false;
+     }
+ 
+diff --git a/ssl/tls13_client.cc b/ssl/tls13_client.cc
+index af2120c38..db894481a 100644
+--- a/ssl/tls13_client.cc
++++ b/ssl/tls13_client.cc
+@@ -667,7 +667,6 @@ static enum ssl_hs_wait_t do_read_certificate_request(SSL_HANDSHAKE *hs) {
+   } else {
+     hs->ca_names.reset(sk_CRYPTO_BUFFER_new_null());
+     if (!hs->ca_names) {
+-      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
+       return ssl_hs_error;
+     }
+diff --git a/ssl/tls13_enc.cc b/ssl/tls13_enc.cc
+index 23889bd1c..ad023ef8e 100644
+--- a/ssl/tls13_enc.cc
++++ b/ssl/tls13_enc.cc
+@@ -111,7 +111,6 @@ static bool hkdf_expand_label(Span<uint8_t> out, const EVP_MD *digest,
+       !CBB_add_u8_length_prefixed(cbb.get(), &child) ||
+       !CBB_add_bytes(&child, hash.data(), hash.size()) ||
+       !CBBFinishArray(cbb.get(), &hkdf_label)) {
+-    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return false;
+   }
+ 

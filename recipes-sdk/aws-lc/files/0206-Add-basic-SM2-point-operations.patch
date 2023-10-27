@@ -1,0 +1,28 @@
+From e509fb758795c8b709bb036c2ac42f9a17475473 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Thu, 16 Mar 2023 21:02:41 -0700
+Subject: [PATCH] Add basic SM2 point operations
+
+The same trio as for the NIST curves: a point doubling function, point
+addition function and point mixed addition function, all using
+Jacobian coordinates, and all with input nondegeneracy assumed (see
+the formal spec for the exact assumptions).
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/1cdd6ff1a7cd77b6bc73f690ee89db41bcd787ed
+---
+ x86_att/p384/p384_montjdouble.S | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/x86_att/p384/p384_montjdouble.S b/x86_att/p384/p384_montjdouble.S
+index d06d22bd8..80e0b6cc8 100644
+--- a/x86_att/p384/p384_montjdouble.S
++++ b/x86_att/p384/p384_montjdouble.S
+@@ -913,7 +913,7 @@ S2N_BN_SYMBOL(p384_montjdouble):
+ #endif
+ 
+ // Save registers and make room on stack for temporary variables
+-// Save the outpuy pointer %rdi which gets overwritten in earlier
++// Save the output pointer %rdi which gets overwritten in earlier
+ // operations before it is used.
+ 
+         pushq  %rbx

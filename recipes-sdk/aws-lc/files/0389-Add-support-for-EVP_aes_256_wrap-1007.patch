@@ -1,0 +1,425 @@
+From 288697d9a2e0f3c7d3ca5163400a5d26ea3c23ec Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Thu, 25 May 2023 16:34:30 -0700
+Subject: [PATCH] Add support for EVP_aes_256_wrap (#1007)
+
+mySQL consumes support for AES Key Wrap via the EVP_aes_256_wrap
+functions. AWS-LC already supports Key Wrapping, so we have existing
+functions we can try "wrapping" around. No new crypto is being
+implemented, but we should be staying consistent with the behavior of
+OpenSSL's EVP functions here.
+I've chosen to mark EVP_aes_256_wrap as NOT_APPROVED for the service
+indicator, mainly because the complications of
+EVP_CIPH_FLAG_CUSTOM_CIPHER documented in
+crypto/fipsmodule/cipher/cipher.c still apply here. We can look into
+marking the consumption of this FIPS approved in another commit if
+needed.
+---
+ crypto/fipsmodule/aes/aes_test.cc             | 159 ++++++++++++++++--
+ crypto/fipsmodule/cipher/cipher.c             |   5 +-
+ crypto/fipsmodule/cipher/e_aes.c              |  70 ++++++++
+ .../service_indicator_test.cc                 |  23 ++-
+ include/openssl/cipher.h                      |   8 +-
+ 5 files changed, 250 insertions(+), 15 deletions(-)
+
+diff --git a/crypto/fipsmodule/aes/aes_test.cc b/crypto/fipsmodule/aes/aes_test.cc
+index 73de15919..35bb40a31 100644
+--- a/crypto/fipsmodule/aes/aes_test.cc
++++ b/crypto/fipsmodule/aes/aes_test.cc
+@@ -23,16 +23,24 @@
+ #include <gtest/gtest.h>
+ 
+ #include <openssl/aes.h>
++#include <openssl/cipher.h>
+ #include <openssl/rand.h>
+ 
+-#include "internal.h"
+-#include "../cpucap/internal.h"
+ #include "../../internal.h"
+ #include "../../test/abi_test.h"
+ #include "../../test/file_test.h"
+ #include "../../test/test_util.h"
+ #include "../../test/wycheproof_util.h"
++#include "../cpucap/internal.h"
++#include "internal.h"
+ 
++// All test vectors use the default IV, so test both with implicit and
++// explicit IV.
++//
++// TODO(davidben): Find test vectors that use a different IV.
++static const uint8_t kDefaultIV[] = {
++    0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6,
++};
+ 
+ static void TestRaw(FileTest *t) {
+   std::vector<uint8_t> key, plaintext, ciphertext;
+@@ -69,14 +77,6 @@ static void TestRaw(FileTest *t) {
+ }
+ 
+ static void TestKeyWrap(FileTest *t) {
+-  // All test vectors use the default IV, so test both with implicit and
+-  // explicit IV.
+-  //
+-  // TODO(davidben): Find test vectors that use a different IV.
+-  static const uint8_t kDefaultIV[] = {
+-      0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6,
+-  };
+-
+   std::vector<uint8_t> key, plaintext, ciphertext;
+   ASSERT_TRUE(t->GetBytes(&key, "Key"));
+   ASSERT_TRUE(t->GetBytes(&plaintext, "Plaintext"));
+@@ -125,6 +125,77 @@ static void TestKeyWrap(FileTest *t) {
+                                ciphertext.data(), ciphertext.size()));
+ }
+ 
++static void TestEVPKeyWrap(FileTest *t) {
++  std::vector<uint8_t> key, plaintext, ciphertext;
++  ASSERT_TRUE(t->GetBytes(&key, "Key"));
++  ASSERT_TRUE(t->GetBytes(&plaintext, "Plaintext"));
++  ASSERT_TRUE(t->GetBytes(&ciphertext, "Ciphertext"));
++
++  // Only 256 bit keys are supported for key wrap from EVP_CIPHER at the moment.
++  if (key.size() != 32) {
++    return;
++  }
++
++  const EVP_CIPHER *cipher = EVP_aes_256_wrap();
++
++  ASSERT_EQ(plaintext.size() + 8, ciphertext.size())
++      << "Invalid Plaintext and Ciphertext lengths.";
++
++  // Test encryption.
++  std::vector<uint8_t> out(ciphertext.size());
++  int len;
++  // Test with implicit IV.
++  bssl::ScopedEVP_CIPHER_CTX ctx;
++  ASSERT_TRUE(
++      EVP_EncryptInit_ex(ctx.get(), cipher, nullptr, key.data(), nullptr));
++  ASSERT_TRUE(EVP_EncryptUpdate(ctx.get(), out.data(), &len, plaintext.data(),
++                                plaintext.size()));
++  ASSERT_GE(len, 0);
++  ASSERT_TRUE(EVP_EncryptFinal(ctx.get(), out.data(), &len));
++  EXPECT_EQ(Bytes(ciphertext), Bytes(out));
++
++  // Test with explicit IV.
++  ctx.Reset();
++  ASSERT_TRUE(
++      EVP_EncryptInit_ex(ctx.get(), cipher, nullptr, key.data(), kDefaultIV));
++  ASSERT_TRUE(EVP_EncryptUpdate(ctx.get(), out.data(), &len, plaintext.data(),
++                                plaintext.size()));
++  ASSERT_GE(len, 0);
++  ASSERT_TRUE(EVP_EncryptFinal(ctx.get(), out.data(), &len));
++  EXPECT_EQ(Bytes(ciphertext), Bytes(out));
++
++  // Test decryption.
++  out.clear();
++  out.resize(plaintext.size());
++  ctx.Reset();
++  // Test with implicit IV.
++  ASSERT_TRUE(
++      EVP_DecryptInit_ex(ctx.get(), cipher, nullptr, key.data(), nullptr));
++  ASSERT_TRUE(EVP_DecryptUpdate(ctx.get(), out.data(), &len, ciphertext.data(),
++                                ciphertext.size()));
++  out.resize(len);
++  ASSERT_TRUE(EVP_EncryptFinal(ctx.get(), out.data(), &len));
++  EXPECT_EQ(Bytes(plaintext), Bytes(out));
++
++  // Test with explicit IV.
++  ctx.Reset();
++  ASSERT_TRUE(
++      EVP_DecryptInit_ex(ctx.get(), cipher, nullptr, key.data(), kDefaultIV));
++  ASSERT_TRUE(EVP_DecryptUpdate(ctx.get(), out.data(), &len, ciphertext.data(),
++                                ciphertext.size()));
++  out.resize(len);
++  ASSERT_TRUE(EVP_EncryptFinal(ctx.get(), out.data(), &len));
++  EXPECT_EQ(Bytes(plaintext), Bytes(out));
++
++  // Test corrupted ciphertext.
++  ctx.Reset();
++  ciphertext[0] ^= 1;
++  ASSERT_TRUE(
++      EVP_DecryptInit_ex(ctx.get(), cipher, nullptr, key.data(), nullptr));
++  EXPECT_FALSE(EVP_DecryptUpdate(ctx.get(), out.data(), &len, ciphertext.data(),
++                                 ciphertext.size()));
++}
++
+ static void TestKeyWrapWithPadding(FileTest *t) {
+   std::vector<uint8_t> key, plaintext, ciphertext;
+   ASSERT_TRUE(t->GetBytes(&key, "Key"));
+@@ -157,6 +228,7 @@ TEST(AESTest, TestVectors) {
+       TestRaw(t);
+     } else if (t->GetParameter() == "KeyWrap") {
+       TestKeyWrap(t);
++      TestEVPKeyWrap(t);
+     } else if (t->GetParameter() == "KeyWrapWithPadding") {
+       TestKeyWrapWithPadding(t);
+     } else {
+@@ -203,6 +275,73 @@ TEST(AESTest, WycheproofKeyWrap) {
+   });
+ }
+ 
++TEST(AESTest, WycheproofEVPKeyWrap) {
++  FileTestGTest("third_party/wycheproof_testvectors/kw_test.txt",
++                [](FileTest *t) {
++    std::string key_size;
++    ASSERT_TRUE(t->GetInstruction(&key_size, "keySize"));
++    std::vector<uint8_t> ct, key, msg;
++    ASSERT_TRUE(t->GetBytes(&ct, "ct"));
++    ASSERT_TRUE(t->GetBytes(&key, "key"));
++    ASSERT_TRUE(t->GetBytes(&msg, "msg"));
++    ASSERT_EQ(static_cast<unsigned>(atoi(key_size.c_str())), key.size() * 8);
++    WycheproofResult result;
++    ASSERT_TRUE(GetWycheproofResult(t, &result));
++
++    // Only 256 bit keys are supported for key wrap from EVP_CIPHER at the
++    // moment.
++    if (key.size() != 32) {
++      return;
++    }
++
++    const EVP_CIPHER *cipher = EVP_aes_256_wrap();
++
++    if (result.IsValid()) {
++      ASSERT_GE(ct.size(), 8u);
++
++      bssl::ScopedEVP_CIPHER_CTX ctx;
++      std::vector<uint8_t> out(ct.size() - 8);
++      int len;
++      ASSERT_TRUE(
++        EVP_DecryptInit_ex(ctx.get(), cipher, nullptr, key.data(), nullptr));
++      ASSERT_TRUE(EVP_DecryptUpdate(ctx.get(), out.data(), &len, ct.data(),
++                                ct.size()));
++      ASSERT_EQ(static_cast<int>(out.size()), len);
++      ASSERT_TRUE(EVP_EncryptFinal(ctx.get(), out.data(), &len));
++      EXPECT_EQ(Bytes(msg), Bytes(out));
++
++      ctx.Reset();
++      out.resize(msg.size() + 8);
++      ASSERT_TRUE(
++        EVP_EncryptInit_ex(ctx.get(), cipher, nullptr, key.data(), nullptr));
++      ASSERT_TRUE(EVP_EncryptUpdate(ctx.get(), out.data(), &len, msg.data(),
++                                msg.size()));
++      ASSERT_EQ(static_cast<int>(out.size()), len);
++      ASSERT_TRUE(EVP_EncryptFinal(ctx.get(), out.data(), &len));
++      EXPECT_EQ(Bytes(ct), Bytes(out));
++    } else {
++      bssl::ScopedEVP_CIPHER_CTX ctx;
++      std::vector<uint8_t> out(ct.size() < 8 ? 0 : ct.size() - 8);
++      int len;
++      ASSERT_TRUE(
++        EVP_DecryptInit_ex(ctx.get(), cipher, nullptr, key.data(), nullptr));
++      if (!ct.empty()) {
++        EXPECT_FALSE(EVP_DecryptUpdate(ctx.get(), out.data(), &len, ct.data(),
++                                       ct.size()));
++        // There is no "Final" function for |EVP_aes_256_wrap|, so this will
++        // always return 1.
++        EXPECT_TRUE(EVP_EncryptFinal(ctx.get(), out.data(), &len));
++      } else {
++        // The EVP version of AES-KEY Wrap will return 1 if the ciphertext is
++        // NULL. This is consistent with OpenSSL behaviour.
++        EXPECT_EQ(EVP_DecryptUpdate(ctx.get(), out.data(), &len, ct.data(),
++                                       ct.size()), 1);
++        EXPECT_TRUE(EVP_EncryptFinal(ctx.get(), out.data(), &len));
++      }
++    }
++  });
++}
++
+ TEST(AESTest, WycheproofKeyWrapWithPadding) {
+   FileTestGTest("third_party/wycheproof_testvectors/kwp_test.txt",
+                 [](FileTest *t) {
+diff --git a/crypto/fipsmodule/cipher/cipher.c b/crypto/fipsmodule/cipher/cipher.c
+index f2b9ab123..4a50add34 100644
+--- a/crypto/fipsmodule/cipher/cipher.c
++++ b/crypto/fipsmodule/cipher/cipher.c
+@@ -538,11 +538,12 @@ int EVP_Cipher(EVP_CIPHER_CTX *ctx, uint8_t *out, const uint8_t *in,
+   // |EVP_Cipher| because it's complicated whether the operation has completed
+   // or not. E.g. AES-GCM with a non-NULL |in| argument hasn't completed an
+   // operation. Callers should use the |EVP_AEAD| API or, at least,
+-  // |EVP_CipherUpdate| etc.
++  // |EVP_CipherUpdate| etc. AES-KeyWrap users should use the |AES_wrap_key|
++  // API instead.
+   //
+   // This call can't be pushed into |EVP_Cipher_verify_service_indicator|
+   // because whether |ret| indicates success or not depends on whether
+-  // |EVP_CIPH_FLAG_CUSTOM_CIPHER| is set. (This unreasonable, but matches
++  // |EVP_CIPH_FLAG_CUSTOM_CIPHER| is set. (This is unreasonable, but matches
+   // OpenSSL.)
+   if (!(ctx->cipher->flags & EVP_CIPH_FLAG_CUSTOM_CIPHER) && ret) {
+     EVP_Cipher_verify_service_indicator(ctx);
+diff --git a/crypto/fipsmodule/cipher/e_aes.c b/crypto/fipsmodule/cipher/e_aes.c
+index f3d7c3577..8c54c9c21 100644
+--- a/crypto/fipsmodule/cipher/e_aes.c
++++ b/crypto/fipsmodule/cipher/e_aes.c
+@@ -138,6 +138,14 @@ typedef struct {
+   ctr128_f ctr;
+ } EVP_AES_GCM_CTX;
+ 
++typedef struct {
++  union {
++    double align;
++    AES_KEY ks;
++  } ks;
++  const uint8_t *iv; // Indicates if an IV has been set.
++} EVP_AES_WRAP_CTX;
++
+ static int aes_init_key(EVP_CIPHER_CTX *ctx, const uint8_t *key,
+                         const uint8_t *iv, int enc) {
+   int ret;
+@@ -715,6 +723,54 @@ static int aes_xts_ctrl(EVP_CIPHER_CTX *c, int type, int arg, void *ptr) {
+   return 1;
+ }
+ 
++static int aes_wrap_init_key(EVP_CIPHER_CTX *ctx, const uint8_t *key,
++                            const uint8_t *iv, int enc) {
++  EVP_AES_WRAP_CTX *wctx = ctx->cipher_data;
++  if (iv == NULL && key == NULL) {
++    return 1;
++  }
++  if (key != NULL) {
++    if (ctx->encrypt) {
++      AES_set_encrypt_key(key, EVP_CIPHER_CTX_key_length(ctx) * 8,
++                          &wctx->ks.ks);
++    } else {
++      AES_set_decrypt_key(key, EVP_CIPHER_CTX_key_length(ctx) * 8,
++                          &wctx->ks.ks);
++    }
++    if (iv == NULL) {
++      wctx->iv = NULL;
++    }
++  }
++  if (iv != NULL) {
++    OPENSSL_memcpy(ctx->iv, iv, ctx->cipher->iv_len);
++    wctx->iv = ctx->iv;
++  }
++  return 1;
++}
++
++static int aes_wrap_cipher(EVP_CIPHER_CTX *ctx, uint8_t *out, const uint8_t *in,
++                           size_t inlen) {
++  EVP_AES_WRAP_CTX *wctx = ctx->cipher_data;
++  // There is no final operation, so we always return zero length here.
++  if (in == NULL) {
++    return 0;
++  }
++
++  // Internal calls to |AES_wrap/unwrap_key| within the fipsmodule should be
++  // wrapped with state lock functions to avoid updating the service indicator.
++  // When consuming via |EVP_CIPHER|, |EVP_CipherFinal(_ex)| should be the
++  // function that indicates approval.
++  int ret;
++  FIPS_service_indicator_lock_state();
++  if (ctx->encrypt) {
++    ret = AES_wrap_key(&wctx->ks.ks, wctx->iv, out, in, inlen);
++  } else {
++    ret = AES_unwrap_key(&wctx->ks.ks, wctx->iv, out, in, inlen);
++  }
++  FIPS_service_indicator_unlock_state();
++  return ret;
++}
++
+ DEFINE_METHOD_FUNCTION(EVP_CIPHER, EVP_aes_128_cbc) {
+   memset(out, 0, sizeof(EVP_CIPHER));
+ 
+@@ -902,6 +958,20 @@ DEFINE_METHOD_FUNCTION(EVP_CIPHER, EVP_aes_256_ofb) {
+   out->cipher = aes_ofb_cipher;
+ }
+ 
++DEFINE_METHOD_FUNCTION(EVP_CIPHER, EVP_aes_256_wrap) {
++  memset(out, 0, sizeof(EVP_CIPHER));
++
++  out->nid = NID_id_aes256_wrap;
++  out->block_size = 8;
++  out->key_len = 32;
++  out->iv_len = 8;
++  out->ctx_size = sizeof(EVP_AES_WRAP_CTX);
++  out->flags = EVP_CIPH_WRAP_MODE | EVP_CIPH_CUSTOM_IV |
++               EVP_CIPH_FLAG_CUSTOM_CIPHER | EVP_CIPH_ALWAYS_CALL_INIT;
++  out->init = aes_wrap_init_key;
++  out->cipher = aes_wrap_cipher;
++}
++
+ DEFINE_METHOD_FUNCTION(EVP_CIPHER, EVP_aes_256_gcm) {
+   memset(out, 0, sizeof(EVP_CIPHER));
+ 
+diff --git a/crypto/fipsmodule/service_indicator/service_indicator_test.cc b/crypto/fipsmodule/service_indicator/service_indicator_test.cc
+index 977f3d682..35c0dadbe 100644
+--- a/crypto/fipsmodule/service_indicator/service_indicator_test.cc
++++ b/crypto/fipsmodule/service_indicator/service_indicator_test.cc
+@@ -253,6 +253,14 @@ static const uint8_t kAESKWCiphertext[72] = {
+     0xa4, 0x30, 0x3e, 0x60, 0xf6, 0xc5, 0xff, 0x82, 0x30, 0x9a, 0xa7, 0x48,
+     0x82, 0xe2, 0x00, 0xc1, 0xe9, 0xc2, 0x73, 0x6f, 0xbc, 0x89, 0x66, 0x9d};
+ 
++static const uint8_t kAESKWCiphertext_256[72] = {
++    0x27, 0x5b, 0x2b, 0x05, 0x32, 0xc9, 0xc3, 0x67, 0xde, 0x16, 0xce, 0xd7,
++    0xa8, 0x03, 0xc3, 0x58, 0x64, 0x8e, 0x8d, 0x53, 0x2c, 0x80, 0xac, 0x6f,
++    0xf7, 0x43, 0x2a, 0xfb, 0xb5, 0x1a, 0x53, 0xaf, 0x86, 0x3c, 0xce, 0x0d,
++    0x92, 0xd6, 0xce, 0x41, 0x78, 0x67, 0x8a, 0x67, 0x80, 0xbd, 0x0d, 0xa7,
++    0x00, 0xb6, 0xeb, 0x3c, 0x4c, 0x68, 0xb7, 0x03, 0x14, 0x89, 0xbf, 0xe7,
++    0x30, 0x41, 0x09, 0xb5, 0xe4, 0xf4, 0x91, 0x22, 0xc6, 0x2c, 0xee, 0x4a};
++
+ static const uint8_t kAESKWPCiphertext[72] = {
+     0x29, 0x5e, 0xb9, 0xea, 0x96, 0xa7, 0xa5, 0xca, 0xfa, 0xeb, 0xda, 0x78,
+     0x13, 0xea, 0x83, 0xca, 0x41, 0xdb, 0x4d, 0x36, 0x7d, 0x39, 0x8a, 0xd6,
+@@ -863,6 +871,18 @@ static const struct CipherTestVector {
+         sizeof(kAESXTSCiphertext_256),
+         AWSLC_APPROVED,
+     },
++    {
++        EVP_aes_256_wrap(),
++        kAESKey_256,
++        sizeof(kAESKey_256),
++        nullptr,
++        0,
++        kPlaintext,
++        sizeof(kPlaintext),
++        kAESKWCiphertext_256,
++        sizeof(kAESKWCiphertext_256),
++        AWSLC_NOT_APPROVED,
++    },
+     {
+         EVP_des_ede3(),
+         kAESKey_192,
+@@ -923,7 +943,6 @@ static void TestOperation(const EVP_CIPHER *cipher, bool encrypt,
+     ASSERT_LE(EVP_CIPHER_CTX_iv_length(ctx.get()), sizeof(kAESIV));
+   }
+ 
+-
+   ASSERT_TRUE(EVP_CIPHER_CTX_set_key_length(ctx.get(), key.size()));
+   CALL_SERVICE_AND_CHECK_APPROVED(approved,
+     ASSERT_TRUE(EVP_CipherInit_ex(ctx.get(), cipher, nullptr, key.data(),
+@@ -944,7 +963,7 @@ static void TestOperation(const EVP_CIPHER *cipher, bool encrypt,
+   CALL_SERVICE_AND_CHECK_APPROVED(
+       approved, EVP_Cipher(ctx2.get(), output, in.data(), in.size()));
+   EXPECT_EQ(approved, expect_approved);
+-  EXPECT_EQ(Bytes(out), Bytes(output, in.size()));
++  EXPECT_EQ(Bytes(out), Bytes(output, out.size()));
+ }
+ 
+ INSTANTIATE_TEST_SUITE_P(All, EVPServiceIndicatorTest,
+diff --git a/include/openssl/cipher.h b/include/openssl/cipher.h
+index 89a0c80f7..143d8fffc 100644
+--- a/include/openssl/cipher.h
++++ b/include/openssl/cipher.h
+@@ -92,6 +92,12 @@ OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_256_ctr(void);
+ OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_256_ofb(void);
+ OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_256_xts(void);
+ 
++// EVP_aes_256_wrap implements AES-256 in Key Wrap mode. OpenSSL 1.1.1 required
++// |EVP_CIPHER_CTX_FLAG_WRAP_ALLOW| to be set with |EVP_CIPHER_CTX_set_flags|,
++// in order for |EVP_aes_256_wrap| to work. This is not required in AWS-LC and
++// they are no-op flags maintained for compatibility.
++OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_256_wrap(void);
++
+ // EVP_enc_null returns a 'cipher' that passes plaintext through as
+ // ciphertext.
+ OPENSSL_EXPORT const EVP_CIPHER *EVP_enc_null(void);
+@@ -541,7 +547,7 @@ AWS_LC_DEPRECATED OPENSSL_EXPORT const EVP_CIPHER *EVP_cast5_ecb(void);
+ AWS_LC_DEPRECATED OPENSSL_EXPORT const EVP_CIPHER *EVP_cast5_cbc(void);
+ 
+ // The following flags do nothing and are included only to make it easier to
+-// compile code with BoringSSL.
++// compile code with AWS-LC.
+ #define EVP_CIPHER_CTX_FLAG_WRAP_ALLOW 0
+ 
+ // EVP_CIPHER_CTX_set_flags does nothing.

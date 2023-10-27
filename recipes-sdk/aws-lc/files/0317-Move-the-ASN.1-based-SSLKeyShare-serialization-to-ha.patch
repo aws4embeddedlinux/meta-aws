@@ -1,0 +1,124 @@
+From 5bed46fb9d7b35fb3f3bbe9fcbd8c0f7d39181c7 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 26 Jan 2023 15:05:14 -0500
+Subject: [PATCH] Move the ASN.1-based SSLKeyShare serialization to handoff.cc.
+
+We've got two layers of serialization. There's the lower-level
+SerializePrivateKey/DeserializePrivateKey functions that just encode a
+private key assuming you already know the group, and then there's
+Serialize/Create which output an INTEGER and OCTET STRING pair.
+
+The latter is only used by handoff.cc, so move them there. This trims
+the SSLKeyShare abstraction slightly.
+
+Change-Id: I1c901d7c16b082bfe1b6acd0a1711575e7f95c05
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57625
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit a5dcf35caf6857f08be29586fd41ce8349d9e857)
+---
+ ssl/handoff.cc       | 27 +++++++++++++++++++++------
+ ssl/internal.h       |  8 --------
+ ssl/ssl_key_share.cc | 25 -------------------------
+ 3 files changed, 21 insertions(+), 39 deletions(-)
+
+diff --git a/ssl/handoff.cc b/ssl/handoff.cc
+index 6f2c496c0..059768125 100644
+--- a/ssl/handoff.cc
++++ b/ssl/handoff.cc
+@@ -384,9 +384,14 @@ bool SSL_serialize_handback(const SSL *ssl, CBB *out) {
+       !CBB_add_asn1(&seq, &key_share, CBS_ASN1_SEQUENCE)) {
+     return false;
+   }
+-  if (type == handback_after_ecdhe &&
+-      !s3->hs->key_shares[0]->Serialize(&key_share)) {
+-    return false;
++  if (type == handback_after_ecdhe) {
++    CBB private_key;
++    if (!CBB_add_asn1_uint64(&key_share, s3->hs->key_shares[0]->GroupID()) ||
++        !CBB_add_asn1(&key_share, &private_key, CBS_ASN1_OCTETSTRING) ||
++        !s3->hs->key_shares[0]->SerializePrivateKey(&private_key) ||
++        !CBB_flush(&key_share)) {
++      return false;
++    }
+   }
+   if (type == handback_tls13) {
+     early_data_t early_data;
+@@ -709,9 +714,19 @@ bool SSL_apply_handback(SSL *ssl, Span<const uint8_t> handback) {
+                  &write_seq)) {
+     return false;
+   }
+-  if (type == handback_after_ecdhe &&
+-      (hs->key_shares[0] = SSLKeyShare::Create(&key_share)) == nullptr) {
+-    return false;
++  if (type == handback_after_ecdhe) {
++    uint64_t group_id;
++    CBS private_key;
++    if (!CBS_get_asn1_uint64(&key_share, &group_id) ||  //
++        group_id > 0xffff ||
++        !CBS_get_asn1(&key_share, &private_key, CBS_ASN1_OCTETSTRING)) {
++      return false;
++    }
++    hs->key_shares[0] = SSLKeyShare::Create(group_id);
++    if (!hs->key_shares[0] ||
++        !hs->key_shares[0]->DeserializePrivateKey(&private_key)) {
++      return false;
++    }
+   }
+   return true;  // Trailing data allowed for extensibility.
+ }
+diff --git a/ssl/internal.h b/ssl/internal.h
+index 217fefb98..2e0c341dc 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -1087,14 +1087,6 @@ class SSLKeyShare {
+   // nullptr on error.
+   static UniquePtr<SSLKeyShare> Create(uint16_t group_id);
+ 
+-  // Create deserializes an SSLKeyShare instance previously serialized by
+-  // |Serialize|.
+-  static UniquePtr<SSLKeyShare> Create(CBS *in);
+-
+-  // Serializes writes the group ID and private key, in a format that can be
+-  // read by |Create|.
+-  bool Serialize(CBB *out);
+-
+   // GroupID returns the group ID.
+   virtual uint16_t GroupID() const PURE_VIRTUAL;
+ 
+diff --git a/ssl/ssl_key_share.cc b/ssl/ssl_key_share.cc
+index 8ef1e8a27..69eecfd2a 100644
+--- a/ssl/ssl_key_share.cc
++++ b/ssl/ssl_key_share.cc
+@@ -328,31 +328,6 @@ UniquePtr<SSLKeyShare> SSLKeyShare::Create(uint16_t group_id) {
+   }
+ }
+ 
+-UniquePtr<SSLKeyShare> SSLKeyShare::Create(CBS *in) {
+-  uint64_t group;
+-  CBS private_key;
+-  if (!CBS_get_asn1_uint64(in, &group) || group > 0xffff ||
+-      !CBS_get_asn1(in, &private_key, CBS_ASN1_OCTETSTRING)) {
+-    return nullptr;
+-  }
+-  UniquePtr<SSLKeyShare> key_share = Create(static_cast<uint16_t>(group));
+-  if (!key_share || !key_share->DeserializePrivateKey(&private_key)) {
+-    return nullptr;
+-  }
+-  return key_share;
+-}
+-
+-bool SSLKeyShare::Serialize(CBB *out) {
+-  CBB private_key;
+-  if (!CBB_add_asn1_uint64(out, GroupID()) ||
+-      !CBB_add_asn1(out, &private_key, CBS_ASN1_OCTETSTRING) ||
+-      !SerializePrivateKey(&private_key) ||  //
+-      !CBB_flush(out)) {
+-    return false;
+-  }
+-  return true;
+-}
+-
+ bool SSLKeyShare::Accept(CBB *out_public_key, Array<uint8_t> *out_secret,
+                          uint8_t *out_alert, Span<const uint8_t> peer_key) {
+   *out_alert = SSL_AD_INTERNAL_ERROR;

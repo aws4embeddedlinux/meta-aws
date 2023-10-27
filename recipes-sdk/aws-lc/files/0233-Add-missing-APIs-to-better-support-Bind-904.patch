@@ -1,0 +1,236 @@
+From 9e04ee61aa16650cf852d2951f6ddb702daeef5b Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Mon, 27 Mar 2023 16:52:51 -0700
+Subject: [PATCH] Add missing APIs to better support Bind (#904)
+
+* Add missing APIs to better support Bind:
+* BN_GENCB_set_old sets old style callbacks on BN_GENCB
+* DH_clear_flags which is a no op
+* Define but don't support DH_FLAG_CACHE_MONT_P, AWS-LC always uses montgomery multiplication for DH
+---
+ crypto/fipsmodule/bn/internal.h |  4 +++
+ crypto/fipsmodule/bn/prime.c    | 19 ++++++++++++--
+ crypto/fipsmodule/dh/dh.c       |  5 ++++
+ crypto/rsa_extra/rsa_test.cc    | 44 +++++++++++++++++++++++++++++++++
+ include/openssl/bn.h            | 24 +++++++++++++++---
+ include/openssl/crypto.h        |  4 +++
+ include/openssl/dh.h            | 11 +++++++++
+ 7 files changed, 106 insertions(+), 5 deletions(-)
+
+diff --git a/crypto/fipsmodule/bn/internal.h b/crypto/fipsmodule/bn/internal.h
+index 356496030..2f6fd3d03 100644
+--- a/crypto/fipsmodule/bn/internal.h
++++ b/crypto/fipsmodule/bn/internal.h
+@@ -217,6 +217,10 @@ extern "C" {
+ #define Hw(t) ((BN_ULONG)((t) >> BN_BITS2))
+ #endif
+ 
++#define BN_GENCB_UNSET 0
++#define BN_GENCB_NEW_STYLE 1
++#define BN_GENCB_OLD_STYLE 2
++
+ // bn_minimal_width returns the minimal value of |bn->top| which fits the
+ // value of |bn|.
+ int bn_minimal_width(const BIGNUM *bn);
+diff --git a/crypto/fipsmodule/bn/prime.c b/crypto/fipsmodule/bn/prime.c
+index 057855829..3f32869c3 100644
+--- a/crypto/fipsmodule/bn/prime.c
++++ b/crypto/fipsmodule/bn/prime.c
+@@ -374,7 +374,15 @@ void BN_GENCB_free(BN_GENCB *callback) { OPENSSL_free(callback); }
+ void BN_GENCB_set(BN_GENCB *callback,
+                   int (*f)(int event, int n, struct bn_gencb_st *),
+                   void *arg) {
+-  callback->callback = f;
++  callback->type = BN_GENCB_NEW_STYLE;
++  callback->callback.new_style = f;
++  callback->arg = arg;
++}
++
++void BN_GENCB_set_old(BN_GENCB *callback,
++                      void (*f)(int, int, void *), void *arg) {
++  callback->type = BN_GENCB_OLD_STYLE;
++  callback->callback.old_style = f;
+   callback->arg = arg;
+ }
+ 
+@@ -383,7 +391,14 @@ int BN_GENCB_call(BN_GENCB *callback, int event, int n) {
+     return 1;
+   }
+ 
+-  return callback->callback(event, n, callback);
++  if (callback->type == BN_GENCB_NEW_STYLE) {
++    return callback->callback.new_style(event, n, callback);
++  } else if (callback->type == BN_GENCB_OLD_STYLE) {
++    callback->callback.old_style(event, n, callback);
++    return 1;
++  } else {
++    return 0;
++  }
+ }
+ 
+ void *BN_GENCB_get_arg(const BN_GENCB *callback) { return callback->arg; }
+diff --git a/crypto/fipsmodule/dh/dh.c b/crypto/fipsmodule/dh/dh.c
+index 58eaa86e5..3660c1631 100644
+--- a/crypto/fipsmodule/dh/dh.c
++++ b/crypto/fipsmodule/dh/dh.c
+@@ -129,6 +129,11 @@ void DH_get0_key(const DH *dh, const BIGNUM **out_pub_key,
+   }
+ }
+ 
++void DH_clear_flags(DH *dh, int flags) {
++  (void) dh;
++  (void) flags;
++}
++
+ int DH_set0_key(DH *dh, BIGNUM *pub_key, BIGNUM *priv_key) {
+   if (pub_key != NULL) {
+     BN_free(dh->pub_key);
+diff --git a/crypto/rsa_extra/rsa_test.cc b/crypto/rsa_extra/rsa_test.cc
+index dd32742cf..8e28fcafb 100644
+--- a/crypto/rsa_extra/rsa_test.cc
++++ b/crypto/rsa_extra/rsa_test.cc
+@@ -1259,6 +1259,50 @@ TEST(RSATest, KeygenInternalRetry) {
+   EXPECT_TRUE(RSA_generate_key_ex(rsa.get(), 2048, e.get(), &cb));
+ }
+ 
++TEST(RSATest, OldCallback) {
++  bssl::UniquePtr<RSA> rsa(RSA_new());
++  ASSERT_TRUE(rsa);
++  BN_GENCB cb;
++
++  int old_callback_call_count = 0;
++  void (*old_style_callback)(int, int, void *) = [](int event, int n,
++                                                   void *ptr) -> void {
++    BN_GENCB *cb_ptr = static_cast<BN_GENCB *>(ptr);
++    int *count_ptr = static_cast<int *>(cb_ptr->arg);
++    *count_ptr += 1;
++  };
++
++  int new_callback_call_count = 0;
++  int (*new_style_callback)(int, int, BN_GENCB *cb_ptr) = [](int event, int n,
++                                                    BN_GENCB *cb_ptr) -> int {
++    int *count_ptr = static_cast<int *>(cb_ptr->arg);
++    *count_ptr += 1;
++    return 1;
++  };
++
++  // Set the new style first, setting the old should overwrite the new callback
++  BN_GENCB_set(&cb, new_style_callback, &new_callback_call_count);
++  BN_GENCB_set_old(&cb, old_style_callback, &old_callback_call_count);
++
++  bssl::UniquePtr<BIGNUM> e(BN_new());
++  ASSERT_TRUE(e);
++  ASSERT_TRUE(BN_set_word(e.get(), RSA_F4));
++  EXPECT_TRUE(RSA_generate_key_ex(rsa.get(), 2048, e.get(), &cb));
++  // The old callback should have been called at least once
++  EXPECT_NE(old_callback_call_count, 0);
++  // The new callback shouldn't have been called
++  EXPECT_EQ(new_callback_call_count, 0);
++  int previous_count = old_callback_call_count;
++
++  // Set the new style again and overwrite the old style
++  BN_GENCB_set(&cb, new_style_callback, &new_callback_call_count);
++  EXPECT_TRUE(RSA_generate_key_ex(rsa.get(), 2048, e.get(), &cb));
++  // The old callback should have been overwritten and not called
++  EXPECT_EQ(previous_count, old_callback_call_count);
++  // The new callback should have been called at least once
++  EXPECT_NE(new_callback_call_count, 0);
++}
++
+ #if !defined(BORINGSSL_SHARED_LIBRARY)
+ TEST(RSATest, SqrtTwo) {
+   bssl::UniquePtr<BIGNUM> sqrt(BN_new()), pow2(BN_new());
+diff --git a/include/openssl/bn.h b/include/openssl/bn.h
+index 54a8cc275..f4f7c31cc 100644
+--- a/include/openssl/bn.h
++++ b/include/openssl/bn.h
+@@ -672,8 +672,12 @@ OPENSSL_EXPORT int BN_pseudo_rand_range(BIGNUM *rnd, const BIGNUM *range);
+ // When other code needs to call a BN generation function it will often take a
+ // BN_GENCB argument and may call the function with other argument values.
+ struct bn_gencb_st {
++  uint8_t type;
+   void *arg;        // callback-specific data
+-  int (*callback)(int event, int n, struct bn_gencb_st *);
++  union {
++    int (*new_style)(int event, int n, struct bn_gencb_st *);
++    void (*old_style)(int, int, void *);
++  } callback;
+ };
+ 
+ // BN_GENCB_new returns a newly-allocated |BN_GENCB| object, or NULL on
+@@ -684,8 +688,12 @@ OPENSSL_EXPORT BN_GENCB *BN_GENCB_new(void);
+ // BN_GENCB_free releases memory associated with |callback|.
+ OPENSSL_EXPORT void BN_GENCB_free(BN_GENCB *callback);
+ 
+-// BN_GENCB_set configures |callback| to call |f| and sets |callout->arg| to
+-// |arg|.
++// BN_GENCB_set configures |callback| to call |f| and sets |callback->arg| to
++// |arg|. |BN_GENCB_set| is recommended over |BN_GENCB_set_old| as |BN_GENCB_set|
++// accepts callbacks that return a result and have a strong type for the
++// |BN_GENCB|. Only one callback can be configured in a |BN_GENCB|, calling
++// |BN_GENCB_set| or |BN_GENCB_set_old| multiple times will overwrite the
++// callback.
+ OPENSSL_EXPORT void BN_GENCB_set(BN_GENCB *callback,
+                                  int (*f)(int event, int n, BN_GENCB *),
+                                  void *arg);
+@@ -919,6 +927,16 @@ OPENSSL_EXPORT int BN_mod_exp_mont_consttime(BIGNUM *rr, const BIGNUM *a,
+ 
+ // Deprecated functions
+ 
++// BN_GENCB_set_old behaves like |BN_GENCB_set| which is the recommended way to
++// set a callback on a |BN_GENCB|. |BN_GENCB_set_old| configures |callback| to
++// call |f| and sets |callback->arg| to |arg|. The only difference between
++// |BN_GENCB_set| and |BN_GENCB_set_old| is the argument and return types in
++// |callback|. Only one callback can be configured in a |BN_GENCB|, calling
++// |BN_GENCB_set| or |BN_GENCB_set_old| multiple times will overwrite the
++// callback.
++OPENSSL_EXPORT void BN_GENCB_set_old(BN_GENCB *callback,
++                                     void (*f)(int, int, void *), void *cb_arg);
++
+ // BN_bn2mpi serialises the value of |in| to |out|, using a format that consists
+ // of the number's length in bytes represented as a 4-byte big-endian number,
+ // and the number itself in big-endian format, where the most significant bit
+diff --git a/include/openssl/crypto.h b/include/openssl/crypto.h
+index d05047886..b4f68eed9 100644
+--- a/include/openssl/crypto.h
++++ b/include/openssl/crypto.h
+@@ -159,6 +159,9 @@ OPENSSL_EXPORT int ENGINE_register_all_complete(void);
+ // OPENSSL_load_builtin_modules does nothing.
+ OPENSSL_EXPORT void OPENSSL_load_builtin_modules(void);
+ 
++// AWS-LC does not support custom flags when initializing the library, these
++// values are included to simplify building other software that expects them.
++
+ #define OPENSSL_INIT_NO_LOAD_CRYPTO_STRINGS 0
+ #define OPENSSL_INIT_LOAD_CRYPTO_STRINGS 0
+ #define OPENSSL_INIT_ADD_ALL_CIPHERS 0
+@@ -167,6 +170,7 @@ OPENSSL_EXPORT void OPENSSL_load_builtin_modules(void);
+ #define OPENSSL_INIT_NO_ADD_ALL_DIGESTS 0
+ #define OPENSSL_INIT_LOAD_CONFIG 0
+ #define OPENSSL_INIT_NO_LOAD_CONFIG 0
++#define OPENSSL_INIT_ENGINE_ALL_BUILTIN 0
+ 
+ // OPENSSL_init_crypto calls |CRYPTO_library_init| and returns one.
+ OPENSSL_EXPORT int OPENSSL_init_crypto(uint64_t opts,
+diff --git a/include/openssl/dh.h b/include/openssl/dh.h
+index 7f49c8301..f8d48e80e 100644
+--- a/include/openssl/dh.h
++++ b/include/openssl/dh.h
+@@ -337,6 +337,17 @@ OPENSSL_EXPORT int DH_compute_key(uint8_t *out, const BIGNUM *peers_key,
+ // This function has been deprecated with no replacement.
+ OPENSSL_EXPORT DH *DH_get_2048_256(void);
+ 
++// DH_clear_flags does nothing and is included to simplify compiling code that
++// expects it.
++OPENSSL_EXPORT void DH_clear_flags(DH *dh, int flags);
++
++// DH_FLAG_CACHE_MONT_P is not supported by AWS-LC and is included to simplify
++// compiling code that expects it. This flag controls if the DH APIs should
++// cache the montgomery form of the prime to speed up multiplication at the cost
++// of increasing memory storage. AWS-LC always does this and does not support
++// turning this option off.
++#define DH_FLAG_CACHE_MONT_P 0
++
+ 
+ #if defined(__cplusplus)
+ }  // extern C

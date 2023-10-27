@@ -1,0 +1,195 @@
+From be1de131ed52f292d2a3827febb7b41973152d65 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Wed, 10 May 2023 11:40:16 -0700
+Subject: [PATCH] add support for X509_get0_pubkey (#1000)
+
+mySQL consumes the X509_get0_pubkey API when building with OpenSSL1.1.1
+and uses the X509_get_pubkey when built with OpenSSL1.0.2. X509_get0_pubkey
+seems to have been added in OpenSSL1.1.1 and is very similar to X509_get_pubkey
+(which exists in AWS-LC).
+
+X509_get_pubkey attempts to decode the public key for certificate x. If
+successful it returns the public key as an EVP_PKEY pointer with its reference
+count incremented: this means the returned key must be freed up after use.
+X509_get0_pubkey is similar except it does not increment the reference count of
+the returned EVP_PKEY so it must not be freed up after use.
+---
+ crypto/x509/internal.h   |  5 ++++
+ crypto/x509/x509_cmp.c   |  7 +++++
+ crypto/x509/x509_test.cc | 17 ++++++++++++
+ crypto/x509/x_pubkey.c   | 58 +++++++++++++++++++++++++---------------
+ include/openssl/x509.h   |  7 +++++
+ 5 files changed, 73 insertions(+), 21 deletions(-)
+
+diff --git a/crypto/x509/internal.h b/crypto/x509/internal.h
+index 805691773..b610c5723 100644
+--- a/crypto/x509/internal.h
++++ b/crypto/x509/internal.h
+@@ -365,6 +365,11 @@ ASN1_TYPE *ASN1_generate_v3(const char *str, const X509V3_CTX *cnf);
+ 
+ int X509_CERT_AUX_print(BIO *bp, X509_CERT_AUX *x, int indent);
+ 
++// X509_PUBKEY_get0 decodes the public key in |key| and returns an |EVP_PKEY|
++// on success, or NULL on error. It is similar to |X509_PUBKEY_get|, but it
++// directly returns the reference to |pkey| of |key|. This means that the
++// caller must not free the result after use.
++EVP_PKEY *X509_PUBKEY_get0(X509_PUBKEY *key);
+ 
+ // RSA-PSS functions.
+ 
+diff --git a/crypto/x509/x509_cmp.c b/crypto/x509/x509_cmp.c
+index b696b9491..52d6ac33a 100644
+--- a/crypto/x509/x509_cmp.c
++++ b/crypto/x509/x509_cmp.c
+@@ -233,6 +233,13 @@ X509 *X509_find_by_subject(const STACK_OF(X509) *sk, X509_NAME *name) {
+   return NULL;
+ }
+ 
++EVP_PKEY *X509_get0_pubkey(const X509 *x) {
++    if ((x == NULL) || (x->cert_info == NULL)) {
++        return NULL;
++    }
++    return (X509_PUBKEY_get0(x->cert_info->key));
++}
++
+ EVP_PKEY *X509_get_pubkey(X509 *x) {
+   if ((x == NULL) || (x->cert_info == NULL)) {
+     return NULL;
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 91499b7ac..38e3c23d4 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -6173,3 +6173,20 @@ TEST(X509Test, SortRDN) {
+       0x02, 0x41, 0x42};
+   EXPECT_EQ(Bytes(kExpected), Bytes(der, der_len));
+ }
++
++TEST(X509Test, TestDecode) {
++  bssl::UniquePtr<X509> cert(CertFromPEM(kExamplePSSCert));
++  ASSERT_TRUE(cert);
++
++  // |X509_get0_pubkey| directly returns a reference to the decoded |pkey|, so
++  // it can't be freed.
++  EVP_PKEY *pkey1 = X509_get0_pubkey(cert.get());
++  ASSERT_TRUE(pkey1);
++  ASSERT_TRUE(X509_verify(cert.get(), pkey1));
++
++  // |X509_get_pubkey| returns the decoded |pkey| with its reference count
++  // updated, so we must free it.
++  bssl::UniquePtr<EVP_PKEY> pkey2(X509_get_pubkey(cert.get()));
++  ASSERT_TRUE(pkey2);
++  ASSERT_TRUE(X509_verify(cert.get(), pkey2.get()));
++}
+diff --git a/crypto/x509/x_pubkey.c b/crypto/x509/x_pubkey.c
+index 6a6a9750c..659053d92 100644
+--- a/crypto/x509/x_pubkey.c
++++ b/crypto/x509/x_pubkey.c
+@@ -130,22 +130,18 @@ error:
+ // not.
+ static struct CRYPTO_STATIC_MUTEX g_pubkey_lock = CRYPTO_STATIC_MUTEX_INIT;
+ 
+-EVP_PKEY *X509_PUBKEY_get(X509_PUBKEY *key) {
+-  EVP_PKEY *ret = NULL;
+-  uint8_t *spki = NULL;
+-
+-  if (key == NULL) {
+-    goto error;
+-  }
+-
++// x509_pubkey_decode decodes |key| into |pkey|. It returns one on success and
++// zero on error.
++static int x509_pubkey_decode(EVP_PKEY **pkey, X509_PUBKEY *key) {
+   CRYPTO_STATIC_MUTEX_lock_read(&g_pubkey_lock);
+   if (key->pkey != NULL) {
+     CRYPTO_STATIC_MUTEX_unlock_read(&g_pubkey_lock);
+-    EVP_PKEY_up_ref(key->pkey);
+-    return key->pkey;
++    *pkey = key->pkey;
++    return 1;
+   }
+   CRYPTO_STATIC_MUTEX_unlock_read(&g_pubkey_lock);
+ 
++  uint8_t *spki = NULL;
+   // Re-encode the |X509_PUBKEY| to DER and parse it.
+   int spki_len = i2d_X509_PUBKEY(key, &spki);
+   if (spki_len < 0) {
+@@ -153,8 +149,8 @@ EVP_PKEY *X509_PUBKEY_get(X509_PUBKEY *key) {
+   }
+   CBS cbs;
+   CBS_init(&cbs, spki, (size_t)spki_len);
+-  ret = EVP_parse_public_key(&cbs);
+-  if (ret == NULL || CBS_len(&cbs) != 0) {
++  *pkey = EVP_parse_public_key(&cbs);
++  if (*pkey == NULL || CBS_len(&cbs) != 0) {
+     OPENSSL_PUT_ERROR(X509, X509_R_PUBLIC_KEY_DECODE_ERROR);
+     goto error;
+   }
+@@ -163,21 +159,41 @@ EVP_PKEY *X509_PUBKEY_get(X509_PUBKEY *key) {
+   CRYPTO_STATIC_MUTEX_lock_write(&g_pubkey_lock);
+   if (key->pkey) {
+     CRYPTO_STATIC_MUTEX_unlock_write(&g_pubkey_lock);
+-    EVP_PKEY_free(ret);
+-    ret = key->pkey;
++    EVP_PKEY_free(*pkey);
++    *pkey = key->pkey;
+   } else {
+-    key->pkey = ret;
++    key->pkey = *pkey;
+     CRYPTO_STATIC_MUTEX_unlock_write(&g_pubkey_lock);
+   }
+-
+   OPENSSL_free(spki);
+-  EVP_PKEY_up_ref(ret);
+-  return ret;
+-
++  return 1;
+ error:
+   OPENSSL_free(spki);
+-  EVP_PKEY_free(ret);
+-  return NULL;
++  return 0;
++}
++
++EVP_PKEY *X509_PUBKEY_get0(X509_PUBKEY *key) {
++  if (key == NULL) {
++    OPENSSL_PUT_ERROR(X509, ERR_R_PASSED_NULL_PARAMETER);
++    return NULL;
++  }
++
++  EVP_PKEY *ret = NULL;
++  if (!x509_pubkey_decode(&ret, key)) {
++    EVP_PKEY_free(ret);
++    return NULL;
++  };
++  return ret;
++}
++
++EVP_PKEY *X509_PUBKEY_get(X509_PUBKEY *key) {
++  EVP_PKEY *ret = X509_PUBKEY_get0(key);
++
++  if (ret != NULL && !EVP_PKEY_up_ref(ret)) {
++    OPENSSL_PUT_ERROR(X509, ERR_R_INTERNAL_ERROR);
++    ret = NULL;
++  }
++  return ret;
+ }
+ 
+ int X509_PUBKEY_set0_param(X509_PUBKEY *pub, ASN1_OBJECT *obj, int param_type,
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index 67ff61ac4..d7f157190 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -193,6 +193,13 @@ OPENSSL_EXPORT X509_NAME *X509_get_subject_name(const X509 *x509);
+ // object.
+ OPENSSL_EXPORT X509_PUBKEY *X509_get_X509_PUBKEY(const X509 *x509);
+ 
++// X509_get0_pubkey returns |x509|'s public key as an |EVP_PKEY|, or NULL if the
++// public key was unsupported or could not be decoded. It is similar to
++// |X509_get_pubkey|, but it does not increment the reference count of the
++// returned |EVP_PKEY|. This means that the caller must not free the result after
++// use.
++OPENSSL_EXPORT EVP_PKEY *X509_get0_pubkey(const X509 *x);
++
+ // X509_get_pubkey returns |x509|'s public key as an |EVP_PKEY|, or NULL if the
+ // public key was unsupported or could not be decoded. This function returns a
+ // reference to the |EVP_PKEY|. The caller must release the result with

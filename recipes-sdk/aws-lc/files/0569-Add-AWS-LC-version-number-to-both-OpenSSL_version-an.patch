@@ -1,0 +1,74 @@
+From 7b0ab96a8bc9bb3f55b6021f9bede9425a94f115 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Wed, 6 Sep 2023 15:08:14 -0700
+Subject: [PATCH] Add AWS-LC version number to both OpenSSL_version and
+ OPENSSL_VERSION_TEXT (#767)
+
+---
+ crypto/crypto.c          |  3 ++-
+ crypto/crypto_test.cc    | 10 ++++++++++
+ include/openssl/crypto.h |  6 +++---
+ 3 files changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/crypto/crypto.c b/crypto/crypto.c
+index 4d5a463b5..d4c9a7046 100644
+--- a/crypto/crypto.c
++++ b/crypto/crypto.c
+@@ -115,10 +115,11 @@ void CRYPTO_pre_sandbox_init(void) {
+ 
+ const char *SSLeay_version(int which) { return OpenSSL_version(which); }
+ 
++#define AWS_LC_VERSION_TEXT AWSLC_VERSION_NAME " " AWSLC_VERSION_NUMBER_STRING
+ const char *OpenSSL_version(int which) {
+   switch (which) {
+     case OPENSSL_VERSION:
+-      return AWSLC_VERSION_NAME;
++      return AWS_LC_VERSION_TEXT;
+     case OPENSSL_CFLAGS:
+       return "compiler: n/a";
+     case OPENSSL_BUILT_ON:
+diff --git a/crypto/crypto_test.cc b/crypto/crypto_test.cc
+index cb4b7eebf..73eb6480d 100644
+--- a/crypto/crypto_test.cc
++++ b/crypto/crypto_test.cc
+@@ -35,6 +35,16 @@ TEST(CryptoTest, Version) {
+            (OPENSSL_VERSION_NUMBER >> 12) & 0xff);
+   EXPECT_EQ(expected,
+             std::string(OPENSSL_VERSION_TEXT).substr(0, strlen(expected)));
++
++  std::string full_expected = "OpenSSL 1.1.1 (compatible; AWS-LC ";
++  full_expected += AWSLC_VERSION_NUMBER_STRING;
++  full_expected += ")";
++  EXPECT_EQ(OPENSSL_VERSION_TEXT, full_expected);
++
++  full_expected = "AWS-LC ";
++  full_expected += AWSLC_VERSION_NUMBER_STRING;
++  std::string actual = std::string(OpenSSL_version(OPENSSL_VERSION));
++  EXPECT_EQ(actual, full_expected);
+ }
+ 
+ TEST(CryptoTest, Strndup) {
+diff --git a/include/openssl/crypto.h b/include/openssl/crypto.h
+index 7eed7b58c..ec7219a8a 100644
+--- a/include/openssl/crypto.h
++++ b/include/openssl/crypto.h
+@@ -113,7 +113,7 @@ OPENSSL_EXPORT size_t FIPS_read_counter(enum fips_counter_t counter);
+ 
+ // OPENSSL_VERSION_TEXT contains a string the identifies the version of
+ // “OpenSSL”. node.js requires a version number in this text.
+-#define OPENSSL_VERSION_TEXT "OpenSSL 1.1.1 (compatible; AWS-LC)"
++#define OPENSSL_VERSION_TEXT "OpenSSL 1.1.1 (compatible; AWS-LC " AWSLC_VERSION_NUMBER_STRING ")"
+ 
+ #define OPENSSL_VERSION 0
+ #define OPENSSL_CFLAGS 1
+@@ -122,8 +122,8 @@ OPENSSL_EXPORT size_t FIPS_read_counter(enum fips_counter_t counter);
+ #define OPENSSL_DIR 4
+ 
+ // OpenSSL_version is a compatibility function that returns the string
+-// "BoringSSL" if |which| is |OPENSSL_VERSION| and placeholder strings
+-// otherwise.
++// "AWS-LC" with the AWS-LC version number appended if |which| is
++// |OPENSSL_VERSION| and placeholder strings otherwise.
+ OPENSSL_EXPORT const char *OpenSSL_version(int which);
+ 
+ #define SSLEAY_VERSION OPENSSL_VERSION

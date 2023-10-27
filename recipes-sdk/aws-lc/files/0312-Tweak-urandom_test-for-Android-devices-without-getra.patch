@@ -1,0 +1,52 @@
+From 60d06e6464d55dbc71a78f5af277037127a31700 Mon Sep 17 00:00:00 2001
+From: Adam Langley <agl@google.com>
+Date: Thu, 23 Feb 2023 00:23:27 +0000
+Subject: [PATCH] Tweak urandom_test for Android devices without getrandom.
+
+Some Android devices in our builder pool are so old that they lack
+getrandom. This change attempts to make them happy.
+
+Change-Id: I5eea04f1b1dc599852e3b8448ad829bea05b9fe9
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57527
+Reviewed-by: David Benjamin <davidben@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+Auto-Submit: Adam Langley <agl@google.com>
+(cherry picked from commit 3cd7faadc982ca6c33c05a0ba8030f43bde80707)
+---
+ crypto/fipsmodule/rand/urandom_test.cc | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/crypto/fipsmodule/rand/urandom_test.cc b/crypto/fipsmodule/rand/urandom_test.cc
+index eff7f762a..18de673ad 100644
+--- a/crypto/fipsmodule/rand/urandom_test.cc
++++ b/crypto/fipsmodule/rand/urandom_test.cc
+@@ -32,6 +32,7 @@
+ #include <sys/user.h>
+ 
+ #include "fork_detect.h"
++#include "getrandom_fillin.h"
+ 
+ #if !defined(PTRACE_O_EXITKILL)
+ #define PTRACE_O_EXITKILL (1 << 20)
+@@ -504,11 +505,21 @@ static std::vector<Event> TestFunctionPRNGModel(unsigned flags) {
+ TEST(URandomTest, Test) {
+   char buf[256];
+ 
++  // Some Android systems lack getrandom.
++  uint8_t scratch[1];
++  const bool has_getrandom =
++      (syscall(__NR_getrandom, scratch, sizeof(scratch), GRND_NONBLOCK) != -1 ||
++       errno != ENOSYS);
++
+ #define TRACE_FLAG(flag)                                         \
+   snprintf(buf, sizeof(buf), #flag ": %d", (flags & flag) != 0); \
+   SCOPED_TRACE(buf);
+ 
+   for (unsigned flags = 0; flags < NEXT_FLAG; flags++) {
++    if (!has_getrandom && !(flags & NO_GETRANDOM)) {
++        continue;
++    }
++
+     TRACE_FLAG(NO_GETRANDOM);
+     TRACE_FLAG(NO_URANDOM);
+     TRACE_FLAG(GETRANDOM_NOT_READY);

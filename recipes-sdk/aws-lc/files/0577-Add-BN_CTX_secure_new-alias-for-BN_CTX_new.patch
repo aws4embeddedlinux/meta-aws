@@ -1,0 +1,43 @@
+From f16f154b147a9ce054c9ef86730a2c85f0a5a1d0 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Gerardo=20Ravago=20=F0=9F=87=B5=F0=9F=87=AD?=
+ <gcr@amazon.com>
+Date: Mon, 11 Sep 2023 10:36:57 -0400
+Subject: [PATCH] Add BN_CTX_secure_new alias for BN_CTX_new
+
+OpenSSL defines BN_CTX_secure_new which allocates BNs using
+BN_secure_new. In LC, all BNs are allocated "securely" (i.e. they 0 out
+memory during alloc/free).
+
+We already define an alias for BN_secure_new like this, so we are just
+completing the compatibility layer with this change.
+---
+ crypto/fipsmodule/bn/ctx.c | 2 ++
+ include/openssl/bn.h       | 2 ++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/crypto/fipsmodule/bn/ctx.c b/crypto/fipsmodule/bn/ctx.c
+index 007316110..cd49e32cc 100644
+--- a/crypto/fipsmodule/bn/ctx.c
++++ b/crypto/fipsmodule/bn/ctx.c
+@@ -120,6 +120,8 @@ BN_CTX *BN_CTX_new(void) {
+   return ret;
+ }
+ 
++BN_CTX *BN_CTX_secure_new(void) { return BN_CTX_new(); }
++
+ void BN_CTX_free(BN_CTX *ctx) {
+   if (ctx == NULL) {
+     return;
+diff --git a/include/openssl/bn.h b/include/openssl/bn.h
+index 1934a29d4..faec6694f 100644
+--- a/include/openssl/bn.h
++++ b/include/openssl/bn.h
+@@ -1005,6 +1005,8 @@ OPENSSL_EXPORT int BN_bn2binpad(const BIGNUM *in, uint8_t *out, int len);
+ // BN_secure_new calls |BN_new|.
+ OPENSSL_EXPORT BIGNUM *BN_secure_new(void);
+ 
++// BN_CTX_secure_new calls |BN_CTX_new|.
++OPENSSL_EXPORT BN_CTX *BN_CTX_secure_new(void);
+ 
+ // Private functions
+ 

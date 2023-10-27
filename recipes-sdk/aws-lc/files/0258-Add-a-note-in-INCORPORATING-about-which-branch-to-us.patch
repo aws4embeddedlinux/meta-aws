@@ -1,0 +1,44 @@
+From bc4e75e4173610a409abbd4981ebf8c20d0a3072 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 10 Feb 2023 13:25:14 -0500
+Subject: [PATCH] Add a note in INCORPORATING about which branch to use
+
+Especially when they were named "2214" instead of "chromium-2214", I've
+seen papers and other projects treat them as releases. Add a note to
+make it clear they are not releases.
+
+AWS-LC:
+- Update example branch names to match AWS-LC's branches
+
+Change-Id: Ie820b800de3d25a31d3083d4ceff75e1d7f74a06
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57145
+Reviewed-by: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit ace33161544814ed6dc9e9d17cfde0422881b9d2)
+---
+ INCORPORATING.md | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/INCORPORATING.md b/INCORPORATING.md
+index a3c5e5406..e41d8b476 100644
+--- a/INCORPORATING.md
++++ b/INCORPORATING.md
+@@ -1,4 +1,17 @@
+ # Incorporating AWS-LC into a project
++## Which branch to use
++
++AWS-LC usage typically follows a
++["live at head"](https://abseil.io/about/philosophy#we-recommend-that-you-choose-to-live-at-head)
++model. Projects pin to whatever the current latest of AWS-LC is at the time
++of update, and regularly update it to pick up new changes.
++
++While the AWS-LC repository may contain project-specific branches, e.g.
++`integrate-pq`, those are _not_ supported release branches and must not as
++such. In rare cases, AWS-LC will temporarily maintain a short-lived branch on
++behalf of a project. Most such branches are no longer updated, because the
++corresponding project no longer needs them, and we do not create new ones to
++replace the ones that are no longer updated.
+ 
+ ## Build support
+ 

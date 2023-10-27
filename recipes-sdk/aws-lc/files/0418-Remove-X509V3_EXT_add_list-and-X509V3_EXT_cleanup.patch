@@ -1,0 +1,136 @@
+From a32d733aeb14d3d968a3e340d7b0dc45a7f69e21 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 13 Apr 2023 10:21:47 -0400
+Subject: [PATCH] Remove X509V3_EXT_add_list and X509V3_EXT_cleanup
+
+These are already unused, though add and add_alias will need more work.
+
+In doing so, simplify the X509V3_EXT_DYNAMIC business. I added some
+cleanup calls to https://boringssl-review.googlesource.com/2208, but
+that should have been in the error-handling path of
+X509V3_EXT_add_alias, the only case that cares about this.
+
+Update-Note: Removed unused API.
+
+Bug: 590
+Change-Id: Idd97366d90d7aab0ca2e020c76a7c8065b3dd7ff
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58765
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit 5fb362c66a57b4d1e300a1d56b461bbb69e8c8ae)
+---
+ crypto/x509v3/v3_lib.c   | 29 ++++-------------------------
+ include/openssl/x509v3.h | 20 --------------------
+ 2 files changed, 4 insertions(+), 45 deletions(-)
+
+diff --git a/crypto/x509v3/v3_lib.c b/crypto/x509v3/v3_lib.c
+index 623a7c69d..52528eac0 100644
+--- a/crypto/x509v3/v3_lib.c
++++ b/crypto/x509v3/v3_lib.c
+@@ -71,8 +71,6 @@
+ #include "ext_dat.h"
+ static STACK_OF(X509V3_EXT_METHOD) *ext_list = NULL;
+ 
+-static void ext_list_free(X509V3_EXT_METHOD *ext);
+-
+ static int ext_stack_cmp(const X509V3_EXT_METHOD *const *a,
+                          const X509V3_EXT_METHOD *const *b) {
+   return ((*a)->ext_nid - (*b)->ext_nid);
+@@ -84,11 +82,9 @@ int X509V3_EXT_add(X509V3_EXT_METHOD *ext) {
+ 
+   // TODO(davidben): This should be locked. Also check for duplicates.
+   if (!ext_list && !(ext_list = sk_X509V3_EXT_METHOD_new(ext_stack_cmp))) {
+-    ext_list_free(ext);
+     return 0;
+   }
+   if (!sk_X509V3_EXT_METHOD_push(ext_list, ext)) {
+-    ext_list_free(ext);
+     return 0;
+   }
+   sk_X509V3_EXT_METHOD_sort(ext_list);
+@@ -144,15 +140,6 @@ int X509V3_EXT_free(int nid, void *ext_data) {
+   return 1;
+ }
+ 
+-int X509V3_EXT_add_list(X509V3_EXT_METHOD *extlist) {
+-  for (; extlist->ext_nid != -1; extlist++) {
+-    if (!X509V3_EXT_add(extlist)) {
+-      return 0;
+-    }
+-  }
+-  return 1;
+-}
+-
+ int X509V3_EXT_add_alias(int nid_to, int nid_from) {
+   const X509V3_EXT_METHOD *ext;
+   X509V3_EXT_METHOD *tmpext;
+@@ -167,19 +154,11 @@ int X509V3_EXT_add_alias(int nid_to, int nid_from) {
+   }
+   *tmpext = *ext;
+   tmpext->ext_nid = nid_to;
+-  tmpext->ext_flags |= X509V3_EXT_DYNAMIC;
+-  return X509V3_EXT_add(tmpext);
+-}
+-
+-void X509V3_EXT_cleanup(void) {
+-  sk_X509V3_EXT_METHOD_pop_free(ext_list, ext_list_free);
+-  ext_list = NULL;
+-}
+-
+-static void ext_list_free(X509V3_EXT_METHOD *ext) {
+-  if (ext->ext_flags & X509V3_EXT_DYNAMIC) {
+-    OPENSSL_free(ext);
++  if (!X509V3_EXT_add(tmpext)) {
++    OPENSSL_free(tmpext);
++    return 0;
+   }
++  return 1;
+ }
+ 
+ // Legacy function: we don't need to add standard extensions any more because
+diff --git a/include/openssl/x509v3.h b/include/openssl/x509v3.h
+index 543ed4cf3..fd2e59df8 100644
+--- a/include/openssl/x509v3.h
++++ b/include/openssl/x509v3.h
+@@ -134,7 +134,6 @@ struct v3_ext_method {
+ DEFINE_STACK_OF(X509V3_EXT_METHOD)
+ 
+ // ext_flags values
+-#define X509V3_EXT_DYNAMIC 0x1
+ #define X509V3_EXT_CTX_DEP 0x2
+ #define X509V3_EXT_MULTILINE 0x4
+ 
+@@ -691,13 +690,6 @@ OPENSSL_EXPORT char *i2s_ASN1_ENUMERATED(const X509V3_EXT_METHOD *meth,
+ // practical value.
+ OPENSSL_EXPORT int X509V3_EXT_add(X509V3_EXT_METHOD *ext);
+ 
+-// X509V3_EXT_add_list calls |X509V3_EXT_add| on |&extlist[0]|, |&extlist[1]|,
+-// and so on, until some |extlist[i]->ext_nid| is -1. It returns one on success
+-// and zero on error.
+-//
+-// WARNING: Do not use this function. See |X509V3_EXT_add|.
+-OPENSSL_EXPORT int X509V3_EXT_add_list(X509V3_EXT_METHOD *extlist);
+-
+ // X509V3_EXT_add_alias registers a custom extension with NID |nid_to|. The
+ // corresponding ASN.1 type is copied from |nid_from|. It returns one on success
+ // and zero on error.
+@@ -705,18 +697,6 @@ OPENSSL_EXPORT int X509V3_EXT_add_list(X509V3_EXT_METHOD *extlist);
+ // WARNING: Do not use this function. See |X509V3_EXT_add|.
+ OPENSSL_EXPORT int X509V3_EXT_add_alias(int nid_to, int nid_from);
+ 
+-// X509V3_EXT_cleanup removes all custom extensions registered with
+-// |X509V3_EXT_add*|.
+-//
+-// WARNING: This function modifies global state and will impact custom
+-// extensions registered by any code in the same address space. It,
+-// additionally, is not thread-safe and cannot be called concurrently with any
+-// other BoringSSL function.
+-//
+-// Instead of calling this function, allow memory from custom extensions to be
+-// released on process exit, along with other global program state.
+-OPENSSL_EXPORT void X509V3_EXT_cleanup(void);
+-
+ OPENSSL_EXPORT const X509V3_EXT_METHOD *X509V3_EXT_get(
+     const X509_EXTENSION *ext);
+ OPENSSL_EXPORT const X509V3_EXT_METHOD *X509V3_EXT_get_nid(int nid);

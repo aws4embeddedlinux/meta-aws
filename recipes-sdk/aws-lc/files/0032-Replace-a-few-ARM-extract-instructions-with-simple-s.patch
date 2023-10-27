@@ -1,0 +1,54 @@
+From 63c7e114a399a9c4bfd9323dc587b79a8b015223 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Thu, 23 Sep 2021 11:00:48 -0700
+Subject: [PATCH] Replace a few ARM extract instructions with simple shifts
+
+In the P-521 squarings there were a few cases of using "extr"
+together with the zero register. The plain shift replacements
+are equivalent but might possibly be slightly faster on some
+microarchitectures.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/92d118ae0e06a4e1e2eadb9511a38f5e4a7cb6e4
+---
+ arm/p521/bignum_montsqr_p521.S | 4 ++--
+ arm/p521/bignum_sqr_p521.S     | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/arm/p521/bignum_montsqr_p521.S b/arm/p521/bignum_montsqr_p521.S
+index 3463c4a3d..53d3b4fac 100644
+--- a/arm/p521/bignum_montsqr_p521.S
++++ b/arm/p521/bignum_montsqr_p521.S
+@@ -542,12 +542,12 @@ bignum_montsqr_p521:
+                 extr    d2, s7, s6, #8
+                 adcs    d2, d2, l
+                 and     t, d1, d2
+-                extr    d3, xzr, s7, #8
++                lsr     d3, s7, #8
+                 adcs    d3, d3, h
+                 and     t, t, d3
+ 
+                 ldp     l, h, [z, #32]
+-                extr    d4, s0, xzr, #63
++                lsl     d4, s0, #1
+                 adcs    d4, d4, l
+                 and     t, t, d4
+                 extr    d5, s1, s0, #63
+diff --git a/arm/p521/bignum_sqr_p521.S b/arm/p521/bignum_sqr_p521.S
+index 19c0be80b..df84f2868 100644
+--- a/arm/p521/bignum_sqr_p521.S
++++ b/arm/p521/bignum_sqr_p521.S
+@@ -536,12 +536,12 @@ bignum_sqr_p521:
+                 extr    d2, s7, s6, #8
+                 adcs    d2, d2, l
+                 and     t, d1, d2
+-                extr    d3, xzr, s7, #8
++                lsr     d3, s7, #8
+                 adcs    d3, d3, h
+                 and     t, t, d3
+ 
+                 ldp     l, h, [z, #32]
+-                extr    d4, s0, xzr, #63
++                lsl     d4, s0, #1
+                 adcs    d4, d4, l
+                 and     t, t, d4
+                 extr    d5, s1, s0, #63

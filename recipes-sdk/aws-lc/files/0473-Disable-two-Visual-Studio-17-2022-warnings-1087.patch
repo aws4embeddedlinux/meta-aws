@@ -1,0 +1,22 @@
+From 84cf70989f4406221f8b2d5d1c4f62e94f4e19c6 Mon Sep 17 00:00:00 2001
+From: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+Date: Mon, 10 Jul 2023 12:28:38 -0400
+Subject: [PATCH] Disable two "Visual Studio 17 2022" warnings (#1087)
+
+---
+ CMakeLists.txt | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 7cc2b4a70..98312d179 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -449,6 +449,8 @@ elseif(MSVC)
+       "C4191" # unsafe conversion from 'type of expression' to 'type required'
+               # TODO remove once https://github.com/openssl/openssl/issues/18957 is resolved
+       "C4996" # deprecated warnings using low level functions in OpenSSL 3.0
++      "C4746" # consider using __iso_volatile_load/store intrinsic functions
++      "C5264" # 'variable-name': 'const' variable is not used
+           )
+   set(MSVC_LEVEL4_WARNINGS_LIST
+       # See https://connect.microsoft.com/VisualStudio/feedback/details/1217660/warning-c4265-when-using-functional-header

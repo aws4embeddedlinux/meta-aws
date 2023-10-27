@@ -1,0 +1,450 @@
+From 3d5ebf9039ee538d91e1a1be53b191d4cfb34f20 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Sun, 19 Feb 2023 16:07:28 -0800
+Subject: [PATCH] Update build files in generated-src
+
+---
+ generated-src/win-x86/crypto/chacha/chacha-x86.asm             | 3 +++
+ generated-src/win-x86/crypto/fipsmodule/aesni-x86.asm          | 3 +++
+ generated-src/win-x86/crypto/fipsmodule/bn-586.asm             | 3 +++
+ generated-src/win-x86/crypto/fipsmodule/co-586.asm             | 3 +++
+ generated-src/win-x86/crypto/fipsmodule/ghash-ssse3-x86.asm    | 3 +++
+ generated-src/win-x86/crypto/fipsmodule/ghash-x86.asm          | 3 +++
+ generated-src/win-x86/crypto/fipsmodule/md5-586.asm            | 3 +++
+ generated-src/win-x86/crypto/fipsmodule/sha1-586.asm           | 3 +++
+ generated-src/win-x86/crypto/fipsmodule/sha256-586.asm         | 3 +++
+ generated-src/win-x86/crypto/fipsmodule/sha512-586.asm         | 3 +++
+ generated-src/win-x86/crypto/fipsmodule/vpaes-x86.asm          | 3 +++
+ generated-src/win-x86/crypto/fipsmodule/x86-mont.asm           | 3 +++
+ generated-src/win-x86/crypto/test/trampoline-x86.asm           | 3 +++
+ generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm       | 3 +++
+ .../win-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.asm     | 3 +++
+ .../win-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.asm       | 3 +++
+ .../win-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.asm     | 3 +++
+ .../crypto/cipher_extra/chacha20_poly1305_x86_64.asm           | 3 +++
+ .../win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm          | 3 +++
+ generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm    | 3 +++
+ .../win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm        | 3 +++
+ generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm    | 3 +++
+ generated-src/win-x86_64/crypto/fipsmodule/md5-x86_64.asm      | 3 +++
+ generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm | 3 +++
+ .../win-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.asm      | 3 +++
+ generated-src/win-x86_64/crypto/fipsmodule/rdrand-x86_64.asm   | 3 +++
+ generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm       | 3 +++
+ generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm     | 3 +++
+ generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm   | 3 +++
+ generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm   | 3 +++
+ generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm    | 3 +++
+ generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont.asm     | 3 +++
+ generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm    | 3 +++
+ generated-src/win-x86_64/crypto/test/trampoline-x86_64.asm     | 3 +++
+ 34 files changed, 102 insertions(+)
+
+diff --git a/generated-src/win-x86/crypto/chacha/chacha-x86.asm b/generated-src/win-x86/crypto/chacha/chacha-x86.asm
+index 52c1f6786..8bd0ce589 100644
+--- a/generated-src/win-x86/crypto/chacha/chacha-x86.asm
++++ b/generated-src/win-x86/crypto/chacha/chacha-x86.asm
+@@ -974,4 +974,7 @@ db	60,97,112,112,114,111,64,111,112,101,110,115,115,108,46,111
+ db	114,103,62,0
+ segment	.bss
+ common	_OPENSSL_ia32cap_P 16
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86/crypto/fipsmodule/aesni-x86.asm b/generated-src/win-x86/crypto/fipsmodule/aesni-x86.asm
+index 567939ef3..19b1d98be 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/aesni-x86.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/aesni-x86.asm
+@@ -2460,4 +2460,7 @@ db	32,98,121,32,60,97,112,112,114,111,64,111,112,101,110,115
+ db	115,108,46,111,114,103,62,0
+ segment	.bss
+ common	_OPENSSL_ia32cap_P 16
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86/crypto/fipsmodule/bn-586.asm b/generated-src/win-x86/crypto/fipsmodule/bn-586.asm
+index 485af2ed2..f7ddfa841 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/bn-586.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/bn-586.asm
+@@ -976,4 +976,7 @@ L$025aw_end:
+ 	ret
+ segment	.bss
+ common	_OPENSSL_ia32cap_P 16
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86/crypto/fipsmodule/co-586.asm b/generated-src/win-x86/crypto/fipsmodule/co-586.asm
+index e17bfc65a..6ad46962c 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/co-586.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/co-586.asm
+@@ -1257,4 +1257,7 @@ L$_bn_sqr_comba4_begin:
+ 	pop	edi
+ 	pop	esi
+ 	ret
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86/crypto/fipsmodule/ghash-ssse3-x86.asm b/generated-src/win-x86/crypto/fipsmodule/ghash-ssse3-x86.asm
+index d2b34a570..52108aacc 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/ghash-ssse3-x86.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/ghash-ssse3-x86.asm
+@@ -291,4 +291,7 @@ db	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
+ align	16
+ L$low4_mask:
+ dd	252645135,252645135,252645135,252645135
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86/crypto/fipsmodule/ghash-x86.asm b/generated-src/win-x86/crypto/fipsmodule/ghash-x86.asm
+index e1b953e6d..3f6c70747 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/ghash-x86.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/ghash-x86.asm
+@@ -324,4 +324,7 @@ db	71,72,65,83,72,32,102,111,114,32,120,56,54,44,32,67
+ db	82,89,80,84,79,71,65,77,83,32,98,121,32,60,97,112
+ db	112,114,111,64,111,112,101,110,115,115,108,46,111,114,103,62
+ db	0
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86/crypto/fipsmodule/md5-586.asm b/generated-src/win-x86/crypto/fipsmodule/md5-586.asm
+index 327409203..25592b8d4 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/md5-586.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/md5-586.asm
+@@ -688,4 +688,7 @@ L$000start:
+ 	pop	edi
+ 	pop	esi
+ 	ret
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86/crypto/fipsmodule/sha1-586.asm b/generated-src/win-x86/crypto/fipsmodule/sha1-586.asm
+index 859edf1ce..51a890748 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/sha1-586.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/sha1-586.asm
+@@ -3805,4 +3805,7 @@ db	89,80,84,79,71,65,77,83,32,98,121,32,60,97,112,112
+ db	114,111,64,111,112,101,110,115,115,108,46,111,114,103,62,0
+ segment	.bss
+ common	_OPENSSL_ia32cap_P 16
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86/crypto/fipsmodule/sha256-586.asm b/generated-src/win-x86/crypto/fipsmodule/sha256-586.asm
+index 1d8c3f3fe..4e0278b0a 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/sha256-586.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/sha256-586.asm
+@@ -5570,4 +5570,7 @@ L$013avx_00_47:
+ 	ret
+ segment	.bss
+ common	_OPENSSL_ia32cap_P 16
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86/crypto/fipsmodule/sha512-586.asm b/generated-src/win-x86/crypto/fipsmodule/sha512-586.asm
+index 435346f90..3603a6dc1 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/sha512-586.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/sha512-586.asm
+@@ -2840,4 +2840,7 @@ db	112,112,114,111,64,111,112,101,110,115,115,108,46,111,114,103
+ db	62,0
+ segment	.bss
+ common	_OPENSSL_ia32cap_P 16
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86/crypto/fipsmodule/vpaes-x86.asm b/generated-src/win-x86/crypto/fipsmodule/vpaes-x86.asm
+index f5e9cd27a..661496e36 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/vpaes-x86.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/vpaes-x86.asm
+@@ -673,4 +673,7 @@ L$022cbc_abort:
+ 	pop	ebx
+ 	pop	ebp
+ 	ret
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86/crypto/fipsmodule/x86-mont.asm b/generated-src/win-x86/crypto/fipsmodule/x86-mont.asm
+index 6cac36a2f..cd77529cb 100644
+--- a/generated-src/win-x86/crypto/fipsmodule/x86-mont.asm
++++ b/generated-src/win-x86/crypto/fipsmodule/x86-mont.asm
+@@ -484,4 +484,7 @@ db	32,60,97,112,112,114,111,64,111,112,101,110,115,115,108,46
+ db	111,114,103,62,0
+ segment	.bss
+ common	_OPENSSL_ia32cap_P 16
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86/crypto/test/trampoline-x86.asm b/generated-src/win-x86/crypto/test/trampoline-x86.asm
+index 36e3ad71c..3ef9917af 100644
+--- a/generated-src/win-x86/crypto/test/trampoline-x86.asm
++++ b/generated-src/win-x86/crypto/test/trampoline-x86.asm
+@@ -155,4 +155,7 @@ _abi_test_clobber_xmm7:
+ L$_abi_test_clobber_xmm7_begin:
+ 	pxor	xmm7,xmm7
+ 	ret
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm b/generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm
+index 39d087790..ecac66e09 100644
+--- a/generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm
+@@ -1925,4 +1925,7 @@ $L$SEH_info_ChaCha20_8x:
+ 	DB	9,0,0,0
+ 	DD	full_handler wrt ..imagebase
+ 	DD	$L$8x_body wrt ..imagebase,$L$8x_epilogue wrt ..imagebase
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.asm b/generated-src/win-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.asm
+index d11046ebc..96a9fab12 100644
+--- a/generated-src/win-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.asm
+@@ -3276,4 +3276,7 @@ $L$SEH_begin_aes256gcmsiv_kdf:
+ 	DB	0F3h,0C3h		;repret
+ 
+ $L$SEH_end_aes256gcmsiv_kdf:
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.asm b/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.asm
+index 2a494abc0..715291a71 100644
+--- a/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha1-x86_64.asm
+@@ -3274,4 +3274,7 @@ $L$SEH_info_aesni_cbc_sha1_enc_shaext:
+ 	DB	9,0,0,0
+ 	DD	ssse3_handler wrt ..imagebase
+ 	DD	$L$prologue_shaext wrt ..imagebase,$L$epilogue_shaext wrt ..imagebase
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.asm b/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.asm
+index 57f97c97c..912d455a6 100644
+--- a/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/cipher_extra/aesni-sha256-x86_64.asm
+@@ -4714,4 +4714,7 @@ $L$SEH_info_aesni_cbc_sha256_enc_shaext:
+ 	DB	9,0,0,0
+ 	DD	se_handler wrt ..imagebase
+ 	DD	$L$prologue_shaext wrt ..imagebase,$L$epilogue_shaext wrt ..imagebase
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.asm b/generated-src/win-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.asm
+index 67fd8e79d..93d65b1d4 100644
+--- a/generated-src/win-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.asm
++++ b/generated-src/win-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.asm
+@@ -8945,4 +8945,7 @@ $L$seal_avx2_exit:
+ 	jmp	NEAR $L$seal_sse_tail_16
+ 
+ 
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm
+index 38d363bd6..c429115c7 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm
+@@ -1082,4 +1082,7 @@ $L$SEH_info_aesni_gcm_encrypt_0:
+ 	DB	48
+ 	DB	$L$SEH_prolog_aesni_gcm_encrypt_2-$L$SEH_begin_aesni_gcm_encrypt_1
+ 	DB	80
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm
+index 016910a3a..47ba27abc 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm
+@@ -3852,4 +3852,7 @@ $L$SEH_info_cbc:
+ $L$SEH_info_key:
+ 	DB	0x01,0x04,0x01,0x00
+ 	DB	0x04,0x02,0x00,0x00
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm
+index d794d19eb..deb26e46e 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm
+@@ -485,4 +485,7 @@ $L$SEH_info_gcm_ghash_ssse3_0:
+ 	DW	0
+ 	DB	$L$SEH_prolog_gcm_ghash_ssse3_2-$L$SEH_begin_gcm_ghash_ssse3_1
+ 	DB	98
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm
+index 9eee449c4..f564df4ee 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm
+@@ -1327,4 +1327,7 @@ $L$SEH_info_gcm_ghash_avx_0:
+ 	DB	$L$SEH_prolog_gcm_ghash_avx_2-$L$SEH_begin_gcm_ghash_avx_1
+ 	DB	1
+ 	DW	21
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/md5-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/md5-x86_64.asm
+index 7255189be..003a589eb 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/md5-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/md5-x86_64.asm
+@@ -795,4 +795,7 @@ ALIGN	8
+ $L$SEH_info_md5_block_asm_data_order:
+ 	DB	9,0,0,0
+ 	DD	se_handler wrt ..imagebase
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm b/generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm
+index 574b7d123..60ce1f7c1 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm
+@@ -4983,4 +4983,7 @@ $L$SEH_info_ecp_nistz256_point_add_affinex:
+ 	DD	full_handler wrt ..imagebase
+ 	DD	$L$add_affinex_body wrt ..imagebase,$L$add_affinex_epilogue wrt ..imagebase
+ 	DD	32*15+56,0
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.asm b/generated-src/win-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.asm
+index 915cb5178..0488afd83 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.asm
+@@ -338,4 +338,7 @@ $L$beeu_finish:
+ 
+ 
+ $L$SEH_end_beeu_mod_inverse_vartime:
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/rdrand-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/rdrand-x86_64.asm
+index e4febcb14..f3a93287e 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/rdrand-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/rdrand-x86_64.asm
+@@ -68,4 +68,7 @@ $L$err_multiple:
+ 	DB	0F3h,0C3h		;repret
+ 
+ 
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm b/generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm
+index 5c94d25e5..a28694627 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm
+@@ -1971,4 +1971,7 @@ $L$SEH_info_rsaz_1024_gather5:
+ 	DB	0x09,0x68,0x00,0x00
+ 	DB	0x04,0x01,0x15,0x00
+ 	DB	0x00,0xb3,0x00,0x00
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm
+index f14f280d3..928f390d1 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm
+@@ -5773,4 +5773,7 @@ $L$SEH_info_sha1_block_data_order_avx2:
+ 	DB	9,0,0,0
+ 	DD	ssse3_handler wrt ..imagebase
+ 	DD	$L$prologue_avx2 wrt ..imagebase,$L$epilogue_avx2 wrt ..imagebase
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm
+index 845959739..84484f6b3 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm
+@@ -4419,4 +4419,7 @@ $L$SEH_info_sha256_block_data_order_avx:
+ 	DB	9,0,0,0
+ 	DD	se_handler wrt ..imagebase
+ 	DD	$L$prologue_avx wrt ..imagebase,$L$epilogue_avx wrt ..imagebase
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm
+index 134d58047..3fdd12018 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm
+@@ -3138,4 +3138,7 @@ $L$SEH_info_sha512_block_data_order_avx:
+ 	DB	9,0,0,0
+ 	DD	se_handler wrt ..imagebase
+ 	DD	$L$prologue_avx wrt ..imagebase,$L$epilogue_avx wrt ..imagebase
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm
+index 3d3c528fe..c7fa44992 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm
+@@ -1471,4 +1471,7 @@ $L$SEH_info_vpaes_ctr32_encrypt_blocks:
+ 	DB	9,0,0,0
+ 	DD	se_handler wrt ..imagebase
+ 	DD	$L$ctr32_body wrt ..imagebase,$L$ctr32_epilogue wrt ..imagebase
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont.asm b/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont.asm
+index faadf51a0..5ea1f2edc 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont.asm
+@@ -1480,4 +1480,7 @@ $L$SEH_info_bn_mulx4x_mont:
+ 	DD	sqr_handler wrt ..imagebase
+ 	DD	$L$mulx4x_prologue wrt ..imagebase,$L$mulx4x_body wrt ..imagebase,$L$mulx4x_epilogue wrt ..imagebase
+ ALIGN	8
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm b/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm
+index f628a5708..1a87ca7f5 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm
+@@ -3848,4 +3848,7 @@ $L$SEH_info_bn_gather5:
+ 	DB	0x0b,0x01,0x21,0x00
+ 	DB	0x04,0xa3,0x00,0x00
+ ALIGN	8
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/test/trampoline-x86_64.asm b/generated-src/win-x86_64/crypto/test/trampoline-x86_64.asm
+index f2c8b6090..a63c060fe 100644
+--- a/generated-src/win-x86_64/crypto/test/trampoline-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/test/trampoline-x86_64.asm
+@@ -672,4 +672,7 @@ $L$SEH_info_abi_test_bad_unwind_epilog_0:
+ 	DB	0
+ 	DB	$L$SEH_prolog_abi_test_bad_unwind_epilog_2-$L$SEH_begin_abi_test_bad_unwind_epilog_1
+ 	DB	192
++%else
++; Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392738
++ret
+ %endif

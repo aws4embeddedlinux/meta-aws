@@ -1,0 +1,72 @@
+From b3e6f9238f35e1cdeaf8a2aec51b6db49f488ab2 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 26 May 2023 20:54:17 -0400
+Subject: [PATCH] Remove SSL_CIPHER_get_value
+
+Update-Note: SSL_CIPHER_get_value was our original name for the
+function. OpenSSL later called it SSL_CIPHER_get_protocol_id. I believe
+all external callers have since been updated to use the new function.
+(If I missed a few stragglers, replace with SSL_CIPHER_get_protocol_id
+to fix.)
+
+AWS-LC:
+- Changed a different occurrence in tls13_client.cc than the original commit.
+
+Change-Id: I956fb49bf2d13a898eed73177493d2c8d50778ad
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/60205
+Reviewed-by: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit 4631ccc1bf95d296340e6d1e20a55890e55466a5)
+---
+ include/openssl/ssl.h | 7 -------
+ ssl/ssl_cipher.cc     | 4 ----
+ ssl/tls13_client.cc   | 2 +-
+ 3 files changed, 1 insertion(+), 12 deletions(-)
+
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index f50e13829..3332d574f 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -5512,13 +5512,6 @@ OPENSSL_EXPORT int SSL_CTX_set_tlsext_status_arg(SSL_CTX *ctx, void *arg);
+   SSL_R_TLSV1_ALERT_BAD_CERTIFICATE_HASH_VALUE
+ #define SSL_R_TLSV1_CERTIFICATE_REQUIRED SSL_R_TLSV1_ALERT_CERTIFICATE_REQUIRED
+ 
+-// SSL_CIPHER_get_value calls |SSL_CIPHER_get_protocol_id|.
+-//
+-// TODO(davidben): |SSL_CIPHER_get_value| was our name for this function, but
+-// upstream added it as |SSL_CIPHER_get_protocol_id|. Switch callers to the new
+-// name and remove this one.
+-OPENSSL_EXPORT uint16_t SSL_CIPHER_get_value(const SSL_CIPHER *cipher);
+-
+ 
+ // Nodejs compatibility section (hidden).
+ //
+diff --git a/ssl/ssl_cipher.cc b/ssl/ssl_cipher.cc
+index 1cab4ec9a..899547572 100644
+--- a/ssl/ssl_cipher.cc
++++ b/ssl/ssl_cipher.cc
+@@ -1455,10 +1455,6 @@ uint16_t SSL_CIPHER_get_protocol_id(const SSL_CIPHER *cipher) {
+   return static_cast<uint16_t>(cipher->id);
+ }
+ 
+-uint16_t SSL_CIPHER_get_value(const SSL_CIPHER *cipher) {
+-  return SSL_CIPHER_get_protocol_id(cipher);
+-}
+-
+ int SSL_CIPHER_is_aead(const SSL_CIPHER *cipher) {
+   return (cipher->algorithm_mac & SSL_AEAD) != 0;
+ }
+diff --git a/ssl/tls13_client.cc b/ssl/tls13_client.cc
+index af14bb57b..819d9556b 100644
+--- a/ssl/tls13_client.cc
++++ b/ssl/tls13_client.cc
+@@ -372,7 +372,7 @@ static enum ssl_hs_wait_t do_read_server_hello(SSL_HANDSHAKE *hs) {
+   }
+ 
+   // Check the cipher suite, in case this is after HelloRetryRequest.
+-  if (SSL_CIPHER_get_value(hs->new_cipher) != server_hello.cipher_suite) {
++  if (SSL_CIPHER_get_protocol_id(hs->new_cipher) != server_hello.cipher_suite) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_WRONG_CIPHER_RETURNED);
+     ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_ILLEGAL_PARAMETER);
+     return ssl_hs_error;

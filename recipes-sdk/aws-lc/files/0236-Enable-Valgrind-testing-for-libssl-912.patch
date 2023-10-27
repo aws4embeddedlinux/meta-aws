@@ -1,0 +1,75 @@
+From b78d997395d543e557b1309dd9f4b3522b3a4118 Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Thu, 30 Mar 2023 09:49:50 -0700
+Subject: [PATCH] Enable Valgrind testing for libssl (#912)
+
+* Enable valgrind testing for ssl/ssl_test
+* Add valgrind target for ssl/test/runner
+* Increase valgrind instance size
+---
+ CMakeLists.txt                                           | 9 +++++++++
+ .../cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml   | 2 +-
+ tests/ci/common_posix_setup.sh                           | 2 +-
+ util/all_tests.json                                      | 3 +--
+ 4 files changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 65d4e6a38..c1dd5fbff 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -931,6 +931,15 @@ if(BUILD_TESTING)
+           DEPENDS bssl_shim handshaker fips_specific_tests_if_any
+           ${MAYBE_USES_TERMINAL})
+ 
++      add_custom_target(
++          run_ssl_runner_tests_valgrind
++          COMMAND cd ssl/test/runner &&
++          ${GO_EXECUTABLE} test -timeout ${GO_TEST_TIMEOUT} -shim-path $<TARGET_FILE:bssl_shim> -valgrind
++          ${HANDSHAKER_ARGS} ${RUNNER_ARGS} ${AWS_LC_SSL_RUNNER_INDEX_FILTER} ${SSL_TRANSFER_ARGS}
++          WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
++          DEPENDS bssl_shim handshaker fips_specific_tests_if_any
++          ${MAYBE_USES_TERMINAL})
++
+       add_custom_target(
+           run_tests
+           COMMAND ${GO_EXECUTABLE} run util/all_tests.go -build-dir
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+index 6319e6103..6e24ee381 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+@@ -294,7 +294,7 @@ batch:
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+-        compute-type: BUILD_GENERAL1_LARGE
++        compute-type: BUILD_GENERAL1_2XLARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_gcc-11x_latest
+ 
+     - identifier: amazonlinux2022_gcc11x_x86_64
+diff --git a/tests/ci/common_posix_setup.sh b/tests/ci/common_posix_setup.sh
+index d55ae958e..a37994519 100644
+--- a/tests/ci/common_posix_setup.sh
++++ b/tests/ci/common_posix_setup.sh
+@@ -130,7 +130,7 @@ function fips_build_and_test {
+ 
+ function build_and_test_valgrind {
+   run_build "$@"
+-  run_cmake_custom_target 'run_tests_valgrind'
++  run_cmake_custom_target 'run_tests_valgrind' && run_cmake_custom_target 'run_ssl_runner_tests_valgrind'
+ }
+ 
+ function build_and_test_with_sde {
+diff --git a/util/all_tests.json b/util/all_tests.json
+index 83c8882e7..af40048ec 100644
+--- a/util/all_tests.json
++++ b/util/all_tests.json
+@@ -90,8 +90,7 @@
+     "skip_valgrind": true
+   },
+   {
+-    "cmd": ["ssl/ssl_test"],
+-    "skip_valgrind": true
++    "cmd": ["ssl/ssl_test"]
+   },
+   {
+     "cmd": ["crypto/mem_test"]

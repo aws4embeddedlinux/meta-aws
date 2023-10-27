@@ -1,0 +1,76 @@
+From e9611ab8afd52d481a37b33015a48cf205f1a5a7 Mon Sep 17 00:00:00 2001
+From: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+Date: Thu, 21 Sep 2023 09:08:04 -0400
+Subject: [PATCH] Remove a few lingering references to Rust
+
+---
+ .gitignore              | 4 ----
+ crypto/CMakeLists.txt   | 6 ------
+ tests/check_licenses.go | 1 -
+ tests/ci/README.md      | 2 +-
+ 4 files changed, 1 insertion(+), 12 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index 582ad399d..f34618786 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -10,10 +10,6 @@ ssl/test/runner/runner
+ *.swo
+ doc/*.html
+ doc/doc.css
+-bindings/rust/tmp/*
+-bindings/rust/generate/target
+-!bindings/rust/aws-lc-sys-template/build
+-!bindings/rust/aws-lc-fips-sys-template/build
+ 
+ util/bot/android_ndk
+ util/bot/android_sdk/public
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index 257445cf3..fa1039602 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -266,11 +266,6 @@ else()
+   file(COPY ${GENERATE_CODE_ROOT}/err_data.c DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
+ endif()
+ 
+-set(CRYPTO_RUST_SOURCES )
+-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rust_wrapper.c)
+-  list(APPEND CRYPTO_RUST_SOURCES rust_wrapper.c)
+-endif()
+-
+ set(DILITHIUM_SOURCES)
+ if(ENABLE_DILITHIUM)
+   set(
+@@ -526,7 +521,6 @@ add_library(
+   decrepit/ripemd/ripemd.c
+   decrepit/rsa/rsa_decrepit.c
+   decrepit/x509/x509_decrepit.c
+-  ${CRYPTO_RUST_SOURCES}
+ 
+   ${CRYPTO_ARCH_SOURCES}
+ )
+diff --git a/tests/check_licenses.go b/tests/check_licenses.go
+index 7883f3a99..738fb3f9c 100644
+--- a/tests/check_licenses.go
++++ b/tests/check_licenses.go
+@@ -34,7 +34,6 @@ func main() {
+ 		"ssl",
+ 		"util",
+ 		"sources.cmake",
+-		"rust/wrapper.h",
+ 	}
+ 
+ 	// Collect all non-excluded source files into |files|
+diff --git a/tests/ci/README.md b/tests/ci/README.md
+index cd4a19e4a..8788317c6 100644
+--- a/tests/ci/README.md
++++ b/tests/ci/README.md
+@@ -41,7 +41,7 @@ would look like this:
+ $ docker build -t ubuntu-18.04:base -f tests/ci/docker_images/linux-x86/ubuntu-18.04_base/Dockerfile tests/ci/docker_images/dependencies
+ ```
+ For more examples, see `build_images.sh` script in directories corresponding
+-to different platforms (linux-x86, linux-aarch, windows, rust).
++to different platforms (linux-x86, linux-aarch, windows).
+ 
+ ### Issues with proxy.golang.org when running images locally
+ 

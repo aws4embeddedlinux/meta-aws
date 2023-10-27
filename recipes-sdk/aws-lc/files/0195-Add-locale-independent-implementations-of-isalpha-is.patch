@@ -1,0 +1,486 @@
+From 25f081ff3739e13dd50d058c3749c8f68fa75bcc Mon Sep 17 00:00:00 2001
+From: Bob Beck <bbe@google.com>
+Date: Wed, 1 Feb 2023 12:41:49 -0700
+Subject: [PATCH] Add locale independent implementations of isalpha, isalnum,
+ isdigit, and isxdigit.
+
+All of these can be affected by locale, and although we weren't using
+them directly (except for isxdigit) we instead had manual versions inline
+everywhere.
+
+While I am here add OPENSSL_fromxdigit and deduplicate a bunch of code
+in hex decoders pulling out a hex value.
+
+Change-Id: Ie75a4fba0f043208c50b0bb14174516462c89673
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56648
+Reviewed-by: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit 00c70b8d698650e5836049def714b92d622bc4a6)
+---
+ crypto/asn1/a_mbstr.c         |  5 +---
+ crypto/bn_extra/convert.c     | 17 +++---------
+ crypto/mem.c                  | 28 +++++++++++++++++++
+ crypto/pem/pem_lib.c          | 24 +++++++----------
+ crypto/test/test_util.cc      | 20 ++------------
+ crypto/x509v3/v3_utl.c        | 51 ++++++++---------------------------
+ include/openssl/mem.h         | 34 ++++++++++++++++++-----
+ ssl/encrypted_client_hello.cc |  6 ++---
+ ssl/ssl_cipher.cc             |  6 ++---
+ ssl/ssl_privkey.cc            |  3 +--
+ ssl/test/test_config.cc       | 19 ++-----------
+ 11 files changed, 89 insertions(+), 124 deletions(-)
+
+diff --git a/crypto/asn1/a_mbstr.c b/crypto/asn1/a_mbstr.c
+index c53d6d588..ef74d0d36 100644
+--- a/crypto/asn1/a_mbstr.c
++++ b/crypto/asn1/a_mbstr.c
+@@ -283,10 +283,7 @@ int asn1_is_printable(uint32_t value) {
+   if (value > 0x7f) {
+     return 0;
+   }
+-  // Note we cannot use |isalnum| because it is locale-dependent.
+-  return ('a' <= value && value <= 'z') ||  //
+-         ('A' <= value && value <= 'Z') ||  //
+-         ('0' <= value && value <= '9') ||  //
++  return OPENSSL_isalnum(value) || //
+          value == ' ' || value == '\'' || value == '(' || value == ')' ||
+          value == '+' || value == ',' || value == '-' || value == '.' ||
+          value == '/' || value == ':' || value == '=' || value == '?';
+diff --git a/crypto/bn_extra/convert.c b/crypto/bn_extra/convert.c
+index e31de1f06..78fe102e2 100644
+--- a/crypto/bn_extra/convert.c
++++ b/crypto/bn_extra/convert.c
+@@ -133,18 +133,9 @@ static int decode_hex(BIGNUM *bn, const char *in, int in_len) {
+     BN_ULONG word = 0;
+     int j;
+     for (j = todo; j > 0; j--) {
+-      char c = in[in_len - j];
+-
+-      BN_ULONG hex;
+-      if (c >= '0' && c <= '9') {
+-        hex = c - '0';
+-      } else if (c >= 'a' && c <= 'f') {
+-        hex = c - 'a' + 10;
+-      } else if (c >= 'A' && c <= 'F') {
+-        hex = c - 'A' + 10;
+-      } else {
+-        hex = 0;
+-        // This shouldn't happen. The caller checks |isxdigit|.
++      uint8_t hex = 0;
++      if (!OPENSSL_fromxdigit(&hex, in[in_len - j])) {
++        // This shouldn't happen. The caller checks |OPENSSL_isxdigit|.
+         assert(0);
+       }
+       word = (word << 4) | hex;
+@@ -240,7 +231,7 @@ err:
+ }
+ 
+ int BN_hex2bn(BIGNUM **outp, const char *in) {
+-  return bn_x2bn(outp, in, decode_hex, isxdigit);
++  return bn_x2bn(outp, in, decode_hex, OPENSSL_isxdigit);
+ }
+ 
+ char *BN_bn2dec(const BIGNUM *a) {
+diff --git a/crypto/mem.c b/crypto/mem.c
+index 4e4725932..8c8db8b9a 100644
+--- a/crypto/mem.c
++++ b/crypto/mem.c
+@@ -377,10 +377,38 @@ char *OPENSSL_strdup(const char *s) {
+   return ret;
+ }
+ 
++int OPENSSL_isalpha(int c) {
++  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
++}
++
+ int OPENSSL_isdigit(int c) {
+   return c >= '0' && c <= '9';
+ }
+ 
++int OPENSSL_isxdigit(int c) {
++  return OPENSSL_isdigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
++}
++
++int OPENSSL_fromxdigit(uint8_t *out, int c) {
++  if (OPENSSL_isdigit(c)) {
++    *out = c - '0';
++    return 1;
++  }
++  if ('a' <= c && c <= 'f') {
++    *out = c - 'a' + 10;
++    return 1;
++  }
++  if ('A' <= c && c <= 'F') {
++    *out = c - 'A' + 10;
++    return 1;
++  }
++  return 0;
++}
++
++int OPENSSL_isalnum(int c) {
++  return OPENSSL_isalpha(c) || OPENSSL_isdigit(c);
++}
++
+ int OPENSSL_tolower(int c) {
+   if (c >= 'A' && c <= 'Z') {
+     return c + ('a' - 'A');
+diff --git a/crypto/pem/pem_lib.c b/crypto/pem/pem_lib.c
+index 3be92a087..fc1144e00 100644
+--- a/crypto/pem/pem_lib.c
++++ b/crypto/pem/pem_lib.c
+@@ -75,7 +75,7 @@
+ 
+ #define MIN_LENGTH 4
+ 
+-static int load_iv(char **fromp, unsigned char *to, int num);
++static int load_iv(char **fromp, unsigned char *to, size_t num);
+ static int check_pem(const char *nm, const char *name);
+ 
+ void PEM_proc_type(char *buf, int type) {
+@@ -464,8 +464,8 @@ int PEM_get_EVP_CIPHER_INFO(char *header, EVP_CIPHER_INFO *cipher) {
+   p = header;
+   for (;;) {
+     c = *header;
+-    if (!(((c >= 'A') && (c <= 'Z')) || (c == '-') ||
+-          ((c >= '0') && (c <= '9')))) {
++    if (!((c >= 'A' && c <= 'Z') || c == '-' ||
++          OPENSSL_isdigit(c))) {
+       break;
+     }
+     header++;
+@@ -493,28 +493,22 @@ int PEM_get_EVP_CIPHER_INFO(char *header, EVP_CIPHER_INFO *cipher) {
+   return 1;
+ }
+ 
+-static int load_iv(char **fromp, unsigned char *to, int num) {
+-  int v, i;
++static int load_iv(char **fromp, unsigned char *to, size_t num) {
++  uint8_t v;
+   char *from;
+ 
+   from = *fromp;
+-  for (i = 0; i < num; i++) {
++  for (size_t i = 0; i < num; i++) {
+     to[i] = 0;
+   }
+   num *= 2;
+-  for (i = 0; i < num; i++) {
+-    if ((*from >= '0') && (*from <= '9')) {
+-      v = *from - '0';
+-    } else if ((*from >= 'A') && (*from <= 'F')) {
+-      v = *from - 'A' + 10;
+-    } else if ((*from >= 'a') && (*from <= 'f')) {
+-      v = *from - 'a' + 10;
+-    } else {
++  for (size_t i = 0; i < num; i++) {
++    if (!OPENSSL_fromxdigit(&v, *from)) {
+       OPENSSL_PUT_ERROR(PEM, PEM_R_BAD_IV_CHARS);
+       return 0;
+     }
+     from++;
+-    to[i / 2] |= v << (long)((!(i & 1)) * 4);
++    to[i / 2] |= v << (!(i & 1)) * 4;
+   }
+ 
+   *fromp = from;
+diff --git a/crypto/test/test_util.cc b/crypto/test/test_util.cc
+index 7f954138c..23e8909fe 100644
+--- a/crypto/test/test_util.cc
++++ b/crypto/test/test_util.cc
+@@ -39,22 +39,6 @@ std::ostream &operator<<(std::ostream &os, const Bytes &in) {
+   return os;
+ }
+ 
+-static bool FromHexDigit(uint8_t *out, char c) {
+-  if ('0' <= c && c <= '9') {
+-    *out = c - '0';
+-    return true;
+-  }
+-  if ('a' <= c && c <= 'f') {
+-    *out = c - 'a' + 10;
+-    return true;
+-  }
+-  if ('A' <= c && c <= 'F') {
+-    *out = c - 'A' + 10;
+-    return true;
+-  }
+-  return false;
+-}
+-
+ bool DecodeHex(std::vector<uint8_t> *out, const std::string &in) {
+   out->clear();
+   if (in.size() % 2 != 0) {
+@@ -63,8 +47,8 @@ bool DecodeHex(std::vector<uint8_t> *out, const std::string &in) {
+   out->reserve(in.size() / 2);
+   for (size_t i = 0; i < in.size(); i += 2) {
+     uint8_t hi, lo;
+-    if (!FromHexDigit(&hi, in[i]) ||
+-        !FromHexDigit(&lo, in[i + 1])) {
++    if (!OPENSSL_fromxdigit(&hi, in[i]) ||
++        !OPENSSL_fromxdigit(&lo, in[i + 1])) {
+       return false;
+     }
+     out->push_back((hi << 4) | lo);
+diff --git a/crypto/x509v3/v3_utl.c b/crypto/x509v3/v3_utl.c
+index c8f40f8ae..9d16f34f3 100644
+--- a/crypto/x509v3/v3_utl.c
++++ b/crypto/x509v3/v3_utl.c
+@@ -494,6 +494,7 @@ err:
+ unsigned char *x509v3_hex_to_bytes(const char *str, long *len) {
+   unsigned char *hexbuf, *q;
+   unsigned char ch, cl, *p;
++  uint8_t high, low;
+   if (!str) {
+     OPENSSL_PUT_ERROR(X509V3, X509V3_R_INVALID_NULL_ARGUMENT);
+     return NULL;
+@@ -512,28 +513,13 @@ unsigned char *x509v3_hex_to_bytes(const char *str, long *len) {
+       OPENSSL_free(hexbuf);
+       return NULL;
+     }
+-
+-    if ((ch >= '0') && (ch <= '9')) {
+-      ch -= '0';
+-    } else if ((ch >= 'a') && (ch <= 'f')) {
+-      ch -= 'a' - 10;
+-    } else if ((ch >= 'A') && (ch <= 'F')) {
+-      ch -= 'A' - 10;
+-    } else {
++    if (!OPENSSL_fromxdigit(&high, ch)) {
+       goto badhex;
+     }
+-
+-    if ((cl >= '0') && (cl <= '9')) {
+-      cl -= '0';
+-    } else if ((cl >= 'a') && (cl <= 'f')) {
+-      cl -= 'a' - 10;
+-    } else if ((cl >= 'A') && (cl <= 'F')) {
+-      cl -= 'A' - 10;
+-    } else {
++    if (!OPENSSL_fromxdigit(&low, cl)) {
+       goto badhex;
+     }
+-
+-    *q++ = (ch << 4) | cl;
++    *q++ = (high << 4) | low;
+   }
+ 
+   if (len) {
+@@ -710,13 +696,7 @@ static int equal_nocase(const unsigned char *pattern, size_t pattern_len,
+       return 0;
+     }
+     if (l != r) {
+-      if ('A' <= l && l <= 'Z') {
+-        l = (l - 'A') + 'a';
+-      }
+-      if ('A' <= r && r <= 'Z') {
+-        r = (r - 'A') + 'a';
+-      }
+-      if (l != r) {
++      if (OPENSSL_tolower(l) != OPENSSL_tolower(r)) {
+         return 0;
+       }
+     }
+@@ -806,8 +786,7 @@ static int wildcard_match(const unsigned char *prefix, size_t prefix_len,
+   // Check that the part matched by the wildcard contains only
+   // permitted characters and only matches a single label.
+   for (p = wildcard_start; p != wildcard_end; ++p) {
+-    if (!(('0' <= *p && *p <= '9') || ('A' <= *p && *p <= 'Z') ||
+-          ('a' <= *p && *p <= 'z') || *p == '-')) {
++    if (!OPENSSL_isalnum(*p) && *p != '-') {
+       return 0;
+     }
+   }
+@@ -843,8 +822,7 @@ static const unsigned char *valid_star(const unsigned char *p, size_t len,
+       }
+       star = &p[i];
+       state &= ~LABEL_START;
+-    } else if (('a' <= p[i] && p[i] <= 'z') || ('A' <= p[i] && p[i] <= 'Z') ||
+-               ('0' <= p[i] && p[i] <= '9')) {
++    } else if (OPENSSL_isalnum(p[i])) {
+       if ((state & LABEL_START) != 0 && len - i >= 4 &&
+           OPENSSL_strncasecmp((char *)&p[i], "xn--", 4) == 0) {
+         state |= LABEL_IDNA;
+@@ -918,8 +896,7 @@ int x509v3_looks_like_dns_name(const unsigned char *in, size_t len) {
+   size_t label_start = 0;
+   for (size_t i = 0; i < len; i++) {
+     unsigned char c = in[i];
+-    if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+-        (c >= 'A' && c <= 'Z') || (c == '-' && i > label_start) ||
++    if (OPENSSL_isalnum(c) || (c == '-' && i > label_start) ||
+         // These are not valid characters in hostnames, but commonly found
+         // in deployments outside the Web PKI.
+         c == '_' || c == ':') {
+@@ -1347,17 +1324,11 @@ static int ipv6_hex(unsigned char *out, const char *in, size_t inlen) {
+   }
+   uint16_t num = 0;
+   while (inlen--) {
+-    unsigned char c = *in++;
+-    num <<= 4;
+-    if ((c >= '0') && (c <= '9')) {
+-      num |= c - '0';
+-    } else if ((c >= 'A') && (c <= 'F')) {
+-      num |= c - 'A' + 10;
+-    } else if ((c >= 'a') && (c <= 'f')) {
+-      num |= c - 'a' + 10;
+-    } else {
++    uint8_t val;
++    if (!OPENSSL_fromxdigit(&val, *in++)) {
+       return 0;
+     }
++    num = (num << 4) | val;
+   }
+   out[0] = num >> 8;
+   out[1] = num & 0xff;
+diff --git a/include/openssl/mem.h b/include/openssl/mem.h
+index a5ddf3407..05800f0b7 100644
+--- a/include/openssl/mem.h
++++ b/include/openssl/mem.h
+@@ -111,22 +111,42 @@ OPENSSL_EXPORT char *OPENSSL_strdup(const char *s);
+ // OPENSSL_strnlen has the same behaviour as strnlen(3).
+ OPENSSL_EXPORT size_t OPENSSL_strnlen(const char *s, size_t len);
+ 
+-// OPENSSL_isdigit is a locale-independent version of isdigit(3), It
++// OPENSSL_isalpha is a locale-independent, ASCII-only version of isalpha(3), It
++// only recognizes 'a' through 'z' and 'A' through 'Z' as alphabetic.
++OPENSSL_EXPORT int OPENSSL_isalpha(int c);
++
++// OPENSSL_isdigit is a locale-independent, ASCII-only version of isdigit(3), It
+ // only recognizes '0' through '9' as digits.
+ OPENSSL_EXPORT int OPENSSL_isdigit(int c);
+ 
+-// OPENSSL_tolower is a locale-independent version of tolower(3). It only
+-// lowercases ASCII values. Other values are returned as-is.
++// OPENSSL_isxdigit is a locale-independent, ASCII-only version of isxdigit(3),
++// It only recognizes '0' through '9', 'a' through 'f', and 'A through 'F' as
++// digits.
++OPENSSL_EXPORT int OPENSSL_isxdigit(int c);
++
++// OPENSSL_fromxdigit returns one if |c| is a hexadecimal digit as recognized
++// by OPENSSL_isxdigit, and sets |out| to the corresponding value. Otherwise
++// zero is returned.
++OPENSSL_EXPORT int OPENSSL_fromxdigit(uint8_t *out, int c);
++
++// OPENSSL_isalnum is a locale-independent, ASCII-only version of isalnum(3), It
++// only recognizes what |OPENSSL_isalpha| and |OPENSSL_isdigit| recognize.
++OPENSSL_EXPORT int OPENSSL_isalnum(int c);
++
++// OPENSSL_tolower is a locale-independent, ASCII-only version of tolower(3). It
++// only lowercases ASCII values. Other values are returned as-is.
+ OPENSSL_EXPORT int OPENSSL_tolower(int c);
+ 
+-// OPENSSL_isspace is a locale-independent version of isspace(3). It only
+-// recognizes '\t', '\n', '\v', '\f', '\r', and ' '.
++// OPENSSL_isspace is a locale-independent, ASCII-only version of isspace(3). It
++// only recognizes '\t', '\n', '\v', '\f', '\r', and ' '.
+ OPENSSL_EXPORT int OPENSSL_isspace(int c);
+ 
+-// OPENSSL_strcasecmp is a locale-independent version of strcasecmp(3).
++// OPENSSL_strcasecmp is a locale-independent, ASCII-only version of
++// strcasecmp(3).
+ OPENSSL_EXPORT int OPENSSL_strcasecmp(const char *a, const char *b);
+ 
+-// OPENSSL_strncasecmp is a locale-independent version of strncasecmp(3).
++// OPENSSL_strncasecmp is a locale-independent, ASCII-only version of
++// strncasecmp(3).
+ OPENSSL_EXPORT int OPENSSL_strncasecmp(const char *a, const char *b, size_t n);
+ 
+ // DECIMAL_SIZE returns an upper bound for the length of the decimal
+diff --git a/ssl/encrypted_client_hello.cc b/ssl/encrypted_client_hello.cc
+index 9e9adfea7..e5b04005d 100644
+--- a/ssl/encrypted_client_hello.cc
++++ b/ssl/encrypted_client_hello.cc
+@@ -334,8 +334,7 @@ static bool is_hex_component(Span<const uint8_t> in) {
+     return false;
+   }
+   for (uint8_t b : in.subspan(2)) {
+-    if (!('0' <= b && b <= '9') && !('a' <= b && b <= 'f') &&
+-        !('A' <= b && b <= 'F')) {
++    if (!OPENSSL_isxdigit(b)) {
+       return false;
+     }
+   }
+@@ -387,8 +386,7 @@ bool ssl_is_valid_ech_public_name(Span<const uint8_t> public_name) {
+       return false;
+     }
+     for (uint8_t c : component) {
+-      if (!('a' <= c && c <= 'z') && !('A' <= c && c <= 'Z') &&
+-          !('0' <= c && c <= '9') && c != '-') {
++      if (!OPENSSL_isalnum(c) && c != '-') {
+         return false;
+       }
+     }
+diff --git a/ssl/ssl_cipher.cc b/ssl/ssl_cipher.cc
+index c12f9d564..506ebeb42 100644
+--- a/ssl/ssl_cipher.cc
++++ b/ssl/ssl_cipher.cc
+@@ -1044,8 +1044,7 @@ static bool ssl_cipher_process_rulestr(const char *rule_str,
+         rule = CIPHER_ADD;
+         l++;
+         continue;
+-      } else if (!(ch >= 'a' && ch <= 'z') && !(ch >= 'A' && ch <= 'Z') &&
+-                 !(ch >= '0' && ch <= '9')) {
++      } else if (!OPENSSL_isalnum(ch)) {
+         OPENSSL_PUT_ERROR(SSL, SSL_R_UNEXPECTED_OPERATOR_IN_GROUP);
+         return false;
+       } else {
+@@ -1098,8 +1097,7 @@ static bool ssl_cipher_process_rulestr(const char *rule_str,
+       ch = *l;
+       buf = l;
+       buf_len = 0;
+-      while ((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') ||
+-             (ch >= 'a' && ch <= 'z') || ch == '-' || ch == '.' || ch == '_') {
++      while (OPENSSL_isalnum(ch) || ch == '-' || ch == '.' || ch == '_') {
+         ch = *(++l);
+         buf_len++;
+       }
+diff --git a/ssl/ssl_privkey.cc b/ssl/ssl_privkey.cc
+index a9f92b61b..60fda697d 100644
+--- a/ssl/ssl_privkey.cc
++++ b/ssl/ssl_privkey.cc
+@@ -859,8 +859,7 @@ static bool parse_sigalgs_list(Array<uint16_t> *out, const char *str) {
+           return false;
+         }
+ 
+-        if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
+-            (c >= 'A' && c <= 'Z') || c == '-' || c == '_') {
++        if (OPENSSL_isalnum(c) || c == '-' || c == '_') {
+           buf[buf_used++] = c;
+         } else {
+           OPENSSL_PUT_ERROR(SSL, SSL_R_INVALID_SIGNATURE_ALGORITHM);
+diff --git a/ssl/test/test_config.cc b/ssl/test/test_config.cc
+index c3aea3fe2..538b2c380 100644
+--- a/ssl/test/test_config.cc
++++ b/ssl/test/test_config.cc
+@@ -927,22 +927,6 @@ static bool GetCertificate(SSL *ssl, bssl::UniquePtr<X509> *out_x509,
+   return true;
+ }
+ 
+-static bool FromHexDigit(uint8_t *out, char c) {
+-  if ('0' <= c && c <= '9') {
+-    *out = c - '0';
+-    return true;
+-  }
+-  if ('a' <= c && c <= 'f') {
+-    *out = c - 'a' + 10;
+-    return true;
+-  }
+-  if ('A' <= c && c <= 'F') {
+-    *out = c - 'A' + 10;
+-    return true;
+-  }
+-  return false;
+-}
+-
+ static bool HexDecode(std::string *out, const std::string &in) {
+   if ((in.size() & 1) != 0) {
+     return false;
+@@ -951,7 +935,8 @@ static bool HexDecode(std::string *out, const std::string &in) {
+   std::unique_ptr<uint8_t[]> buf(new uint8_t[in.size() / 2]);
+   for (size_t i = 0; i < in.size() / 2; i++) {
+     uint8_t high, low;
+-    if (!FromHexDigit(&high, in[i * 2]) || !FromHexDigit(&low, in[i * 2 + 1])) {
++    if (!OPENSSL_fromxdigit(&high, in[i * 2]) ||
++        !OPENSSL_fromxdigit(&low, in[i * 2 + 1])) {
+       return false;
+     }
+     buf[i] = (high << 4) | low;

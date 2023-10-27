@@ -1,0 +1,1825 @@
+From 7707c3ec19709107a2826b81927a49dd3eea71c1 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Wed, 1 Sep 2021 17:30:54 -0700
+Subject: [PATCH] Add P-521 mapping from Montgomery
+
+Also fixes a few stray cases where ARM numeric literals were missing
+the "#" prefix.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/dfe5264d38c3a4358fe49c51a93b030cfebd617c
+---
+ arm/fastmul/bignum_kmul_32_64.S | 438 ++++++++++++++++----------------
+ arm/p384/bignum_deamont_p384.S  |   8 +-
+ arm/p384/bignum_demont_p384.S   |   8 +-
+ arm/p384/bignum_montmul_p384.S  |  74 +++---
+ arm/p384/bignum_montsqr_p384.S  |   8 +-
+ arm/p521/Makefile               |   1 +
+ arm/p521/bignum_demont_p521.S   |  79 ++++++
+ arm/p521/bignum_montsqr_p521.S  | 114 ++++-----
+ arm/p521/bignum_sqr_p521.S      |  94 +++----
+ 9 files changed, 452 insertions(+), 372 deletions(-)
+ create mode 100644 arm/p521/bignum_demont_p521.S
+
+diff --git a/arm/fastmul/bignum_kmul_32_64.S b/arm/fastmul/bignum_kmul_32_64.S
+index dd6b86b20..4fbac3917 100644
+--- a/arm/fastmul/bignum_kmul_32_64.S
++++ b/arm/fastmul/bignum_kmul_32_64.S
+@@ -62,9 +62,9 @@ bignum_kmul_32_64:
+ 
+ // Compute H = x_hi * y_hi in top half of buffer (size 16 x 16 -> 32)
+ 
+-        add     x0, z, 8*2*K
+-        add     x1, x, 8*K
+-        add     x2, y, 8*K
++        add     x0, z, #8*2*K
++        add     x1, x, #8*K
++        add     x2, y, #8*K
+         mov     x3, t
+         bl      local_kmul_16_32
+ 
+@@ -73,43 +73,43 @@ bignum_kmul_32_64:
+ // Note that we overwrite the pointer x itself with this sign,
+ // which is safe since we no longer need it.
+ 
+-        ldp     x0, x1, [x, 128]
++        ldp     x0, x1, [x, #128]
+         ldp     x16, x17, [x]
+         subs    x0, x0, x16
+         sbcs    x1, x1, x17
+ 
+-        ldp     x2, x3, [x, 144]
+-        ldp     x16, x17, [x, 16]
++        ldp     x2, x3, [x, #144]
++        ldp     x16, x17, [x, #16]
+         sbcs    x2, x2, x16
+         sbcs    x3, x3, x17
+ 
+-        ldp     x4, x5, [x, 160]
+-        ldp     x16, x17, [x, 32]
++        ldp     x4, x5, [x, #160]
++        ldp     x16, x17, [x, #32]
+         sbcs    x4, x4, x16
+         sbcs    x5, x5, x17
+ 
+-        ldp     x6, x7, [x, 176]
+-        ldp     x16, x17, [x, 48]
++        ldp     x6, x7, [x, #176]
++        ldp     x16, x17, [x, #48]
+         sbcs    x6, x6, x16
+         sbcs    x7, x7, x17
+ 
+-        ldp     x8, x9, [x, 192]
+-        ldp     x16, x17, [x, 64]
++        ldp     x8, x9, [x, #192]
++        ldp     x16, x17, [x, #64]
+         sbcs    x8, x8, x16
+         sbcs    x9, x9, x17
+ 
+-        ldp     x10, x11, [x, 208]
+-        ldp     x16, x17, [x, 80]
++        ldp     x10, x11, [x, #208]
++        ldp     x16, x17, [x, #80]
+         sbcs    x10, x10, x16
+         sbcs    x11, x11, x17
+ 
+-        ldp     x12, x13, [x, 224]
+-        ldp     x16, x17, [x, 96]
++        ldp     x12, x13, [x, #224]
++        ldp     x16, x17, [x, #96]
+         sbcs    x12, x12, x16
+         sbcs    x13, x13, x17
+ 
+-        ldp     x14, x15, [x, 240]
+-        ldp     x16, x17, [x, 112]
++        ldp     x14, x15, [x, #240]
++        ldp     x16, x17, [x, #112]
+         sbcs    x14, x14, x16
+         sbcs    x15, x15, x17
+ 
+@@ -127,85 +127,85 @@ bignum_kmul_32_64:
+         adcs    x2, x2, xzr
+         eor     x3, x3, x
+         adcs    x3, x3, xzr
+-        stp     x2, x3, [t, 16]
++        stp     x2, x3, [t, #16]
+ 
+         eor     x4, x4, x
+         adcs    x4, x4, xzr
+         eor     x5, x5, x
+         adcs    x5, x5, xzr
+-        stp     x4, x5, [t, 32]
++        stp     x4, x5, [t, #32]
+ 
+         eor     x6, x6, x
+         adcs    x6, x6, xzr
+         eor     x7, x7, x
+         adcs    x7, x7, xzr
+-        stp     x6, x7, [t, 48]
++        stp     x6, x7, [t, #48]
+ 
+         eor     x8, x8, x
+         adcs    x8, x8, xzr
+         eor     x9, x9, x
+         adcs    x9, x9, xzr
+-        stp     x8, x9, [t, 64]
++        stp     x8, x9, [t, #64]
+ 
+         eor     x10, x10, x
+         adcs    x10, x10, xzr
+         eor     x11, x11, x
+         adcs    x11, x11, xzr
+-        stp     x10, x11, [t, 80]
++        stp     x10, x11, [t, #80]
+ 
+         eor     x12, x12, x
+         adcs    x12, x12, xzr
+         eor     x13, x13, x
+         adcs    x13, x13, xzr
+-        stp     x12, x13, [t, 96]
++        stp     x12, x13, [t, #96]
+ 
+         eor     x14, x14, x
+         adcs    x14, x14, xzr
+         eor     x15, x15, x
+         adc     x15, x15, xzr
+-        stp     x14, x15, [t, 112]
++        stp     x14, x15, [t, #112]
+ 
+ // Compute the other absolute difference [t+8*K..] = |y_hi - y_lo|
+ // Collect the combined product sign bitmask (all 1s for negative) as
+ // y = sgn((x_lo - x_hi) * (y_hi - y_lo)), overwriting the y pointer.
+ 
+         ldp     x0, x1, [y]
+-        ldp     x16, x17, [y, 128]
++        ldp     x16, x17, [y, #128]
+         subs    x0, x0, x16
+         sbcs    x1, x1, x17
+ 
+-        ldp     x2, x3, [y, 16]
+-        ldp     x16, x17, [y, 144]
++        ldp     x2, x3, [y, #16]
++        ldp     x16, x17, [y, #144]
+         sbcs    x2, x2, x16
+         sbcs    x3, x3, x17
+ 
+-        ldp     x4, x5, [y, 32]
+-        ldp     x16, x17, [y, 160]
++        ldp     x4, x5, [y, #32]
++        ldp     x16, x17, [y, #160]
+         sbcs    x4, x4, x16
+         sbcs    x5, x5, x17
+ 
+-        ldp     x6, x7, [y, 48]
+-        ldp     x16, x17, [y, 176]
++        ldp     x6, x7, [y, #48]
++        ldp     x16, x17, [y, #176]
+         sbcs    x6, x6, x16
+         sbcs    x7, x7, x17
+ 
+-        ldp     x8, x9, [y, 64]
+-        ldp     x16, x17, [y, 192]
++        ldp     x8, x9, [y, #64]
++        ldp     x16, x17, [y, #192]
+         sbcs    x8, x8, x16
+         sbcs    x9, x9, x17
+ 
+-        ldp     x10, x11, [y, 80]
+-        ldp     x16, x17, [y, 208]
++        ldp     x10, x11, [y, #80]
++        ldp     x16, x17, [y, #208]
+         sbcs    x10, x10, x16
+         sbcs    x11, x11, x17
+ 
+-        ldp     x12, x13, [y, 96]
+-        ldp     x16, x17, [y, 224]
++        ldp     x12, x13, [y, #96]
++        ldp     x16, x17, [y, #224]
+         sbcs    x12, x12, x16
+         sbcs    x13, x13, x17
+ 
+-        ldp     x14, x15, [y, 112]
+-        ldp     x16, x17, [y, 240]
++        ldp     x14, x15, [y, #112]
++        ldp     x16, x17, [y, #240]
+         sbcs    x14, x14, x16
+         sbcs    x15, x15, x17
+ 
+@@ -217,118 +217,118 @@ bignum_kmul_32_64:
+         adcs    x0, x0, xzr
+         eor     x1, x1, y
+         adcs    x1, x1, xzr
+-        stp     x0, x1, [t, 8*K]
++        stp     x0, x1, [t, #8*K]
+ 
+         eor     x2, x2, y
+         adcs    x2, x2, xzr
+         eor     x3, x3, y
+         adcs    x3, x3, xzr
+-        stp     x2, x3, [t, 8*K+16]
++        stp     x2, x3, [t, #8*K+16]
+ 
+         eor     x4, x4, y
+         adcs    x4, x4, xzr
+         eor     x5, x5, y
+         adcs    x5, x5, xzr
+-        stp     x4, x5, [t, 8*K+32]
++        stp     x4, x5, [t, #8*K+32]
+ 
+         eor     x6, x6, y
+         adcs    x6, x6, xzr
+         eor     x7, x7, y
+         adcs    x7, x7, xzr
+-        stp     x6, x7, [t, 8*K+48]
++        stp     x6, x7, [t, #8*K+48]
+ 
+         eor     x8, x8, y
+         adcs    x8, x8, xzr
+         eor     x9, x9, y
+         adcs    x9, x9, xzr
+-        stp     x8, x9, [t, 8*K+64]
++        stp     x8, x9, [t, #8*K+64]
+ 
+         eor     x10, x10, y
+         adcs    x10, x10, xzr
+         eor     x11, x11, y
+         adcs    x11, x11, xzr
+-        stp     x10, x11, [t, 8*K+80]
++        stp     x10, x11, [t, #8*K+80]
+ 
+         eor     x12, x12, y
+         adcs    x12, x12, xzr
+         eor     x13, x13, y
+         adcs    x13, x13, xzr
+-        stp     x12, x13, [t, 8*K+96]
++        stp     x12, x13, [t, #8*K+96]
+ 
+         eor     x14, x14, y
+         adcs    x14, x14, xzr
+         eor     x15, x15, y
+         adc     x15, x15, xzr
+-        stp     x14, x15, [t, 8*K+112]
++        stp     x14, x15, [t, #8*K+112]
+ 
+         eor     y, y, x
+ 
+ // Compute H' = H + L_top in place of H (it cannot overflow)
+ 
+-        ldp     x0, x1, [z, 16*K]
+-        ldp     x2, x3, [z, 16*L]
++        ldp     x0, x1, [z, #16*K]
++        ldp     x2, x3, [z, #16*L]
+         adds    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, 16*K]
++        stp     x0, x1, [z, #16*K]
+ 
+         .set    I, 1
+         .rep (L-1)
+-        ldp     x0, x1, [z, 16*(K+I)]
+-        ldp     x2, x3, [z, 16*(L+I)]
++        ldp     x0, x1, [z, #16*(K+I)]
++        ldp     x2, x3, [z, #16*(L+I)]
+         adcs    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, 16*(K+I)]
++        stp     x0, x1, [z, #16*(K+I)]
+         .set    I, (I+1)
+         .endr
+ 
+         .rep    (L-1)
+-        ldp     x0, x1, [z, 16*(K+I)]
++        ldp     x0, x1, [z, #16*(K+I)]
+         adcs    x0, x0, xzr
+         adcs    x1, x1, xzr
+-        stp     x0, x1, [z, 16*(K+I)]
++        stp     x0, x1, [z, #16*(K+I)]
+         .set    I, (I+1)
+         .endr
+ 
+-        ldp     x0, x1, [z, 16*(K+I)]
++        ldp     x0, x1, [z, #16*(K+I)]
+         adcs    x0, x0, xzr
+         adc     x1, x1, xzr
+-        stp     x0, x1, [z, 16*(K+I)]
++        stp     x0, x1, [z, #16*(K+I)]
+ 
+ // Compute M = |x_lo - x_hi| * |y_hi - y_lo|, size 32
+ 
+-        add     x0, t, 16*K
++        add     x0, t, #16*K
+         mov     x1, t
+-        add     x2, t, 8*K
+-        add     x3, t, 8*4*K
++        add     x2, t, #8*K
++        add     x3, t, #8*4*K
+         bl      local_kmul_16_32
+ 
+ // Add the interlocking H' and L_bot terms
+ // Intercept the carry at the 3k position and store it in x.
+ // Again, we no longer need the input x was pointing at.
+ 
+-        ldp     x0, x1, [z, 16*K]
++        ldp     x0, x1, [z, #16*K]
+         ldp     x2, x3, [z]
+         adds    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, 16*L]
++        stp     x0, x1, [z, #16*L]
+ 
+         .set    I, 1
+         .rep (L-1)
+-        ldp     x0, x1, [z, 16*(K+I)]
+-        ldp     x2, x3, [z, 16*I]
++        ldp     x0, x1, [z, #16*(K+I)]
++        ldp     x2, x3, [z, #16*I]
+         adcs    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, 16*(L+I)]
++        stp     x0, x1, [z, #16*(L+I)]
+         .set    I, (I+1)
+         .endr
+ 
+         .set    I, 0
+         .rep    L
+-        ldp     x0, x1, [z, 16*(K+I)]
+-        ldp     x2, x3, [z, 16*(3*L+I)]
++        ldp     x0, x1, [z, #16*(K+I)]
++        ldp     x2, x3, [z, #16*(3*L+I)]
+         adcs    x0, x0, x2
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, 16*(K+I)]
++        stp     x0, x1, [z, #16*(K+I)]
+         .set    I, (I+1)
+         .endr
+ 
+@@ -340,13 +340,13 @@ bignum_kmul_32_64:
+ 
+         .set    I, L
+         .rep K
+-        ldp     x0, x1, [z, 16*I]
+-        ldp     x2, x3, [t, 8*K+16*I]
++        ldp     x0, x1, [z, #16*I]
++        ldp     x2, x3, [t, #8*K+16*I]
+         eor     x2, x2, y
+         adcs    x0, x0, x2
+         eor     x3, x3, y
+         adcs    x1, x1, x3
+-        stp     x0, x1, [z, 16*I]
++        stp     x0, x1, [z, #16*I]
+         .set    I, (I+1)
+         .endr
+ 
+@@ -358,33 +358,33 @@ bignum_kmul_32_64:
+ 
+ // Now propagate through the top quarter of the result
+ 
+-        ldp     x0, x1, [z, 16*3*L]
++        ldp     x0, x1, [z, #16*3*L]
+         adds    x0, x0, x
+         adcs    x1, x1, c
+-        stp     x0, x1, [z, 16*3*L]
++        stp     x0, x1, [z, #16*3*L]
+ 
+         .set    I, 3*L+1
+         .rep    (L-2)
+-        ldp     x0, x1, [z, 16*I]
++        ldp     x0, x1, [z, #16*I]
+         adcs    x0, x0, c
+         adcs    x1, x1, c
+-        stp     x0, x1, [z, 16*I]
++        stp     x0, x1, [z, #16*I]
+         .set    I, (I+1)
+         .endr
+ 
+-        ldp     x0, x1, [z, 16*I]
++        ldp     x0, x1, [z, #16*I]
+         adcs    x0, x0, c
+         adc     x1, x1, c
+-        stp     x0, x1, [z, 16*I]
++        stp     x0, x1, [z, #16*I]
+ 
+ // Restore and return
+ 
+-        ldp     x29, x30, [sp], 16
+-        ldp     x27, x28, [sp], 16
+-        ldp     x25, x26, [sp], 16
+-        ldp     x23, x24, [sp], 16
+-        ldp     x21, x22, [sp], 16
+-        ldp     x19, x20, [sp], 16
++        ldp     x29, x30, [sp], #16
++        ldp     x27, x28, [sp], #16
++        ldp     x25, x26, [sp], #16
++        ldp     x23, x24, [sp], #16
++        ldp     x21, x22, [sp], #16
++        ldp     x19, x20, [sp], #16
+         ret
+ 
+ // Local copy of bignum_kmul_16_32, identical to main one except that it
+@@ -401,19 +401,19 @@ local_kmul_16_32:
+         mov     x28, x3
+         bl      local_mul_8_16
+         ldp     x10, x11, [x26]
+-        ldp     x8, x9, [x26, 64]
++        ldp     x8, x9, [x26, #64]
+         subs    x10, x10, x8
+         sbcs    x11, x11, x9
+-        ldp     x12, x13, [x26, 16]
+-        ldp     x8, x9, [x26, 80]
++        ldp     x12, x13, [x26, #16]
++        ldp     x8, x9, [x26, #80]
+         sbcs    x12, x12, x8
+         sbcs    x13, x13, x9
+-        ldp     x14, x15, [x26, 32]
+-        ldp     x8, x9, [x26, 96]
++        ldp     x14, x15, [x26, #32]
++        ldp     x8, x9, [x26, #96]
+         sbcs    x14, x14, x8
+         sbcs    x15, x15, x9
+-        ldp     x16, x17, [x26, 48]
+-        ldp     x8, x9, [x26, 112]
++        ldp     x16, x17, [x26, #48]
++        ldp     x8, x9, [x26, #112]
+         sbcs    x16, x16, x8
+         sbcs    x17, x17, x9
+         csetm   x29, cc
+@@ -427,35 +427,35 @@ local_kmul_16_32:
+         adcs    x12, x12, xzr
+         eor     x13, x13, x29
+         adcs    x13, x13, xzr
+-        stp     x12, x13, [x28, 16]
++        stp     x12, x13, [x28, #16]
+         eor     x14, x14, x29
+         adcs    x14, x14, xzr
+         eor     x15, x15, x29
+         adcs    x15, x15, xzr
+-        stp     x14, x15, [x28, 32]
++        stp     x14, x15, [x28, #32]
+         eor     x16, x16, x29
+         adcs    x16, x16, xzr
+         eor     x17, x17, x29
+         adcs    x17, x17, xzr
+-        stp     x16, x17, [x28, 48]
+-        add     x0, x25, 0x80
+-        add     x1, x26, 0x40
+-        add     x2, x27, 0x40
++        stp     x16, x17, [x28, #48]
++        add     x0, x25, #0x80
++        add     x1, x26, #0x40
++        add     x2, x27, #0x40
+         bl      local_mul_8_16
+         ldp     x10, x11, [x27]
+-        ldp     x8, x9, [x27, 64]
++        ldp     x8, x9, [x27, #64]
+         subs    x10, x8, x10
+         sbcs    x11, x9, x11
+-        ldp     x12, x13, [x27, 16]
+-        ldp     x8, x9, [x27, 80]
++        ldp     x12, x13, [x27, #16]
++        ldp     x8, x9, [x27, #80]
+         sbcs    x12, x8, x12
+         sbcs    x13, x9, x13
+-        ldp     x14, x15, [x27, 32]
+-        ldp     x8, x9, [x27, 96]
++        ldp     x14, x15, [x27, #32]
++        ldp     x8, x9, [x27, #96]
+         sbcs    x14, x8, x14
+         sbcs    x15, x9, x15
+-        ldp     x16, x17, [x27, 48]
+-        ldp     x8, x9, [x27, 112]
++        ldp     x16, x17, [x27, #48]
++        ldp     x8, x9, [x27, #112]
+         sbcs    x16, x8, x16
+         sbcs    x17, x9, x17
+         csetm   x19, cc
+@@ -464,173 +464,173 @@ local_kmul_16_32:
+         adcs    x10, x10, xzr
+         eor     x11, x11, x19
+         adcs    x11, x11, xzr
+-        stp     x10, x11, [x28, 64]
++        stp     x10, x11, [x28, #64]
+         eor     x12, x12, x19
+         adcs    x12, x12, xzr
+         eor     x13, x13, x19
+         adcs    x13, x13, xzr
+-        stp     x12, x13, [x28, 80]
++        stp     x12, x13, [x28, #80]
+         eor     x14, x14, x19
+         adcs    x14, x14, xzr
+         eor     x15, x15, x19
+         adcs    x15, x15, xzr
+-        stp     x14, x15, [x28, 96]
++        stp     x14, x15, [x28, #96]
+         eor     x16, x16, x19
+         adcs    x16, x16, xzr
+         eor     x17, x17, x19
+         adcs    x17, x17, xzr
+-        stp     x16, x17, [x28, 112]
++        stp     x16, x17, [x28, #112]
+         eor     x29, x29, x19
+-        ldp     x10, x11, [x25, 128]
+-        ldp     x12, x13, [x25, 64]
++        ldp     x10, x11, [x25, #128]
++        ldp     x12, x13, [x25, #64]
+         adds    x10, x10, x12
+         adcs    x11, x11, x13
+-        stp     x10, x11, [x25, 128]
+-        ldp     x10, x11, [x25, 144]
+-        ldp     x12, x13, [x25, 80]
++        stp     x10, x11, [x25, #128]
++        ldp     x10, x11, [x25, #144]
++        ldp     x12, x13, [x25, #80]
+         adcs    x10, x10, x12
+         adcs    x11, x11, x13
+-        stp     x10, x11, [x25, 144]
+-        ldp     x10, x11, [x25, 160]
+-        ldp     x12, x13, [x25, 96]
++        stp     x10, x11, [x25, #144]
++        ldp     x10, x11, [x25, #160]
++        ldp     x12, x13, [x25, #96]
+         adcs    x10, x10, x12
+         adcs    x11, x11, x13
+-        stp     x10, x11, [x25, 160]
+-        ldp     x10, x11, [x25, 176]
+-        ldp     x12, x13, [x25, 112]
++        stp     x10, x11, [x25, #160]
++        ldp     x10, x11, [x25, #176]
++        ldp     x12, x13, [x25, #112]
+         adcs    x10, x10, x12
+         adcs    x11, x11, x13
+-        stp     x10, x11, [x25, 176]
+-        ldp     x10, x11, [x25, 192]
++        stp     x10, x11, [x25, #176]
++        ldp     x10, x11, [x25, #192]
+         adcs    x10, x10, xzr
+         adcs    x11, x11, xzr
+-        stp     x10, x11, [x25, 192]
+-        ldp     x10, x11, [x25, 208]
++        stp     x10, x11, [x25, #192]
++        ldp     x10, x11, [x25, #208]
+         adcs    x10, x10, xzr
+         adcs    x11, x11, xzr
+-        stp     x10, x11, [x25, 208]
+-        ldp     x10, x11, [x25, 224]
++        stp     x10, x11, [x25, #208]
++        ldp     x10, x11, [x25, #224]
+         adcs    x10, x10, xzr
+         adcs    x11, x11, xzr
+-        stp     x10, x11, [x25, 224]
+-        ldp     x10, x11, [x25, 240]
++        stp     x10, x11, [x25, #224]
++        ldp     x10, x11, [x25, #240]
+         adcs    x10, x10, xzr
+         adcs    x11, x11, xzr
+-        stp     x10, x11, [x25, 240]
+-        add     x0, x28, 0x80
++        stp     x10, x11, [x25, #240]
++        add     x0, x28, #0x80
+         mov     x1, x28
+-        add     x2, x28, 0x40
++        add     x2, x28, #0x40
+         bl      local_mul_8_16
+         ldp     x0, x1, [x25]
+-        ldp     x16, x17, [x25, 128]
++        ldp     x16, x17, [x25, #128]
+         adds    x0, x0, x16
+         adcs    x1, x1, x17
+-        ldp     x2, x3, [x25, 16]
+-        ldp     x16, x17, [x25, 144]
++        ldp     x2, x3, [x25, #16]
++        ldp     x16, x17, [x25, #144]
+         adcs    x2, x2, x16
+         adcs    x3, x3, x17
+-        ldp     x4, x5, [x25, 32]
+-        ldp     x16, x17, [x25, 160]
++        ldp     x4, x5, [x25, #32]
++        ldp     x16, x17, [x25, #160]
+         adcs    x4, x4, x16
+         adcs    x5, x5, x17
+-        ldp     x6, x7, [x25, 48]
+-        ldp     x16, x17, [x25, 176]
++        ldp     x6, x7, [x25, #48]
++        ldp     x16, x17, [x25, #176]
+         adcs    x6, x6, x16
+         adcs    x7, x7, x17
+-        ldp     x8, x9, [x25, 128]
+-        ldp     x16, x17, [x25, 192]
++        ldp     x8, x9, [x25, #128]
++        ldp     x16, x17, [x25, #192]
+         adcs    x8, x8, x16
+         adcs    x9, x9, x17
+-        ldp     x10, x11, [x25, 144]
+-        ldp     x16, x17, [x25, 208]
++        ldp     x10, x11, [x25, #144]
++        ldp     x16, x17, [x25, #208]
+         adcs    x10, x10, x16
+         adcs    x11, x11, x17
+-        ldp     x12, x13, [x25, 160]
+-        ldp     x16, x17, [x25, 224]
++        ldp     x12, x13, [x25, #160]
++        ldp     x16, x17, [x25, #224]
+         adcs    x12, x12, x16
+         adcs    x13, x13, x17
+-        ldp     x14, x15, [x25, 176]
+-        ldp     x16, x17, [x25, 240]
++        ldp     x14, x15, [x25, #176]
++        ldp     x16, x17, [x25, #240]
+         adcs    x14, x14, x16
+         adcs    x15, x15, x17
+         cset    x26, cs
+         cmn     x29, x29
+-        ldp     x16, x17, [x28, 128]
++        ldp     x16, x17, [x28, #128]
+         eor     x16, x16, x29
+         adcs    x0, x0, x16
+         eor     x17, x17, x29
+         adcs    x1, x1, x17
+-        stp     x0, x1, [x25, 64]
+-        ldp     x16, x17, [x28, 144]
++        stp     x0, x1, [x25, #64]
++        ldp     x16, x17, [x28, #144]
+         eor     x16, x16, x29
+         adcs    x2, x2, x16
+         eor     x17, x17, x29
+         adcs    x3, x3, x17
+-        stp     x2, x3, [x25, 80]
+-        ldp     x16, x17, [x28, 160]
++        stp     x2, x3, [x25, #80]
++        ldp     x16, x17, [x28, #160]
+         eor     x16, x16, x29
+         adcs    x4, x4, x16
+         eor     x17, x17, x29
+         adcs    x5, x5, x17
+-        stp     x4, x5, [x25, 96]
+-        ldp     x16, x17, [x28, 176]
++        stp     x4, x5, [x25, #96]
++        ldp     x16, x17, [x28, #176]
+         eor     x16, x16, x29
+         adcs    x6, x6, x16
+         eor     x17, x17, x29
+         adcs    x7, x7, x17
+-        stp     x6, x7, [x25, 112]
+-        ldp     x16, x17, [x28, 192]
++        stp     x6, x7, [x25, #112]
++        ldp     x16, x17, [x28, #192]
+         eor     x16, x16, x29
+         adcs    x8, x8, x16
+         eor     x17, x17, x29
+         adcs    x9, x9, x17
+-        stp     x8, x9, [x25, 128]
+-        ldp     x16, x17, [x28, 208]
++        stp     x8, x9, [x25, #128]
++        ldp     x16, x17, [x28, #208]
+         eor     x16, x16, x29
+         adcs    x10, x10, x16
+         eor     x17, x17, x29
+         adcs    x11, x11, x17
+-        stp     x10, x11, [x25, 144]
+-        ldp     x16, x17, [x28, 224]
++        stp     x10, x11, [x25, #144]
++        ldp     x16, x17, [x28, #224]
+         eor     x16, x16, x29
+         adcs    x12, x12, x16
+         eor     x17, x17, x29
+         adcs    x13, x13, x17
+-        stp     x12, x13, [x25, 160]
+-        ldp     x16, x17, [x28, 240]
++        stp     x12, x13, [x25, #160]
++        ldp     x16, x17, [x28, #240]
+         eor     x16, x16, x29
+         adcs    x14, x14, x16
+         eor     x17, x17, x29
+         adcs    x15, x15, x17
+-        stp     x14, x15, [x25, 176]
++        stp     x14, x15, [x25, #176]
+         adcs    x27, x29, x26
+         adc     x28, x29, xzr
+-        ldp     x10, x11, [x25, 192]
++        ldp     x10, x11, [x25, #192]
+         adds    x10, x10, x27
+         adcs    x11, x11, x28
+-        stp     x10, x11, [x25, 192]
+-        ldp     x10, x11, [x25, 208]
++        stp     x10, x11, [x25, #192]
++        ldp     x10, x11, [x25, #208]
+         adcs    x10, x10, x28
+         adcs    x11, x11, x28
+-        stp     x10, x11, [x25, 208]
+-        ldp     x10, x11, [x25, 224]
++        stp     x10, x11, [x25, #208]
++        ldp     x10, x11, [x25, #224]
+         adcs    x10, x10, x28
+         adcs    x11, x11, x28
+-        stp     x10, x11, [x25, 224]
+-        ldp     x10, x11, [x25, 240]
++        stp     x10, x11, [x25, #224]
++        ldp     x10, x11, [x25, #240]
+         adcs    x10, x10, x28
+         adcs    x11, x11, x28
+-        stp     x10, x11, [x25, 240]
+-        ldp     x23, x30, [sp], 16
+-        ldp     x21, x22, [sp], 16
+-        ldp     x19, x20, [sp], 16
++        stp     x10, x11, [x25, #240]
++        ldp     x23, x30, [sp], #16
++        ldp     x21, x22, [sp], #16
++        ldp     x19, x20, [sp], #16
+         ret
+ 
+ local_mul_8_16:
+         ldp     x3, x4, [x1]
+         ldp     x7, x8, [x2]
+-        ldp     x5, x6, [x1, 16]
+-        ldp     x9, x10, [x2, 16]
++        ldp     x5, x6, [x1, #16]
++        ldp     x9, x10, [x2, #16]
+         mul     x11, x3, x7
+         mul     x15, x4, x8
+         mul     x16, x5, x9
+@@ -662,7 +662,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x16, x16, x22
+         eor     x21, x21, x20
+@@ -676,7 +676,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x12, x12, x22
+         eor     x21, x21, x20
+@@ -694,7 +694,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x15, x15, x22
+         eor     x21, x21, x20
+@@ -709,7 +709,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x13, x13, x22
+         eor     x21, x21, x20
+@@ -726,7 +726,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x14, x14, x22
+         eor     x21, x21, x20
+@@ -742,7 +742,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x14, x14, x22
+         eor     x21, x21, x20
+@@ -750,14 +750,14 @@ local_mul_8_16:
+         adcs    x16, x16, x20
+         adcs    x17, x17, x20
+         adc     x19, x19, x20
+-        ldp     x3, x4, [x1, 32]
++        ldp     x3, x4, [x1, #32]
+         stp     x11, x12, [x0]
+-        ldp     x7, x8, [x2, 32]
+-        stp     x13, x14, [x0, 16]
+-        ldp     x5, x6, [x1, 48]
+-        stp     x15, x16, [x0, 32]
+-        ldp     x9, x10, [x2, 48]
+-        stp     x17, x19, [x0, 48]
++        ldp     x7, x8, [x2, #32]
++        stp     x13, x14, [x0, #16]
++        ldp     x5, x6, [x1, #48]
++        stp     x15, x16, [x0, #32]
++        ldp     x9, x10, [x2, #48]
++        stp     x17, x19, [x0, #48]
+         mul     x11, x3, x7
+         mul     x15, x4, x8
+         mul     x16, x5, x9
+@@ -781,10 +781,10 @@ local_mul_8_16:
+         adcs    x16, x19, x16
+         adcs    x17, xzr, x17
+         adc     x19, xzr, x19
+-        ldp     x22, x21, [x0, 32]
++        ldp     x22, x21, [x0, #32]
+         adds    x11, x11, x22
+         adcs    x12, x12, x21
+-        ldp     x22, x21, [x0, 48]
++        ldp     x22, x21, [x0, #48]
+         adcs    x13, x13, x22
+         adcs    x14, x14, x21
+         adcs    x15, x15, xzr
+@@ -799,7 +799,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x16, x16, x22
+         eor     x21, x21, x20
+@@ -813,7 +813,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x12, x12, x22
+         eor     x21, x21, x20
+@@ -831,7 +831,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x15, x15, x22
+         eor     x21, x21, x20
+@@ -846,7 +846,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x13, x13, x22
+         eor     x21, x21, x20
+@@ -863,7 +863,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x14, x14, x22
+         eor     x21, x21, x20
+@@ -879,7 +879,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x14, x14, x22
+         eor     x21, x21, x20
+@@ -890,19 +890,19 @@ local_mul_8_16:
+         ldp     x22, x21, [x1]
+         subs    x3, x3, x22
+         sbcs    x4, x4, x21
+-        ldp     x22, x21, [x1, 16]
++        ldp     x22, x21, [x1, #16]
+         sbcs    x5, x5, x22
+         sbcs    x6, x6, x21
+         csetm   x24, cc
+-        stp     x11, x12, [x0, 64]
++        stp     x11, x12, [x0, #64]
+         ldp     x22, x21, [x2]
+         subs    x7, x22, x7
+         sbcs    x8, x21, x8
+-        ldp     x22, x21, [x2, 16]
++        ldp     x22, x21, [x2, #16]
+         sbcs    x9, x22, x9
+         sbcs    x10, x21, x10
+         csetm   x1, cc
+-        stp     x13, x14, [x0, 80]
++        stp     x13, x14, [x0, #80]
+         eor     x3, x3, x24
+         subs    x3, x3, x24
+         eor     x4, x4, x24
+@@ -911,7 +911,7 @@ local_mul_8_16:
+         sbcs    x5, x5, x24
+         eor     x6, x6, x24
+         sbc     x6, x6, x24
+-        stp     x15, x16, [x0, 96]
++        stp     x15, x16, [x0, #96]
+         eor     x7, x7, x1
+         subs    x7, x7, x1
+         eor     x8, x8, x1
+@@ -920,7 +920,7 @@ local_mul_8_16:
+         sbcs    x9, x9, x1
+         eor     x10, x10, x1
+         sbc     x10, x10, x1
+-        stp     x17, x19, [x0, 112]
++        stp     x17, x19, [x0, #112]
+         eor     x1, x1, x24
+         mul     x11, x3, x7
+         mul     x15, x4, x8
+@@ -953,7 +953,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x16, x16, x22
+         eor     x21, x21, x20
+@@ -967,7 +967,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x12, x12, x22
+         eor     x21, x21, x20
+@@ -985,7 +985,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x15, x15, x22
+         eor     x21, x21, x20
+@@ -1000,7 +1000,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x13, x13, x22
+         eor     x21, x21, x20
+@@ -1017,7 +1017,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x14, x14, x22
+         eor     x21, x21, x20
+@@ -1033,7 +1033,7 @@ local_mul_8_16:
+         mul     x22, x24, x21
+         umulh   x21, x24, x21
+         cinv    x20, x20, cc
+-        cmn     x20, 0x1
++        cmn     x20, #0x1
+         eor     x22, x22, x20
+         adcs    x14, x14, x22
+         eor     x21, x21, x20
+@@ -1042,22 +1042,22 @@ local_mul_8_16:
+         adcs    x17, x17, x20
+         adc     x19, x19, x20
+         ldp     x3, x4, [x0]
+-        ldp     x7, x8, [x0, 64]
++        ldp     x7, x8, [x0, #64]
+         adds    x3, x3, x7
+         adcs    x4, x4, x8
+-        ldp     x5, x6, [x0, 16]
+-        ldp     x9, x10, [x0, 80]
++        ldp     x5, x6, [x0, #16]
++        ldp     x9, x10, [x0, #80]
+         adcs    x5, x5, x9
+         adcs    x6, x6, x10
+-        ldp     x20, x21, [x0, 96]
++        ldp     x20, x21, [x0, #96]
+         adcs    x7, x7, x20
+         adcs    x8, x8, x21
+-        ldp     x22, x23, [x0, 112]
++        ldp     x22, x23, [x0, #112]
+         adcs    x9, x9, x22
+         adcs    x10, x10, x23
+         adcs    x24, x1, xzr
+         adc     x2, x1, xzr
+-        cmn     x1, 0x1
++        cmn     x1, #0x1
+         eor     x11, x11, x1
+         adcs    x3, x11, x3
+         eor     x12, x12, x1
+@@ -1078,12 +1078,12 @@ local_mul_8_16:
+         adcs    x21, x21, x2
+         adcs    x22, x22, x2
+         adc     x23, x23, x2
+-        stp     x3, x4, [x0, 32]
+-        stp     x5, x6, [x0, 48]
+-        stp     x7, x8, [x0, 64]
+-        stp     x9, x10, [x0, 80]
+-        stp     x20, x21, [x0, 96]
+-        stp     x22, x23, [x0, 112]
++        stp     x3, x4, [x0, #32]
++        stp     x5, x6, [x0, #48]
++        stp     x7, x8, [x0, #64]
++        stp     x9, x10, [x0, #80]
++        stp     x20, x21, [x0, #96]
++        stp     x22, x23, [x0, #112]
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/arm/p384/bignum_deamont_p384.S b/arm/p384/bignum_deamont_p384.S
+index 0145e1112..6b07d8138 100644
+--- a/arm/p384/bignum_deamont_p384.S
++++ b/arm/p384/bignum_deamont_p384.S
+@@ -42,19 +42,19 @@
+ #define montreds(d6,d5,d4,d3,d2,d1,d0, t3,t2,t1)                            \
+ /* Our correction multiplier is w = [d0 + (d0<<32)] mod 2^64            */  \
+ /* Recycle d0 (which we know gets implicitly cancelled) to store it     */  \
+-                lsl     t1, d0, 32;                                         \
++                lsl     t1, d0, #32;                                        \
+                 add     d0, t1, d0;                                         \
+ /* Now let [t2;t1] = 2^64 * w - w + w_hi where w_hi = floor(w/2^32)     */  \
+ /* We need to subtract 2^32 * this, and we can ignore its lower 32      */  \
+ /* bits since by design it will cancel anyway; we only need the w_hi    */  \
+ /* part to get the carry propagation going.                             */  \
+-                lsr     t1, d0, 32;                                         \
++                lsr     t1, d0, #32;                                        \
+                 subs    t1, t1, d0;                                         \
+                 sbc     t2, d0, xzr;                                        \
+ /* Now select in t1 the field to subtract from d1                       */  \
+-                extr    t1, t2, t1, 32;                                     \
++                extr    t1, t2, t1, #32;                                    \
+ /* And now get the terms to subtract from d2 and d3                     */  \
+-                lsr     t2, t2, 32;                                         \
++                lsr     t2, t2, #32;                                        \
+                 adds    t2, t2, d0;                                         \
+                 adc     t3, xzr, xzr;                                       \
+ /* Do the subtraction of that portion                                   */  \
+diff --git a/arm/p384/bignum_demont_p384.S b/arm/p384/bignum_demont_p384.S
+index 8e8e9d7f8..10533713f 100644
+--- a/arm/p384/bignum_demont_p384.S
++++ b/arm/p384/bignum_demont_p384.S
+@@ -42,19 +42,19 @@
+ #define montreds(d6,d5,d4,d3,d2,d1,d0, t3,t2,t1)                            \
+ /* Our correction multiplier is w = [d0 + (d0<<32)] mod 2^64            */  \
+ /* Recycle d0 (which we know gets implicitly cancelled) to store it     */  \
+-                lsl     t1, d0, 32;                                         \
++                lsl     t1, d0, #32;                                        \
+                 add     d0, t1, d0;                                         \
+ /* Now let [t2;t1] = 2^64 * w - w + w_hi where w_hi = floor(w/2^32)     */  \
+ /* We need to subtract 2^32 * this, and we can ignore its lower 32      */  \
+ /* bits since by design it will cancel anyway; we only need the w_hi    */  \
+ /* part to get the carry propagation going.                             */  \
+-                lsr     t1, d0, 32;                                         \
++                lsr     t1, d0, #32;                                        \
+                 subs    t1, t1, d0;                                         \
+                 sbc     t2, d0, xzr;                                        \
+ /* Now select in t1 the field to subtract from d1                       */  \
+-                extr    t1, t2, t1, 32;                                     \
++                extr    t1, t2, t1, #32;                                    \
+ /* And now get the terms to subtract from d2 and d3                     */  \
+-                lsr     t2, t2, 32;                                         \
++                lsr     t2, t2, #32;                                        \
+                 adds    t2, t2, d0;                                         \
+                 adc     t3, xzr, xzr;                                       \
+ /* Do the subtraction of that portion                                   */  \
+diff --git a/arm/p384/bignum_montmul_p384.S b/arm/p384/bignum_montmul_p384.S
+index 4a532309b..036cc269f 100644
+--- a/arm/p384/bignum_montmul_p384.S
++++ b/arm/p384/bignum_montmul_p384.S
+@@ -61,19 +61,19 @@
+ #define montreds(d6,d5,d4,d3,d2,d1,d0, t3,t2,t1)                            \
+ /* Our correction multiplier is w = [d0 + (d0<<32)] mod 2^64            */  \
+ /* Recycle d0 (which we know gets implicitly cancelled) to store it     */  \
+-                lsl     t1, d0, 32;                                         \
++                lsl     t1, d0, #32;                                        \
+                 add     d0, t1, d0;                                         \
+ /* Now let [t2;t1] = 2^64 * w - w + w_hi where w_hi = floor(w/2^32)     */  \
+ /* We need to subtract 2^32 * this, and we can ignore its lower 32      */  \
+ /* bits since by design it will cancel anyway; we only need the w_hi    */  \
+ /* part to get the carry propagation going.                             */  \
+-                lsr     t1, d0, 32;                                         \
++                lsr     t1, d0, #32;                                        \
+                 subs    t1, t1, d0;                                         \
+                 sbc     t2, d0, xzr;                                        \
+ /* Now select in t1 the field to subtract from d1                       */  \
+-                extr    t1, t2, t1, 32;                                     \
++                extr    t1, t2, t1, #32;                                    \
+ /* And now get the terms to subtract from d2 and d3                     */  \
+-                lsr     t2, t2, 32;                                         \
++                lsr     t2, t2, #32;                                        \
+                 adds    t2, t2, d0;                                         \
+                 adc     t3, xzr, xzr;                                       \
+ /* Do the subtraction of that portion                                   */  \
+@@ -122,11 +122,11 @@ bignum_montmul_p384:
+ // Load in all words of both inputs
+ 
+                 ldp     a0, a1, [x1]
+-                ldp     a2, a3, [x1, 16]
+-                ldp     a4, a5, [x1, 32]
++                ldp     a2, a3, [x1, #16]
++                ldp     a4, a5, [x1, #32]
+                 ldp     b0, b1, [x2]
+-                ldp     b2, b3, [x2, 16]
+-                ldp     b4, b5, [x2, 32]
++                ldp     b2, b3, [x2, #16]
++                ldp     b4, b5, [x2, #32]
+ 
+ // Multiply low halves with a 3x3->6 ADK multiplier as [s5;s4;s3;s2;s1;s0]
+ 
+@@ -152,7 +152,7 @@ bignum_montmul_p384:
+                 adc     s5, s5, xzr
+ 
+                 muldiffn (t3,t2,t1, t4, a0,a1, b1,b0)
+-                adds    xzr, t3, 1
++                adds    xzr, t3, #1
+                 adcs    s1, s1, t1
+                 adcs    s2, s2, t2
+                 adcs    s3, s3, t3
+@@ -160,14 +160,14 @@ bignum_montmul_p384:
+                 adc     s5, s5, t3
+ 
+                 muldiffn (t3,t2,t1, t4, a0,a2, b2,b0)
+-                adds    xzr, t3, 1
++                adds    xzr, t3, #1
+                 adcs    s2, s2, t1
+                 adcs    s3, s3, t2
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+                 muldiffn (t3,t2,t1, t4, a1,a2, b2,b1)
+-                adds    xzr, t3, 1
++                adds    xzr, t3, #1
+                 adcs    s3, s3, t1
+                 adcs    s4, s4, t2
+                 adc     s5, s5, t3
+@@ -185,8 +185,8 @@ bignum_montmul_p384:
+                 montreds (s2,s1,s0,s5,s4,s3,s2, t1,t2,t3)
+ 
+                 stp     s3, s4, [x0]
+-                stp     s5, s0, [x0, 16]
+-                stp     s1, s2, [x0, 32]
++                stp     s5, s0, [x0, #16]
++                stp     s1, s2, [x0, #32]
+ 
+ // Multiply high halves with a 3x3->6 ADK multiplier as [s5;s4;s3;s2;s1;s0]
+ 
+@@ -212,7 +212,7 @@ bignum_montmul_p384:
+                 adc     s5, s5, xzr
+ 
+                 muldiffn (t3,t2,t1, t4, a3,a4, b4,b3)
+-                adds    xzr, t3, 1
++                adds    xzr, t3, #1
+                 adcs    s1, s1, t1
+                 adcs    s2, s2, t2
+                 adcs    s3, s3, t3
+@@ -220,14 +220,14 @@ bignum_montmul_p384:
+                 adc     s5, s5, t3
+ 
+                 muldiffn (t3,t2,t1, t4, a3,a5, b5,b3)
+-                adds    xzr, t3, 1
++                adds    xzr, t3, #1
+                 adcs    s2, s2, t1
+                 adcs    s3, s3, t2
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+                 muldiffn (t3,t2,t1, t4, a4,a5, b5,b4)
+-                adds    xzr, t3, 1
++                adds    xzr, t3, #1
+                 adcs    s3, s3, t1
+                 adcs    s4, s4, t2
+                 adc     s5, s5, t3
+@@ -238,7 +238,7 @@ bignum_montmul_p384:
+                 sbcs    a4, a4, a1
+                 sbcs    a5, a5, a2
+                 sbc     a0, xzr, xzr
+-                adds    xzr, a0, 1
++                adds    xzr, a0, #1
+                 eor     a3, a3, a0
+                 adcs    a3, a3, xzr
+                 eor     a4, a4, a0
+@@ -253,7 +253,7 @@ bignum_montmul_p384:
+                 sbcs    b2, b2, b5
+                 sbc     b5, xzr, xzr
+ 
+-                adds    xzr, b5, 1
++                adds    xzr, b5, #1
+                 eor     b0, b0, b5
+                 adcs    b0, b0, xzr
+                 eor     b1, b1, b5
+@@ -271,16 +271,16 @@ bignum_montmul_p384:
+                 ldp     t1, t2, [x0]
+                 adds    s0, s0, t1
+                 adcs    s1, s1, t2
+-                ldp     t1, t2, [x0, 16]
++                ldp     t1, t2, [x0, #16]
+                 adcs    s2, s2, t1
+                 adcs    s3, s3, t2
+-                ldp     t1, t2, [x0, 32]
++                ldp     t1, t2, [x0, #32]
+                 adcs    s4, s4, t1
+                 adcs    s5, s5, t2
+                 adc     s6, xzr, xzr
+                 stp     s0, s1, [x0]
+-                stp     s2, s3, [x0, 16]
+-                stp     s4, s5, [x0, 32]
++                stp     s2, s3, [x0, #16]
++                stp     s4, s5, [x0, #32]
+ 
+ // Multiply with yet a third 3x3 ADK for the complex mid-term
+ 
+@@ -306,7 +306,7 @@ bignum_montmul_p384:
+                 adc     s5, s5, xzr
+ 
+                 muldiffn (t3,t2,t1, t4, a3,a4, b1,b0)
+-                adds    xzr, t3, 1
++                adds    xzr, t3, #1
+                 adcs    s1, s1, t1
+                 adcs    s2, s2, t2
+                 adcs    s3, s3, t3
+@@ -314,14 +314,14 @@ bignum_montmul_p384:
+                 adc     s5, s5, t3
+ 
+                 muldiffn (t3,t2,t1, t4, a3,a5, b2,b0)
+-                adds    xzr, t3, 1
++                adds    xzr, t3, #1
+                 adcs    s2, s2, t1
+                 adcs    s3, s3, t2
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+                 muldiffn (t3,t2,t1, t4, a4,a5, b2,b1)
+-                adds    xzr, t3, 1
++                adds    xzr, t3, #1
+                 adcs    s3, s3, t1
+                 adcs    s4, s4, t2
+                 adc     s5, s5, t3
+@@ -329,14 +329,14 @@ bignum_montmul_p384:
+ // Unstash the H + L' sum to add in twice
+ 
+                 ldp     a0, a1, [x0]
+-                ldp     a2, a3, [x0, 16]
+-                ldp     a4, a5, [x0, 32]
++                ldp     a2, a3, [x0, #16]
++                ldp     a4, a5, [x0, #32]
+ 
+ // Set up a sign-modified version of the mid-product in a long accumulator
+ // as [b3;b2;b1;b0;s5;s4;s3;s2;s1;s0], adding in the H + L' term once with
+ // zero offset as this signed value is created
+ 
+-                adds    xzr, b5, 1
++                adds    xzr, b5, #1
+                 eor     s0, s0, b5
+                 adcs    s0, s0, a0
+                 eor     s1, s1, b5
+@@ -381,8 +381,8 @@ bignum_montmul_p384:
+ // elaborate final correction in the style of bignum_cmul_p384, just
+ // a little bit simpler because we know q is small.
+ 
+-                add     t2, b3, 1
+-                lsl     t1, t2, 32
++                add     t2, b3, #1
++                lsl     t1, t2, #32
+                 subs    t4, t2, t1
+                 sbc     t1, t1, xzr
+ 
+@@ -395,12 +395,12 @@ bignum_montmul_p384:
+ 
+                 csetm   t2, cc
+ 
+-                mov     t3, 0x00000000ffffffff
++                mov     t3, #0x00000000ffffffff
+                 and     t3, t3, t2
+                 adds    s3, s3, t3
+                 eor     t3, t3, t2
+                 adcs    s4, s4, t3
+-                mov     t3, 0xfffffffffffffffe
++                mov     t3, #0xfffffffffffffffe
+                 and     t3, t3, t2
+                 adcs    s5, s5, t3
+                 adcs    b0, b0, t2
+@@ -410,14 +410,14 @@ bignum_montmul_p384:
+ // Write back the result
+ 
+                 stp     s3, s4, [x0]
+-                stp     s5, b0, [x0, 16]
+-                stp     b1, b2, [x0, 32]
++                stp     s5, b0, [x0, #16]
++                stp     b1, b2, [x0, #32]
+ 
+ // Restore registers and return
+ 
+-                ldp     x23, x24, [sp], 16
+-                ldp     x21, x22, [sp], 16
+-                ldp     x19, x20, [sp], 16
++                ldp     x23, x24, [sp], #16
++                ldp     x21, x22, [sp], #16
++                ldp     x19, x20, [sp], #16
+ 
+                 ret
+ 
+diff --git a/arm/p384/bignum_montsqr_p384.S b/arm/p384/bignum_montsqr_p384.S
+index 16c78ab23..dcb27f342 100644
+--- a/arm/p384/bignum_montsqr_p384.S
++++ b/arm/p384/bignum_montsqr_p384.S
+@@ -60,19 +60,19 @@
+ #define montreds(d6,d5,d4,d3,d2,d1,d0, t3,t2,t1)                            \
+ /* Our correction multiplier is w = [d0 + (d0<<32)] mod 2^64            */  \
+ /* Recycle d0 (which we know gets implicitly cancelled) to store it     */  \
+-                lsl     t1, d0, 32;                                         \
++                lsl     t1, d0, #32;                                        \
+                 add     d0, t1, d0;                                         \
+ /* Now let [t2;t1] = 2^64 * w - w + w_hi where w_hi = floor(w/2^32)     */  \
+ /* We need to subtract 2^32 * this, and we can ignore its lower 32      */  \
+ /* bits since by design it will cancel anyway; we only need the w_hi    */  \
+ /* part to get the carry propagation going.                             */  \
+-                lsr     t1, d0, 32;                                         \
++                lsr     t1, d0, #32;                                        \
+                 subs    t1, t1, d0;                                         \
+                 sbc     t2, d0, xzr;                                        \
+ /* Now select in t1 the field to subtract from d1                       */  \
+-                extr    t1, t2, t1, 32;                                     \
++                extr    t1, t2, t1, #32;                                    \
+ /* And now get the terms to subtract from d2 and d3                     */  \
+-                lsr     t2, t2, 32;                                         \
++                lsr     t2, t2, #32;                                        \
+                 adds    t2, t2, d0;                                         \
+                 adc     t3, xzr, xzr;                                       \
+ /* Do the subtraction of that portion                                   */  \
+diff --git a/arm/p521/Makefile b/arm/p521/Makefile
+index 7533de3ec..a435327ba 100644
+--- a/arm/p521/Makefile
++++ b/arm/p521/Makefile
+@@ -33,6 +33,7 @@ endif
+ 
+ OBJ = bignum_add_p521.o \
+       bignum_cmul_p521.o \
++      bignum_demont_p521.o \
+       bignum_double_p521.o \
+       bignum_half_p521.o \
+       bignum_mod_p521_9.o \
+diff --git a/arm/p521/bignum_demont_p521.S b/arm/p521/bignum_demont_p521.S
+new file mode 100644
+index 000000000..60a9e260e
+--- /dev/null
++++ b/arm/p521/bignum_demont_p521.S
+@@ -0,0 +1,79 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Convert from Montgomery form z := (x / 2^576) mod p_521, assuming x reduced
++// Input x[9]; output z[9]
++//
++//    extern void bignum_demont_p521
++//     (uint64_t z[static 9], uint64_t x[static 9]);
++//
++// This assumes the input is < p_521 for correctness. If this is not the case,
++// use the variant "bignum_deamont_p521" instead.
++//
++// Standard ARM ABI: X0 = z, X1 = x
++// ----------------------------------------------------------------------------
++
++        .globl  bignum_demont_p521
++        .text
++
++// Input parameters
++
++#define z x0
++#define x x1
++
++// Rotating registers for the intermediate windows
++
++#define d0 x2
++#define d1 x3
++#define d2 x4
++#define d3 x5
++#define d4 x2
++#define d5 x3
++#define d6 x4
++#define d7 x5
++#define d8 x2
++#define c x6
++
++bignum_demont_p521:
++
++// Rotate, as a 521-bit quantity, by 9*64 - 521 = 55 bits right.
++
++                ldp     d0, d1, [x]
++                lsl     c, d0, #9
++                extr    d0, d1, d0, #55
++                ldp     d2, d3, [x, #16]
++                extr    d1, d2, d1, #55
++                stp     d0, d1, [z]
++                extr    d2, d3, d2, #55
++                ldp     d4, d5, [x, #32]
++                extr    d3, d4, d3, #55
++                stp     d2, d3, [z, #16]
++                extr    d4, d5, d4, #55
++                ldp     d6, d7, [x, #48]
++                extr    d5, d6, d5, #55
++                stp     d4, d5, [z, #32]
++                extr    d6, d7, d6, #55
++                ldr     d8, [x, #64]
++                orr     d8, d8, c
++                extr    d7, d8, d7, #55
++                stp     d6, d7, [z, #48]
++                lsr     d8, d8, #55
++                str     d8, [z, #64]
++                ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p521/bignum_montsqr_p521.S b/arm/p521/bignum_montsqr_p521.S
+index 237151b5c..923f59c04 100644
+--- a/arm/p521/bignum_montsqr_p521.S
++++ b/arm/p521/bignum_montsqr_p521.S
+@@ -171,118 +171,118 @@ bignum_montsqr_p521:
+ 
+ // 0 * 52 = 64 * 0 + 0
+ 
+-                and     l, a0, 0x000fffffffffffff
++                and     l, a0, #0x000fffffffffffff
+                 mul     l, u, l
+ 
+ // 1 * 52 = 64 * 0 + 52
+ 
+-                extr    h, a1, a0, 52
+-                and     h, h, 0x000fffffffffffff
++                extr    h, a1, a0, #52
++                and     h, h, #0x000fffffffffffff
+                 mul     h, u, h
+-                lsr     t, l, 52
++                lsr     t, l, #52
+                 add     h, h, t
+ 
+-                lsl     l, l, 12
+-                extr    t, h, l, 12
++                lsl     l, l, #12
++                extr    t, h, l, #12
+                 adds    s0, s0, t
+ 
+ // 2 * 52 = 64 * 1 + 40
+ 
+-                extr    l, a2, a1, 40
+-                and     l, l, 0x000fffffffffffff
++                extr    l, a2, a1, #40
++                and     l, l, #0x000fffffffffffff
+                 mul     l, u, l
+-                lsr     t, h, 52
++                lsr     t, h, #52
+                 add     l, l, t
+ 
+-                lsl     h, h, 12
+-                extr    t, l, h, 24
++                lsl     h, h, #12
++                extr    t, l, h, #24
+                 adcs    s1, s1, t
+ 
+ // 3 * 52 = 64 * 2 + 28
+ 
+-                extr    h, a3, a2, 28
+-                and     h, h, 0x000fffffffffffff
++                extr    h, a3, a2, #28
++                and     h, h, #0x000fffffffffffff
+                 mul     h, u, h
+-                lsr     t, l, 52
++                lsr     t, l, #52
+                 add     h, h, t
+ 
+-                lsl     l, l, 12
+-                extr    t, h, l, 36
++                lsl     l, l, #12
++                extr    t, h, l, #36
+                 adcs    s2, s2, t
+ 
+ // 4 * 52 = 64 * 3 + 16
+ 
+-                extr    l, b0, a3, 16
+-                and     l, l, 0x000fffffffffffff
++                extr    l, b0, a3, #16
++                and     l, l, #0x000fffffffffffff
+                 mul     l, u, l
+-                lsr     t, h, 52
++                lsr     t, h, #52
+                 add     l, l, t
+ 
+-                lsl     h, h, 12
+-                extr    t, l, h, 48
++                lsl     h, h, #12
++                extr    t, l, h, #48
+                 adcs    s3, s3, t
+ 
+ // 5 * 52 = 64 * 4 + 4
+ 
+-                lsr     h, b0, 4
+-                and     h, h, 0x000fffffffffffff
++                lsr     h, b0, #4
++                and     h, h, #0x000fffffffffffff
+                 mul     h, u, h
+-                lsr     t, l, 52
++                lsr     t, l, #52
+                 add     h, h, t
+ 
+-                lsl     l, l, 12
+-                extr    v, h, l, 60
++                lsl     l, l, #12
++                extr    v, h, l, #60
+ 
+ // 6 * 52 = 64 * 4 + 56
+ 
+-                extr    l, b1, b0, 56
+-                and     l, l, 0x000fffffffffffff
++                extr    l, b1, b0, #56
++                and     l, l, #0x000fffffffffffff
+                 mul     l, u, l
+-                lsr     t, h, 52
++                lsr     t, h, #52
+                 add     l, l, t
+ 
+-                lsl     v, v, 8
+-                extr    t, l, v, 8
++                lsl     v, v, #8
++                extr    t, l, v, #8
+                 adcs    s4, s4, t
+ 
+ // 7 * 52 = 64 * 5 + 44
+ 
+-                extr    h, b2, b1, 44
+-                and     h, h, 0x000fffffffffffff
++                extr    h, b2, b1, #44
++                and     h, h, #0x000fffffffffffff
+                 mul     h, u, h
+-                lsr     t, l, 52
++                lsr     t, l, #52
+                 add     h, h, t
+ 
+-                lsl     l, l, 12
+-                extr    t, h, l, 20
++                lsl     l, l, #12
++                extr    t, h, l, #20
+                 adcs    s5, s5, t
+ 
+ // 8 * 52 = 64 * 6 + 32
+ 
+-                extr    l, b3, b2, 32
+-                and     l, l, 0x000fffffffffffff
++                extr    l, b3, b2, #32
++                and     l, l, #0x000fffffffffffff
+                 mul     l, u, l
+-                lsr     t, h, 52
++                lsr     t, h, #52
+                 add     l, l, t
+ 
+-                lsl     h, h, 12
+-                extr    t, l, h, 32
++                lsl     h, h, #12
++                extr    t, l, h, #32
+                 adcs    s6, s6, t
+ 
+ // 9 * 52 = 64 * 7 + 20
+ 
+-                lsr     h, b3, 20
++                lsr     h, b3, #20
+                 mul     h, u, h
+-                lsr     t, l, 52
++                lsr     t, l, #52
+                 add     h, h, t
+ 
+-                lsl     l, l, 12
+-                extr    t, h, l, 44
++                lsl     l, l, #12
++                extr    t, h, l, #44
+                 adcs    s7, s7, t
+ 
+ // Top word
+ 
+-                lsr     h, h, 44
++                lsr     h, h, #44
+                 adc     c, c, h
+ 
+ // Rotate [c;s7;...;s0] before storing in the buffer.
+@@ -305,7 +305,7 @@ bignum_montsqr_p521:
+                 extr    h, c, s7, #9
+                 stp     l, h, [z, #48]
+ 
+-                and     t, s0, 0x1FF
++                and     t, s0, #0x1FF
+                 lsr     c, c, #9
+                 add     t, t, c
+                 str     t, [z, #64]
+@@ -601,17 +601,17 @@ bignum_montsqr_p521:
+ // Now finally the Montgomery ingredient, which is just a 521-bit
+ // rotation by 9*64 - 521 = 55 bits right.
+ 
+-                lsl     c, d0, 9
+-                extr    d0, d1, d0, 55
+-                extr    d1, d2, d1, 55
+-                extr    d2, d3, d2, 55
+-                extr    d3, d4, d3, 55
++                lsl     c, d0, #9
++                extr    d0, d1, d0, #55
++                extr    d1, d2, d1, #55
++                extr    d2, d3, d2, #55
++                extr    d3, d4, d3, #55
+                 orr     d8, d8, c
+-                extr    d4, d5, d4, 55
+-                extr    d5, d6, d5, 55
+-                extr    d6, d7, d6, 55
+-                extr    d7, d8, d7, 55
+-                lsr     d8, d8, 55
++                extr    d4, d5, d4, #55
++                extr    d5, d6, d5, #55
++                extr    d6, d7, d6, #55
++                extr    d7, d8, d7, #55
++                lsr     d8, d8, #55
+ 
+ // Store the final result
+ 
+diff --git a/arm/p521/bignum_sqr_p521.S b/arm/p521/bignum_sqr_p521.S
+index 99d23ea98..547000975 100644
+--- a/arm/p521/bignum_sqr_p521.S
++++ b/arm/p521/bignum_sqr_p521.S
+@@ -165,118 +165,118 @@ bignum_sqr_p521:
+ 
+ // 0 * 52 = 64 * 0 + 0
+ 
+-                and     l, a0, 0x000fffffffffffff
++                and     l, a0, #0x000fffffffffffff
+                 mul     l, u, l
+ 
+ // 1 * 52 = 64 * 0 + 52
+ 
+-                extr    h, a1, a0, 52
+-                and     h, h, 0x000fffffffffffff
++                extr    h, a1, a0, #52
++                and     h, h, #0x000fffffffffffff
+                 mul     h, u, h
+-                lsr     t, l, 52
++                lsr     t, l, #52
+                 add     h, h, t
+ 
+-                lsl     l, l, 12
+-                extr    t, h, l, 12
++                lsl     l, l, #12
++                extr    t, h, l, #12
+                 adds    s0, s0, t
+ 
+ // 2 * 52 = 64 * 1 + 40
+ 
+-                extr    l, a2, a1, 40
+-                and     l, l, 0x000fffffffffffff
++                extr    l, a2, a1, #40
++                and     l, l, #0x000fffffffffffff
+                 mul     l, u, l
+-                lsr     t, h, 52
++                lsr     t, h, #52
+                 add     l, l, t
+ 
+-                lsl     h, h, 12
+-                extr    t, l, h, 24
++                lsl     h, h, #12
++                extr    t, l, h, #24
+                 adcs    s1, s1, t
+ 
+ // 3 * 52 = 64 * 2 + 28
+ 
+-                extr    h, a3, a2, 28
+-                and     h, h, 0x000fffffffffffff
++                extr    h, a3, a2, #28
++                and     h, h, #0x000fffffffffffff
+                 mul     h, u, h
+-                lsr     t, l, 52
++                lsr     t, l, #52
+                 add     h, h, t
+ 
+-                lsl     l, l, 12
+-                extr    t, h, l, 36
++                lsl     l, l, #12
++                extr    t, h, l, #36
+                 adcs    s2, s2, t
+ 
+ // 4 * 52 = 64 * 3 + 16
+ 
+-                extr    l, b0, a3, 16
+-                and     l, l, 0x000fffffffffffff
++                extr    l, b0, a3, #16
++                and     l, l, #0x000fffffffffffff
+                 mul     l, u, l
+-                lsr     t, h, 52
++                lsr     t, h, #52
+                 add     l, l, t
+ 
+-                lsl     h, h, 12
+-                extr    t, l, h, 48
++                lsl     h, h, #12
++                extr    t, l, h, #48
+                 adcs    s3, s3, t
+ 
+ // 5 * 52 = 64 * 4 + 4
+ 
+-                lsr     h, b0, 4
+-                and     h, h, 0x000fffffffffffff
++                lsr     h, b0, #4
++                and     h, h, #0x000fffffffffffff
+                 mul     h, u, h
+-                lsr     t, l, 52
++                lsr     t, l, #52
+                 add     h, h, t
+ 
+-                lsl     l, l, 12
+-                extr    v, h, l, 60
++                lsl     l, l, #12
++                extr    v, h, l, #60
+ 
+ // 6 * 52 = 64 * 4 + 56
+ 
+-                extr    l, b1, b0, 56
+-                and     l, l, 0x000fffffffffffff
++                extr    l, b1, b0, #56
++                and     l, l, #0x000fffffffffffff
+                 mul     l, u, l
+-                lsr     t, h, 52
++                lsr     t, h, #52
+                 add     l, l, t
+ 
+-                lsl     v, v, 8
+-                extr    t, l, v, 8
++                lsl     v, v, #8
++                extr    t, l, v, #8
+                 adcs    s4, s4, t
+ 
+ // 7 * 52 = 64 * 5 + 44
+ 
+-                extr    h, b2, b1, 44
+-                and     h, h, 0x000fffffffffffff
++                extr    h, b2, b1, #44
++                and     h, h, #0x000fffffffffffff
+                 mul     h, u, h
+-                lsr     t, l, 52
++                lsr     t, l, #52
+                 add     h, h, t
+ 
+-                lsl     l, l, 12
+-                extr    t, h, l, 20
++                lsl     l, l, #12
++                extr    t, h, l, #20
+                 adcs    s5, s5, t
+ 
+ // 8 * 52 = 64 * 6 + 32
+ 
+-                extr    l, b3, b2, 32
+-                and     l, l, 0x000fffffffffffff
++                extr    l, b3, b2, #32
++                and     l, l, #0x000fffffffffffff
+                 mul     l, u, l
+-                lsr     t, h, 52
++                lsr     t, h, #52
+                 add     l, l, t
+ 
+-                lsl     h, h, 12
+-                extr    t, l, h, 32
++                lsl     h, h, #12
++                extr    t, l, h, #32
+                 adcs    s6, s6, t
+ 
+ // 9 * 52 = 64 * 7 + 20
+ 
+-                lsr     h, b3, 20
++                lsr     h, b3, #20
+                 mul     h, u, h
+-                lsr     t, l, 52
++                lsr     t, l, #52
+                 add     h, h, t
+ 
+-                lsl     l, l, 12
+-                extr    t, h, l, 44
++                lsl     l, l, #12
++                extr    t, h, l, #44
+                 adcs    s7, s7, t
+ 
+ // Top word
+ 
+-                lsr     h, h, 44
++                lsr     h, h, #44
+                 adc     c, c, h
+ 
+ // Rotate [c;s7;...;s0] before storing in the buffer.
+@@ -299,7 +299,7 @@ bignum_sqr_p521:
+                 extr    h, c, s7, #9
+                 stp     l, h, [z, #48]
+ 
+-                and     t, s0, 0x1FF
++                and     t, s0, #0x1FF
+                 lsr     c, c, #9
+                 add     t, t, c
+                 str     t, [z, #64]

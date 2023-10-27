@@ -1,0 +1,36 @@
+From 26befb9f25941605d1fefb3d8efe98ffbed826c6 Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Thu, 11 May 2023 15:29:22 -0700
+Subject: [PATCH] Fix incorrect lambda CodeBuild policy permission (#1001)
+
+---
+ tests/ci/cdk/cdk.context.json  | 2 +-
+ tests/ci/cdk/cdk/components.py | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/tests/ci/cdk/cdk.context.json b/tests/ci/cdk/cdk.context.json
+index f6f26c260..a409f9dd7 100644
+--- a/tests/ci/cdk/cdk.context.json
++++ b/tests/ci/cdk/cdk.context.json
+@@ -2,7 +2,7 @@
+   "acknowledged-issue-numbers": [
+     19836
+   ],
+-  "availability-zones:account=431229050501:region=us-west-2": [
++  "availability-zones:account=620771051181:region=us-west-2": [
+     "us-west-2a",
+     "us-west-2b",
+     "us-west-2c",
+diff --git a/tests/ci/cdk/cdk/components.py b/tests/ci/cdk/cdk/components.py
+index 39b2b5b3e..58881bd49 100644
+--- a/tests/ci/cdk/cdk/components.py
++++ b/tests/ci/cdk/cdk/components.py
+@@ -36,7 +36,7 @@ class PruneStaleGitHubBuilds(Construct):
+                                 actions=[
+                                     "codebuild:BatchGetBuildBatches",
+                                     "codebuild:ListBuildBatchesForProject",
+-                                    "codebuild:StopBuild",
++                                    "codebuild:StopBuildBatch",
+                                 ],
+                                 resources=[project.project_arn]))
+ 

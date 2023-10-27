@@ -1,0 +1,200 @@
+From c13b889babd11846b9d6ddd610e0945a5db9b1e6 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sat, 11 Feb 2023 10:13:32 -0500
+Subject: [PATCH] Cap the number of ECDSA and DSA sign iterations.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When the parameters are incorrect, all assumptions of (EC)DSA fly out
+the window, including whether the retry loop actually terminates.
+
+While ECDSA is broadly used with fixed, named groups, DSA was
+catastrophically mis-specified with arbitrary parameters being the
+default and only mode. Cap the number of retries in DSA_do_sign so
+invalid DSA groups cannot infinite loop, e.g. if the "generator" is
+really nilpotent.
+
+This also caps the iteration count for ECDSA. We do, sadly, support
+arbitrary curves via EC_GROUP_new_curve_GFp, to help Conscrypt remain
+compatible with a badly-designed Java API. After
+https://boringssl-review.googlesource.com/c/boringssl/+/51925, we
+documented that untrusted parameters are not supported and may produce
+garbage outputs, but we did not document that infinite loops are
+possible. I don't have an example where an invalid curve breaks ECDSA,
+but as it breaks all preconditions, I cannot be confident it doesn't
+exist, so just cap the iterations.
+
+Thanks to Hanno Böck who originally reported an infinite loop on
+invalid DSA groups. While that variation did not affect BoringSSL, it
+inspired us to find other invalid groups which did.
+
+Thanks also to Guido Vranken who found, in
+https://github.com/openssl/openssl/issues/20268, an infinite loop when
+the private key is zero. That was fixed in the preceding CL, as it
+impacts valid groups too, but the infinite loop is ultimately in the
+same place, so this change also would have mitigated the loop.
+
+Update-Note: If signing starts failing with ECDSA_R_INVALID_ITERATIONS,
+something went horribly wrong because it should not be possible with
+real curves. (Needing even one retry has probability 2^-256 or so.)
+
+Change-Id: If8fb0157055d3d8cb180fe4f27ea7eb349ec2738
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57228
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit 474ddf8ba95f30e69acea37d76b3e671d89381c3)
+---
+ crypto/dsa/dsa.c                | 14 ++++++++++++++
+ crypto/dsa/dsa_test.cc          | 24 ++++++++++++++++++++++++
+ crypto/err/dsa.errordata        |  1 +
+ crypto/err/ecdsa.errordata      |  1 +
+ crypto/fipsmodule/ecdsa/ecdsa.c | 13 +++++++++++++
+ include/openssl/dsa.h           |  1 +
+ include/openssl/ecdsa.h         |  1 +
+ 7 files changed, 55 insertions(+)
+
+diff --git a/crypto/dsa/dsa.c b/crypto/dsa/dsa.c
+index 68cf39101..f7e6b7e57 100644
+--- a/crypto/dsa/dsa.c
++++ b/crypto/dsa/dsa.c
+@@ -615,6 +615,14 @@ DSA_SIG *DSA_do_sign(const uint8_t *digest, size_t digest_len, const DSA *dsa) {
+     goto err;
+   }
+ 
++  // Cap iterations so that invalid parameters do not infinite loop. This does
++  // not impact valid parameters because the probability of requiring even one
++  // retry is negligible, let alone 32. Unfortunately, DSA was mis-specified, so
++  // invalid parameters are reachable from most callers handling untrusted
++  // private keys. (The |dsa_check_key| call above is not sufficient. Checking
++  // whether arbitrary paremeters form a valid DSA group is expensive.)
++  static const int kMaxIterations = 32;
++  int iters = 0;
+ redo:
+   if (!dsa_sign_setup(dsa, ctx, &kinv, &r)) {
+     goto err;
+@@ -654,8 +662,14 @@ redo:
+   // Redo if r or s is zero as required by FIPS 186-3: this is
+   // very unlikely.
+   if (BN_is_zero(r) || BN_is_zero(s)) {
++    iters++;
++    if (iters > kMaxIterations) {
++      OPENSSL_PUT_ERROR(DSA, DSA_R_TOO_MANY_ITERATIONS);
++      goto err;
++    }
+     goto redo;
+   }
++
+   ret = DSA_SIG_new();
+   if (ret == NULL) {
+     goto err;
+diff --git a/crypto/dsa/dsa_test.cc b/crypto/dsa/dsa_test.cc
+index a4b6dfa12..cc02782a3 100644
+--- a/crypto/dsa/dsa_test.cc
++++ b/crypto/dsa/dsa_test.cc
+@@ -69,6 +69,7 @@
+ #include <openssl/bn.h>
+ #include <openssl/crypto.h>
+ #include <openssl/err.h>
++#include <openssl/pem.h>
+ #include <openssl/span.h>
+ 
+ #include "../test/test_util.h"
+@@ -312,3 +313,26 @@ TEST(DSATest, ZeroPrivateKey) {
+   EXPECT_FALSE(DSA_sign(0, kZeroDigest, sizeof(kZeroDigest), sig.data(),
+                         &sig_len, dsa.get()));
+ }
++
++// If the "field" is actually a ring and the "generator" of the multiplicative
++// subgroup is actually nilpotent with low degree, DSA signing never completes.
++// Test that we give up in the infinite loop.
++TEST(DSATest, NilpotentGenerator) {
++  static const char kPEM[] = R"(
++-----BEGIN DSA PRIVATE KEY-----
++MGECAQACFQHH+MnFXh4NNlZiV/zUVb5a5ib3kwIVAOP8ZOKvDwabKzEr/moq3y1z
++E3vJAhUAl/2Ylx9fWbzHdh1URsc/c6IM/TECAQECFCsjU4AZRcuks45g1NMOUeCB
++Epvg
++-----END DSA PRIVATE KEY-----
++)";
++  bssl::UniquePtr<BIO> bio(BIO_new_mem_buf(kPEM, sizeof(kPEM)));
++  ASSERT_TRUE(bio);
++  bssl::UniquePtr<DSA> dsa(
++      PEM_read_bio_DSAPrivateKey(bio.get(), nullptr, nullptr, nullptr));
++  ASSERT_TRUE(dsa);
++
++  std::vector<uint8_t> sig(DSA_size(dsa.get()));
++  unsigned sig_len;
++  EXPECT_FALSE(DSA_sign(0, fips_digest, sizeof(fips_digest), sig.data(),
++                        &sig_len, dsa.get()));
++}
+diff --git a/crypto/err/dsa.errordata b/crypto/err/dsa.errordata
+index 1cf5206d8..4a4b5862d 100644
+--- a/crypto/err/dsa.errordata
++++ b/crypto/err/dsa.errordata
+@@ -6,3 +6,4 @@ DSA,107,INVALID_PARAMETERS
+ DSA,101,MISSING_PARAMETERS
+ DSA,102,MODULUS_TOO_LARGE
+ DSA,103,NEED_NEW_SETUP_VALUES
++DSA,108,TOO_MANY_ITERATIONS
+diff --git a/crypto/err/ecdsa.errordata b/crypto/err/ecdsa.errordata
+index 2696182dc..e3e832be1 100644
+--- a/crypto/err/ecdsa.errordata
++++ b/crypto/err/ecdsa.errordata
+@@ -5,3 +5,4 @@ ECDSA,101,MISSING_PARAMETERS
+ ECDSA,102,NEED_NEW_SETUP_VALUES
+ ECDSA,103,NOT_IMPLEMENTED
+ ECDSA,104,RANDOM_NUMBER_GENERATION_FAILED
++ECDSA,106,TOO_MANY_ITERATIONS
+diff --git a/crypto/fipsmodule/ecdsa/ecdsa.c b/crypto/fipsmodule/ecdsa/ecdsa.c
+index c26ce93cc..b8837077b 100644
+--- a/crypto/fipsmodule/ecdsa/ecdsa.c
++++ b/crypto/fipsmodule/ecdsa/ecdsa.c
+@@ -338,6 +338,12 @@ ECDSA_SIG *ECDSA_do_sign(const uint8_t *digest, size_t digest_len,
+   SHA512_Final(additional_data, &sha);
+ 
+   FIPS_service_indicator_unlock_state();
++  // Cap iterations so callers who supply invalid values as custom groups do not
++  // infinite loop. This does not impact valid parameters (e.g. those covered by
++  // FIPS) because the probability of requiring even one retry is negligible,
++  // let alone 32.
++  static const int kMaxIterations = 32;
++  int iters = 0;
+   for (;;) {
+     EC_SCALAR k;
+     if (!ec_random_nonzero_scalar(group, &k, additional_data)) {
+@@ -352,6 +358,13 @@ ECDSA_SIG *ECDSA_do_sign(const uint8_t *digest, size_t digest_len,
+       OPENSSL_cleanse(&k, sizeof(EC_SCALAR));
+       return sig;
+     }
++
++    iters++;
++    if (iters > kMaxIterations) {
++      OPENSSL_cleanse(&k, sizeof(EC_SCALAR));
++      OPENSSL_PUT_ERROR(ECDSA, ECDSA_R_TOO_MANY_ITERATIONS);
++      return NULL;
++    }
+   }
+ }
+ 
+diff --git a/include/openssl/dsa.h b/include/openssl/dsa.h
+index 1e1b840d8..f20672eb4 100644
+--- a/include/openssl/dsa.h
++++ b/include/openssl/dsa.h
+@@ -433,5 +433,6 @@ BSSL_NAMESPACE_END
+ #define DSA_R_DECODE_ERROR 105
+ #define DSA_R_ENCODE_ERROR 106
+ #define DSA_R_INVALID_PARAMETERS 107
++#define DSA_R_TOO_MANY_ITERATIONS 108
+ 
+ #endif  // OPENSSL_HEADER_DSA_H
+diff --git a/include/openssl/ecdsa.h b/include/openssl/ecdsa.h
+index a95bd08e0..5f3e5f365 100644
+--- a/include/openssl/ecdsa.h
++++ b/include/openssl/ecdsa.h
+@@ -240,5 +240,6 @@ BSSL_NAMESPACE_END
+ #define ECDSA_R_RANDOM_NUMBER_GENERATION_FAILED 104
+ #define ECDSA_R_ENCODE_ERROR 105
+ #define ECDSA_R_MISMATCHED_SIGNATURE 205
++#define ECDSA_R_TOO_MANY_ITERATIONS 106
+ 
+ #endif  // OPENSSL_HEADER_ECDSA_H

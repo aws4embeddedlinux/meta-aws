@@ -1,0 +1,2859 @@
+From 552597d23ae7f012edd3201703f4a3b14ff6c22a Mon Sep 17 00:00:00 2001
+From: sachiang <sachiang@amazon.com>
+Date: Fri, 28 Oct 2022 14:41:18 -0700
+Subject: [PATCH] update license headers of .c and .s files
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/f6670af4f5dc4df40d334a79f39a4cbf727b8510
+---
+ arm/p384/bignum_add_p384.S             | 16 ++--------------
+ arm/p384/bignum_bigendian_6.S          | 16 ++--------------
+ arm/p384/bignum_cmul_p384.S            | 16 ++--------------
+ arm/p384/bignum_deamont_p384.S         | 16 ++--------------
+ arm/p384/bignum_demont_p384.S          | 16 ++--------------
+ arm/p384/bignum_double_p384.S          | 16 ++--------------
+ arm/p384/bignum_half_p384.S            | 16 ++--------------
+ arm/p384/bignum_littleendian_6.S       | 16 ++--------------
+ arm/p384/bignum_mod_n384.S             | 16 ++--------------
+ arm/p384/bignum_mod_n384_6.S           | 16 ++--------------
+ arm/p384/bignum_mod_p384.S             | 16 ++--------------
+ arm/p384/bignum_mod_p384_6.S           | 16 ++--------------
+ arm/p384/bignum_montmul_p384.S         | 16 ++--------------
+ arm/p384/bignum_montmul_p384_alt.S     | 16 ++--------------
+ arm/p384/bignum_montsqr_p384.S         | 16 ++--------------
+ arm/p384/bignum_montsqr_p384_alt.S     | 16 ++--------------
+ arm/p384/bignum_mux_6.S                | 16 ++--------------
+ arm/p384/bignum_neg_p384.S             | 16 ++--------------
+ arm/p384/bignum_nonzero_6.S            | 16 ++--------------
+ arm/p384/bignum_optneg_p384.S          | 16 ++--------------
+ arm/p384/bignum_sub_p384.S             | 16 ++--------------
+ arm/p384/bignum_tomont_p384.S          | 16 ++--------------
+ arm/p384/bignum_triple_p384.S          | 16 ++--------------
+ arm/p384/p384_montjadd.S               | 16 ++--------------
+ arm/p384/p384_montjdouble.S            | 16 ++--------------
+ arm/p384/p384_montjmixadd.S            | 16 ++--------------
+ arm/p521/bignum_add_p521.S             | 16 ++--------------
+ arm/p521/bignum_cmul_p521.S            | 16 ++--------------
+ arm/p521/bignum_deamont_p521.S         | 16 ++--------------
+ arm/p521/bignum_demont_p521.S          | 16 ++--------------
+ arm/p521/bignum_double_p521.S          | 16 ++--------------
+ arm/p521/bignum_fromlebytes_p521.S     | 16 ++--------------
+ arm/p521/bignum_half_p521.S            | 16 ++--------------
+ arm/p521/bignum_mod_n521_9.S           | 16 ++--------------
+ arm/p521/bignum_mod_p521_9.S           | 16 ++--------------
+ arm/p521/bignum_montmul_p521.S         | 16 ++--------------
+ arm/p521/bignum_montmul_p521_alt.S     | 16 ++--------------
+ arm/p521/bignum_montsqr_p521.S         | 16 ++--------------
+ arm/p521/bignum_montsqr_p521_alt.S     | 16 ++--------------
+ arm/p521/bignum_mul_p521.S             | 16 ++--------------
+ arm/p521/bignum_mul_p521_alt.S         | 16 ++--------------
+ arm/p521/bignum_neg_p521.S             | 16 ++--------------
+ arm/p521/bignum_optneg_p521.S          | 16 ++--------------
+ arm/p521/bignum_sqr_p521.S             | 16 ++--------------
+ arm/p521/bignum_sqr_p521_alt.S         | 16 ++--------------
+ arm/p521/bignum_sub_p521.S             | 16 ++--------------
+ arm/p521/bignum_tolebytes_p521.S       | 16 ++--------------
+ arm/p521/bignum_tomont_p521.S          | 16 ++--------------
+ arm/p521/bignum_triple_p521.S          | 16 ++--------------
+ arm/p521/p521_jadd.S                   | 16 ++--------------
+ arm/p521/p521_jdouble.S                | 16 ++--------------
+ arm/p521/p521_jmixadd.S                | 16 ++--------------
+ x86_att/p384/bignum_add_p384.S         | 16 ++--------------
+ x86_att/p384/bignum_bigendian_6.S      | 16 ++--------------
+ x86_att/p384/bignum_cmul_p384.S        | 16 ++--------------
+ x86_att/p384/bignum_cmul_p384_alt.S    | 16 ++--------------
+ x86_att/p384/bignum_deamont_p384.S     | 16 ++--------------
+ x86_att/p384/bignum_deamont_p384_alt.S | 16 ++--------------
+ x86_att/p384/bignum_demont_p384.S      | 16 ++--------------
+ x86_att/p384/bignum_demont_p384_alt.S  | 16 ++--------------
+ x86_att/p384/bignum_double_p384.S      | 16 ++--------------
+ x86_att/p384/bignum_half_p384.S        | 16 ++--------------
+ x86_att/p384/bignum_littleendian_6.S   | 16 ++--------------
+ x86_att/p384/bignum_mod_n384.S         | 16 ++--------------
+ x86_att/p384/bignum_mod_n384_6.S       | 16 ++--------------
+ x86_att/p384/bignum_mod_n384_alt.S     | 16 ++--------------
+ x86_att/p384/bignum_mod_p384.S         | 16 ++--------------
+ x86_att/p384/bignum_mod_p384_6.S       | 16 ++--------------
+ x86_att/p384/bignum_mod_p384_alt.S     | 16 ++--------------
+ x86_att/p384/bignum_montmul_p384.S     | 16 ++--------------
+ x86_att/p384/bignum_montmul_p384_alt.S | 16 ++--------------
+ x86_att/p384/bignum_montsqr_p384.S     | 16 ++--------------
+ x86_att/p384/bignum_montsqr_p384_alt.S | 16 ++--------------
+ x86_att/p384/bignum_mux_6.S            | 16 ++--------------
+ x86_att/p384/bignum_neg_p384.S         | 16 ++--------------
+ x86_att/p384/bignum_nonzero_6.S        | 16 ++--------------
+ x86_att/p384/bignum_optneg_p384.S      | 16 ++--------------
+ x86_att/p384/bignum_sub_p384.S         | 16 ++--------------
+ x86_att/p384/bignum_tomont_p384.S      | 16 ++--------------
+ x86_att/p384/bignum_tomont_p384_alt.S  | 16 ++--------------
+ x86_att/p384/bignum_triple_p384.S      | 16 ++--------------
+ x86_att/p384/bignum_triple_p384_alt.S  | 16 ++--------------
+ x86_att/p384/p384_montjadd.S           | 16 ++--------------
+ x86_att/p384/p384_montjdouble.S        | 16 ++--------------
+ x86_att/p384/p384_montjmixadd.S        | 16 ++--------------
+ x86_att/p521/bignum_add_p521.S         | 16 ++--------------
+ x86_att/p521/bignum_cmul_p521.S        | 16 ++--------------
+ x86_att/p521/bignum_cmul_p521_alt.S    | 16 ++--------------
+ x86_att/p521/bignum_deamont_p521.S     | 16 ++--------------
+ x86_att/p521/bignum_demont_p521.S      | 16 ++--------------
+ x86_att/p521/bignum_double_p521.S      | 16 ++--------------
+ x86_att/p521/bignum_fromlebytes_p521.S | 16 ++--------------
+ x86_att/p521/bignum_half_p521.S        | 16 ++--------------
+ x86_att/p521/bignum_mod_n521_9.S       | 16 ++--------------
+ x86_att/p521/bignum_mod_n521_9_alt.S   | 16 ++--------------
+ x86_att/p521/bignum_mod_p521_9.S       | 16 ++--------------
+ x86_att/p521/bignum_montmul_p521.S     | 16 ++--------------
+ x86_att/p521/bignum_montmul_p521_alt.S | 16 ++--------------
+ x86_att/p521/bignum_montsqr_p521.S     | 16 ++--------------
+ x86_att/p521/bignum_montsqr_p521_alt.S | 16 ++--------------
+ x86_att/p521/bignum_mul_p521.S         | 16 ++--------------
+ x86_att/p521/bignum_mul_p521_alt.S     | 16 ++--------------
+ x86_att/p521/bignum_neg_p521.S         | 16 ++--------------
+ x86_att/p521/bignum_optneg_p521.S      | 16 ++--------------
+ x86_att/p521/bignum_sqr_p521.S         | 16 ++--------------
+ x86_att/p521/bignum_sqr_p521_alt.S     | 16 ++--------------
+ x86_att/p521/bignum_sub_p521.S         | 16 ++--------------
+ x86_att/p521/bignum_tolebytes_p521.S   | 16 ++--------------
+ x86_att/p521/bignum_tomont_p521.S      | 16 ++--------------
+ x86_att/p521/bignum_triple_p521.S      | 16 ++--------------
+ x86_att/p521/bignum_triple_p521_alt.S  | 16 ++--------------
+ x86_att/p521/p521_jadd.S               | 16 ++--------------
+ x86_att/p521/p521_jdouble.S            | 16 ++--------------
+ x86_att/p521/p521_jmixadd.S            | 16 ++--------------
+ 114 files changed, 228 insertions(+), 1596 deletions(-)
+
+diff --git a/arm/p384/bignum_add_p384.S b/arm/p384/bignum_add_p384.S
+index dd7fc36a3..00c8e81d3 100644
+--- a/arm/p384/bignum_add_p384.S
++++ b/arm/p384/bignum_add_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Add modulo p_384, z := (x + y) mod p_384, assuming x and y reduced
+diff --git a/arm/p384/bignum_bigendian_6.S b/arm/p384/bignum_bigendian_6.S
+index 7d5145453..664ae845d 100644
+--- a/arm/p384/bignum_bigendian_6.S
++++ b/arm/p384/bignum_bigendian_6.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert 6-digit (384-bit) bignum to/from big-endian form
+diff --git a/arm/p384/bignum_cmul_p384.S b/arm/p384/bignum_cmul_p384.S
+index 3ac32252f..b9570c799 100644
+--- a/arm/p384/bignum_cmul_p384.S
++++ b/arm/p384/bignum_cmul_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Multiply by a single word modulo p_384, z := (c * x) mod p_384, assuming
+diff --git a/arm/p384/bignum_deamont_p384.S b/arm/p384/bignum_deamont_p384.S
+index 932dfcc6e..91ea265a9 100644
+--- a/arm/p384/bignum_deamont_p384.S
++++ b/arm/p384/bignum_deamont_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert from almost-Montgomery form, z := (x / 2^384) mod p_384
+diff --git a/arm/p384/bignum_demont_p384.S b/arm/p384/bignum_demont_p384.S
+index 4b4b7e94a..c0dd331d6 100644
+--- a/arm/p384/bignum_demont_p384.S
++++ b/arm/p384/bignum_demont_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert from Montgomery form z := (x / 2^384) mod p_384, assuming x reduced
+diff --git a/arm/p384/bignum_double_p384.S b/arm/p384/bignum_double_p384.S
+index cdcbc6aa6..fce40a0ff 100644
+--- a/arm/p384/bignum_double_p384.S
++++ b/arm/p384/bignum_double_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Double modulo p_384, z := (2 * x) mod p_384, assuming x reduced
+diff --git a/arm/p384/bignum_half_p384.S b/arm/p384/bignum_half_p384.S
+index c9b3c8766..e242829c6 100644
+--- a/arm/p384/bignum_half_p384.S
++++ b/arm/p384/bignum_half_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Halve modulo p_384, z := (x / 2) mod p_384, assuming x reduced
+diff --git a/arm/p384/bignum_littleendian_6.S b/arm/p384/bignum_littleendian_6.S
+index 3144fc18d..66b0424a5 100644
+--- a/arm/p384/bignum_littleendian_6.S
++++ b/arm/p384/bignum_littleendian_6.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert 6-digit (384-bit) bignum to/from little-endian form
+diff --git a/arm/p384/bignum_mod_n384.S b/arm/p384/bignum_mod_n384.S
+index a02771cbf..e8de84d4c 100644
+--- a/arm/p384/bignum_mod_n384.S
++++ b/arm/p384/bignum_mod_n384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo group order, z := x mod n_384
+diff --git a/arm/p384/bignum_mod_n384_6.S b/arm/p384/bignum_mod_n384_6.S
+index 4ff06ce72..c382e642c 100644
+--- a/arm/p384/bignum_mod_n384_6.S
++++ b/arm/p384/bignum_mod_n384_6.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo group order, z := x mod n_384
+diff --git a/arm/p384/bignum_mod_p384.S b/arm/p384/bignum_mod_p384.S
+index 35771e7d8..c2ab35526 100644
+--- a/arm/p384/bignum_mod_p384.S
++++ b/arm/p384/bignum_mod_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo field characteristic, z := x mod p_384
+diff --git a/arm/p384/bignum_mod_p384_6.S b/arm/p384/bignum_mod_p384_6.S
+index b198b5c60..a1ac615b1 100644
+--- a/arm/p384/bignum_mod_p384_6.S
++++ b/arm/p384/bignum_mod_p384_6.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo field characteristic, z := x mod p_384
+diff --git a/arm/p384/bignum_montmul_p384.S b/arm/p384/bignum_montmul_p384.S
+index 48ca4c321..554081f39 100644
+--- a/arm/p384/bignum_montmul_p384.S
++++ b/arm/p384/bignum_montmul_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery multiply, z := (x * y / 2^384) mod p_384
+diff --git a/arm/p384/bignum_montmul_p384_alt.S b/arm/p384/bignum_montmul_p384_alt.S
+index 72883df22..2bd28cfff 100644
+--- a/arm/p384/bignum_montmul_p384_alt.S
++++ b/arm/p384/bignum_montmul_p384_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery multiply, z := (x * y / 2^384) mod p_384
+diff --git a/arm/p384/bignum_montsqr_p384.S b/arm/p384/bignum_montsqr_p384.S
+index 0446ad74c..1067bf1a7 100644
+--- a/arm/p384/bignum_montsqr_p384.S
++++ b/arm/p384/bignum_montsqr_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery square, z := (x^2 / 2^384) mod p_384
+diff --git a/arm/p384/bignum_montsqr_p384_alt.S b/arm/p384/bignum_montsqr_p384_alt.S
+index 35dba1ca5..e4fe2f7f5 100644
+--- a/arm/p384/bignum_montsqr_p384_alt.S
++++ b/arm/p384/bignum_montsqr_p384_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery square, z := (x^2 / 2^384) mod p_384
+diff --git a/arm/p384/bignum_mux_6.S b/arm/p384/bignum_mux_6.S
+index 30dab886a..b4c966609 100644
+--- a/arm/p384/bignum_mux_6.S
++++ b/arm/p384/bignum_mux_6.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // 384-bit multiplex/select z := x (if p nonzero) or z := y (if p zero)
+diff --git a/arm/p384/bignum_neg_p384.S b/arm/p384/bignum_neg_p384.S
+index 6d661a716..48efcb51b 100644
+--- a/arm/p384/bignum_neg_p384.S
++++ b/arm/p384/bignum_neg_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Negate modulo p_384, z := (-x) mod p_384, assuming x reduced
+diff --git a/arm/p384/bignum_nonzero_6.S b/arm/p384/bignum_nonzero_6.S
+index bdc6232ee..ae003186b 100644
+--- a/arm/p384/bignum_nonzero_6.S
++++ b/arm/p384/bignum_nonzero_6.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // 384-bit nonzeroness test, returning 1 if x is nonzero, 0 if x is zero
+diff --git a/arm/p384/bignum_optneg_p384.S b/arm/p384/bignum_optneg_p384.S
+index eec01642d..7b5e70434 100644
+--- a/arm/p384/bignum_optneg_p384.S
++++ b/arm/p384/bignum_optneg_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Optionally negate modulo p_384, z := (-x) mod p_384 (if p nonzero) or
+diff --git a/arm/p384/bignum_sub_p384.S b/arm/p384/bignum_sub_p384.S
+index 0e8af143f..bd7a9deef 100644
+--- a/arm/p384/bignum_sub_p384.S
++++ b/arm/p384/bignum_sub_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Subtract modulo p_384, z := (x - y) mod p_384
+diff --git a/arm/p384/bignum_tomont_p384.S b/arm/p384/bignum_tomont_p384.S
+index bc240cffd..c5bea5e0d 100644
+--- a/arm/p384/bignum_tomont_p384.S
++++ b/arm/p384/bignum_tomont_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert to Montgomery form z := (2^384 * x) mod p_384
+diff --git a/arm/p384/bignum_triple_p384.S b/arm/p384/bignum_triple_p384.S
+index 0786f21fa..cc641a2ee 100644
+--- a/arm/p384/bignum_triple_p384.S
++++ b/arm/p384/bignum_triple_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Triple modulo p_384, z := (3 * x) mod p_384
+diff --git a/arm/p384/p384_montjadd.S b/arm/p384/p384_montjadd.S
+index 138afa9dc..98f40b0a8 100644
+--- a/arm/p384/p384_montjadd.S
++++ b/arm/p384/p384_montjadd.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Point addition on NIST curve P-384 in Montgomery-Jacobian coordinates
+diff --git a/arm/p384/p384_montjdouble.S b/arm/p384/p384_montjdouble.S
+index 8fa2ad323..5b4a609b5 100644
+--- a/arm/p384/p384_montjdouble.S
++++ b/arm/p384/p384_montjdouble.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Point doubling on NIST curve P-384 in Montgomery-Jacobian coordinates
+diff --git a/arm/p384/p384_montjmixadd.S b/arm/p384/p384_montjmixadd.S
+index f7467be28..0f5c24203 100644
+--- a/arm/p384/p384_montjmixadd.S
++++ b/arm/p384/p384_montjmixadd.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Point mixed addition on NIST curve P-384 in Montgomery-Jacobian coordinates
+diff --git a/arm/p521/bignum_add_p521.S b/arm/p521/bignum_add_p521.S
+index 7576cbc74..d9d59bbd4 100644
+--- a/arm/p521/bignum_add_p521.S
++++ b/arm/p521/bignum_add_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Add modulo p_521, z := (x + y) mod p_521, assuming x and y reduced
+diff --git a/arm/p521/bignum_cmul_p521.S b/arm/p521/bignum_cmul_p521.S
+index f6b4face4..0b657b8b7 100644
+--- a/arm/p521/bignum_cmul_p521.S
++++ b/arm/p521/bignum_cmul_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Multiply by a single word modulo p_521, z := (c * x) mod p_521, assuming
+diff --git a/arm/p521/bignum_deamont_p521.S b/arm/p521/bignum_deamont_p521.S
+index c3eab0a48..442e5d404 100644
+--- a/arm/p521/bignum_deamont_p521.S
++++ b/arm/p521/bignum_deamont_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert from Montgomery form z := (x / 2^576) mod p_521
+diff --git a/arm/p521/bignum_demont_p521.S b/arm/p521/bignum_demont_p521.S
+index 1756f86e1..d3004ec58 100644
+--- a/arm/p521/bignum_demont_p521.S
++++ b/arm/p521/bignum_demont_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert from Montgomery form z := (x / 2^576) mod p_521, assuming x reduced
+diff --git a/arm/p521/bignum_double_p521.S b/arm/p521/bignum_double_p521.S
+index df3cfee50..8d0e29112 100644
+--- a/arm/p521/bignum_double_p521.S
++++ b/arm/p521/bignum_double_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Double modulo p_521, z := (2 * x) mod p_521, assuming x reduced
+diff --git a/arm/p521/bignum_fromlebytes_p521.S b/arm/p521/bignum_fromlebytes_p521.S
+index c348d5faa..7a87ed333 100644
+--- a/arm/p521/bignum_fromlebytes_p521.S
++++ b/arm/p521/bignum_fromlebytes_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert little-endian bytes to 9-digit 528-bit bignum
+diff --git a/arm/p521/bignum_half_p521.S b/arm/p521/bignum_half_p521.S
+index bfc489e3b..1f8da155b 100644
+--- a/arm/p521/bignum_half_p521.S
++++ b/arm/p521/bignum_half_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Halve modulo p_521, z := (x / 2) mod p_521, assuming x reduced
+diff --git a/arm/p521/bignum_mod_n521_9.S b/arm/p521/bignum_mod_n521_9.S
+index cfae5787a..65bc4f08b 100644
+--- a/arm/p521/bignum_mod_n521_9.S
++++ b/arm/p521/bignum_mod_n521_9.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo group order, z := x mod n_521
+diff --git a/arm/p521/bignum_mod_p521_9.S b/arm/p521/bignum_mod_p521_9.S
+index 666caca4b..874e9df09 100644
+--- a/arm/p521/bignum_mod_p521_9.S
++++ b/arm/p521/bignum_mod_p521_9.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo field characteristic, z := x mod p_521
+diff --git a/arm/p521/bignum_montmul_p521.S b/arm/p521/bignum_montmul_p521.S
+index 5d13ca650..c0ac8cf92 100644
+--- a/arm/p521/bignum_montmul_p521.S
++++ b/arm/p521/bignum_montmul_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery multiply, z := (x * y / 2^576) mod p_521
+diff --git a/arm/p521/bignum_montmul_p521_alt.S b/arm/p521/bignum_montmul_p521_alt.S
+index 4a26ae6ed..6b0afeac1 100644
+--- a/arm/p521/bignum_montmul_p521_alt.S
++++ b/arm/p521/bignum_montmul_p521_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery multiply, z := (x * y / 2^576) mod p_521
+diff --git a/arm/p521/bignum_montsqr_p521.S b/arm/p521/bignum_montsqr_p521.S
+index 9569487a3..45e57a666 100644
+--- a/arm/p521/bignum_montsqr_p521.S
++++ b/arm/p521/bignum_montsqr_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery square, z := (x^2 / 2^576) mod p_521
+diff --git a/arm/p521/bignum_montsqr_p521_alt.S b/arm/p521/bignum_montsqr_p521_alt.S
+index f15b9fc7d..1ae774f0d 100644
+--- a/arm/p521/bignum_montsqr_p521_alt.S
++++ b/arm/p521/bignum_montsqr_p521_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery square, z := (x^2 / 2^576) mod p_521
+diff --git a/arm/p521/bignum_mul_p521.S b/arm/p521/bignum_mul_p521.S
+index 26824c472..12594faf9 100644
+--- a/arm/p521/bignum_mul_p521.S
++++ b/arm/p521/bignum_mul_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Multiply modulo p_521, z := (x * y) mod p_521, assuming x and y reduced
+diff --git a/arm/p521/bignum_mul_p521_alt.S b/arm/p521/bignum_mul_p521_alt.S
+index 089da6d70..d0c2cdb0e 100644
+--- a/arm/p521/bignum_mul_p521_alt.S
++++ b/arm/p521/bignum_mul_p521_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Multiply modulo p_521, z := (x * y) mod p_521, assuming x and y reduced
+diff --git a/arm/p521/bignum_neg_p521.S b/arm/p521/bignum_neg_p521.S
+index 8be4de4bc..cdf7a9641 100644
+--- a/arm/p521/bignum_neg_p521.S
++++ b/arm/p521/bignum_neg_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Negate modulo p_521, z := (-x) mod p_521, assuming x reduced
+diff --git a/arm/p521/bignum_optneg_p521.S b/arm/p521/bignum_optneg_p521.S
+index 03dbfc666..74fac18e5 100644
+--- a/arm/p521/bignum_optneg_p521.S
++++ b/arm/p521/bignum_optneg_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Optionally negate modulo p_521, z := (-x) mod p_521 (if p nonzero) or
+diff --git a/arm/p521/bignum_sqr_p521.S b/arm/p521/bignum_sqr_p521.S
+index d8fb453e3..23f8a3b9b 100644
+--- a/arm/p521/bignum_sqr_p521.S
++++ b/arm/p521/bignum_sqr_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Square modulo p_521, z := (x^2) mod p_521, assuming x reduced
+diff --git a/arm/p521/bignum_sqr_p521_alt.S b/arm/p521/bignum_sqr_p521_alt.S
+index fe2201c00..7837b23a3 100644
+--- a/arm/p521/bignum_sqr_p521_alt.S
++++ b/arm/p521/bignum_sqr_p521_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Square modulo p_521, z := (x^2) mod p_521, assuming x reduced
+diff --git a/arm/p521/bignum_sub_p521.S b/arm/p521/bignum_sub_p521.S
+index 759e15803..4cc4e830b 100644
+--- a/arm/p521/bignum_sub_p521.S
++++ b/arm/p521/bignum_sub_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Subtract modulo p_521, z := (x - y) mod p_521
+diff --git a/arm/p521/bignum_tolebytes_p521.S b/arm/p521/bignum_tolebytes_p521.S
+index e798a86e8..403f8fbd6 100644
+--- a/arm/p521/bignum_tolebytes_p521.S
++++ b/arm/p521/bignum_tolebytes_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert 9-digit 528-bit bignum to little-endian bytes
+diff --git a/arm/p521/bignum_tomont_p521.S b/arm/p521/bignum_tomont_p521.S
+index f3b114b89..833c07b84 100644
+--- a/arm/p521/bignum_tomont_p521.S
++++ b/arm/p521/bignum_tomont_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert to Montgomery form z := (2^576 * x) mod p_521
+diff --git a/arm/p521/bignum_triple_p521.S b/arm/p521/bignum_triple_p521.S
+index b28ccd419..7ce5d0091 100644
+--- a/arm/p521/bignum_triple_p521.S
++++ b/arm/p521/bignum_triple_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Triple modulo p_521, z := (3 * x) mod p_521, assuming x reduced
+diff --git a/arm/p521/p521_jadd.S b/arm/p521/p521_jadd.S
+index 85e62e01e..928d7ea6c 100644
+--- a/arm/p521/p521_jadd.S
++++ b/arm/p521/p521_jadd.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Point addition on NIST curve P-521 in Jacobian coordinates
+diff --git a/arm/p521/p521_jdouble.S b/arm/p521/p521_jdouble.S
+index 242b492a8..6794e4cd9 100644
+--- a/arm/p521/p521_jdouble.S
++++ b/arm/p521/p521_jdouble.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Point doubling on NIST curve P-521 in Jacobian coordinates
+diff --git a/arm/p521/p521_jmixadd.S b/arm/p521/p521_jmixadd.S
+index 6e8b46b00..cd27d24eb 100644
+--- a/arm/p521/p521_jmixadd.S
++++ b/arm/p521/p521_jmixadd.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Point mixed addition on NIST curve P-521 in Jacobian coordinates
+diff --git a/x86_att/p384/bignum_add_p384.S b/x86_att/p384/bignum_add_p384.S
+index e527de6fb..b0a3c9c51 100644
+--- a/x86_att/p384/bignum_add_p384.S
++++ b/x86_att/p384/bignum_add_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Add modulo p_384, z := (x + y) mod p_384, assuming x and y reduced
+diff --git a/x86_att/p384/bignum_bigendian_6.S b/x86_att/p384/bignum_bigendian_6.S
+index 287e1bd39..7fa59c536 100644
+--- a/x86_att/p384/bignum_bigendian_6.S
++++ b/x86_att/p384/bignum_bigendian_6.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert 6-digit (384-bit) bignum to/from big-endian form
+diff --git a/x86_att/p384/bignum_cmul_p384.S b/x86_att/p384/bignum_cmul_p384.S
+index 4f03a1bd1..6632a9ae7 100644
+--- a/x86_att/p384/bignum_cmul_p384.S
++++ b/x86_att/p384/bignum_cmul_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Multiply by a single word modulo p_384, z := (c * x) mod p_384, assuming
+diff --git a/x86_att/p384/bignum_cmul_p384_alt.S b/x86_att/p384/bignum_cmul_p384_alt.S
+index ff4b38658..c91629cd3 100644
+--- a/x86_att/p384/bignum_cmul_p384_alt.S
++++ b/x86_att/p384/bignum_cmul_p384_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Multiply by a single word modulo p_384, z := (c * x) mod p_384, assuming
+diff --git a/x86_att/p384/bignum_deamont_p384.S b/x86_att/p384/bignum_deamont_p384.S
+index f029a18f4..6b7daea25 100644
+--- a/x86_att/p384/bignum_deamont_p384.S
++++ b/x86_att/p384/bignum_deamont_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert from almost-Montgomery form, z := (x / 2^384) mod p_384
+diff --git a/x86_att/p384/bignum_deamont_p384_alt.S b/x86_att/p384/bignum_deamont_p384_alt.S
+index 63b660f70..918a104f6 100644
+--- a/x86_att/p384/bignum_deamont_p384_alt.S
++++ b/x86_att/p384/bignum_deamont_p384_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert from almost-Montgomery form, z := (x / 2^384) mod p_384
+diff --git a/x86_att/p384/bignum_demont_p384.S b/x86_att/p384/bignum_demont_p384.S
+index 75124a9e2..3dc1d734c 100644
+--- a/x86_att/p384/bignum_demont_p384.S
++++ b/x86_att/p384/bignum_demont_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert from Montgomery form z := (x / 2^384) mod p_384, assuming x reduced
+diff --git a/x86_att/p384/bignum_demont_p384_alt.S b/x86_att/p384/bignum_demont_p384_alt.S
+index 1b4832bf0..d2dca9c4f 100644
+--- a/x86_att/p384/bignum_demont_p384_alt.S
++++ b/x86_att/p384/bignum_demont_p384_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert from Montgomery form z := (x / 2^384) mod p_384, assuming x reduced
+diff --git a/x86_att/p384/bignum_double_p384.S b/x86_att/p384/bignum_double_p384.S
+index b7b2e5795..c06b21888 100644
+--- a/x86_att/p384/bignum_double_p384.S
++++ b/x86_att/p384/bignum_double_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Double modulo p_384, z := (2 * x) mod p_384, assuming x reduced
+diff --git a/x86_att/p384/bignum_half_p384.S b/x86_att/p384/bignum_half_p384.S
+index eba732251..51afea03b 100644
+--- a/x86_att/p384/bignum_half_p384.S
++++ b/x86_att/p384/bignum_half_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Halve modulo p_384, z := (x / 2) mod p_384, assuming x reduced
+diff --git a/x86_att/p384/bignum_littleendian_6.S b/x86_att/p384/bignum_littleendian_6.S
+index 670bca913..a0eef1f00 100644
+--- a/x86_att/p384/bignum_littleendian_6.S
++++ b/x86_att/p384/bignum_littleendian_6.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert 6-digit (384-bit) bignum to/from little-endian form
+diff --git a/x86_att/p384/bignum_mod_n384.S b/x86_att/p384/bignum_mod_n384.S
+index a03c07c76..963873f72 100644
+--- a/x86_att/p384/bignum_mod_n384.S
++++ b/x86_att/p384/bignum_mod_n384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo group order, z := x mod n_384
+diff --git a/x86_att/p384/bignum_mod_n384_6.S b/x86_att/p384/bignum_mod_n384_6.S
+index 8a0d199b2..273bce8b3 100644
+--- a/x86_att/p384/bignum_mod_n384_6.S
++++ b/x86_att/p384/bignum_mod_n384_6.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo group order, z := x mod n_384
+diff --git a/x86_att/p384/bignum_mod_n384_alt.S b/x86_att/p384/bignum_mod_n384_alt.S
+index 0bb52c398..ffd9c9d1b 100644
+--- a/x86_att/p384/bignum_mod_n384_alt.S
++++ b/x86_att/p384/bignum_mod_n384_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo group order, z := x mod n_384
+diff --git a/x86_att/p384/bignum_mod_p384.S b/x86_att/p384/bignum_mod_p384.S
+index 934275f27..10414fea4 100644
+--- a/x86_att/p384/bignum_mod_p384.S
++++ b/x86_att/p384/bignum_mod_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo field characteristic, z := x mod p_384
+diff --git a/x86_att/p384/bignum_mod_p384_6.S b/x86_att/p384/bignum_mod_p384_6.S
+index f898e0b00..08381a6c1 100644
+--- a/x86_att/p384/bignum_mod_p384_6.S
++++ b/x86_att/p384/bignum_mod_p384_6.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo field characteristic, z := x mod p_384
+diff --git a/x86_att/p384/bignum_mod_p384_alt.S b/x86_att/p384/bignum_mod_p384_alt.S
+index e3ec6346b..689f1d340 100644
+--- a/x86_att/p384/bignum_mod_p384_alt.S
++++ b/x86_att/p384/bignum_mod_p384_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo field characteristic, z := x mod p_384
+diff --git a/x86_att/p384/bignum_montmul_p384.S b/x86_att/p384/bignum_montmul_p384.S
+index 3ea3100dd..718991aac 100644
+--- a/x86_att/p384/bignum_montmul_p384.S
++++ b/x86_att/p384/bignum_montmul_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery multiply, z := (x * y / 2^384) mod p_384
+diff --git a/x86_att/p384/bignum_montmul_p384_alt.S b/x86_att/p384/bignum_montmul_p384_alt.S
+index 3efcaced8..3da172840 100644
+--- a/x86_att/p384/bignum_montmul_p384_alt.S
++++ b/x86_att/p384/bignum_montmul_p384_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery multiply, z := (x * y / 2^384) mod p_384
+diff --git a/x86_att/p384/bignum_montsqr_p384.S b/x86_att/p384/bignum_montsqr_p384.S
+index 71901599a..f8b4230b7 100644
+--- a/x86_att/p384/bignum_montsqr_p384.S
++++ b/x86_att/p384/bignum_montsqr_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery square, z := (x^2 / 2^384) mod p_384
+diff --git a/x86_att/p384/bignum_montsqr_p384_alt.S b/x86_att/p384/bignum_montsqr_p384_alt.S
+index 652184c69..e04807766 100644
+--- a/x86_att/p384/bignum_montsqr_p384_alt.S
++++ b/x86_att/p384/bignum_montsqr_p384_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery square, z := (x^2 / 2^384) mod p_384
+diff --git a/x86_att/p384/bignum_mux_6.S b/x86_att/p384/bignum_mux_6.S
+index 0bf97ff12..527742837 100644
+--- a/x86_att/p384/bignum_mux_6.S
++++ b/x86_att/p384/bignum_mux_6.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // 384-bit multiplex/select z := x (if p nonzero) or z := y (if p zero)
+diff --git a/x86_att/p384/bignum_neg_p384.S b/x86_att/p384/bignum_neg_p384.S
+index 8be796ba4..51b0f41bb 100644
+--- a/x86_att/p384/bignum_neg_p384.S
++++ b/x86_att/p384/bignum_neg_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Negate modulo p_384, z := (-x) mod p_384, assuming x reduced
+diff --git a/x86_att/p384/bignum_nonzero_6.S b/x86_att/p384/bignum_nonzero_6.S
+index d03e82bba..8e17207d4 100644
+--- a/x86_att/p384/bignum_nonzero_6.S
++++ b/x86_att/p384/bignum_nonzero_6.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // 384-bit nonzeroness test, returning 1 if x is nonzero, 0 if x is zero
+diff --git a/x86_att/p384/bignum_optneg_p384.S b/x86_att/p384/bignum_optneg_p384.S
+index 77cf1f649..cee7be2f3 100644
+--- a/x86_att/p384/bignum_optneg_p384.S
++++ b/x86_att/p384/bignum_optneg_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Optionally negate modulo p_384, z := (-x) mod p_384 (if p nonzero) or
+diff --git a/x86_att/p384/bignum_sub_p384.S b/x86_att/p384/bignum_sub_p384.S
+index bfd4fa2b6..8d4ae986a 100644
+--- a/x86_att/p384/bignum_sub_p384.S
++++ b/x86_att/p384/bignum_sub_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Subtract modulo p_384, z := (x - y) mod p_384
+diff --git a/x86_att/p384/bignum_tomont_p384.S b/x86_att/p384/bignum_tomont_p384.S
+index e17ef46dc..70463c73a 100644
+--- a/x86_att/p384/bignum_tomont_p384.S
++++ b/x86_att/p384/bignum_tomont_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert to Montgomery form z := (2^384 * x) mod p_384
+diff --git a/x86_att/p384/bignum_tomont_p384_alt.S b/x86_att/p384/bignum_tomont_p384_alt.S
+index b81d58350..75ba90d7f 100644
+--- a/x86_att/p384/bignum_tomont_p384_alt.S
++++ b/x86_att/p384/bignum_tomont_p384_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert to Montgomery form z := (2^384 * x) mod p_384
+diff --git a/x86_att/p384/bignum_triple_p384.S b/x86_att/p384/bignum_triple_p384.S
+index 356e20b31..2d3ae66bf 100644
+--- a/x86_att/p384/bignum_triple_p384.S
++++ b/x86_att/p384/bignum_triple_p384.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Triple modulo p_384, z := (3 * x) mod p_384
+diff --git a/x86_att/p384/bignum_triple_p384_alt.S b/x86_att/p384/bignum_triple_p384_alt.S
+index d8e0506a6..91efffbe1 100644
+--- a/x86_att/p384/bignum_triple_p384_alt.S
++++ b/x86_att/p384/bignum_triple_p384_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Triple modulo p_384, z := (3 * x) mod p_384
+diff --git a/x86_att/p384/p384_montjadd.S b/x86_att/p384/p384_montjadd.S
+index e550f3860..52b86b206 100644
+--- a/x86_att/p384/p384_montjadd.S
++++ b/x86_att/p384/p384_montjadd.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Point addition on NIST curve P-384 in Montgomery-Jacobian coordinates
+diff --git a/x86_att/p384/p384_montjdouble.S b/x86_att/p384/p384_montjdouble.S
+index d7de78579..d06d22bd8 100644
+--- a/x86_att/p384/p384_montjdouble.S
++++ b/x86_att/p384/p384_montjdouble.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Point doubling on NIST curve P-384 in Montgomery-Jacobian coordinates
+diff --git a/x86_att/p384/p384_montjmixadd.S b/x86_att/p384/p384_montjmixadd.S
+index 6749209eb..8a8c17c1a 100644
+--- a/x86_att/p384/p384_montjmixadd.S
++++ b/x86_att/p384/p384_montjmixadd.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Point mixed addition on NIST curve P-384 in Montgomery-Jacobian coordinates
+diff --git a/x86_att/p521/bignum_add_p521.S b/x86_att/p521/bignum_add_p521.S
+index 080e98807..849a74097 100644
+--- a/x86_att/p521/bignum_add_p521.S
++++ b/x86_att/p521/bignum_add_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Add modulo p_521, z := (x + y) mod p_521, assuming x and y reduced
+diff --git a/x86_att/p521/bignum_cmul_p521.S b/x86_att/p521/bignum_cmul_p521.S
+index ce8dded8d..7898293c6 100644
+--- a/x86_att/p521/bignum_cmul_p521.S
++++ b/x86_att/p521/bignum_cmul_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Multiply by a single word modulo p_521, z := (c * x) mod p_521, assuming
+diff --git a/x86_att/p521/bignum_cmul_p521_alt.S b/x86_att/p521/bignum_cmul_p521_alt.S
+index 335d8e5cf..c5f79a818 100644
+--- a/x86_att/p521/bignum_cmul_p521_alt.S
++++ b/x86_att/p521/bignum_cmul_p521_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Multiply by a single word modulo p_521, z := (c * x) mod p_521, assuming
+diff --git a/x86_att/p521/bignum_deamont_p521.S b/x86_att/p521/bignum_deamont_p521.S
+index de4f767fb..d916da1f9 100644
+--- a/x86_att/p521/bignum_deamont_p521.S
++++ b/x86_att/p521/bignum_deamont_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert from Montgomery form z := (x / 2^576) mod p_521
+diff --git a/x86_att/p521/bignum_demont_p521.S b/x86_att/p521/bignum_demont_p521.S
+index 5e8c2c740..182360406 100644
+--- a/x86_att/p521/bignum_demont_p521.S
++++ b/x86_att/p521/bignum_demont_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert from Montgomery form z := (x / 2^576) mod p_521, assuming x reduced
+diff --git a/x86_att/p521/bignum_double_p521.S b/x86_att/p521/bignum_double_p521.S
+index ea904c8bc..f3923d82c 100644
+--- a/x86_att/p521/bignum_double_p521.S
++++ b/x86_att/p521/bignum_double_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Double modulo p_521, z := (2 * x) mod p_521, assuming x reduced
+diff --git a/x86_att/p521/bignum_fromlebytes_p521.S b/x86_att/p521/bignum_fromlebytes_p521.S
+index 1c28af57a..a5c9f491d 100644
+--- a/x86_att/p521/bignum_fromlebytes_p521.S
++++ b/x86_att/p521/bignum_fromlebytes_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert little-endian bytes to 9-digit 528-bit bignum
+diff --git a/x86_att/p521/bignum_half_p521.S b/x86_att/p521/bignum_half_p521.S
+index 47fa3e6f4..9023beb03 100644
+--- a/x86_att/p521/bignum_half_p521.S
++++ b/x86_att/p521/bignum_half_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Halve modulo p_521, z := (x / 2) mod p_521, assuming x reduced
+diff --git a/x86_att/p521/bignum_mod_n521_9.S b/x86_att/p521/bignum_mod_n521_9.S
+index d17c19674..9dcc73d15 100644
+--- a/x86_att/p521/bignum_mod_n521_9.S
++++ b/x86_att/p521/bignum_mod_n521_9.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo group order, z := x mod n_521
+diff --git a/x86_att/p521/bignum_mod_n521_9_alt.S b/x86_att/p521/bignum_mod_n521_9_alt.S
+index 3da8d997b..026a97e45 100644
+--- a/x86_att/p521/bignum_mod_n521_9_alt.S
++++ b/x86_att/p521/bignum_mod_n521_9_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo group order, z := x mod n_521
+diff --git a/x86_att/p521/bignum_mod_p521_9.S b/x86_att/p521/bignum_mod_p521_9.S
+index 96d218065..0f2e4267f 100644
+--- a/x86_att/p521/bignum_mod_p521_9.S
++++ b/x86_att/p521/bignum_mod_p521_9.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Reduce modulo field characteristic, z := x mod p_521
+diff --git a/x86_att/p521/bignum_montmul_p521.S b/x86_att/p521/bignum_montmul_p521.S
+index be232ea29..3ee202d45 100644
+--- a/x86_att/p521/bignum_montmul_p521.S
++++ b/x86_att/p521/bignum_montmul_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery multiply, z := (x * y / 2^576) mod p_521
+diff --git a/x86_att/p521/bignum_montmul_p521_alt.S b/x86_att/p521/bignum_montmul_p521_alt.S
+index 763145875..dcef877ff 100644
+--- a/x86_att/p521/bignum_montmul_p521_alt.S
++++ b/x86_att/p521/bignum_montmul_p521_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery multiply, z := (x * y / 2^576) mod p_521
+diff --git a/x86_att/p521/bignum_montsqr_p521.S b/x86_att/p521/bignum_montsqr_p521.S
+index 2d9acc752..91cb9c318 100644
+--- a/x86_att/p521/bignum_montsqr_p521.S
++++ b/x86_att/p521/bignum_montsqr_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery square, z := (x^2 / 2^576) mod p_521
+diff --git a/x86_att/p521/bignum_montsqr_p521_alt.S b/x86_att/p521/bignum_montsqr_p521_alt.S
+index 84f1af05b..ad071a453 100644
+--- a/x86_att/p521/bignum_montsqr_p521_alt.S
++++ b/x86_att/p521/bignum_montsqr_p521_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Montgomery square, z := (x^2 / 2^576) mod p_521
+diff --git a/x86_att/p521/bignum_mul_p521.S b/x86_att/p521/bignum_mul_p521.S
+index e25129c05..25073f9da 100644
+--- a/x86_att/p521/bignum_mul_p521.S
++++ b/x86_att/p521/bignum_mul_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Multiply modulo p_521, z := (x * y) mod p_521, assuming x and y reduced
+diff --git a/x86_att/p521/bignum_mul_p521_alt.S b/x86_att/p521/bignum_mul_p521_alt.S
+index d05a7cb0b..3224a8663 100644
+--- a/x86_att/p521/bignum_mul_p521_alt.S
++++ b/x86_att/p521/bignum_mul_p521_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Multiply modulo p_521, z := (x * y) mod p_521, assuming x and y reduced
+diff --git a/x86_att/p521/bignum_neg_p521.S b/x86_att/p521/bignum_neg_p521.S
+index d6eb82575..484c1fca5 100644
+--- a/x86_att/p521/bignum_neg_p521.S
++++ b/x86_att/p521/bignum_neg_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Negate modulo p_521, z := (-x) mod p_521, assuming x reduced
+diff --git a/x86_att/p521/bignum_optneg_p521.S b/x86_att/p521/bignum_optneg_p521.S
+index e910140ad..d2434adb4 100644
+--- a/x86_att/p521/bignum_optneg_p521.S
++++ b/x86_att/p521/bignum_optneg_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Optionally negate modulo p_521, z := (-x) mod p_521 (if p nonzero) or
+diff --git a/x86_att/p521/bignum_sqr_p521.S b/x86_att/p521/bignum_sqr_p521.S
+index 6e2d9b556..b9a718cf9 100644
+--- a/x86_att/p521/bignum_sqr_p521.S
++++ b/x86_att/p521/bignum_sqr_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Square modulo p_521, z := (x^2) mod p_521, assuming x reduced
+diff --git a/x86_att/p521/bignum_sqr_p521_alt.S b/x86_att/p521/bignum_sqr_p521_alt.S
+index c2fae3c25..58f496e3f 100644
+--- a/x86_att/p521/bignum_sqr_p521_alt.S
++++ b/x86_att/p521/bignum_sqr_p521_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Square modulo p_521, z := (x^2) mod p_521, assuming x reduced
+diff --git a/x86_att/p521/bignum_sub_p521.S b/x86_att/p521/bignum_sub_p521.S
+index bcd9ed4a4..99e0d96cd 100644
+--- a/x86_att/p521/bignum_sub_p521.S
++++ b/x86_att/p521/bignum_sub_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Subtract modulo p_521, z := (x - y) mod p_521
+diff --git a/x86_att/p521/bignum_tolebytes_p521.S b/x86_att/p521/bignum_tolebytes_p521.S
+index 7fb403239..c5ea2ed53 100644
+--- a/x86_att/p521/bignum_tolebytes_p521.S
++++ b/x86_att/p521/bignum_tolebytes_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert 9-digit 528-bit bignum to little-endian bytes
+diff --git a/x86_att/p521/bignum_tomont_p521.S b/x86_att/p521/bignum_tomont_p521.S
+index df8f27734..a97beaccb 100644
+--- a/x86_att/p521/bignum_tomont_p521.S
++++ b/x86_att/p521/bignum_tomont_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Convert to Montgomery form z := (2^576 * x) mod p_521
+diff --git a/x86_att/p521/bignum_triple_p521.S b/x86_att/p521/bignum_triple_p521.S
+index 484dab04c..6703a9cb2 100644
+--- a/x86_att/p521/bignum_triple_p521.S
++++ b/x86_att/p521/bignum_triple_p521.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Triple modulo p_521, z := (3 * x) mod p_521, assuming x reduced
+diff --git a/x86_att/p521/bignum_triple_p521_alt.S b/x86_att/p521/bignum_triple_p521_alt.S
+index 9e25a2c85..4598d9db8 100644
+--- a/x86_att/p521/bignum_triple_p521_alt.S
++++ b/x86_att/p521/bignum_triple_p521_alt.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Triple modulo p_521, z := (3 * x) mod p_521, assuming x reduced
+diff --git a/x86_att/p521/p521_jadd.S b/x86_att/p521/p521_jadd.S
+index c1ac9a235..256ba845c 100644
+--- a/x86_att/p521/p521_jadd.S
++++ b/x86_att/p521/p521_jadd.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Point addition on NIST curve P-521 in Jacobian coordinates
+diff --git a/x86_att/p521/p521_jdouble.S b/x86_att/p521/p521_jdouble.S
+index 16a5deeb0..fd2a57bbc 100644
+--- a/x86_att/p521/p521_jdouble.S
++++ b/x86_att/p521/p521_jdouble.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Point doubling on NIST curve P-521 in Jacobian coordinates
+diff --git a/x86_att/p521/p521_jmixadd.S b/x86_att/p521/p521_jmixadd.S
+index 52e1568b5..705490537 100644
+--- a/x86_att/p521/p521_jmixadd.S
++++ b/x86_att/p521/p521_jmixadd.S
+@@ -1,17 +1,5 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License").
+- * You may not use this file except in compliance with the License.
+- * A copy of the License is located at
+- *
+- *  http://aws.amazon.com/apache2.0
+- *
+- * or in the "LICENSE" file accompanying this file. This file is distributed
+- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+- * express or implied. See the License for the specific language governing
+- * permissions and limitations under the License.
+- */
++// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ // ----------------------------------------------------------------------------
+ // Point mixed addition on NIST curve P-521 in Jacobian coordinates

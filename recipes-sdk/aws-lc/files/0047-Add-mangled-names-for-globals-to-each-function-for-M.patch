@@ -1,0 +1,2418 @@
+From 873831add76009f703904a05fa95f2b5d0ae5972 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Fri, 18 Feb 2022 13:38:32 -0800
+Subject: [PATCH] Add mangled names for globals to each function for Mac OS
+
+This includes name-mangled forms starting with underscores for all the
+globals, in addition to the existing unmangled ones. At the cost of
+adding redundant names, this simplifies building on Mac OS. Previously
+this was done at assemble-time by an additional step in the pipeline
+of transformations on the source code, which has been removed now.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/dd5e2541da9bce5853a8f1a9a8be3a703cfd1465
+---
+ arm/fastmul/bignum_emontredc_8n.S      | 2 ++
+ arm/fastmul/bignum_kmul_16_32.S        | 2 ++
+ arm/fastmul/bignum_kmul_32_64.S        | 2 ++
+ arm/fastmul/bignum_ksqr_16_32.S        | 2 ++
+ arm/fastmul/bignum_ksqr_32_64.S        | 2 ++
+ arm/generic/bignum_ge.S                | 2 ++
+ arm/generic/bignum_mul.S               | 2 ++
+ arm/generic/bignum_optsub.S            | 2 ++
+ arm/generic/bignum_sqr.S               | 2 ++
+ arm/p384/bignum_add_p384.S             | 2 ++
+ arm/p384/bignum_bigendian_6.S          | 6 ++++++
+ arm/p384/bignum_cmul_p384.S            | 4 ++++
+ arm/p384/bignum_deamont_p384.S         | 4 ++++
+ arm/p384/bignum_demont_p384.S          | 4 ++++
+ arm/p384/bignum_double_p384.S          | 2 ++
+ arm/p384/bignum_half_p384.S            | 2 ++
+ arm/p384/bignum_littleendian_6.S       | 6 ++++++
+ arm/p384/bignum_mod_n384.S             | 4 ++++
+ arm/p384/bignum_mod_n384_6.S           | 2 ++
+ arm/p384/bignum_mod_p384.S             | 4 ++++
+ arm/p384/bignum_mod_p384_6.S           | 2 ++
+ arm/p384/bignum_montmul_p384.S         | 2 ++
+ arm/p384/bignum_montmul_p384_alt.S     | 2 ++
+ arm/p384/bignum_montsqr_p384.S         | 2 ++
+ arm/p384/bignum_montsqr_p384_alt.S     | 2 ++
+ arm/p384/bignum_mux_6.S                | 2 ++
+ arm/p384/bignum_neg_p384.S             | 2 ++
+ arm/p384/bignum_nonzero_6.S            | 2 ++
+ arm/p384/bignum_optneg_p384.S          | 2 ++
+ arm/p384/bignum_sub_p384.S             | 2 ++
+ arm/p384/bignum_tomont_p384.S          | 4 ++++
+ arm/p384/bignum_triple_p384.S          | 4 ++++
+ arm/p521/bignum_add_p521.S             | 2 ++
+ arm/p521/bignum_cmul_p521.S            | 4 ++++
+ arm/p521/bignum_deamont_p521.S         | 2 ++
+ arm/p521/bignum_demont_p521.S          | 2 ++
+ arm/p521/bignum_double_p521.S          | 2 ++
+ arm/p521/bignum_fromlebytes_p521.S     | 2 ++
+ arm/p521/bignum_half_p521.S            | 2 ++
+ arm/p521/bignum_mod_n521_9.S           | 4 ++++
+ arm/p521/bignum_mod_p521_9.S           | 2 ++
+ arm/p521/bignum_montmul_p521.S         | 2 ++
+ arm/p521/bignum_montmul_p521_alt.S     | 2 ++
+ arm/p521/bignum_montsqr_p521.S         | 2 ++
+ arm/p521/bignum_montsqr_p521_alt.S     | 2 ++
+ arm/p521/bignum_mul_p521.S             | 2 ++
+ arm/p521/bignum_mul_p521_alt.S         | 2 ++
+ arm/p521/bignum_neg_p521.S             | 2 ++
+ arm/p521/bignum_optneg_p521.S          | 2 ++
+ arm/p521/bignum_sqr_p521.S             | 2 ++
+ arm/p521/bignum_sqr_p521_alt.S         | 2 ++
+ arm/p521/bignum_sub_p521.S             | 2 ++
+ arm/p521/bignum_tolebytes_p521.S       | 2 ++
+ arm/p521/bignum_tomont_p521.S          | 2 ++
+ arm/p521/bignum_triple_p521.S          | 4 ++++
+ x86_att/p384/bignum_add_p384.S         | 2 ++
+ x86_att/p384/bignum_bigendian_6.S      | 6 ++++++
+ x86_att/p384/bignum_cmul_p384.S        | 2 ++
+ x86_att/p384/bignum_cmul_p384_alt.S    | 2 ++
+ x86_att/p384/bignum_deamont_p384.S     | 2 ++
+ x86_att/p384/bignum_deamont_p384_alt.S | 2 ++
+ x86_att/p384/bignum_demont_p384.S      | 2 ++
+ x86_att/p384/bignum_demont_p384_alt.S  | 2 ++
+ x86_att/p384/bignum_double_p384.S      | 2 ++
+ x86_att/p384/bignum_half_p384.S        | 2 ++
+ x86_att/p384/bignum_littleendian_6.S   | 6 ++++++
+ x86_att/p384/bignum_mod_n384.S         | 2 ++
+ x86_att/p384/bignum_mod_n384_6.S       | 2 ++
+ x86_att/p384/bignum_mod_n384_alt.S     | 2 ++
+ x86_att/p384/bignum_mod_p384.S         | 2 ++
+ x86_att/p384/bignum_mod_p384_6.S       | 2 ++
+ x86_att/p384/bignum_mod_p384_alt.S     | 2 ++
+ x86_att/p384/bignum_montmul_p384.S     | 2 ++
+ x86_att/p384/bignum_montmul_p384_alt.S | 2 ++
+ x86_att/p384/bignum_montsqr_p384.S     | 2 ++
+ x86_att/p384/bignum_montsqr_p384_alt.S | 2 ++
+ x86_att/p384/bignum_mux_6.S            | 2 ++
+ x86_att/p384/bignum_neg_p384.S         | 2 ++
+ x86_att/p384/bignum_nonzero_6.S        | 2 ++
+ x86_att/p384/bignum_optneg_p384.S      | 2 ++
+ x86_att/p384/bignum_sub_p384.S         | 2 ++
+ x86_att/p384/bignum_tomont_p384.S      | 2 ++
+ x86_att/p384/bignum_tomont_p384_alt.S  | 2 ++
+ x86_att/p384/bignum_triple_p384.S      | 2 ++
+ x86_att/p384/bignum_triple_p384_alt.S  | 2 ++
+ x86_att/p521/bignum_add_p521.S         | 2 ++
+ x86_att/p521/bignum_cmul_p521.S        | 2 ++
+ x86_att/p521/bignum_cmul_p521_alt.S    | 2 ++
+ x86_att/p521/bignum_deamont_p521.S     | 2 ++
+ x86_att/p521/bignum_demont_p521.S      | 2 ++
+ x86_att/p521/bignum_double_p521.S      | 2 ++
+ x86_att/p521/bignum_fromlebytes_p521.S | 2 ++
+ x86_att/p521/bignum_half_p521.S        | 2 ++
+ x86_att/p521/bignum_mod_n521_9.S       | 2 ++
+ x86_att/p521/bignum_mod_n521_9_alt.S   | 2 ++
+ x86_att/p521/bignum_mod_p521_9.S       | 2 ++
+ x86_att/p521/bignum_montmul_p521.S     | 2 ++
+ x86_att/p521/bignum_montmul_p521_alt.S | 2 ++
+ x86_att/p521/bignum_montsqr_p521.S     | 2 ++
+ x86_att/p521/bignum_montsqr_p521_alt.S | 2 ++
+ x86_att/p521/bignum_mul_p521.S         | 2 ++
+ x86_att/p521/bignum_mul_p521_alt.S     | 2 ++
+ x86_att/p521/bignum_neg_p521.S         | 2 ++
+ x86_att/p521/bignum_optneg_p521.S      | 2 ++
+ x86_att/p521/bignum_sqr_p521.S         | 2 ++
+ x86_att/p521/bignum_sqr_p521_alt.S     | 2 ++
+ x86_att/p521/bignum_sub_p521.S         | 2 ++
+ x86_att/p521/bignum_tolebytes_p521.S   | 2 ++
+ x86_att/p521/bignum_tomont_p521.S      | 2 ++
+ x86_att/p521/bignum_triple_p521.S      | 2 ++
+ x86_att/p521/bignum_triple_p521_alt.S  | 2 ++
+ 111 files changed, 258 insertions(+)
+
+diff --git a/arm/fastmul/bignum_emontredc_8n.S b/arm/fastmul/bignum_emontredc_8n.S
+index 337bcdf08..d9cf20574 100644
+--- a/arm/fastmul/bignum_emontredc_8n.S
++++ b/arm/fastmul/bignum_emontredc_8n.S
+@@ -27,6 +27,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_emontredc_8n
++        .globl  _bignum_emontredc_8n
+         .text
+         .balign 4
+ 
+@@ -208,6 +209,7 @@
+ // *****************************************************
+ 
+ bignum_emontredc_8n:
++_bignum_emontredc_8n:
+ 
+                 stp     x19, x20, [sp, #-16]!
+                 stp     x21, x22, [sp, #-16]!
+diff --git a/arm/fastmul/bignum_kmul_16_32.S b/arm/fastmul/bignum_kmul_16_32.S
+index b6f294341..ecd6b6daf 100644
+--- a/arm/fastmul/bignum_kmul_16_32.S
++++ b/arm/fastmul/bignum_kmul_16_32.S
+@@ -28,6 +28,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_kmul_16_32
++        .globl  _bignum_kmul_16_32
+         .text
+         .balign 4
+ 
+@@ -44,6 +45,7 @@
+ #define m x19
+ 
+ bignum_kmul_16_32:
++_bignum_kmul_16_32:
+ 
+ // Save registers, including return address
+ 
+diff --git a/arm/fastmul/bignum_kmul_32_64.S b/arm/fastmul/bignum_kmul_32_64.S
+index 5fe6e5fa5..c657d50da 100644
+--- a/arm/fastmul/bignum_kmul_32_64.S
++++ b/arm/fastmul/bignum_kmul_32_64.S
+@@ -28,6 +28,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_kmul_32_64
++        .globl  _bignum_kmul_32_64
+         .text
+         .balign 4
+ 
+@@ -42,6 +43,7 @@
+ #define c x16
+ 
+ bignum_kmul_32_64:
++_bignum_kmul_32_64:
+ 
+ // Save extra registers and return address, store parameters safely
+ 
+diff --git a/arm/fastmul/bignum_ksqr_16_32.S b/arm/fastmul/bignum_ksqr_16_32.S
+index 8587b244d..25bf314ad 100644
+--- a/arm/fastmul/bignum_ksqr_16_32.S
++++ b/arm/fastmul/bignum_ksqr_16_32.S
+@@ -27,6 +27,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_ksqr_16_32
++        .globl  _bignum_ksqr_16_32
+         .text
+         .balign 4
+ 
+@@ -42,6 +43,7 @@
+ 
+ 
+ bignum_ksqr_16_32:
++_bignum_ksqr_16_32:
+ 
+ // Save registers, including return address
+ 
+diff --git a/arm/fastmul/bignum_ksqr_32_64.S b/arm/fastmul/bignum_ksqr_32_64.S
+index 492d700ac..eeb94be1c 100644
+--- a/arm/fastmul/bignum_ksqr_32_64.S
++++ b/arm/fastmul/bignum_ksqr_32_64.S
+@@ -27,6 +27,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_ksqr_32_64
++        .globl  _bignum_ksqr_32_64
+         .text
+         .balign 4
+ 
+@@ -41,6 +42,7 @@
+ 
+ 
+ bignum_ksqr_32_64:
++_bignum_ksqr_32_64:
+ 
+ // Save extra registers and return address, store parameters safely
+ 
+diff --git a/arm/generic/bignum_ge.S b/arm/generic/bignum_ge.S
+index 494abf2dd..ba62be9cf 100644
+--- a/arm/generic/bignum_ge.S
++++ b/arm/generic/bignum_ge.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_ge
++        .globl  _bignum_ge
+         .text
+         .balign 4
+ 
+@@ -37,6 +38,7 @@
+ 
+ 
+ bignum_ge:
++_bignum_ge:
+ 
+ // Zero the main index counter for both branches
+ 
+diff --git a/arm/generic/bignum_mul.S b/arm/generic/bignum_mul.S
+index 353b26cb7..fae4f401a 100644
+--- a/arm/generic/bignum_mul.S
++++ b/arm/generic/bignum_mul.S
+@@ -28,6 +28,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_mul
++        .globl  _bignum_mul
+         .text
+         .balign 4
+ 
+@@ -50,6 +51,7 @@
+ 
+ 
+ bignum_mul:
++_bignum_mul:
+ 
+ // If p = 0 the result is trivial and nothing needs doing
+ 
+diff --git a/arm/generic/bignum_optsub.S b/arm/generic/bignum_optsub.S
+index 3ba6e293b..bda17156e 100644
+--- a/arm/generic/bignum_optsub.S
++++ b/arm/generic/bignum_optsub.S
+@@ -27,6 +27,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_optsub
++        .globl  _bignum_optsub
+         .text
+         .balign 4
+ 
+@@ -42,6 +43,7 @@
+ 
+ 
+ bignum_optsub:
++_bignum_optsub:
+ 
+ // if k = 0 do nothing. This is also the right top carry in X0
+ 
+diff --git a/arm/generic/bignum_sqr.S b/arm/generic/bignum_sqr.S
+index 346bc83e7..da1aa2eb2 100644
+--- a/arm/generic/bignum_sqr.S
++++ b/arm/generic/bignum_sqr.S
+@@ -27,6 +27,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_sqr
++        .globl  _bignum_sqr
+         .text
+         .balign 4
+ 
+@@ -49,6 +50,7 @@
+ #define ll x15
+ 
+ bignum_sqr:
++_bignum_sqr:
+ 
+ // If p = 0 the result is trivial and nothing needs doing
+ 
+diff --git a/arm/p384/bignum_add_p384.S b/arm/p384/bignum_add_p384.S
+index f32965ef5..74c1a2994 100644
+--- a/arm/p384/bignum_add_p384.S
++++ b/arm/p384/bignum_add_p384.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_add_p384
++        .globl  _bignum_add_p384
+         .text
+         .balign 4
+ 
+@@ -41,6 +42,7 @@
+ 
+ 
+ bignum_add_p384:
++_bignum_add_p384:
+ 
+ // First just add the numbers as c + [d5; d4; d3; d2; d1; d0]
+ 
+diff --git a/arm/p384/bignum_bigendian_6.S b/arm/p384/bignum_bigendian_6.S
+index a55bd08f9..0e9a9bc59 100644
+--- a/arm/p384/bignum_bigendian_6.S
++++ b/arm/p384/bignum_bigendian_6.S
+@@ -37,8 +37,11 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_bigendian_6
++        .globl  _bignum_bigendian_6
+         .globl  bignum_frombebytes_6
++        .globl  _bignum_frombebytes_6
+         .globl  bignum_tobebytes_6
++        .globl  _bignum_tobebytes_6
+         .text
+         .balign 4
+ 
+@@ -55,8 +58,11 @@
+ // intermediate registers.
+ 
+ bignum_bigendian_6:
++_bignum_bigendian_6:
+ bignum_frombebytes_6:
++_bignum_frombebytes_6:
+ bignum_tobebytes_6:
++_bignum_tobebytes_6:
+ 
+ // 0 and 5 words
+ 
+diff --git a/arm/p384/bignum_cmul_p384.S b/arm/p384/bignum_cmul_p384.S
+index 1b956b64a..38ef03c4d 100644
+--- a/arm/p384/bignum_cmul_p384.S
++++ b/arm/p384/bignum_cmul_p384.S
+@@ -25,7 +25,9 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_cmul_p384
++        .globl  _bignum_cmul_p384
+         .globl  bignum_cmul_p384_alt
++        .globl  _bignum_cmul_p384_alt
+         .text
+         .balign 4
+ 
+@@ -56,7 +58,9 @@
+ 
+ 
+ bignum_cmul_p384:
++_bignum_cmul_p384:
+ bignum_cmul_p384_alt:
++_bignum_cmul_p384_alt:
+ 
+ // First do the multiply, straightforwardly, getting [h; d5; ...; d0]
+ 
+diff --git a/arm/p384/bignum_deamont_p384.S b/arm/p384/bignum_deamont_p384.S
+index 42006882b..bc6641eda 100644
+--- a/arm/p384/bignum_deamont_p384.S
++++ b/arm/p384/bignum_deamont_p384.S
+@@ -27,7 +27,9 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_deamont_p384
++        .globl  _bignum_deamont_p384
+         .globl  bignum_deamont_p384_alt
++        .globl  _bignum_deamont_p384_alt
+         .text
+         .balign 4
+ 
+@@ -89,7 +91,9 @@
+ #define w x10
+ 
+ bignum_deamont_p384:
++_bignum_deamont_p384:
+ bignum_deamont_p384_alt:
++_bignum_deamont_p384_alt:
+ 
+ // Set up an initial window with the input x and an extra leading zero
+ 
+diff --git a/arm/p384/bignum_demont_p384.S b/arm/p384/bignum_demont_p384.S
+index 05e084c14..d307a1495 100644
+--- a/arm/p384/bignum_demont_p384.S
++++ b/arm/p384/bignum_demont_p384.S
+@@ -27,7 +27,9 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_demont_p384
++        .globl  _bignum_demont_p384
+         .globl  bignum_demont_p384_alt
++        .globl  _bignum_demont_p384_alt
+         .text
+         .balign 4
+ 
+@@ -89,7 +91,9 @@
+ #define w x10
+ 
+ bignum_demont_p384:
++_bignum_demont_p384:
+ bignum_demont_p384_alt:
++_bignum_demont_p384_alt:
+ 
+ // Set up an initial window with the input x and an extra leading zero
+ 
+diff --git a/arm/p384/bignum_double_p384.S b/arm/p384/bignum_double_p384.S
+index 191b212ef..722df320d 100644
+--- a/arm/p384/bignum_double_p384.S
++++ b/arm/p384/bignum_double_p384.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_double_p384
++        .globl  _bignum_double_p384
+         .text
+         .balign 4
+ 
+@@ -45,6 +46,7 @@
+ 
+ 
+ bignum_double_p384:
++_bignum_double_p384:
+ 
+ // Double the input number as 2 * x = c + [d5; d4; d3; d2; d1; d0]
+ // It's worth considering doing this with extr...63 instead
+diff --git a/arm/p384/bignum_half_p384.S b/arm/p384/bignum_half_p384.S
+index aa3611649..d8ee54ed6 100644
+--- a/arm/p384/bignum_half_p384.S
++++ b/arm/p384/bignum_half_p384.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_half_p384
++        .globl  _bignum_half_p384
+         .text
+         .balign 4
+ 
+@@ -43,6 +44,7 @@
+ 
+ 
+ bignum_half_p384:
++_bignum_half_p384:
+ 
+ // Load the 4 digits of x
+ 
+diff --git a/arm/p384/bignum_littleendian_6.S b/arm/p384/bignum_littleendian_6.S
+index 67df9feb3..22c7cdcc7 100644
+--- a/arm/p384/bignum_littleendian_6.S
++++ b/arm/p384/bignum_littleendian_6.S
+@@ -37,8 +37,11 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_littleendian_6
++        .globl  _bignum_littleendian_6
+         .globl  bignum_fromlebytes_6
++        .globl  _bignum_fromlebytes_6
+         .globl  bignum_tolebytes_6
++        .globl  _bignum_tolebytes_6
+         .text
+         .balign 4
+ 
+@@ -50,8 +53,11 @@
+ #define a x3
+ 
+ bignum_littleendian_6:
++_bignum_littleendian_6:
+ bignum_fromlebytes_6:
++_bignum_fromlebytes_6:
+ bignum_tolebytes_6:
++_bignum_tolebytes_6:
+ 
+ // word 0
+ 
+diff --git a/arm/p384/bignum_mod_n384.S b/arm/p384/bignum_mod_n384.S
+index bae1d4918..daede0da9 100644
+--- a/arm/p384/bignum_mod_n384.S
++++ b/arm/p384/bignum_mod_n384.S
+@@ -26,7 +26,9 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_mod_n384
++        .globl  _bignum_mod_n384
+         .globl  bignum_mod_n384_alt
++        .globl  _bignum_mod_n384_alt
+         .text
+         .balign 4
+ 
+@@ -74,7 +76,9 @@
+                 movk    nn, n3, lsl #48
+ 
+ bignum_mod_n384:
++_bignum_mod_n384:
+ bignum_mod_n384_alt:
++_bignum_mod_n384_alt:
+ 
+ // If the input is already <= 5 words long, go to a trivial "copy" path
+ 
+diff --git a/arm/p384/bignum_mod_n384_6.S b/arm/p384/bignum_mod_n384_6.S
+index f8b3ff4ef..825d2b610 100644
+--- a/arm/p384/bignum_mod_n384_6.S
++++ b/arm/p384/bignum_mod_n384_6.S
+@@ -26,6 +26,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_mod_n384_6
++        .globl  _bignum_mod_n384_6
+         .text
+         .balign 4
+ 
+@@ -53,6 +54,7 @@
+                 movk    nn, n3, lsl #48
+ 
+ bignum_mod_n384_6:
++_bignum_mod_n384_6:
+ 
+ // Load the complicated lower three words of n_384
+ 
+diff --git a/arm/p384/bignum_mod_p384.S b/arm/p384/bignum_mod_p384.S
+index dc3c904ad..a81083b32 100644
+--- a/arm/p384/bignum_mod_p384.S
++++ b/arm/p384/bignum_mod_p384.S
+@@ -24,7 +24,9 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_mod_p384
++        .globl  _bignum_mod_p384
+         .globl  bignum_mod_p384_alt
++        .globl  _bignum_mod_p384_alt
+         .text
+         .balign 4
+ 
+@@ -52,7 +54,9 @@
+ 
+ 
+ bignum_mod_p384:
++_bignum_mod_p384:
+ bignum_mod_p384_alt:
++_bignum_mod_p384_alt:
+ 
+ // If the input is already <= 5 words long, go to a trivial "copy" path
+ 
+diff --git a/arm/p384/bignum_mod_p384_6.S b/arm/p384/bignum_mod_p384_6.S
+index 42814adc0..d0d1d1431 100644
+--- a/arm/p384/bignum_mod_p384_6.S
++++ b/arm/p384/bignum_mod_p384_6.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_mod_p384_6
++        .globl  _bignum_mod_p384_6
+         .text
+         .balign 4
+ 
+@@ -46,6 +47,7 @@
+ 
+ 
+ bignum_mod_p384_6:
++_bignum_mod_p384_6:
+ 
+ // Load the complicated lower three words of p_384 = [-1;-1;-1;n2;n1;n0]
+ 
+diff --git a/arm/p384/bignum_montmul_p384.S b/arm/p384/bignum_montmul_p384.S
+index a78cf4d76..3bd9b5ea6 100644
+--- a/arm/p384/bignum_montmul_p384.S
++++ b/arm/p384/bignum_montmul_p384.S
+@@ -28,6 +28,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_montmul_p384
++        .globl  _bignum_montmul_p384
+         .text
+         .balign 4
+ 
+@@ -113,6 +114,7 @@
+ #define t4 x24
+ 
+ bignum_montmul_p384:
++_bignum_montmul_p384:
+ 
+ // Save some registers
+ 
+diff --git a/arm/p384/bignum_montmul_p384_alt.S b/arm/p384/bignum_montmul_p384_alt.S
+index 78a3b7615..61a9ad590 100644
+--- a/arm/p384/bignum_montmul_p384_alt.S
++++ b/arm/p384/bignum_montmul_p384_alt.S
+@@ -28,6 +28,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_montmul_p384_alt
++        .globl  _bignum_montmul_p384_alt
+         .text
+         .balign 4
+ 
+@@ -102,6 +103,7 @@
+ #define h b5 // same as b5
+ 
+ bignum_montmul_p384_alt:
++_bignum_montmul_p384_alt:
+ 
+ // Save more registers
+ 
+diff --git a/arm/p384/bignum_montsqr_p384.S b/arm/p384/bignum_montsqr_p384.S
+index 6592fff18..d9f30aed9 100644
+--- a/arm/p384/bignum_montsqr_p384.S
++++ b/arm/p384/bignum_montsqr_p384.S
+@@ -27,6 +27,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_montsqr_p384
++        .globl  _bignum_montsqr_p384
+         .text
+         .balign 4
+ 
+@@ -104,6 +105,7 @@
+ #define d4 x17
+ 
+ bignum_montsqr_p384:
++_bignum_montsqr_p384:
+ 
+ // Load in all words of the input
+ 
+diff --git a/arm/p384/bignum_montsqr_p384_alt.S b/arm/p384/bignum_montsqr_p384_alt.S
+index 10aa8b1cb..f10a6aad1 100644
+--- a/arm/p384/bignum_montsqr_p384_alt.S
++++ b/arm/p384/bignum_montsqr_p384_alt.S
+@@ -27,6 +27,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_montsqr_p384_alt
++        .globl  _bignum_montsqr_p384_alt
+         .text
+         .balign 4
+ 
+@@ -90,6 +91,7 @@
+ #define h x6 // same as a4
+ 
+ bignum_montsqr_p384_alt:
++_bignum_montsqr_p384_alt:
+ 
+ // It's convenient to have two more registers to play with
+ 
+diff --git a/arm/p384/bignum_mux_6.S b/arm/p384/bignum_mux_6.S
+index eb324df09..ec472ad83 100644
+--- a/arm/p384/bignum_mux_6.S
++++ b/arm/p384/bignum_mux_6.S
+@@ -27,6 +27,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_mux_6
++        .globl  _bignum_mux_6
+         .text
+         .balign 4
+ 
+@@ -38,6 +39,7 @@
+ 
+ 
+ bignum_mux_6:
++_bignum_mux_6:
+ 
+                 cmp     p, #0                    // Set condition codes p = 0
+ 
+diff --git a/arm/p384/bignum_neg_p384.S b/arm/p384/bignum_neg_p384.S
+index 3e82111bd..9a1d25d15 100644
+--- a/arm/p384/bignum_neg_p384.S
++++ b/arm/p384/bignum_neg_p384.S
+@@ -23,6 +23,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_neg_p384
++        .globl  _bignum_neg_p384
+         .text
+         .balign 4
+ 
+@@ -41,6 +42,7 @@
+ 
+ 
+ bignum_neg_p384:
++_bignum_neg_p384:
+ 
+ // Load the 6 digits of x
+ 
+diff --git a/arm/p384/bignum_nonzero_6.S b/arm/p384/bignum_nonzero_6.S
+index 2c4fb1a3b..aa3524e4e 100644
+--- a/arm/p384/bignum_nonzero_6.S
++++ b/arm/p384/bignum_nonzero_6.S
+@@ -23,6 +23,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_nonzero_6
++        .globl  _bignum_nonzero_6
+         .text
+         .balign 4
+ 
+@@ -33,6 +34,7 @@
+ 
+ 
+ bignum_nonzero_6:
++_bignum_nonzero_6:
+ 
+ // Generate a = an OR of all the words in the bignum
+ 
+diff --git a/arm/p384/bignum_optneg_p384.S b/arm/p384/bignum_optneg_p384.S
+index 981dc7f75..a5e11467a 100644
+--- a/arm/p384/bignum_optneg_p384.S
++++ b/arm/p384/bignum_optneg_p384.S
+@@ -25,6 +25,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_optneg_p384
++        .globl  _bignum_optneg_p384
+         .text
+         .balign 4
+ 
+@@ -47,6 +48,7 @@
+ 
+ 
+ bignum_optneg_p384:
++_bignum_optneg_p384:
+ 
+ // Load the 6 digits of x
+ 
+diff --git a/arm/p384/bignum_sub_p384.S b/arm/p384/bignum_sub_p384.S
+index f7ec7b8ab..a3edf9e7d 100644
+--- a/arm/p384/bignum_sub_p384.S
++++ b/arm/p384/bignum_sub_p384.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_sub_p384
++        .globl  _bignum_sub_p384
+         .text
+         .balign 4
+ 
+@@ -42,6 +43,7 @@
+ 
+ 
+ bignum_sub_p384:
++_bignum_sub_p384:
+ 
+ // First just subtract the numbers as [d5; d4; d3; d2; d1; d0]
+ // Set a mask based on (inverted) carry indicating x < y = correction is needed
+diff --git a/arm/p384/bignum_tomont_p384.S b/arm/p384/bignum_tomont_p384.S
+index 08c378e44..45ab411cb 100644
+--- a/arm/p384/bignum_tomont_p384.S
++++ b/arm/p384/bignum_tomont_p384.S
+@@ -24,7 +24,9 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_tomont_p384
++        .globl  _bignum_tomont_p384
+         .globl  bignum_tomont_p384_alt
++        .globl  _bignum_tomont_p384_alt
+         .text
+         .balign 4
+ 
+@@ -71,7 +73,9 @@
+                 adc     d5, d5, t3
+ 
+ bignum_tomont_p384:
++_bignum_tomont_p384:
+ bignum_tomont_p384_alt:
++_bignum_tomont_p384_alt:
+ 
+ #define d0 x2
+ #define d1 x3
+diff --git a/arm/p384/bignum_triple_p384.S b/arm/p384/bignum_triple_p384.S
+index f9a311f19..639e833d6 100644
+--- a/arm/p384/bignum_triple_p384.S
++++ b/arm/p384/bignum_triple_p384.S
+@@ -27,7 +27,9 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_triple_p384
++        .globl  _bignum_triple_p384
+         .globl  bignum_triple_p384_alt
++        .globl  _bignum_triple_p384_alt
+         .text
+         .balign 4
+ 
+@@ -63,7 +65,9 @@
+ 
+ 
+ bignum_triple_p384:
++_bignum_triple_p384:
+ bignum_triple_p384_alt:
++_bignum_triple_p384_alt:
+ 
+ // Load the inputs
+ 
+diff --git a/arm/p521/bignum_add_p521.S b/arm/p521/bignum_add_p521.S
+index fb8cd6578..e3597d7fd 100644
+--- a/arm/p521/bignum_add_p521.S
++++ b/arm/p521/bignum_add_p521.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_add_p521
++        .globl  _bignum_add_p521
+         .text
+         .balign 4
+ 
+@@ -44,6 +45,7 @@
+ 
+ 
+ bignum_add_p521:
++_bignum_add_p521:
+ 
+ // Force carry-in to get s = [d8;d7;d6;d5;d4;d3;d2;d1;d0] = x + y + 1.
+ // We ignore the carry-out, assuming inputs are reduced so there is none.
+diff --git a/arm/p521/bignum_cmul_p521.S b/arm/p521/bignum_cmul_p521.S
+index 697df144c..74621e93b 100644
+--- a/arm/p521/bignum_cmul_p521.S
++++ b/arm/p521/bignum_cmul_p521.S
+@@ -25,7 +25,9 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_cmul_p521
++        .globl  _bignum_cmul_p521
+         .globl  bignum_cmul_p521_alt
++        .globl  _bignum_cmul_p521_alt
+         .text
+         .balign 4
+ 
+@@ -62,7 +64,9 @@
+ #define dd x15
+ 
+ bignum_cmul_p521:
++_bignum_cmul_p521:
+ bignum_cmul_p521_alt:
++_bignum_cmul_p521_alt:
+ 
+ // First do the multiply, getting [d9; ...; d0], and as this is done
+ // accumulate an AND "dd" of digits d7,...,d1 for later use
+diff --git a/arm/p521/bignum_deamont_p521.S b/arm/p521/bignum_deamont_p521.S
+index 7e9dc6f44..e1bf95612 100644
+--- a/arm/p521/bignum_deamont_p521.S
++++ b/arm/p521/bignum_deamont_p521.S
+@@ -27,6 +27,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_deamont_p521
++        .globl  _bignum_deamont_p521
+         .text
+         .balign 4
+ 
+@@ -55,6 +56,7 @@
+ #define u x12
+ 
+ bignum_deamont_p521:
++_bignum_deamont_p521:
+ 
+ // Load all the inputs
+ 
+diff --git a/arm/p521/bignum_demont_p521.S b/arm/p521/bignum_demont_p521.S
+index 40bbefff5..4c810f098 100644
+--- a/arm/p521/bignum_demont_p521.S
++++ b/arm/p521/bignum_demont_p521.S
+@@ -27,6 +27,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_demont_p521
++        .globl  _bignum_demont_p521
+         .text
+         .balign 4
+ 
+@@ -49,6 +50,7 @@
+ #define c x6
+ 
+ bignum_demont_p521:
++_bignum_demont_p521:
+ 
+ // Rotate, as a 521-bit quantity, by 9*64 - 521 = 55 bits right.
+ 
+diff --git a/arm/p521/bignum_double_p521.S b/arm/p521/bignum_double_p521.S
+index ecbf637fa..69ec99f4d 100644
+--- a/arm/p521/bignum_double_p521.S
++++ b/arm/p521/bignum_double_p521.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_double_p521
++        .globl  _bignum_double_p521
+         .text
+         .balign 4
+ 
+@@ -35,6 +36,7 @@
+ #define l x4
+ 
+ bignum_double_p521:
++_bignum_double_p521:
+ 
+ // We can decide whether 2 * x >= p_521 just by 2 * x >= 2^521, which
+ // amounts to whether the top word is >= 256
+diff --git a/arm/p521/bignum_fromlebytes_p521.S b/arm/p521/bignum_fromlebytes_p521.S
+index 44a4b1fdb..6294c670c 100644
+--- a/arm/p521/bignum_fromlebytes_p521.S
++++ b/arm/p521/bignum_fromlebytes_p521.S
+@@ -26,6 +26,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_fromlebytes_p521
++        .globl  _bignum_fromlebytes_p521
+         .text
+         .balign 4
+ 
+@@ -37,6 +38,7 @@
+ #define a x3
+ 
+ bignum_fromlebytes_p521:
++_bignum_fromlebytes_p521:
+ 
+ // word 0
+ 
+diff --git a/arm/p521/bignum_half_p521.S b/arm/p521/bignum_half_p521.S
+index 50d879656..a06a11c02 100644
+--- a/arm/p521/bignum_half_p521.S
++++ b/arm/p521/bignum_half_p521.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_half_p521
++        .globl  _bignum_half_p521
+         .text
+         .balign 4
+ 
+@@ -45,6 +46,7 @@
+ 
+ 
+ bignum_half_p521:
++_bignum_half_p521:
+ 
+ // We do a 521-bit rotation one bit right, since 2^521 == 1 (mod p_521)
+ 
+diff --git a/arm/p521/bignum_mod_n521_9.S b/arm/p521/bignum_mod_n521_9.S
+index f15ac0cf8..1a0743a8c 100644
+--- a/arm/p521/bignum_mod_n521_9.S
++++ b/arm/p521/bignum_mod_n521_9.S
+@@ -26,7 +26,9 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_mod_n521_9
++        .globl  _bignum_mod_n521_9
+         .globl  bignum_mod_n521_9_alt
++        .globl  _bignum_mod_n521_9_alt
+         .text
+         .balign 4
+ 
+@@ -62,7 +64,9 @@
+                 movk    nn, n3, lsl #48
+ 
+ bignum_mod_n521_9:
++_bignum_mod_n521_9:
+ bignum_mod_n521_9_alt:
++_bignum_mod_n521_9_alt:
+ 
+ // Load the top digit first into d8.
+ // The initial quotient estimate is q = h + 1 where x = 2^521 * h + t
+diff --git a/arm/p521/bignum_mod_p521_9.S b/arm/p521/bignum_mod_p521_9.S
+index 2502e780b..32cbed5d3 100644
+--- a/arm/p521/bignum_mod_p521_9.S
++++ b/arm/p521/bignum_mod_p521_9.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_mod_p521_9
++        .globl  _bignum_mod_p521_9
+         .text
+         .balign 4
+ 
+@@ -43,6 +44,7 @@
+ #define d8 x12
+ 
+ bignum_mod_p521_9:
++_bignum_mod_p521_9:
+ 
+ // Load top digit first and get its upper bits in h so that we
+ // separate out x = 2^521 * H + L with h = H. Now x mod p_521 =
+diff --git a/arm/p521/bignum_montmul_p521.S b/arm/p521/bignum_montmul_p521.S
+index ddeb10c2c..897f03fdc 100644
+--- a/arm/p521/bignum_montmul_p521.S
++++ b/arm/p521/bignum_montmul_p521.S
+@@ -29,6 +29,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_montmul_p521
++        .globl  _bignum_montmul_p521
+         .text
+         .balign 4
+ 
+@@ -158,6 +159,7 @@
+                 adc     s7, s7, c                                       \
+ 
+ bignum_montmul_p521:
++_bignum_montmul_p521:
+ 
+ // Save registers
+ 
+diff --git a/arm/p521/bignum_montmul_p521_alt.S b/arm/p521/bignum_montmul_p521_alt.S
+index a9d5eb2f6..f82135752 100644
+--- a/arm/p521/bignum_montmul_p521_alt.S
++++ b/arm/p521/bignum_montmul_p521_alt.S
+@@ -29,6 +29,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_montmul_p521_alt
++        .globl  _bignum_montmul_p521_alt
+         .text
+         .balign 4
+ 
+@@ -82,6 +83,7 @@
+ #define u16 x21
+ 
+ bignum_montmul_p521_alt:
++_bignum_montmul_p521_alt:
+ 
+ // Save more registers
+ 
+diff --git a/arm/p521/bignum_montsqr_p521.S b/arm/p521/bignum_montsqr_p521.S
+index 53d3b4fac..2339c04e7 100644
+--- a/arm/p521/bignum_montsqr_p521.S
++++ b/arm/p521/bignum_montsqr_p521.S
+@@ -29,6 +29,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_montsqr_p521
++        .globl  _bignum_montsqr_p521
+         .text
+         .balign 4
+ 
+@@ -73,6 +74,7 @@
+ #define d8 x10
+ 
+ bignum_montsqr_p521:
++_bignum_montsqr_p521:
+ 
+ // Save registers
+ 
+diff --git a/arm/p521/bignum_montsqr_p521_alt.S b/arm/p521/bignum_montsqr_p521_alt.S
+index e08b6a4cf..ea954eaf7 100644
+--- a/arm/p521/bignum_montsqr_p521_alt.S
++++ b/arm/p521/bignum_montsqr_p521_alt.S
+@@ -29,6 +29,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_montsqr_p521_alt
++        .globl  _bignum_montsqr_p521_alt
+         .text
+         .balign 4
+ 
+@@ -66,6 +67,7 @@
+ #define u16 x29
+ 
+ bignum_montsqr_p521_alt:
++_bignum_montsqr_p521_alt:
+ 
+ // It's convenient to have more registers to play with
+ 
+diff --git a/arm/p521/bignum_mul_p521.S b/arm/p521/bignum_mul_p521.S
+index 8af1f9155..3a76efc53 100644
+--- a/arm/p521/bignum_mul_p521.S
++++ b/arm/p521/bignum_mul_p521.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_mul_p521
++        .globl  _bignum_mul_p521
+         .text
+         .balign 4
+ 
+@@ -153,6 +154,7 @@
+                 adc     s7, s7, c                                       \
+ 
+ bignum_mul_p521:
++_bignum_mul_p521:
+ 
+ // Save registers
+ 
+diff --git a/arm/p521/bignum_mul_p521_alt.S b/arm/p521/bignum_mul_p521_alt.S
+index 10c3f3700..ad210ad0a 100644
+--- a/arm/p521/bignum_mul_p521_alt.S
++++ b/arm/p521/bignum_mul_p521_alt.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_mul_p521_alt
++        .globl  _bignum_mul_p521_alt
+         .text
+         .balign 4
+ 
+@@ -77,6 +78,7 @@
+ #define u16 x21
+ 
+ bignum_mul_p521_alt:
++_bignum_mul_p521_alt:
+ 
+ // Save more registers
+ 
+diff --git a/arm/p521/bignum_neg_p521.S b/arm/p521/bignum_neg_p521.S
+index 5d5b5aba9..825f0af29 100644
+--- a/arm/p521/bignum_neg_p521.S
++++ b/arm/p521/bignum_neg_p521.S
+@@ -23,6 +23,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_neg_p521
++        .globl  _bignum_neg_p521
+         .text
+         .balign 4
+ 
+@@ -42,6 +43,7 @@
+ #define d8 x11
+ 
+ bignum_neg_p521:
++_bignum_neg_p521:
+ 
+ // Load the 9 digits of x and generate p = the OR of them all
+ 
+diff --git a/arm/p521/bignum_optneg_p521.S b/arm/p521/bignum_optneg_p521.S
+index 5de2dd0b5..b7415e5dd 100644
+--- a/arm/p521/bignum_optneg_p521.S
++++ b/arm/p521/bignum_optneg_p521.S
+@@ -25,6 +25,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_optneg_p521
++        .globl  _bignum_optneg_p521
+         .text
+         .balign 4
+ 
+@@ -44,6 +45,7 @@
+ #define d8 x12
+ 
+ bignum_optneg_p521:
++_bignum_optneg_p521:
+ 
+ // Load the 9 digits of x and generate q = the OR of them all
+ 
+diff --git a/arm/p521/bignum_sqr_p521.S b/arm/p521/bignum_sqr_p521.S
+index df84f2868..7bce2a3e2 100644
+--- a/arm/p521/bignum_sqr_p521.S
++++ b/arm/p521/bignum_sqr_p521.S
+@@ -23,6 +23,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_sqr_p521
++        .globl  _bignum_sqr_p521
+         .text
+         .balign 4
+ 
+@@ -67,6 +68,7 @@
+ #define d8 x10
+ 
+ bignum_sqr_p521:
++_bignum_sqr_p521:
+ 
+ // Save registers
+ 
+diff --git a/arm/p521/bignum_sqr_p521_alt.S b/arm/p521/bignum_sqr_p521_alt.S
+index d88c3da5a..02faa5f2d 100644
+--- a/arm/p521/bignum_sqr_p521_alt.S
++++ b/arm/p521/bignum_sqr_p521_alt.S
+@@ -23,6 +23,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_sqr_p521_alt
++        .globl  _bignum_sqr_p521_alt
+         .text
+         .balign 4
+ 
+@@ -60,6 +61,7 @@
+ #define u16 x29
+ 
+ bignum_sqr_p521_alt:
++_bignum_sqr_p521_alt:
+ 
+ // It's convenient to have more registers to play with
+ 
+diff --git a/arm/p521/bignum_sub_p521.S b/arm/p521/bignum_sub_p521.S
+index 8354775ca..b7a78f697 100644
+--- a/arm/p521/bignum_sub_p521.S
++++ b/arm/p521/bignum_sub_p521.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_sub_p521
++        .globl  _bignum_sub_p521
+         .text
+         .balign 4
+ 
+@@ -44,6 +45,7 @@
+ 
+ 
+ bignum_sub_p521:
++_bignum_sub_p521:
+ 
+ // First just subtract the numbers as [d8;d7;d6;d5;d4;d3;d2;d1;d0] = x - y
+ 
+diff --git a/arm/p521/bignum_tolebytes_p521.S b/arm/p521/bignum_tolebytes_p521.S
+index 3945a0d9b..4ab76f0ea 100644
+--- a/arm/p521/bignum_tolebytes_p521.S
++++ b/arm/p521/bignum_tolebytes_p521.S
+@@ -26,6 +26,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_tolebytes_p521
++        .globl  _bignum_tolebytes_p521
+         .text
+         .balign 4
+ 
+@@ -36,6 +37,7 @@
+ #define dshort w2
+ 
+ bignum_tolebytes_p521:
++_bignum_tolebytes_p521:
+ 
+ // word 0
+ 
+diff --git a/arm/p521/bignum_tomont_p521.S b/arm/p521/bignum_tomont_p521.S
+index a8bed3f20..e1e5ce4d5 100644
+--- a/arm/p521/bignum_tomont_p521.S
++++ b/arm/p521/bignum_tomont_p521.S
+@@ -24,6 +24,7 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_tomont_p521
++        .globl  _bignum_tomont_p521
+         .text
+         .balign 4
+ 
+@@ -43,6 +44,7 @@
+ #define d8 x12
+ 
+ bignum_tomont_p521:
++_bignum_tomont_p521:
+ 
+ // Load top digit first and get its upper bits in h so that we
+ // separate out x = 2^521 * H + L with h = H. Now x mod p_521 =
+diff --git a/arm/p521/bignum_triple_p521.S b/arm/p521/bignum_triple_p521.S
+index 835bd7864..a0a850355 100644
+--- a/arm/p521/bignum_triple_p521.S
++++ b/arm/p521/bignum_triple_p521.S
+@@ -24,7 +24,9 @@
+ // ----------------------------------------------------------------------------
+ 
+         .globl  bignum_triple_p521
++        .globl  _bignum_triple_p521
+         .globl  bignum_triple_p521_alt
++        .globl  _bignum_triple_p521_alt
+         .text
+         .balign 4
+ 
+@@ -46,7 +48,9 @@
+ 
+ 
+ bignum_triple_p521:
++_bignum_triple_p521:
+ bignum_triple_p521_alt:
++_bignum_triple_p521_alt:
+ 
+ // Pick out top bit to wrap to the zero position in the doubling step
+ 
+diff --git a/x86_att/p384/bignum_add_p384.S b/x86_att/p384/bignum_add_p384.S
+index 5a14812e3..33f7f4532 100644
+--- a/x86_att/p384/bignum_add_p384.S
++++ b/x86_att/p384/bignum_add_p384.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_add_p384
++        .globl  _bignum_add_p384
+         .text
+ 
+ #define z %rdi
+@@ -49,6 +50,7 @@
+ 
+ 
+ bignum_add_p384:
++_bignum_add_p384:
+ 
+ // Add the inputs as 2^384 * c + [d5;d4;d3;d2;d1;d0] = x + y
+ // This could be combined with the next block using ADCX and ADOX.
+diff --git a/x86_att/p384/bignum_bigendian_6.S b/x86_att/p384/bignum_bigendian_6.S
+index 67a958a2e..5e33f5b11 100644
+--- a/x86_att/p384/bignum_bigendian_6.S
++++ b/x86_att/p384/bignum_bigendian_6.S
+@@ -37,8 +37,11 @@
+ 
+ 
+         .globl  bignum_bigendian_6
++        .globl  _bignum_bigendian_6
+         .globl  bignum_frombebytes_6
++        .globl  _bignum_frombebytes_6
+         .globl  bignum_tobebytes_6
++        .globl  _bignum_tobebytes_6
+         .text
+ 
+ #define z %rdi
+@@ -53,8 +56,11 @@
+ // without using more intermediate registers.
+ 
+ bignum_bigendian_6:
++_bignum_bigendian_6:
+ bignum_frombebytes_6:
++_bignum_frombebytes_6:
+ bignum_tobebytes_6:
++_bignum_tobebytes_6:
+ 
+ // 0 and 5 words
+ 
+diff --git a/x86_att/p384/bignum_cmul_p384.S b/x86_att/p384/bignum_cmul_p384.S
+index 5da5f57d2..26b8f307c 100644
+--- a/x86_att/p384/bignum_cmul_p384.S
++++ b/x86_att/p384/bignum_cmul_p384.S
+@@ -26,6 +26,7 @@
+ 
+ 
+         .globl  bignum_cmul_p384
++        .globl  _bignum_cmul_p384
+         .text
+ 
+ #define z %rdi
+@@ -53,6 +54,7 @@
+ 
+ 
+ bignum_cmul_p384:
++_bignum_cmul_p384:
+ 
+ // We seem to need (just!) one extra register, which we need to save and restore
+ 
+diff --git a/x86_att/p384/bignum_cmul_p384_alt.S b/x86_att/p384/bignum_cmul_p384_alt.S
+index 8baa6245c..99bc717b0 100644
+--- a/x86_att/p384/bignum_cmul_p384_alt.S
++++ b/x86_att/p384/bignum_cmul_p384_alt.S
+@@ -26,6 +26,7 @@
+ 
+ 
+         .globl  bignum_cmul_p384_alt
++        .globl  _bignum_cmul_p384_alt
+         .text
+ 
+ #define z %rdi
+@@ -57,6 +58,7 @@
+ #define qshort %ecx
+ 
+ bignum_cmul_p384_alt:
++_bignum_cmul_p384_alt:
+ 
+ // We seem to need (just!) one extra register, which we need to save and restore
+ 
+diff --git a/x86_att/p384/bignum_deamont_p384.S b/x86_att/p384/bignum_deamont_p384.S
+index a84a99e1a..0e7871ca0 100644
+--- a/x86_att/p384/bignum_deamont_p384.S
++++ b/x86_att/p384/bignum_deamont_p384.S
+@@ -28,6 +28,7 @@
+ 
+ 
+         .globl  bignum_deamont_p384
++        .globl  _bignum_deamont_p384
+         .text
+ 
+ #define z %rdi
+@@ -79,6 +80,7 @@
+                 sbbq    $0, d6
+ 
+ bignum_deamont_p384:
++_bignum_deamont_p384:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p384/bignum_deamont_p384_alt.S b/x86_att/p384/bignum_deamont_p384_alt.S
+index fbcabd60c..04bc5243f 100644
+--- a/x86_att/p384/bignum_deamont_p384_alt.S
++++ b/x86_att/p384/bignum_deamont_p384_alt.S
+@@ -28,6 +28,7 @@
+ 
+ 
+         .globl  bignum_deamont_p384_alt
++        .globl  _bignum_deamont_p384_alt
+         .text
+ 
+ #define z %rdi
+@@ -79,6 +80,7 @@
+                 sbbq    $0, d6
+ 
+ bignum_deamont_p384_alt:
++_bignum_deamont_p384_alt:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p384/bignum_demont_p384.S b/x86_att/p384/bignum_demont_p384.S
+index ea85bbcef..e3865d372 100644
+--- a/x86_att/p384/bignum_demont_p384.S
++++ b/x86_att/p384/bignum_demont_p384.S
+@@ -28,6 +28,7 @@
+ 
+ 
+         .globl  bignum_demont_p384
++        .globl  _bignum_demont_p384
+         .text
+ 
+ #define z %rdi
+@@ -71,6 +72,7 @@
+                 sbbq    $0, d6
+ 
+ bignum_demont_p384:
++_bignum_demont_p384:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p384/bignum_demont_p384_alt.S b/x86_att/p384/bignum_demont_p384_alt.S
+index d624057e9..f216eb213 100644
+--- a/x86_att/p384/bignum_demont_p384_alt.S
++++ b/x86_att/p384/bignum_demont_p384_alt.S
+@@ -28,6 +28,7 @@
+ 
+ 
+         .globl  bignum_demont_p384_alt
++        .globl  _bignum_demont_p384_alt
+         .text
+ 
+ #define z %rdi
+@@ -71,6 +72,7 @@
+                 sbbq    $0, d6
+ 
+ bignum_demont_p384_alt:
++_bignum_demont_p384_alt:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p384/bignum_double_p384.S b/x86_att/p384/bignum_double_p384.S
+index 30094eb99..dcc0a7262 100644
+--- a/x86_att/p384/bignum_double_p384.S
++++ b/x86_att/p384/bignum_double_p384.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_double_p384
++        .globl  _bignum_double_p384
+         .text
+ 
+ #define z %rdi
+@@ -47,6 +48,7 @@
+ 
+ 
+ bignum_double_p384:
++_bignum_double_p384:
+ 
+ // Load the input and double it so that 2^384 * c + [d5;d4;d3;d2;d1;d0] = 2 * x
+ // Could also consider using shld to decouple carries *or* combining this
+diff --git a/x86_att/p384/bignum_half_p384.S b/x86_att/p384/bignum_half_p384.S
+index 83dff1b67..5d274e7e7 100644
+--- a/x86_att/p384/bignum_half_p384.S
++++ b/x86_att/p384/bignum_half_p384.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_half_p384
++        .globl  _bignum_half_p384
+         .text
+ 
+ #define z %rdi
+@@ -44,6 +45,7 @@
+ 
+ 
+ bignum_half_p384:
++_bignum_half_p384:
+ 
+ // Load lowest digit and get a mask for its lowest bit in d3
+ 
+diff --git a/x86_att/p384/bignum_littleendian_6.S b/x86_att/p384/bignum_littleendian_6.S
+index 58c5a8cc2..79a2f9b1e 100644
+--- a/x86_att/p384/bignum_littleendian_6.S
++++ b/x86_att/p384/bignum_littleendian_6.S
+@@ -36,8 +36,11 @@
+ 
+ 
+         .globl  bignum_littleendian_6
++        .globl  _bignum_littleendian_6
+         .globl  bignum_fromlebytes_6
++        .globl  _bignum_fromlebytes_6
+         .globl  bignum_tolebytes_6
++        .globl  _bignum_tolebytes_6
+         .text
+ 
+ #define z %rdi
+@@ -45,8 +48,11 @@
+ #define a %rax
+ 
+ bignum_littleendian_6:
++_bignum_littleendian_6:
+ bignum_fromlebytes_6:
++_bignum_fromlebytes_6:
+ bignum_tolebytes_6:
++_bignum_tolebytes_6:
+ 
+                 movq    (x), a
+                 movq    a, (z)
+diff --git a/x86_att/p384/bignum_mod_n384.S b/x86_att/p384/bignum_mod_n384.S
+index fc08c0a4e..c62cf7be5 100644
+--- a/x86_att/p384/bignum_mod_n384.S
++++ b/x86_att/p384/bignum_mod_n384.S
+@@ -27,6 +27,7 @@
+ 
+ 
+         .globl  bignum_mod_n384
++        .globl  _bignum_mod_n384
+         .text
+ 
+ #define z %rdi
+@@ -51,6 +52,7 @@
+ 
+ 
+ bignum_mod_n384:
++_bignum_mod_n384:
+ 
+ // Save extra registers
+ 
+diff --git a/x86_att/p384/bignum_mod_n384_6.S b/x86_att/p384/bignum_mod_n384_6.S
+index 1302f0bc7..b866e7040 100644
+--- a/x86_att/p384/bignum_mod_n384_6.S
++++ b/x86_att/p384/bignum_mod_n384_6.S
+@@ -27,6 +27,7 @@
+ 
+ 
+         .globl  bignum_mod_n384_6
++        .globl  _bignum_mod_n384_6
+         .text
+ 
+ #define z %rdi
+@@ -48,6 +49,7 @@
+ 
+ 
+ bignum_mod_n384_6:
++_bignum_mod_n384_6:
+ 
+ // Load the input and compute x + (2^384 - n_384)
+ 
+diff --git a/x86_att/p384/bignum_mod_n384_alt.S b/x86_att/p384/bignum_mod_n384_alt.S
+index ecc0f410e..b45d110c9 100644
+--- a/x86_att/p384/bignum_mod_n384_alt.S
++++ b/x86_att/p384/bignum_mod_n384_alt.S
+@@ -27,6 +27,7 @@
+ 
+ 
+         .globl  bignum_mod_n384_alt
++        .globl  _bignum_mod_n384_alt
+         .text
+ 
+ #define z %rdi
+@@ -52,6 +53,7 @@
+ #define qshort %ebp
+ 
+ bignum_mod_n384_alt:
++_bignum_mod_n384_alt:
+ 
+ // Save extra registers
+ 
+diff --git a/x86_att/p384/bignum_mod_p384.S b/x86_att/p384/bignum_mod_p384.S
+index e222a141a..53cd68e0a 100644
+--- a/x86_att/p384/bignum_mod_p384.S
++++ b/x86_att/p384/bignum_mod_p384.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_mod_p384
++        .globl  _bignum_mod_p384
+         .text
+ 
+ #define z %rdi
+@@ -50,6 +51,7 @@
+ 
+ 
+ bignum_mod_p384:
++_bignum_mod_p384:
+ 
+ // Save extra registers
+ 
+diff --git a/x86_att/p384/bignum_mod_p384_6.S b/x86_att/p384/bignum_mod_p384_6.S
+index 5b910e448..c275e83f9 100644
+--- a/x86_att/p384/bignum_mod_p384_6.S
++++ b/x86_att/p384/bignum_mod_p384_6.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_mod_p384_6
++        .globl  _bignum_mod_p384_6
+         .text
+ 
+ #define z %rdi
+@@ -47,6 +48,7 @@
+ 
+ 
+ bignum_mod_p384_6:
++_bignum_mod_p384_6:
+ 
+ // Load the input and subtract p_384 from it
+ 
+diff --git a/x86_att/p384/bignum_mod_p384_alt.S b/x86_att/p384/bignum_mod_p384_alt.S
+index b486a61fb..c91598bdb 100644
+--- a/x86_att/p384/bignum_mod_p384_alt.S
++++ b/x86_att/p384/bignum_mod_p384_alt.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_mod_p384_alt
++        .globl  _bignum_mod_p384_alt
+         .text
+ 
+ #define z %rdi
+@@ -54,6 +55,7 @@
+ 
+ 
+ bignum_mod_p384_alt:
++_bignum_mod_p384_alt:
+ 
+ // Save extra registers
+ 
+diff --git a/x86_att/p384/bignum_montmul_p384.S b/x86_att/p384/bignum_montmul_p384.S
+index 2fd3a0d18..c4b76d618 100644
+--- a/x86_att/p384/bignum_montmul_p384.S
++++ b/x86_att/p384/bignum_montmul_p384.S
+@@ -29,6 +29,7 @@
+ 
+ 
+         .globl  bignum_montmul_p384
++        .globl  _bignum_montmul_p384
+         .text
+ 
+ #define z %rdi
+@@ -94,6 +95,7 @@
+                 adcq    $0, d7
+ 
+ bignum_montmul_p384:
++_bignum_montmul_p384:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p384/bignum_montmul_p384_alt.S b/x86_att/p384/bignum_montmul_p384_alt.S
+index 7c8ae1053..36ab5b0d2 100644
+--- a/x86_att/p384/bignum_montmul_p384_alt.S
++++ b/x86_att/p384/bignum_montmul_p384_alt.S
+@@ -29,6 +29,7 @@
+ 
+ 
+         .globl  bignum_montmul_p384_alt
++        .globl  _bignum_montmul_p384_alt
+         .text
+ 
+ #define z %rdi
+@@ -116,6 +117,7 @@
+                 adcq    $0, d7
+ 
+ bignum_montmul_p384_alt:
++_bignum_montmul_p384_alt:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p384/bignum_montsqr_p384.S b/x86_att/p384/bignum_montsqr_p384.S
+index 8c3c91331..a6628ad8c 100644
+--- a/x86_att/p384/bignum_montsqr_p384.S
++++ b/x86_att/p384/bignum_montsqr_p384.S
+@@ -28,6 +28,7 @@
+ 
+ 
+         .globl  bignum_montsqr_p384
++        .globl  _bignum_montsqr_p384
+         .text
+ 
+ #define z %rdi
+@@ -91,6 +92,7 @@
+                 sbbq    $0, d6
+ 
+ bignum_montsqr_p384:
++_bignum_montsqr_p384:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p384/bignum_montsqr_p384_alt.S b/x86_att/p384/bignum_montsqr_p384_alt.S
+index 06d59f70e..ffe475525 100644
+--- a/x86_att/p384/bignum_montsqr_p384_alt.S
++++ b/x86_att/p384/bignum_montsqr_p384_alt.S
+@@ -28,6 +28,7 @@
+ 
+ 
+         .globl  bignum_montsqr_p384_alt
++        .globl  _bignum_montsqr_p384_alt
+         .text
+ 
+ #define z %rdi
+@@ -113,6 +114,7 @@
+                 sbbq    $0, d6
+ 
+ bignum_montsqr_p384_alt:
++_bignum_montsqr_p384_alt:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p384/bignum_mux_6.S b/x86_att/p384/bignum_mux_6.S
+index 4c614ddc3..3305e0f01 100644
+--- a/x86_att/p384/bignum_mux_6.S
++++ b/x86_att/p384/bignum_mux_6.S
+@@ -28,6 +28,7 @@
+ 
+ 
+         .globl  bignum_mux_6
++        .globl  _bignum_mux_6
+         .text
+ 
+ #define p %rdi
+@@ -39,6 +40,7 @@
+ 
+ 
+ bignum_mux_6:
++_bignum_mux_6:
+                 testq   p, p
+ 
+                 movq    (x), a
+diff --git a/x86_att/p384/bignum_neg_p384.S b/x86_att/p384/bignum_neg_p384.S
+index 3ce1cacc1..e80158e1b 100644
+--- a/x86_att/p384/bignum_neg_p384.S
++++ b/x86_att/p384/bignum_neg_p384.S
+@@ -24,6 +24,7 @@
+ 
+ 
+         .globl  bignum_neg_p384
++        .globl  _bignum_neg_p384
+         .text
+ 
+ #define z %rdi
+@@ -39,6 +40,7 @@
+ #define n0short %eax
+ 
+ bignum_neg_p384:
++_bignum_neg_p384:
+ 
+ // Or together the input digits and create a bitmask q if this is nonzero, so
+ // that we avoid doing -0 = p_384 and hence maintain strict modular reduction
+diff --git a/x86_att/p384/bignum_nonzero_6.S b/x86_att/p384/bignum_nonzero_6.S
+index e41392f45..49b5ded9a 100644
+--- a/x86_att/p384/bignum_nonzero_6.S
++++ b/x86_att/p384/bignum_nonzero_6.S
+@@ -24,6 +24,7 @@
+ 
+ 
+         .globl  bignum_nonzero_6
++        .globl  _bignum_nonzero_6
+         .text
+ 
+ #define x %rdi
+@@ -34,6 +35,7 @@
+ 
+ 
+ bignum_nonzero_6:
++_bignum_nonzero_6:
+ 
+ // Generate a = an OR of all the words in the bignum
+ 
+diff --git a/x86_att/p384/bignum_optneg_p384.S b/x86_att/p384/bignum_optneg_p384.S
+index 02a7284f2..4cc49044d 100644
+--- a/x86_att/p384/bignum_optneg_p384.S
++++ b/x86_att/p384/bignum_optneg_p384.S
+@@ -26,6 +26,7 @@
+ 
+ 
+         .globl  bignum_optneg_p384
++        .globl  _bignum_optneg_p384
+         .text
+ 
+ #define z %rdi
+@@ -42,6 +43,7 @@
+ #define n0short %eax
+ 
+ bignum_optneg_p384:
++_bignum_optneg_p384:
+ 
+ // Adjust q by zeroing it if the input is zero (to avoid giving -0 = p_384,
+ // which is not strictly reduced even though it's correct modulo p_384).
+diff --git a/x86_att/p384/bignum_sub_p384.S b/x86_att/p384/bignum_sub_p384.S
+index d71ef3cb3..36322ed9d 100644
+--- a/x86_att/p384/bignum_sub_p384.S
++++ b/x86_att/p384/bignum_sub_p384.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_sub_p384
++        .globl  _bignum_sub_p384
+         .text
+ 
+ #define z %rdi
+@@ -48,6 +49,7 @@
+ 
+ 
+ bignum_sub_p384:
++_bignum_sub_p384:
+ 
+ // Subtract the inputs as [d5;d4;d3;d2;d1;d0] = x - y (modulo 2^384)
+ // Capture the top carry as a bitmask for the condition x < y
+diff --git a/x86_att/p384/bignum_tomont_p384.S b/x86_att/p384/bignum_tomont_p384.S
+index d7f29bf6b..cfaf4fc9d 100644
+--- a/x86_att/p384/bignum_tomont_p384.S
++++ b/x86_att/p384/bignum_tomont_p384.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_tomont_p384
++        .globl  _bignum_tomont_p384
+         .text
+ 
+ #define z %rdi
+@@ -93,6 +94,7 @@
+                 adcq    $0, d7
+ 
+ bignum_tomont_p384:
++_bignum_tomont_p384:
+ 
+ // We are essentially just doing a Montgomery multiplication of x and the
+ // precomputed constant y = 2^768 mod p, so the code is almost the same
+diff --git a/x86_att/p384/bignum_tomont_p384_alt.S b/x86_att/p384/bignum_tomont_p384_alt.S
+index a26a66fad..05525e38f 100644
+--- a/x86_att/p384/bignum_tomont_p384_alt.S
++++ b/x86_att/p384/bignum_tomont_p384_alt.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_tomont_p384_alt
++        .globl  _bignum_tomont_p384_alt
+         .text
+ 
+ #define z %rdi
+@@ -111,6 +112,7 @@
+                 adcq    $0, d7
+ 
+ bignum_tomont_p384_alt:
++_bignum_tomont_p384_alt:
+ 
+ // We are essentially just doing a Montgomery multiplication of x and the
+ // precomputed constant y = 2^768 mod p, so the code is almost the same
+diff --git a/x86_att/p384/bignum_triple_p384.S b/x86_att/p384/bignum_triple_p384.S
+index 4620fe56c..a60ee35f7 100644
+--- a/x86_att/p384/bignum_triple_p384.S
++++ b/x86_att/p384/bignum_triple_p384.S
+@@ -28,6 +28,7 @@
+ 
+ 
+         .globl  bignum_triple_p384
++        .globl  _bignum_triple_p384
+         .text
+ 
+ #define z %rdi
+@@ -48,6 +49,7 @@
+ #define qshort %edx
+ 
+ bignum_triple_p384:
++_bignum_triple_p384:
+ 
+ // We seem to need (just!) one extra register, which we need to save and restore
+ 
+diff --git a/x86_att/p384/bignum_triple_p384_alt.S b/x86_att/p384/bignum_triple_p384_alt.S
+index aa7ddd7b1..c27f1f684 100644
+--- a/x86_att/p384/bignum_triple_p384_alt.S
++++ b/x86_att/p384/bignum_triple_p384_alt.S
+@@ -28,6 +28,7 @@
+ 
+ 
+         .globl  bignum_triple_p384_alt
++        .globl  _bignum_triple_p384_alt
+         .text
+ 
+ #define z %rdi
+@@ -51,6 +52,7 @@
+ #define dshort %edx
+ 
+ bignum_triple_p384_alt:
++_bignum_triple_p384_alt:
+ 
+ // We seem to need (just!) one extra register, which we need to save and restore
+ 
+diff --git a/x86_att/p521/bignum_add_p521.S b/x86_att/p521/bignum_add_p521.S
+index 6a1175957..71913b810 100644
+--- a/x86_att/p521/bignum_add_p521.S
++++ b/x86_att/p521/bignum_add_p521.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_add_p521
++        .globl  _bignum_add_p521
+         .text
+ 
+ #define z %rdi
+@@ -48,6 +49,7 @@
+ 
+ 
+ bignum_add_p521:
++_bignum_add_p521:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p521/bignum_cmul_p521.S b/x86_att/p521/bignum_cmul_p521.S
+index 3a5042c30..02cdb893b 100644
+--- a/x86_att/p521/bignum_cmul_p521.S
++++ b/x86_att/p521/bignum_cmul_p521.S
+@@ -26,6 +26,7 @@
+ 
+ 
+         .globl  bignum_cmul_p521
++        .globl  _bignum_cmul_p521
+         .text
+ 
+ #define z %rdi
+@@ -60,6 +61,7 @@
+ #define h d9
+ 
+ bignum_cmul_p521:
++_bignum_cmul_p521:
+ 
+ // Save additional registers to use
+ 
+diff --git a/x86_att/p521/bignum_cmul_p521_alt.S b/x86_att/p521/bignum_cmul_p521_alt.S
+index 2d54c18eb..dc9815a4e 100644
+--- a/x86_att/p521/bignum_cmul_p521_alt.S
++++ b/x86_att/p521/bignum_cmul_p521_alt.S
+@@ -26,6 +26,7 @@
+ 
+ 
+         .globl  bignum_cmul_p521_alt
++        .globl  _bignum_cmul_p521_alt
+         .text
+ 
+ #define z %rdi
+@@ -64,6 +65,7 @@
+ #define h d9
+ 
+ bignum_cmul_p521_alt:
++_bignum_cmul_p521_alt:
+ 
+ // Save additional registers to use
+ 
+diff --git a/x86_att/p521/bignum_deamont_p521.S b/x86_att/p521/bignum_deamont_p521.S
+index c6e3e3e0f..762a8472e 100644
+--- a/x86_att/p521/bignum_deamont_p521.S
++++ b/x86_att/p521/bignum_deamont_p521.S
+@@ -28,6 +28,7 @@
+ 
+ 
+         .globl  bignum_deamont_p521
++        .globl  _bignum_deamont_p521
+         .text
+ 
+ #define z %rdi
+@@ -48,6 +49,7 @@
+ #define d8 %rbp
+ 
+ bignum_deamont_p521:
++_bignum_deamont_p521:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p521/bignum_demont_p521.S b/x86_att/p521/bignum_demont_p521.S
+index 66e4707c2..29e699f04 100644
+--- a/x86_att/p521/bignum_demont_p521.S
++++ b/x86_att/p521/bignum_demont_p521.S
+@@ -28,6 +28,7 @@
+ 
+ 
+         .globl  bignum_demont_p521
++        .globl  _bignum_demont_p521
+         .text
+ 
+ #define z %rdi
+@@ -48,6 +49,7 @@
+ #define d8 %rdx
+ 
+ bignum_demont_p521:
++_bignum_demont_p521:
+ 
+ // Rotate, as a 521-bit quantity, by 9*64 - 521 = 55 bits right.
+ 
+diff --git a/x86_att/p521/bignum_double_p521.S b/x86_att/p521/bignum_double_p521.S
+index a106ab2e2..b14740185 100644
+--- a/x86_att/p521/bignum_double_p521.S
++++ b/x86_att/p521/bignum_double_p521.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_double_p521
++        .globl  _bignum_double_p521
+         .text
+ 
+ #define z %rdi
+@@ -36,6 +37,7 @@
+ 
+ 
+ bignum_double_p521:
++_bignum_double_p521:
+ 
+ // We can decide whether 2 * x >= p_521 just by 2 * x >= 2^521, which
+ // as we assume x < p_521 amounts to looking at bit 8 of the top word
+diff --git a/x86_att/p521/bignum_fromlebytes_p521.S b/x86_att/p521/bignum_fromlebytes_p521.S
+index 6ca15f963..2d0069c46 100644
+--- a/x86_att/p521/bignum_fromlebytes_p521.S
++++ b/x86_att/p521/bignum_fromlebytes_p521.S
+@@ -29,6 +29,7 @@
+ 
+ 
+         .globl  bignum_fromlebytes_p521
++        .globl  _bignum_fromlebytes_p521
+         .text
+ 
+ #define z %rdi
+@@ -36,6 +37,7 @@
+ #define a %rax
+ 
+ bignum_fromlebytes_p521:
++_bignum_fromlebytes_p521:
+ 
+                 movq    (x), a
+                 movq    a, (z)
+diff --git a/x86_att/p521/bignum_half_p521.S b/x86_att/p521/bignum_half_p521.S
+index c5d62a302..bdca1839d 100644
+--- a/x86_att/p521/bignum_half_p521.S
++++ b/x86_att/p521/bignum_half_p521.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_half_p521
++        .globl  _bignum_half_p521
+         .text
+ 
+ #define z %rdi
+@@ -47,6 +48,7 @@
+ 
+ 
+ bignum_half_p521:
++_bignum_half_p521:
+ 
+ // We do a 521-bit rotation one bit right, since 2^521 == 1 (mod p_521)
+ 
+diff --git a/x86_att/p521/bignum_mod_n521_9.S b/x86_att/p521/bignum_mod_n521_9.S
+index 11069d164..e0a6af161 100644
+--- a/x86_att/p521/bignum_mod_n521_9.S
++++ b/x86_att/p521/bignum_mod_n521_9.S
+@@ -27,6 +27,7 @@
+ 
+ 
+         .globl  bignum_mod_n521_9
++        .globl  _bignum_mod_n521_9
+         .text
+ 
+ #define z %rdi
+@@ -48,6 +49,7 @@
+ #define qshort %edx
+ 
+ bignum_mod_n521_9:
++_bignum_mod_n521_9:
+ 
+ // Load the top digit, putting a bit-stuffed version in output buffer.
+ // The initial quotient estimate is q = h + 1 where x = 2^521 * h + t
+diff --git a/x86_att/p521/bignum_mod_n521_9_alt.S b/x86_att/p521/bignum_mod_n521_9_alt.S
+index 76886d859..ebf7476c6 100644
+--- a/x86_att/p521/bignum_mod_n521_9_alt.S
++++ b/x86_att/p521/bignum_mod_n521_9_alt.S
+@@ -27,6 +27,7 @@
+ 
+ 
+         .globl  bignum_mod_n521_9_alt
++        .globl  _bignum_mod_n521_9_alt
+         .text
+ 
+ #define z %rdi
+@@ -48,6 +49,7 @@
+ #define qshort %edx
+ 
+ bignum_mod_n521_9_alt:
++_bignum_mod_n521_9_alt:
+ 
+ // Load the top digit, putting a bit-stuffed version in output buffer.
+ // The initial quotient estimate is q = h + 1 where x = 2^521 * h + t
+diff --git a/x86_att/p521/bignum_mod_p521_9.S b/x86_att/p521/bignum_mod_p521_9.S
+index 388c0c63f..07deac20e 100644
+--- a/x86_att/p521/bignum_mod_p521_9.S
++++ b/x86_att/p521/bignum_mod_p521_9.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_mod_p521_9
++        .globl  _bignum_mod_p521_9
+         .text
+ 
+ #define z %rdi
+@@ -47,6 +48,7 @@
+ #define d7 %rsi
+ 
+ bignum_mod_p521_9:
++_bignum_mod_p521_9:
+ 
+ // Save one more register
+ 
+diff --git a/x86_att/p521/bignum_montmul_p521.S b/x86_att/p521/bignum_montmul_p521.S
+index df5e4f1de..c2535e124 100644
+--- a/x86_att/p521/bignum_montmul_p521.S
++++ b/x86_att/p521/bignum_montmul_p521.S
+@@ -30,6 +30,7 @@
+ 
+ 
+         .globl  bignum_montmul_p521
++        .globl  _bignum_montmul_p521
+         .text
+ 
+ #define z %rdi
+@@ -49,6 +50,7 @@
+         adoxq   %rbx, high
+ 
+ bignum_montmul_p521:
++_bignum_montmul_p521:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p521/bignum_montmul_p521_alt.S b/x86_att/p521/bignum_montmul_p521_alt.S
+index c1cd4253f..966102cd9 100644
+--- a/x86_att/p521/bignum_montmul_p521_alt.S
++++ b/x86_att/p521/bignum_montmul_p521_alt.S
+@@ -30,6 +30,7 @@
+ 
+ 
+         .globl  bignum_montmul_p521_alt
++        .globl  _bignum_montmul_p521_alt
+         .text
+ 
+ #define z %rdi
+@@ -66,6 +67,7 @@
+         adcq    %rdx, h
+ 
+ bignum_montmul_p521_alt:
++_bignum_montmul_p521_alt:
+ 
+ // Make more registers available
+ 
+diff --git a/x86_att/p521/bignum_montsqr_p521.S b/x86_att/p521/bignum_montsqr_p521.S
+index 3149f5205..a08182e2f 100644
+--- a/x86_att/p521/bignum_montsqr_p521.S
++++ b/x86_att/p521/bignum_montsqr_p521.S
+@@ -30,6 +30,7 @@
+ 
+ 
+         .globl  bignum_montsqr_p521
++        .globl  _bignum_montsqr_p521
+         .text
+ 
+ #define z %rdi
+@@ -60,6 +61,7 @@
+         adoxq   zero, high
+ 
+ bignum_montsqr_p521:
++_bignum_montsqr_p521:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p521/bignum_montsqr_p521_alt.S b/x86_att/p521/bignum_montsqr_p521_alt.S
+index a8e1b6923..c7bb5ba4f 100644
+--- a/x86_att/p521/bignum_montsqr_p521_alt.S
++++ b/x86_att/p521/bignum_montsqr_p521_alt.S
+@@ -30,6 +30,7 @@
+ 
+ 
+         .globl  bignum_montsqr_p521_alt
++        .globl  _bignum_montsqr_p521_alt
+         .text
+ 
+ // Input arguments
+@@ -95,6 +96,7 @@
+         adcq    $0, c
+ 
+ bignum_montsqr_p521_alt:
++_bignum_montsqr_p521_alt:
+ 
+ // Make more registers available
+ 
+diff --git a/x86_att/p521/bignum_mul_p521.S b/x86_att/p521/bignum_mul_p521.S
+index 7fce1650a..477023ce9 100644
+--- a/x86_att/p521/bignum_mul_p521.S
++++ b/x86_att/p521/bignum_mul_p521.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_mul_p521
++        .globl  _bignum_mul_p521
+         .text
+ 
+ #define z %rdi
+@@ -44,6 +45,7 @@
+         adoxq   %rbx, high
+ 
+ bignum_mul_p521:
++_bignum_mul_p521:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p521/bignum_mul_p521_alt.S b/x86_att/p521/bignum_mul_p521_alt.S
+index 37bce1c7a..baa278b42 100644
+--- a/x86_att/p521/bignum_mul_p521_alt.S
++++ b/x86_att/p521/bignum_mul_p521_alt.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_mul_p521_alt
++        .globl  _bignum_mul_p521_alt
+         .text
+ 
+ #define z %rdi
+@@ -61,6 +62,7 @@
+         adcq    %rdx, h
+ 
+ bignum_mul_p521_alt:
++_bignum_mul_p521_alt:
+ 
+ // Make more registers available
+ 
+diff --git a/x86_att/p521/bignum_neg_p521.S b/x86_att/p521/bignum_neg_p521.S
+index d00006f4f..d3f4c09a6 100644
+--- a/x86_att/p521/bignum_neg_p521.S
++++ b/x86_att/p521/bignum_neg_p521.S
+@@ -24,6 +24,7 @@
+ 
+ 
+         .globl  bignum_neg_p521
++        .globl  _bignum_neg_p521
+         .text
+ 
+ #define z %rdi
+@@ -38,6 +39,7 @@
+ #define d5 %r11
+ 
+ bignum_neg_p521:
++_bignum_neg_p521:
+ 
+ // Load most inputs (into the limited registers) and OR all of them to get p
+ 
+diff --git a/x86_att/p521/bignum_optneg_p521.S b/x86_att/p521/bignum_optneg_p521.S
+index 31db989b3..b4e87a5f7 100644
+--- a/x86_att/p521/bignum_optneg_p521.S
++++ b/x86_att/p521/bignum_optneg_p521.S
+@@ -26,6 +26,7 @@
+ 
+ 
+         .globl  bignum_optneg_p521
++        .globl  _bignum_optneg_p521
+         .text
+ 
+ #define z %rdi
+@@ -40,6 +41,7 @@
+ #define d4 %r11
+ 
+ bignum_optneg_p521:
++_bignum_optneg_p521:
+ 
+ // Load most inputs (into the limited registers) and OR all of them to get q
+ 
+diff --git a/x86_att/p521/bignum_sqr_p521.S b/x86_att/p521/bignum_sqr_p521.S
+index ed0fb9c46..d5445f037 100644
+--- a/x86_att/p521/bignum_sqr_p521.S
++++ b/x86_att/p521/bignum_sqr_p521.S
+@@ -24,6 +24,7 @@
+ 
+ 
+         .globl  bignum_sqr_p521
++        .globl  _bignum_sqr_p521
+         .text
+ 
+ #define z %rdi
+@@ -54,6 +55,7 @@
+         adoxq   zero, high
+ 
+ bignum_sqr_p521:
++_bignum_sqr_p521:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p521/bignum_sqr_p521_alt.S b/x86_att/p521/bignum_sqr_p521_alt.S
+index 0082d83f5..58c9b8bad 100644
+--- a/x86_att/p521/bignum_sqr_p521_alt.S
++++ b/x86_att/p521/bignum_sqr_p521_alt.S
+@@ -24,6 +24,7 @@
+ 
+ 
+         .globl  bignum_sqr_p521_alt
++        .globl  _bignum_sqr_p521_alt
+         .text
+ 
+ // Input arguments
+@@ -89,6 +90,7 @@
+         adcq    $0, c
+ 
+ bignum_sqr_p521_alt:
++_bignum_sqr_p521_alt:
+ 
+ // Make more registers available
+ 
+diff --git a/x86_att/p521/bignum_sub_p521.S b/x86_att/p521/bignum_sub_p521.S
+index 4988dd5f0..0d587c9bb 100644
+--- a/x86_att/p521/bignum_sub_p521.S
++++ b/x86_att/p521/bignum_sub_p521.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_sub_p521
++        .globl  _bignum_sub_p521
+         .text
+ 
+ #define z %rdi
+@@ -47,6 +48,7 @@
+ 
+ 
+ bignum_sub_p521:
++_bignum_sub_p521:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p521/bignum_tolebytes_p521.S b/x86_att/p521/bignum_tolebytes_p521.S
+index 64bb432bd..a0b13f03f 100644
+--- a/x86_att/p521/bignum_tolebytes_p521.S
++++ b/x86_att/p521/bignum_tolebytes_p521.S
+@@ -29,6 +29,7 @@
+ 
+ 
+         .globl  bignum_tolebytes_p521
++        .globl  _bignum_tolebytes_p521
+         .text
+ 
+ #define z %rdi
+@@ -36,6 +37,7 @@
+ #define a %rax
+ 
+ bignum_tolebytes_p521:
++_bignum_tolebytes_p521:
+ 
+                 movq    (x), a
+                 movq    a, (z)
+diff --git a/x86_att/p521/bignum_tomont_p521.S b/x86_att/p521/bignum_tomont_p521.S
+index 3eceb50dd..c6aabce85 100644
+--- a/x86_att/p521/bignum_tomont_p521.S
++++ b/x86_att/p521/bignum_tomont_p521.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_tomont_p521
++        .globl  _bignum_tomont_p521
+         .text
+ 
+ #define z %rdi
+@@ -47,6 +48,7 @@
+ #define d7 %rsi
+ 
+ bignum_tomont_p521:
++_bignum_tomont_p521:
+ 
+ // Save one more register
+ 
+diff --git a/x86_att/p521/bignum_triple_p521.S b/x86_att/p521/bignum_triple_p521.S
+index 970cc78f8..e509fa5a2 100644
+--- a/x86_att/p521/bignum_triple_p521.S
++++ b/x86_att/p521/bignum_triple_p521.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_triple_p521
++        .globl  _bignum_triple_p521
+         .text
+ 
+ #define z %rdi
+@@ -48,6 +49,7 @@
+ 
+ 
+ bignum_triple_p521:
++_bignum_triple_p521:
+ 
+ // Save more registers to play with
+ 
+diff --git a/x86_att/p521/bignum_triple_p521_alt.S b/x86_att/p521/bignum_triple_p521_alt.S
+index 42cb4a3d8..f1193f28d 100644
+--- a/x86_att/p521/bignum_triple_p521_alt.S
++++ b/x86_att/p521/bignum_triple_p521_alt.S
+@@ -25,6 +25,7 @@
+ 
+ 
+         .globl  bignum_triple_p521_alt
++        .globl  _bignum_triple_p521_alt
+         .text
+ 
+ #define z %rdi
+@@ -49,6 +50,7 @@
+ #define d %rdx
+ 
+ bignum_triple_p521_alt:
++_bignum_triple_p521_alt:
+ 
+ // Save additional registers to use
+ 

@@ -1,0 +1,56 @@
+From 18e81b9cc9cfcbd3aa5dd17d82a6c85ab4b52c58 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 27 Jan 2023 09:10:22 -0500
+Subject: [PATCH] Switch ERR_GET_* to inline functions
+
+Inline functions have type signatures, unlike macros. This seems to be
+compatible with existing callers and matches OpenSSL 3.0. Additionally,
+while Rust bindgen cannot deal with either inline functions or macros
+right now, it seems a future version will fix the former.
+
+Change-Id: I6966ff55910cf70e23117fe5f70a0bd286e26d56
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56405
+Reviewed-by: Adam Langley <agl@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+(cherry picked from commit 68f4c720b636e5167bdab8a59ce07bf430f091c1)
+---
+ include/openssl/err.h | 13 ++++++++++---
+ 1 file changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/include/openssl/err.h b/include/openssl/err.h
+index 28ba25070..7abeae2e3 100644
+--- a/include/openssl/err.h
++++ b/include/openssl/err.h
+@@ -163,12 +163,16 @@ OPENSSL_EXPORT void ERR_free_strings(void);
+ 
+ // ERR_GET_LIB returns the library code for the error. This is one of
+ // the |ERR_LIB_*| values.
+-#define ERR_GET_LIB(packed_error) ((int)(((packed_error) >> 24) & 0xff))
++OPENSSL_INLINE int ERR_GET_LIB(uint32_t packed_error) {
++  return (int)((packed_error >> 24) & 0xff);
++}
+ 
+ // ERR_GET_REASON returns the reason code for the error. This is one of
+ // library-specific |LIB_R_*| values where |LIB| is the library (see
+ // |ERR_GET_LIB|). Note that reason codes are specific to the library.
+-#define ERR_GET_REASON(packed_error) ((int)((packed_error) & 0xfff))
++OPENSSL_INLINE int ERR_GET_REASON(uint32_t packed_error) {
++  return (int)(packed_error & 0xfff);
++}
+ 
+ // ERR_get_error gets the packed error code for the least recent error and
+ // removes that error from the queue. If there are no errors in the queue then
+@@ -411,7 +415,10 @@ OPENSSL_EXPORT char *ERR_error_string(uint32_t packed_error, char *buf);
+ #define ERR_ERROR_STRING_BUF_LEN 120
+ 
+ // ERR_GET_FUNC returns zero. BoringSSL errors do not report a function code.
+-#define ERR_GET_FUNC(packed_error) 0
++OPENSSL_INLINE int ERR_GET_FUNC(uint32_t packed_error) {
++  (void)packed_error;
++  return 0;
++}
+ 
+ // ERR_TXT_* are provided for compatibility with code that assumes that it's
+ // using OpenSSL.

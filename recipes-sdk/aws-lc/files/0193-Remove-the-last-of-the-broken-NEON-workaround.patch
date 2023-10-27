@@ -1,0 +1,281 @@
+From 6e47c3453faf9ecf2e28eb006793a745d898e423 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 1 Feb 2023 10:39:50 -0500
+Subject: [PATCH] Remove the last of the broken NEON workaround
+
+All evidence we have points to these devices no longer existing (or at
+least no longer taking updates) for years.
+
+I've kept CRYPTO_has_broken_NEON around for now as there are some older
+copies of the Chromium measurement code around, but now the function
+always returns zero.
+
+Change-Id: Ib76b68e347749d03611d00caecb6b8b1fdbb37b1
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56765
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit 2c12ebdf3a97a03b8bab7f4cd3b841926227310f)
+---
+ crypto/fipsmodule/cpucap/cpu_arm_linux.c      | 19 +----
+ crypto/fipsmodule/cpucap/cpu_arm_linux.h      | 10 ---
+ .../fipsmodule/cpucap/cpu_arm_linux_test.cc   | 79 -------------------
+ fuzz/arm_cpuinfo.cc                           |  1 -
+ include/openssl/crypto.h                      |  3 +-
+ 5 files changed, 4 insertions(+), 108 deletions(-)
+
+diff --git a/crypto/fipsmodule/cpucap/cpu_arm_linux.c b/crypto/fipsmodule/cpucap/cpu_arm_linux.c
+index 829f7100e..890f052c3 100644
+--- a/crypto/fipsmodule/cpucap/cpu_arm_linux.c
++++ b/crypto/fipsmodule/cpucap/cpu_arm_linux.c
+@@ -145,13 +145,12 @@ static unsigned long getauxval_proc(unsigned long type) {
+ extern uint32_t OPENSSL_armcap_P;
+ extern uint8_t OPENSSL_cpucap_initialized;
+ 
+-static int g_has_broken_neon, g_needs_hwcap2_workaround;
++static int g_needs_hwcap2_workaround;
+ 
+ void OPENSSL_cpuid_setup(void) {
+   // We ignore the return value of |read_file| and proceed with an empty
+   // /proc/cpuinfo on error. If |getauxval| works, we will still detect
+-  // capabilities. There may be a false positive due to
+-  // |crypto_cpuinfo_has_broken_neon|, but this is now rare.
++  // capabilities.
+   char *cpuinfo_data = NULL;
+   size_t cpuinfo_len = 0;
+   read_file(&cpuinfo_data, &cpuinfo_len, "/proc/cpuinfo");
+@@ -177,18 +176,6 @@ void OPENSSL_cpuid_setup(void) {
+     hwcap = crypto_get_arm_hwcap_from_cpuinfo(&cpuinfo);
+   }
+ 
+-  // Clear NEON support if known broken. Note, if NEON is available statically,
+-  // the non-NEON code is dropped and this workaround is a no-op.
+-  //
+-  // TODO(davidben): The Android NDK now builds with NEON statically available
+-  // by default. Cronet still has some consumers that support NEON-less devices
+-  // (b/150371744). Get metrics on whether they still see this CPU and, if not,
+-  // remove this check entirely.
+-  g_has_broken_neon = crypto_cpuinfo_has_broken_neon(&cpuinfo);
+-  if (g_has_broken_neon) {
+-    hwcap &= ~HWCAP_NEON;
+-  }
+-
+   // Matching OpenSSL, only report other features if NEON is present.
+   if (hwcap & HWCAP_NEON) {
+     OPENSSL_armcap_P |= ARMV7_NEON;
+@@ -226,7 +213,7 @@ void OPENSSL_cpuid_setup(void) {
+   OPENSSL_cpucap_initialized = 1;
+ }
+ 
+-int CRYPTO_has_broken_NEON(void) { return g_has_broken_neon; }
++int CRYPTO_has_broken_NEON(void) { return 0; }
+ 
+ int CRYPTO_needs_hwcap2_workaround(void) { return g_needs_hwcap2_workaround; }
+ 
+diff --git a/crypto/fipsmodule/cpucap/cpu_arm_linux.h b/crypto/fipsmodule/cpucap/cpu_arm_linux.h
+index 08d95dd76..f03c4eca5 100644
+--- a/crypto/fipsmodule/cpucap/cpu_arm_linux.h
++++ b/crypto/fipsmodule/cpucap/cpu_arm_linux.h
+@@ -182,16 +182,6 @@ static unsigned long crypto_get_arm_hwcap2_from_cpuinfo(
+   return ret;
+ }
+ 
+-// crypto_cpuinfo_has_broken_neon returns one if |cpuinfo| matches a CPU known
+-// to have broken NEON unit and zero otherwise. See https://crbug.com/341598.
+-static int crypto_cpuinfo_has_broken_neon(const STRING_PIECE *cpuinfo) {
+-  return cpuinfo_field_equals(cpuinfo, "CPU implementer", "0x51") &&
+-         cpuinfo_field_equals(cpuinfo, "CPU architecture", "7") &&
+-         cpuinfo_field_equals(cpuinfo, "CPU variant", "0x1") &&
+-         cpuinfo_field_equals(cpuinfo, "CPU part", "0x04d") &&
+-         cpuinfo_field_equals(cpuinfo, "CPU revision", "0");
+-}
+-
+ 
+ #if defined(__cplusplus)
+ }  // extern C
+diff --git a/crypto/fipsmodule/cpucap/cpu_arm_linux_test.cc b/crypto/fipsmodule/cpucap/cpu_arm_linux_test.cc
+index 019b57905..eb3db1afd 100644
+--- a/crypto/fipsmodule/cpucap/cpu_arm_linux_test.cc
++++ b/crypto/fipsmodule/cpucap/cpu_arm_linux_test.cc
+@@ -24,53 +24,7 @@ TEST(ARMLinuxTest, CPUInfo) {
+     const char *cpuinfo;
+     unsigned long hwcap;
+     unsigned long hwcap2;
+-    bool broken_neon;
+   } kTests[] = {
+-      // https://crbug.com/341598#c33
+-      {
+-          "Processor: ARMv7 Processory rev 0 (v71)\n"
+-          "processor: 0\n"
+-          "BogoMIPS: 13.50\n"
+-          "\n"
+-          "Processor: 1\n"
+-          "BogoMIPS: 13.50\n"
+-          "\n"
+-          "Features: swp half thumb fastmult vfp edsp neon vfpv3 tls vfpv4 "
+-          "idiva idivt\n"
+-          "CPU implementer : 0x51\n"
+-          "CPU architecture: 7\n"
+-          "CPU variant: 0x1\n"
+-          "CPU part: 0x04d\n"
+-          "CPU revision: 0\n"
+-          "\n"
+-          "Hardware: SAMSUNG M2\n"
+-          "Revision: 0010\n"
+-          "Serial: 00001e030000354e\n",
+-          HWCAP_NEON,
+-          0,
+-          true,
+-      },
+-      // https://crbug.com/341598#c39
+-      {
+-          "Processor       : ARMv7 Processor rev 0 (v7l)\n"
+-          "processor       : 0\n"
+-          "BogoMIPS        : 13.53\n"
+-          "\n"
+-          "Features        : swp half thumb fastmult vfp edsp neon vfpv3 tls "
+-          "vfpv4\n"
+-          "CPU implementer : 0x51\n"
+-          "CPU architecture: 7\n"
+-          "CPU variant     : 0x1\n"
+-          "CPU part        : 0x04d\n"
+-          "CPU revision    : 0\n"
+-          "\n"
+-          "Hardware        : SAMSUNG M2_ATT\n"
+-          "Revision        : 0010\n"
+-          "Serial          : 0000df0c00004d4c\n",
+-          HWCAP_NEON,
+-          0,
+-          true,
+-      },
+       // Nexus 4 from https://crbug.com/341598#c43
+       {
+           "Processor       : ARMv7 Processor rev 2 (v7l)\n"
+@@ -99,28 +53,6 @@ TEST(ARMLinuxTest, CPUInfo) {
+           "Serial          : 0000000000000000\n",
+           HWCAP_NEON,
+           0,
+-          false,
+-      },
+-      // Razr M from https://crbug.com/341598#c43
+-      {
+-          "Processor       : ARMv7 Processor rev 4 (v7l)\n"
+-          "processor       : 0\n"
+-          "BogoMIPS        : 13.53\n"
+-          "\n"
+-          "Features        : swp half thumb fastmult vfp edsp neon vfpv3 tls "
+-          "vfpv4\n"
+-          "CPU implementer : 0x51\n"
+-          "CPU architecture: 7\n"
+-          "CPU variant     : 0x1\n"
+-          "CPU part        : 0x04d\n"
+-          "CPU revision    : 4\n"
+-          "\n"
+-          "Hardware        : msm8960dt\n"
+-          "Revision        : 82a0\n"
+-          "Serial          : 0001000201fe37a5\n",
+-          HWCAP_NEON,
+-          0,
+-          false,
+       },
+       // Pixel 2 (truncated slightly)
+       {
+@@ -165,15 +97,12 @@ TEST(ARMLinuxTest, CPUInfo) {
+           "Hardware        : Qualcomm Technologies, Inc MSM8998\n",
+           HWCAP_NEON,  // CPU architecture 8 implies NEON.
+           HWCAP2_AES | HWCAP2_PMULL | HWCAP2_SHA1 | HWCAP2_SHA2,
+-          false,
+       },
+-      // Nexus 4 from
+       // Garbage should be tolerated.
+       {
+           "Blah blah blah this is definitely an ARM CPU",
+           0,
+           0,
+-          false,
+       },
+       // A hypothetical ARMv8 CPU without crc32 (and thus no trailing space
+       // after the last crypto entry).
+@@ -182,7 +111,6 @@ TEST(ARMLinuxTest, CPUInfo) {
+           "CPU architecture: 8\n",
+           HWCAP_NEON,
+           HWCAP2_AES | HWCAP2_PMULL | HWCAP2_SHA1 | HWCAP2_SHA2,
+-          false,
+       },
+       // Various combinations of ARMv8 flags.
+       {
+@@ -190,42 +118,36 @@ TEST(ARMLinuxTest, CPUInfo) {
+           "CPU architecture: 8\n",
+           HWCAP_NEON,
+           HWCAP2_AES | HWCAP2_SHA1 | HWCAP2_SHA2,
+-          false,
+       },
+       {
+           "Features        : pmull sha2\n"
+           "CPU architecture: 8\n",
+           HWCAP_NEON,
+           HWCAP2_PMULL | HWCAP2_SHA2,
+-          false,
+       },
+       {
+           "Features        : aes aes   aes not_aes aes aes \n"
+           "CPU architecture: 8\n",
+           HWCAP_NEON,
+           HWCAP2_AES,
+-          false,
+       },
+       {
+           "Features        : \n"
+           "CPU architecture: 8\n",
+           HWCAP_NEON,
+           0,
+-          false,
+       },
+       {
+           "Features        : nothing\n"
+           "CPU architecture: 8\n",
+           HWCAP_NEON,
+           0,
+-          false,
+       },
+       // If opening /proc/cpuinfo fails, we process the empty string.
+       {
+           "",
+           0,
+           0,
+-          false,
+       },
+   };
+ 
+@@ -234,6 +156,5 @@ TEST(ARMLinuxTest, CPUInfo) {
+     STRING_PIECE sp = {t.cpuinfo, strlen(t.cpuinfo)};
+     EXPECT_EQ(t.hwcap, crypto_get_arm_hwcap_from_cpuinfo(&sp));
+     EXPECT_EQ(t.hwcap2, crypto_get_arm_hwcap2_from_cpuinfo(&sp));
+-    EXPECT_EQ(t.broken_neon ? 1 : 0, crypto_cpuinfo_has_broken_neon(&sp));
+   }
+ }
+diff --git a/fuzz/arm_cpuinfo.cc b/fuzz/arm_cpuinfo.cc
+index 5a5bb9c16..ef941854f 100644
+--- a/fuzz/arm_cpuinfo.cc
++++ b/fuzz/arm_cpuinfo.cc
+@@ -19,6 +19,5 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *buf, size_t len) {
+   STRING_PIECE sp = {reinterpret_cast<const char *>(buf), len};
+   crypto_get_arm_hwcap_from_cpuinfo(&sp);
+   crypto_get_arm_hwcap2_from_cpuinfo(&sp);
+-  crypto_cpuinfo_has_broken_neon(&sp);
+   return 0;
+ }
+diff --git a/include/openssl/crypto.h b/include/openssl/crypto.h
+index 5c7665d44..6fb821947 100644
+--- a/include/openssl/crypto.h
++++ b/include/openssl/crypto.h
+@@ -75,8 +75,7 @@ OPENSSL_EXPORT void CRYPTO_pre_sandbox_init(void);
+ 
+ #if defined(OPENSSL_ARM) && defined(OPENSSL_LINUX) && \
+     !defined(OPENSSL_STATIC_ARMCAP)
+-// CRYPTO_has_broken_NEON returns one if the current CPU is known to have a
+-// broken NEON unit. See https://crbug.com/341598.
++// CRYPTO_has_broken_NEON returns zero.
+ OPENSSL_EXPORT int CRYPTO_has_broken_NEON(void);
+ 
+ // CRYPTO_needs_hwcap2_workaround returns one if the ARMv8 AArch32 AT_HWCAP2

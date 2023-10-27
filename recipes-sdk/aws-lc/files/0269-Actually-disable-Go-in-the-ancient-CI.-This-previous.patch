@@ -1,0 +1,23 @@
+From 1ff8976c8dee5ae9027daf3886b92b7cd9e31aed Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Tue, 4 Apr 2023 01:16:30 -0700
+Subject: [PATCH] Actually disable Go in the ancient CI. This previously worked
+ because we never checked if go was found or not, and in the case of disabling
+ testing and libssl nothing attempted to use Go. cmake/go.cmake now has more
+ sanity checks and detects that the docker container doesn't have Go
+ installed.
+
+---
+ tests/ci/run_legacy_build.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tests/ci/run_legacy_build.sh b/tests/ci/run_legacy_build.sh
+index 6858c2f8b..188b5d97c 100755
+--- a/tests/ci/run_legacy_build.sh
++++ b/tests/ci/run_legacy_build.sh
+@@ -15,4 +15,4 @@ echo "Testing gcc 4.1.2 / 4.1.3 support."
+ # but the certificates on the ancient ubuntu are expired and the ancient 
+ # tools are insufficient to update the certificates.
+ # The build flags used are the same as our ancient internal build.
+-run_build  -DBUILD_TESTING=OFF -DBUILD_LIBSSL=OFF -DCMAKE_BUILD_TYPE=Debug -DMY_ASSEMBLER_IS_TOO_OLD_FOR_AVX=ON -std=gnu99 -fgnu89-inline
++run_build  -DDISABLE_GO=ON -DBUILD_TESTING=OFF -DBUILD_LIBSSL=OFF -DCMAKE_BUILD_TYPE=Debug -DMY_ASSEMBLER_IS_TOO_OLD_FOR_AVX=ON -std=gnu99 -fgnu89-inline

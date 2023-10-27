@@ -1,0 +1,250 @@
+From 7257f908553524c31dc7e125009f63702edf04d1 Mon Sep 17 00:00:00 2001
+From: Adam Langley <agl@chromium.org>
+Date: Mon, 8 May 2023 11:35:14 -0700
+Subject: [PATCH] Use a helper function to implement get_all_foo_names
+ functions.
+
+Saves some duplicated logic.
+
+Change-Id: I202fa92a88101f9ad735648bc414ab05752641da
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59685
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit c215ce7e8230786e0d4ec463d95a9e44af513e6a)
+---
+ include/openssl/span.h |  5 +++++
+ ssl/internal.h         | 22 ++++++++++++++++++++++
+ ssl/ssl_cipher.cc      | 24 +++++++-----------------
+ ssl/ssl_key_share.cc   |  8 ++------
+ ssl/ssl_privkey.cc     | 35 +++++++++++++----------------------
+ ssl/ssl_versions.cc    | 23 +++++++++--------------
+ 6 files changed, 58 insertions(+), 59 deletions(-)
+
+diff --git a/include/openssl/span.h b/include/openssl/span.h
+index 79f1d4166..27e8e89a6 100644
+--- a/include/openssl/span.h
++++ b/include/openssl/span.h
+@@ -213,6 +213,11 @@ auto MakeConstSpan(const C &c) -> decltype(MakeConstSpan(c.data(), c.size())) {
+   return MakeConstSpan(c.data(), c.size());
+ }
+ 
++template <typename T, size_t size>
++Span<const T> MakeConstSpan(T (&array)[size]) {
++  return Span<const T>(array, size);
++}
++
+ BSSL_NAMESPACE_END
+ 
+ }  // extern C++
+diff --git a/ssl/internal.h b/ssl/internal.h
+index 0f23d8b44..8f49602a5 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -459,6 +459,28 @@ class GrowableArray {
+ // CBBFinishArray behaves like |CBB_finish| but stores the result in an Array.
+ OPENSSL_EXPORT bool CBBFinishArray(CBB *cbb, Array<uint8_t> *out);
+ 
++// GetAllNames helps to implement |*_get_all_*_names| style functions. It
++// writes at most |max_out| string pointers to |out| and returns the number that
++// it would have liked to have written. The strings written consist of
++// |fixed_names_len| strings from |fixed_names| followed by |objects_len|
++// strings taken by projecting |objects| through |name|.
++template <typename T, typename Name>
++inline size_t GetAllNames(const char **out, size_t max_out,
++                          Span<const char *const> fixed_names, Name(T::*name),
++                          Span<const T> objects) {
++  auto span = bssl::MakeSpan(out, max_out);
++  for (size_t i = 0; !span.empty() && i < fixed_names.size(); i++) {
++    span[0] = fixed_names[i];
++    span = span.subspan(1);
++  }
++  span = span.subspan(0, objects.size());
++  for (size_t i = 0; i < span.size(); i++) {
++    span[i] = objects[i].*name;
++  }
++  return fixed_names.size() + objects.size();
++}
++
++
+ // Protocol versions.
+ //
+ // Due to DTLS's historical wire version differences, we maintain two notions of
+diff --git a/ssl/ssl_cipher.cc b/ssl/ssl_cipher.cc
+index b7c3862e0..1cab4ec9a 100644
+--- a/ssl/ssl_cipher.cc
++++ b/ssl/ssl_cipher.cc
+@@ -1567,13 +1567,15 @@ uint16_t SSL_CIPHER_get_max_version(const SSL_CIPHER *cipher) {
+   return TLS1_2_VERSION;
+ }
+ 
++static const char* kUnknownCipher = "(NONE)";
++
+ // return the actual cipher being used
+ const char *SSL_CIPHER_get_name(const SSL_CIPHER *cipher) {
+   if (cipher != NULL) {
+     return cipher->name;
+   }
+ 
+-  return "(NONE)";
++  return kUnknownCipher;
+ }
+ 
+ const char *SSL_CIPHER_standard_name(const SSL_CIPHER *cipher) {
+@@ -1805,23 +1807,11 @@ int SSL_COMP_get_id(const SSL_COMP *comp) { return comp->id; }
+ void SSL_COMP_free_compression_methods(void) {}
+ 
+ size_t SSL_get_all_cipher_names(const char **out, size_t max_out) {
+-  auto span = MakeSpan(out, max_out);
+-  if (!span.empty()) {
+-    // |SSL_CIPHER_get_name| returns "(NONE)" for null.
+-    span[0] = "(NONE)";
+-    span = span.subspan(1);
+-  }
+-  span = span.subspan(0, OPENSSL_ARRAY_SIZE(kCiphers));
+-  for (size_t i = 0; i < span.size(); i++) {
+-    span[i] = kCiphers[i].name;
+-  }
+-  return 1 + OPENSSL_ARRAY_SIZE(kCiphers);
++  return GetAllNames(out, max_out, MakeConstSpan(&kUnknownCipher, 1),
++                     &SSL_CIPHER::name, MakeConstSpan(kCiphers));
+ }
+ 
+ size_t SSL_get_all_standard_cipher_names(const char **out, size_t max_out) {
+-  auto span = MakeSpan(out, max_out).subspan(0, OPENSSL_ARRAY_SIZE(kCiphers));
+-  for (size_t i = 0; i < span.size(); i++) {
+-    span[i] = kCiphers[i].standard_name;
+-  }
+-  return OPENSSL_ARRAY_SIZE(kCiphers);
++  return GetAllNames(out, max_out, Span<const char *>(),
++                     &SSL_CIPHER::standard_name, MakeConstSpan(kCiphers));
+ }
+diff --git a/ssl/ssl_key_share.cc b/ssl/ssl_key_share.cc
+index 2b8c26763..704860c1f 100644
+--- a/ssl/ssl_key_share.cc
++++ b/ssl/ssl_key_share.cc
+@@ -254,10 +254,6 @@ const char* SSL_get_curve_name(uint16_t group_id) {
+ }
+ 
+ size_t SSL_get_all_curve_names(const char **out, size_t max_out) {
+-  auto span =
+-      MakeSpan(out, max_out).subspan(0, OPENSSL_ARRAY_SIZE(kNamedGroups));
+-  for (size_t i = 0; i < span.size(); i++) {
+-    span[i] = kNamedGroups[i].name;
+-  }
+-  return OPENSSL_ARRAY_SIZE(kNamedGroups);
++  return GetAllNames(out, max_out, Span<const char *>(), &NamedGroup::name,
++                     MakeConstSpan(kNamedGroups));
+ }
+diff --git a/ssl/ssl_privkey.cc b/ssl/ssl_privkey.cc
+index 6c65d6986..2258b158f 100644
+--- a/ssl/ssl_privkey.cc
++++ b/ssl/ssl_privkey.cc
+@@ -512,12 +512,14 @@ void SSL_CTX_set_private_key_method(SSL_CTX *ctx,
+ 
+ static constexpr size_t kMaxSignatureAlgorithmNameLen = 23;
+ 
+-// This was "constexpr" rather than "const", but that triggered a bug in MSVC
+-// where it didn't pad the strings to the correct length.
+-static const struct {
++struct SignatureAlgorithmName {
+   uint16_t signature_algorithm;
+   const char name[kMaxSignatureAlgorithmNameLen];
+-} kSignatureAlgorithmNames[] = {
++};
++
++// This was "constexpr" rather than "const", but that triggered a bug in MSVC
++// where it didn't pad the strings to the correct length.
++static const SignatureAlgorithmName kSignatureAlgorithmNames[] = {
+     {SSL_SIGN_RSA_PKCS1_MD5_SHA1, "rsa_pkcs1_md5_sha1"},
+     {SSL_SIGN_RSA_PKCS1_SHA1, "rsa_pkcs1_sha1"},
+     {SSL_SIGN_RSA_PKCS1_SHA256, "rsa_pkcs1_sha256"},
+@@ -543,6 +545,8 @@ const char *SSL_get_signature_algorithm_name(uint16_t sigalg,
+         return "ecdsa_sha384";
+       case SSL_SIGN_ECDSA_SECP521R1_SHA512:
+         return "ecdsa_sha512";
++        // If adding more here, also update
++        // |SSL_get_all_signature_algorithm_names|.
+     }
+   }
+ 
+@@ -556,24 +560,11 @@ const char *SSL_get_signature_algorithm_name(uint16_t sigalg,
+ }
+ 
+ size_t SSL_get_all_signature_algorithm_names(const char **out, size_t max_out) {
+-  auto span = MakeSpan(out, max_out);
+-  if (!span.empty()) {
+-    span[0] = "ecdsa_sha256";
+-    span = span.subspan(1);
+-  }
+-  if (!span.empty()) {
+-    span[0] = "ecdsa_sha384";
+-    span = span.subspan(1);
+-  }
+-  if (!span.empty()) {
+-    span[0] = "ecdsa_sha512";
+-    span = span.subspan(1);
+-  }
+-  span = span.subspan(0, OPENSSL_ARRAY_SIZE(kSignatureAlgorithmNames));
+-  for (size_t i = 0; i < span.size(); i++) {
+-    span[i] = kSignatureAlgorithmNames[i].name;
+-  }
+-  return 3 + OPENSSL_ARRAY_SIZE(kSignatureAlgorithmNames);
++  const char *kPredefinedNames[] = {"ecdsa_sha256", "ecdsa_sha384",
++                                    "ecdsa_sha512"};
++  return GetAllNames(out, max_out, MakeConstSpan(kPredefinedNames),
++                     &SignatureAlgorithmName::name,
++                     MakeConstSpan(kSignatureAlgorithmNames));
+ }
+ 
+ int SSL_get_signature_algorithm_key_type(uint16_t sigalg) {
+diff --git a/ssl/ssl_versions.cc b/ssl/ssl_versions.cc
+index a836606d0..db298fb52 100644
+--- a/ssl/ssl_versions.cc
++++ b/ssl/ssl_versions.cc
+@@ -85,10 +85,14 @@ bool ssl_method_supports_version(const SSL_PROTOCOL_METHOD *method,
+ // The following functions map between API versions and wire versions. The
+ // public API works on wire versions.
+ 
+-static const struct {
++static const char* kUnknownVersion = "unknown";
++
++struct VersionInfo {
+   uint16_t version;
+   const char *name;
+-} kVersionNames[] = {
++};
++
++static const VersionInfo kVersionNames[] = {
+     {TLS1_3_VERSION, "TLSv1.3"},
+     {TLS1_2_VERSION, "TLSv1.2"},
+     {TLS1_1_VERSION, "TLSv1.1"},
+@@ -103,7 +107,7 @@ static const char *ssl_version_to_string(uint16_t version) {
+       return v.name;
+     }
+   }
+-  return "unknown";
++  return kUnknownVersion;
+ }
+ 
+ static uint16_t wire_version_to_api(uint16_t version) {
+@@ -383,17 +387,8 @@ const char *SSL_get_version(const SSL *ssl) {
+ }
+ 
+ size_t SSL_get_all_version_names(const char **out, size_t max_out) {
+-  auto span = MakeSpan(out, max_out);
+-  if (!span.empty()) {
+-    // |ssl_version_to_string| returns "unknown" for unknown versions.
+-    span[0] = "unknown";
+-    span = span.subspan(1);
+-  }
+-  span = span.subspan(0, OPENSSL_ARRAY_SIZE(kVersionNames));
+-  for (size_t i = 0; i < span.size(); i++) {
+-    span[i] = kVersionNames[i].name;
+-  }
+-  return 1 + OPENSSL_ARRAY_SIZE(kVersionNames);
++  return GetAllNames(out, max_out, MakeConstSpan(&kUnknownVersion, 1),
++                     &VersionInfo::name, MakeConstSpan(kVersionNames));
+ }
+ 
+ const char *SSL_SESSION_get_version(const SSL_SESSION *session) {

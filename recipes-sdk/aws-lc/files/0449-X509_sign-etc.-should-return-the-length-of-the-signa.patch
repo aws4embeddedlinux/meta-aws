@@ -1,0 +1,152 @@
+From 7eab0da70b7134a3044e0a28f399de8ae635ae32 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 25 Apr 2023 21:45:00 -0400
+Subject: [PATCH] X509_sign, etc., should return the length of the signature on
+ success
+
+Prior to https://boringssl-review.googlesource.com/c/boringssl/+/58548,
+ASN1_item_sign_ctx returned the length of the signature on success. It's
+unclear why anyone would ever want this, but some test was sensitive to
+it. (I think it was a typo.)
+
+Restore the old behavior.
+
+Change-Id: Ibf3e45331a339226744d51df703634d02b08a7c4
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59307
+Reviewed-by: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit 0c7527bb3a34a95387856827702bbb46c408457d)
+---
+ crypto/x509/a_sign.c     |  2 +-
+ crypto/x509/x509_test.cc |  7 +++++-
+ include/openssl/x509.h   | 53 ++++++++++++++++++++--------------------
+ 3 files changed, 34 insertions(+), 28 deletions(-)
+
+diff --git a/crypto/x509/a_sign.c b/crypto/x509/a_sign.c
+index 8ee477988..7f80e5b02 100644
+--- a/crypto/x509/a_sign.c
++++ b/crypto/x509/a_sign.c
+@@ -126,7 +126,7 @@ int ASN1_item_sign_ctx(const ASN1_ITEM *it, X509_ALGOR *algor1,
+   out = NULL;
+   signature->flags &= ~(ASN1_STRING_FLAG_BITS_LEFT | 0x07);
+   signature->flags |= ASN1_STRING_FLAG_BITS_LEFT;
+-  ret = 1;
++  ret = (int)out_len;
+ 
+ err:
+   EVP_MD_CTX_cleanup(ctx);
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index eaa163e0d..243d7b9e6 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -2436,7 +2436,12 @@ TEST(X509Test, SignCertificate) {
+         ASSERT_TRUE(
+             X509_set1_signature_value(cert.get(), sig.data(), sig.size()));
+       } else {
+-        ASSERT_TRUE(X509_sign(cert.get(), pkey.get(), EVP_sha384()));
++        int ret = X509_sign(cert.get(), pkey.get(), EVP_sha384());
++        ASSERT_GT(ret, 0);
++        // |X509_sign| returns the length of the signature on success.
++        const ASN1_BIT_STRING *sig;
++        X509_get0_signature(&sig, /*out_alg=*/nullptr, cert.get());
++        EXPECT_EQ(ret, ASN1_STRING_length(sig));
+       }
+ 
+       // Check the signature.
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index d50cbde1d..c35363ffd 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -355,16 +355,17 @@ OPENSSL_EXPORT X509_EXTENSION *X509_delete_ext(X509 *x, int loc);
+ OPENSSL_EXPORT int X509_add_ext(X509 *x, const X509_EXTENSION *ex, int loc);
+ 
+ // X509_sign signs |x509| with |pkey| and replaces the signature algorithm and
+-// signature fields. It returns one on success and zero on error. This function
+-// uses digest algorithm |md|, or |pkey|'s default if NULL. Other signing
+-// parameters use |pkey|'s defaults. To customize them, use |X509_sign_ctx|.
++// signature fields. It returns the length of the signature on success and zero
++// on error. This function uses digest algorithm |md|, or |pkey|'s default if
++// NULL. Other signing parameters use |pkey|'s defaults. To customize them, use
++// |X509_sign_ctx|.
+ OPENSSL_EXPORT int X509_sign(X509 *x509, EVP_PKEY *pkey, const EVP_MD *md);
+ 
+ // X509_sign_ctx signs |x509| with |ctx| and replaces the signature algorithm
+-// and signature fields. It returns one on success and zero on error. The
+-// signature algorithm and parameters come from |ctx|, which must have been
+-// initialized with |EVP_DigestSignInit|. The caller should configure the
+-// corresponding |EVP_PKEY_CTX| before calling this function.
++// and signature fields. It returns the length of the signature on success and
++// zero on error. The signature algorithm and parameters come from |ctx|, which
++// must have been initialized with |EVP_DigestSignInit|. The caller should
++// configure the corresponding |EVP_PKEY_CTX| before calling this function.
+ OPENSSL_EXPORT int X509_sign_ctx(X509 *x509, EVP_MD_CTX *ctx);
+ 
+ // i2d_re_X509_tbs serializes the TBSCertificate portion of |x509|, as described
+@@ -642,18 +643,18 @@ OPENSSL_EXPORT int X509_CRL_add_ext(X509_CRL *x, const X509_EXTENSION *ex,
+                                     int loc);
+ 
+ // X509_CRL_sign signs |crl| with |pkey| and replaces the signature algorithm
+-// and signature fields. It returns one on success and zero on error. This
+-// function uses digest algorithm |md|, or |pkey|'s default if NULL. Other
+-// signing parameters use |pkey|'s defaults. To customize them, use
+-// |X509_CRL_sign_ctx|.
++// and signature fields. It returns the length of the signature on success and
++// zero on error. This function uses digest algorithm |md|, or |pkey|'s default
++// if NULL. Other signing parameters use |pkey|'s defaults. To customize them,
++// use |X509_CRL_sign_ctx|.
+ OPENSSL_EXPORT int X509_CRL_sign(X509_CRL *crl, EVP_PKEY *pkey,
+                                  const EVP_MD *md);
+ 
+ // X509_CRL_sign_ctx signs |crl| with |ctx| and replaces the signature algorithm
+-// and signature fields. It returns one on success and zero on error. The
+-// signature algorithm and parameters come from |ctx|, which must have been
+-// initialized with |EVP_DigestSignInit|. The caller should configure the
+-// corresponding |EVP_PKEY_CTX| before calling this function.
++// and signature fields. It returns the length of the signature on success and
++// zero on error. The signature algorithm and parameters come from |ctx|, which
++// must have been initialized with |EVP_DigestSignInit|. The caller should
++// configure the corresponding |EVP_PKEY_CTX| before calling this function.
+ OPENSSL_EXPORT int X509_CRL_sign_ctx(X509_CRL *crl, EVP_MD_CTX *ctx);
+ 
+ // i2d_re_X509_CRL_tbs serializes the TBSCertList portion of |crl|, as described
+@@ -881,18 +882,18 @@ OPENSSL_EXPORT int X509_REQ_add_extensions(
+     X509_REQ *req, const STACK_OF(X509_EXTENSION) *exts);
+ 
+ // X509_REQ_sign signs |req| with |pkey| and replaces the signature algorithm
+-// and signature fields. It returns one on success and zero on error. This
+-// function uses digest algorithm |md|, or |pkey|'s default if NULL. Other
+-// signing parameters use |pkey|'s defaults. To customize them, use
+-// |X509_REQ_sign_ctx|.
++// and signature fields. It returns the length of the signature on success and
++// zero on error. This function uses digest algorithm |md|, or |pkey|'s default
++// if NULL. Other signing parameters use |pkey|'s defaults. To customize them,
++// use |X509_REQ_sign_ctx|.
+ OPENSSL_EXPORT int X509_REQ_sign(X509_REQ *req, EVP_PKEY *pkey,
+                                  const EVP_MD *md);
+ 
+ // X509_REQ_sign_ctx signs |req| with |ctx| and replaces the signature algorithm
+-// and signature fields. It returns one on success and zero on error. The
+-// signature algorithm and parameters come from |ctx|, which must have been
+-// initialized with |EVP_DigestSignInit|. The caller should configure the
+-// corresponding |EVP_PKEY_CTX| before calling this function.
++// and signature fields. It returns the length of the signature on success and
++// zero on error. The signature algorithm and parameters come from |ctx|, which
++// must have been initialized with |EVP_DigestSignInit|. The caller should
++// configure the corresponding |EVP_PKEY_CTX| before calling this function.
+ OPENSSL_EXPORT int X509_REQ_sign_ctx(X509_REQ *req, EVP_MD_CTX *ctx);
+ 
+ // i2d_re_X509_REQ_tbs serializes the CertificationRequestInfo (see RFC 2986)
+@@ -2201,9 +2202,9 @@ OPENSSL_EXPORT int NETSCAPE_SPKI_set_pubkey(NETSCAPE_SPKI *spki,
+                                             EVP_PKEY *pkey);
+ 
+ // NETSCAPE_SPKI_sign signs |spki| with |pkey| and replaces the signature
+-// algorithm and signature fields. It returns one on success and zero on error.
+-// This function uses digest algorithm |md|, or |pkey|'s default if NULL. Other
+-// signing parameters use |pkey|'s defaults.
++// algorithm and signature fields. It returns the length of the signature on
++// success and zero on error. This function uses digest algorithm |md|, or
++// |pkey|'s default if NULL. Other signing parameters use |pkey|'s defaults.
+ OPENSSL_EXPORT int NETSCAPE_SPKI_sign(NETSCAPE_SPKI *spki, EVP_PKEY *pkey,
+                                       const EVP_MD *md);
+ 

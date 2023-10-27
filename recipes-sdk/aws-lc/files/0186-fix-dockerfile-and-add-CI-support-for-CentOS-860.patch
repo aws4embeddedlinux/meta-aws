@@ -1,0 +1,88 @@
+From 039cd026e109bd130fd0ace4e6e427e7be4c8e63 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Fri, 10 Mar 2023 12:43:54 -0800
+Subject: [PATCH] fix dockerfile and add CI support for CentOS (#860)
+
+---
+ .../codebuild/github_ci_linux_x86_omnibus.yaml  | 17 +++++++++++++++++
+ .../ci/docker_images/linux-x86/build_images.sh  |  1 +
+ .../linux-x86/centos-8_gcc-8x/Dockerfile        |  8 ++++----
+ tests/ci/docker_images/linux-x86/push_images.sh |  1 +
+ 4 files changed, 23 insertions(+), 4 deletions(-)
+
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+index 58f103671..6319e6103 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+@@ -220,6 +220,23 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:centos-7_gcc-4x_latest
+ 
++    - identifier: centos8_gcc8x_x86_64
++      buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: true
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:centos-8_gcc-8x_latest
++
++    - identifier: centos8_gcc8x_x86_64_fips
++      buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: true
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:centos-8_gcc-8x_latest
++
++
+     - identifier: amazonlinux2_gcc7x_x86_64
+       buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
+       env:
+diff --git a/tests/ci/docker_images/linux-x86/build_images.sh b/tests/ci/docker_images/linux-x86/build_images.sh
+index e255afbd5..283d735ce 100755
+--- a/tests/ci/docker_images/linux-x86/build_images.sh
++++ b/tests/ci/docker_images/linux-x86/build_images.sh
+@@ -38,6 +38,7 @@ docker build -t amazonlinux-2022:clang-14x-sanitizer amazonlinux-2022_clang-14x_
+ docker build -t amazonlinux-2022:cryptofuzz -f amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile ../dependencies
+ docker build -t ubuntu-16.04:gcc-5x -f ubuntu-16.04_gcc-5x/Dockerfile ../dependencies
+ docker build -t centos-7:gcc-4x -f centos-7_gcc-4x/Dockerfile ../dependencies
++docker build -t centos-8:gcc-8x -f centos-8_gcc-8x/Dockerfile ../dependencies
+ docker build -t fedora-31:clang-9x -f fedora-31_clang-9x/Dockerfile ../dependencies
+ ###########################################################
+ # Build images defined in aws-lc-verification GitHub repo #
+diff --git a/tests/ci/docker_images/linux-x86/centos-8_gcc-8x/Dockerfile b/tests/ci/docker_images/linux-x86/centos-8_gcc-8x/Dockerfile
+index dc4490d23..6f8e4f146 100644
+--- a/tests/ci/docker_images/linux-x86/centos-8_gcc-8x/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/centos-8_gcc-8x/Dockerfile
+@@ -10,9 +10,9 @@ ENV PATH="$GOROOT/bin:$PATH"
+ RUN set -ex && \
+     sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-* && \
+     sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-* && \
+-    yum -y update && \
+-    yum --enablerepo=extras install epel-release -y && \
+-    yum -y install \
++    dnf -y distro-sync && \
++    yum -y --enablerepo=extras install epel-release && \
++    yum -y --enablerepo=powertools install \
+     gcc \
+     libgcc.i686 \
+     glibc-devel.x86_64 \
+@@ -40,4 +40,4 @@ ENV CC=gcc
+ ENV CXX=g++
+ 
+ COPY install_common_dependencies.sh /
+-RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+\ No newline at end of file
++RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-x86/push_images.sh b/tests/ci/docker_images/linux-x86/push_images.sh
+index 694ca5405..377f3187b 100755
+--- a/tests/ci/docker_images/linux-x86/push_images.sh
++++ b/tests/ci/docker_images/linux-x86/push_images.sh
+@@ -30,6 +30,7 @@ tag_and_push_img 'ubuntu-20.04:gcc-8x' "${ECS_REPO}:ubuntu-20.04_gcc-8x"
+ tag_and_push_img 'ubuntu-22.04:gcc-11x' "${ECS_REPO}:ubuntu-22.04_gcc-11x"
+ tag_and_push_img 'ubuntu-22.04:gcc-12x' "${ECS_REPO}:ubuntu-22.04_gcc-12x"
+ tag_and_push_img 'centos-7:gcc-4x' "${ECS_REPO}:centos-7_gcc-4x"
++tag_and_push_img 'centos-8:gcc-8x' "${ECS_REPO}:centos-8_gcc-8x"
+ tag_and_push_img 'amazonlinux-2:gcc-7x' "${ECS_REPO}:amazonlinux-2_gcc-7x"
+ tag_and_push_img 'amazonlinux-2:clang-7x' "${ECS_REPO}:amazonlinux-2_clang-7x"
+ tag_and_push_img 'amazonlinux-2:gcc-7x-intel-sde' "${ECS_REPO}:amazonlinux-2_gcc-7x_intel-sde"

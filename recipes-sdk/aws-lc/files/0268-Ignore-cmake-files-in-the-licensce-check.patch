@@ -1,0 +1,22 @@
+From 6ce1a05cd40ae94eb4dc5cd5404a998b44938419 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Fri, 31 Mar 2023 18:09:56 -0700
+Subject: [PATCH] Ignore cmake files in the licensce check
+
+---
+ tests/check_licenses.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tests/check_licenses.go b/tests/check_licenses.go
+index 19deb7094..7883f3a99 100644
+--- a/tests/check_licenses.go
++++ b/tests/check_licenses.go
+@@ -20,7 +20,7 @@ func main() {
+ 		"|Intel" +
+ 		"|Marc Bevand" +
+ 		"|OpenSSL license|OpenSSL Project)")
+-	filematcher, _ := regexp.Compile("(Dockerfile|\\.(ASM|c|cc|cmake|h|sh|go|pl|ps1|yml|s|S))$")
++	filematcher, _ := regexp.Compile("(Dockerfile|\\.(ASM|c|cc|h|sh|go|pl|ps1|yml|s|S))$")
+ 
+ 	var files []string
+ 	var unlicensed_files []string

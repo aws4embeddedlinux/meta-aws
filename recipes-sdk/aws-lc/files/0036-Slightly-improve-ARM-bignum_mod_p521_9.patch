@@ -1,0 +1,80 @@
+From 783b2b3bf9f8ece40228bfdcecb7065b684ff49c Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Fri, 1 Oct 2021 13:43:46 -0700
+Subject: [PATCH] Slightly improve ARM bignum_mod_p521_9
+
+This saves an instruction (and seems faster on Graviton2) by
+stuffing with 1 bits from bits 521 upwards to get a direct
+carry, as is already done in some other P-521 functions.
+
+This also fixes a few cut-and-paste errors in comments and
+removes bignum_mod_n521_9 from the non-ADX/BMI tests on x86.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/0667cb03ea243dda508223bf358f6620607a75a8
+---
+ arm/p384/bignum_tomont_p384.S     |  2 +-
+ arm/p521/bignum_mod_p521_9.S      | 14 +++++---------
+ x86_att/p384/bignum_tomont_p384.S |  2 +-
+ 3 files changed, 7 insertions(+), 11 deletions(-)
+
+diff --git a/arm/p384/bignum_tomont_p384.S b/arm/p384/bignum_tomont_p384.S
+index 7f86fd796..4c651b052 100644
+--- a/arm/p384/bignum_tomont_p384.S
++++ b/arm/p384/bignum_tomont_p384.S
+@@ -14,7 +14,7 @@
+  */
+ 
+ // ----------------------------------------------------------------------------
+-// Convert to Montgomery form z := (2^256 * x) mod p_256
++// Convert to Montgomery form z := (2^384 * x) mod p_384
+ // Input x[6]; output z[6]
+ //
+ //    extern void bignum_tomont_p384
+diff --git a/arm/p521/bignum_mod_p521_9.S b/arm/p521/bignum_mod_p521_9.S
+index 0887d5fe6..2502e780b 100644
+--- a/arm/p521/bignum_mod_p521_9.S
++++ b/arm/p521/bignum_mod_p521_9.S
+@@ -56,9 +56,9 @@ bignum_mod_p521_9:
+ // digits d7,...,d1 consist entirely of 1 bits, we can condense the
+ // carry chain by ANDing digits together, perhaps reducing its latency.
+ // This condenses only three pairs; the payoff beyond that seems limited.
++// By stuffing in 1 bits from 521 position upwards, get CF directly
+ 
+                 subs    xzr, xzr, xzr
+-
+                 ldp     d0, d1, [x]
+                 adcs    xzr, d0, h
+                 adcs    xzr, d1, xzr
+@@ -71,15 +71,11 @@ bignum_mod_p521_9:
+                 ldp     d6, d7, [x, #48]
+                 and     t, d6, d7
+                 adcs    xzr, t, xzr
++                orr     t, d8, #~0x1FF
++                adcs    t, t, xzr
+ 
+-                and     t, d8, #0x1FF
+-                adc     t, t, xzr
+-
+-// Now H + L >= p_521 <=> H + L + 1 >= 2^521 <=> CF from this comparison
+-
+-                cmp     t, #512
+-
+-// Now if CF is set we want (H + L) - p_521 = (H + L + 1) - 2^521
++// Now H + L >= p_521 <=> H + L + 1 >= 2^521 <=> CF from this comparison.
++// So if CF is set we want (H + L) - p_521 = (H + L + 1) - 2^521
+ // while otherwise we want just H + L. So mask H + L + CF to 521 bits.
+ 
+                 adcs    d0, d0, h
+diff --git a/x86_att/p384/bignum_tomont_p384.S b/x86_att/p384/bignum_tomont_p384.S
+index 9491cfe74..d7f29bf6b 100644
+--- a/x86_att/p384/bignum_tomont_p384.S
++++ b/x86_att/p384/bignum_tomont_p384.S
+@@ -14,7 +14,7 @@
+  */
+ 
+ // ----------------------------------------------------------------------------
+-// Convert to Montgomery form z := (2^256 * x) mod p_256
++// Convert to Montgomery form z := (2^384 * x) mod p_384
+ // Input x[6]; output z[6]
+ //
+ //    extern void bignum_tomont_p384

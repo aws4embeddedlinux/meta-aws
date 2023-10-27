@@ -1,0 +1,47 @@
+From b378a91043ba2becdc8c275b6e36e3aaf39abdca Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 21 Apr 2023 15:44:49 -0400
+Subject: [PATCH] Remove unimplemented SSL BIO_ctrl values
+
+We have since added an implementation of a subset of the SSL BIO, but we
+don't implement all the features, notably some of the BIO_ctrl values.
+Remove them, so it doesn't look like they should work.
+
+Update-Note: I found no code using those symbols (that we build). If
+anything was, they most likely were broken. Now they'll fail to build
+and the brokenness will be more obvious. (If we find something needs it,
+we can always go back and implement them.)
+
+Fixed: 420
+Change-Id: Iad03fa65f098023dca555a9b2ac0214ba4264546
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59125
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit 691e45a9718e5e326b9af9843ab240fae8a07481)
+---
+ include/openssl/bio.h | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/include/openssl/bio.h b/include/openssl/bio.h
+index db79f8d48..cb8902edf 100644
+--- a/include/openssl/bio.h
++++ b/include/openssl/bio.h
+@@ -933,7 +933,6 @@ struct bio_st {
+ #define BIO_C_GET_FILE_PTR 107
+ #define BIO_C_SET_FILENAME 108
+ #define BIO_C_SET_SSL 109
+-#define BIO_C_GET_SSL 110
+ #define BIO_C_SET_MD 111
+ #define BIO_C_GET_MD 112
+ #define BIO_C_GET_CIPHER_STATUS 113
+@@ -947,9 +946,6 @@ struct bio_st {
+ #define BIO_C_GET_PROXY_PARAM 121
+ #define BIO_C_SET_BUFF_READ_DATA 122  // data to read first
+ #define BIO_C_GET_ACCEPT 124
+-#define BIO_C_SET_SSL_RENEGOTIATE_BYTES 125
+-#define BIO_C_GET_SSL_NUM_RENEGOTIATES 126
+-#define BIO_C_SET_SSL_RENEGOTIATE_TIMEOUT 127
+ #define BIO_C_FILE_SEEK 128
+ #define BIO_C_GET_CIPHER_CTX 129
+ #define BIO_C_SET_BUF_MEM_EOF_RETURN 130  // return end of input value

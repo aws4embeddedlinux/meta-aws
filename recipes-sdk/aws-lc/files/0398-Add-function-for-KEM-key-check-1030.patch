@@ -1,0 +1,151 @@
+From ebaa07a207fee02bd68fe8d65f6b624afbf29394 Mon Sep 17 00:00:00 2001
+From: dkostic <25055813+dkostic@users.noreply.github.com>
+Date: Fri, 2 Jun 2023 10:28:24 -0700
+Subject: [PATCH] Add function for KEM key check (#1030)
+
+This change adds a public function `EVP_PKEY_kem_check_key`
+that accepts an `EVP_PKEY` of type `EVP_PKEY_KEM` and returns 1
+if the public and secret key from the given `EVP_PKEY` match.
+Otherwise, it returns 0. The check is performed by doing
+encapsulation/decapsulation and checking that the generated
+shared secrets are equal.
+---
+ crypto/evp_extra/evp_extra_test.cc | 23 ++++++++++-
+ crypto/evp_extra/p_kem.c           | 62 ++++++++++++++++++++++++++++++
+ include/openssl/evp.h              |  5 +++
+ 3 files changed, 89 insertions(+), 1 deletion(-)
+
+diff --git a/crypto/evp_extra/evp_extra_test.cc b/crypto/evp_extra/evp_extra_test.cc
+index be982e54b..c24fb4e0a 100644
+--- a/crypto/evp_extra/evp_extra_test.cc
++++ b/crypto/evp_extra/evp_extra_test.cc
+@@ -2383,6 +2383,7 @@ TEST_P(PerKEMTest, RawKeyOperations) {
+   ASSERT_TRUE(pkey_pk_new);
+   ASSERT_TRUE(pkey_sk_new);
+   ASSERT_TRUE(pkey_new);
++  ASSERT_TRUE(EVP_PKEY_kem_check_key(pkey_new.get()));
+ 
+   // ---- 5. Test encaps/decaps with new keys ----
+   // Create Alice's context with the new key that has both
+@@ -2403,7 +2404,7 @@ TEST_P(PerKEMTest, RawKeyOperations) {
+   // Bob encapsulates.
+   ASSERT_TRUE(EVP_PKEY_encapsulate(b_ctx.get(), b_ct.data(), &ct_len, b_ss.data(), &ss_len));
+ 
+-  // Alice decapsulates
++  // Alice decapsulates.
+   std::vector<uint8_t> a_ss(ss_len); // The shared secret.
+   ASSERT_TRUE(EVP_PKEY_decapsulate(a_ctx.get(), a_ss.data(), &ss_len, b_ct.data(), ct_len));
+ 
+@@ -2536,6 +2537,26 @@ TEST_P(PerKEMTest, RawKeyOperations) {
+   err = ERR_get_error();
+   EXPECT_EQ(ERR_LIB_EVP, ERR_GET_LIB(err));
+   EXPECT_EQ(EVP_R_INVALID_BUFFER_SIZE, ERR_GET_REASON(err));
++
++  pk_len = GetParam().public_key_len;
++  sk_len = GetParam().secret_key_len;
++
++  //  Failures for key validation.
++  pkey_pk_new.reset(EVP_PKEY_kem_new_raw_public_key(nid, pk.data(), pk_len));
++  pkey_sk_new.reset(EVP_PKEY_kem_new_raw_secret_key(nid, sk.data(), sk_len));
++  pkey_new.reset(EVP_PKEY_kem_new_raw_key(nid, pk.data(), pk_len, sk.data(), sk_len));
++  ASSERT_TRUE(pkey_pk_new);
++  ASSERT_TRUE(pkey_sk_new);
++  ASSERT_TRUE(pkey_new);
++
++  //    Keys with one part missing should fail the check.
++  ASSERT_TRUE(EVP_PKEY_kem_check_key(pkey_new.get()));
++  ASSERT_FALSE(EVP_PKEY_kem_check_key(pkey_pk_new.get()));
++  ASSERT_FALSE(EVP_PKEY_kem_check_key(pkey_sk_new.get()));
++
++  //    Mismatched key pair should fail the check.
++  pkey_new->pkey.kem_key->public_key[0] ^= 1;
++  ASSERT_FALSE(EVP_PKEY_kem_check_key(pkey_new.get()));
+ }
+ 
+ TEST_P(PerKEMTest, KAT) {
+diff --git a/crypto/evp_extra/p_kem.c b/crypto/evp_extra/p_kem.c
+index 50c923dc7..69c929209 100644
+--- a/crypto/evp_extra/p_kem.c
++++ b/crypto/evp_extra/p_kem.c
+@@ -349,3 +349,65 @@ err:
+   EVP_PKEY_free(ret);
+   return NULL;
+ }
++
++// EVP_PKEY_kem_check_key validates that the public key in |key| corresponds
++// to the secret key in |key| by performing encapsulation and decapsulation
++// and checking that the generated shared secrets are equal.
++int EVP_PKEY_kem_check_key(EVP_PKEY *key) {
++  if (key == NULL || key->pkey.kem_key == NULL ||
++      key->pkey.kem_key->public_key == NULL ||
++      key->pkey.kem_key->secret_key == NULL) {
++    OPENSSL_PUT_ERROR(EVP, ERR_R_PASSED_NULL_PARAMETER);
++    return 0;
++  }
++
++  EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(key, NULL);
++  if (ctx == NULL) {
++    OPENSSL_PUT_ERROR(EVP, ERR_R_INTERNAL_ERROR);
++    return 0;
++  }
++
++  int ret = 0;
++
++  // Get the required buffer lengths and allocate the buffers.
++  size_t ct_len, ss_len;
++  uint8_t *ct = NULL, *ss_a = NULL, *ss_b = NULL;
++  if (!EVP_PKEY_encapsulate(ctx, NULL, &ct_len, NULL, &ss_len)) {
++    OPENSSL_PUT_ERROR(EVP, ERR_R_INTERNAL_ERROR);
++    goto end;
++  }
++  ct = OPENSSL_malloc(ct_len);
++  ss_a = OPENSSL_malloc(ss_len);
++  ss_b = OPENSSL_malloc(ss_len);
++  if (ct == NULL || ss_a == NULL || ss_b == NULL) {
++    OPENSSL_PUT_ERROR(EVP, ERR_R_INTERNAL_ERROR);
++    goto end;
++  }
++
++  // Encapsulate and decapsulate.
++  if (!EVP_PKEY_encapsulate(ctx, ct, &ct_len, ss_b, &ss_len) ||
++      !EVP_PKEY_decapsulate(ctx, ss_a, &ss_len, ct, ct_len)) {
++    OPENSSL_PUT_ERROR(EVP, ERR_R_INTERNAL_ERROR);
++    goto end;
++  }
++
++  // Compare the shared secrets.
++  uint8_t res = 0;
++  for (size_t i = 0; i < ss_len; i++) {
++    res |= ss_a[i] ^ ss_b[i];
++  }
++
++  // If the shared secrets |ss_a| and |ss_b| are the same then |res| is equal
++  // to zero, otherwise it's not. |constant_time_is_zero_8| returns 0xff when
++  // |res| is equal to zero, and returns 0 otherwise. To be consistent with the
++  // rest of the library, we extract only the first bit so that |ret| is either
++  // 0 or 1.
++  ret = constant_time_is_zero_8(res) & 1;
++
++end:
++  OPENSSL_free(ct);
++  OPENSSL_free(ss_a);
++  OPENSSL_free(ss_b);
++  EVP_PKEY_CTX_free(ctx);
++  return ret;
++}
+diff --git a/include/openssl/evp.h b/include/openssl/evp.h
+index a500f53ae..0d76ddb3e 100644
+--- a/include/openssl/evp.h
++++ b/include/openssl/evp.h
+@@ -921,6 +921,11 @@ OPENSSL_EXPORT EVP_PKEY *EVP_PKEY_kem_new_raw_key(int nid,
+                                                   size_t len_public,
+                                                   const uint8_t *in_secret,
+                                                   size_t len_secret);
++
++// EVP_PKEY_kem_check_key validates that the public key in |key| corresponds
++// to the secret key in |key|.
++OPENSSL_EXPORT int EVP_PKEY_kem_check_key(EVP_PKEY *key);
++
+ // Deprecated functions.
+ 
+ // EVP_PKEY_DH is defined for compatibility, but it is impossible to create an

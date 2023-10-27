@@ -1,0 +1,42 @@
+From d5c28730d64fc6e0980b54529d7b082706791355 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 17 Apr 2023 17:27:49 -0400
+Subject: [PATCH] Skip some BIO_gets tests if tmpfile fails on Android
+
+On Android, when running from an APK, |tmpfile| does not work. See
+b/36991167#comment8.
+
+Change-Id: I1415471907e61da5e8c8d1530a2b915fcd991d53
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58845
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit c466222febf86ef8e12c7926d5544354c905fce5)
+---
+ crypto/bio/bio_test.cc | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/crypto/bio/bio_test.cc b/crypto/bio/bio_test.cc
+index 8a33f253b..6fdc39a42 100644
+--- a/crypto/bio/bio_test.cc
++++ b/crypto/bio/bio_test.cc
+@@ -427,7 +427,18 @@ TEST(BIOTest, Gets) {
+ 
+     using ScopedFILE = std::unique_ptr<FILE, decltype(&fclose)>;
+     ScopedFILE file(tmpfile(), fclose);
++#if defined(OPENSSL_ANDROID)
++    // On Android, when running from an APK, |tmpfile| does not work. See
++    // b/36991167#comment8.
++    if (!file) {
++      fprintf(stderr, "tmpfile failed: %s (%d). Skipping file-based tests.\n",
++              strerror(errno), errno);
++      continue;
++    }
++#else
+     ASSERT_TRUE(file);
++#endif
++
+     if (!t.bio.empty()) {
+       ASSERT_EQ(1u,
+                 fwrite(t.bio.data(), t.bio.size(), /*nitems=*/1, file.get()));

@@ -1,0 +1,286 @@
+From 17be1ea574c0226ad7d071af0504f6fbcc374ade Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 28 Dec 2022 19:31:26 -0500
+Subject: [PATCH] Rewrite ASN1_OBJECT and ASN1_BOOLEAN d2i/i2d functions.
+
+These functions already don't go through tasn_*.c. Rewrite them to use
+CBS and CBB. This removes some dependencies on ASN1_get_object and
+ASN1_put_object.
+
+Update-Note: d2i_ASN1_OBJECT and d2i_ASN1_BOOLEAN will no longer accept
+non-minimal length prefixes (forbidden in DER). d2i_ASN1_BOOLEAN will
+also no longer accept non-canonical representations of TRUE (also
+forbidden in DER). This does not affect certificate parsing, as that
+still goes through the old template system, though we will make a
+similar change to those functions later.
+
+Bug: 354, 548
+Change-Id: I0b7aa96f47aca5c31ec4f702e27108b4106311f2
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58145
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit 2cb7b337d00e6b7106b2fec84f4b2c90e2baa484)
+---
+ crypto/asn1/a_bool.c     | 66 +++++++++++++---------------------------
+ crypto/asn1/a_object.c   | 64 +++++++++++++++-----------------------
+ crypto/asn1/asn1_test.cc |  8 +++--
+ include/openssl/asn1.h   | 10 ++----
+ 4 files changed, 54 insertions(+), 94 deletions(-)
+
+diff --git a/crypto/asn1/a_bool.c b/crypto/asn1/a_bool.c
+index 67d6813a4..e227b7f79 100644
+--- a/crypto/asn1/a_bool.c
++++ b/crypto/asn1/a_bool.c
+@@ -56,64 +56,40 @@
+ 
+ #include <openssl/asn1.h>
+ 
++#include <openssl/bytestring.h>
+ #include <openssl/err.h>
+-#include <openssl/mem.h>
+ 
+-int i2d_ASN1_BOOLEAN(ASN1_BOOLEAN a, unsigned char **pp) {
+-  int r;
+-  unsigned char *p, *allocated = NULL;
++#include "../bytestring/internal.h"
+ 
+-  r = ASN1_object_size(0, 1, V_ASN1_BOOLEAN);
+-  if (pp == NULL) {
+-    return r;
+-  }
+ 
+-  if (*pp == NULL) {
+-    if ((p = allocated = OPENSSL_malloc(r)) == NULL) {
+-      return -1;
+-    }
+-  } else {
+-    p = *pp;
++int i2d_ASN1_BOOLEAN(ASN1_BOOLEAN a, unsigned char **outp) {
++  CBB cbb;
++  if (!CBB_init(&cbb, 3) ||  //
++      !CBB_add_asn1_bool(&cbb, a != ASN1_BOOLEAN_FALSE)) {
++    CBB_cleanup(&cbb);
++    return -1;
+   }
+-
+-  ASN1_put_object(&p, 0, 1, V_ASN1_BOOLEAN, V_ASN1_UNIVERSAL);
+-  *p = a ? ASN1_BOOLEAN_TRUE : ASN1_BOOLEAN_FALSE;
+-
+-  // If a new buffer was allocated, just return it back.
+-  // If not, return the incremented buffer pointer.
+-  *pp = allocated != NULL ? allocated : p + 1;
+-  return r;
++  return CBB_finish_i2d(&cbb, outp);
+ }
+ 
+-ASN1_BOOLEAN d2i_ASN1_BOOLEAN(ASN1_BOOLEAN *a, const unsigned char **pp,
+-                              long length) {
+-  const unsigned char *p = *pp;
+-  long len;
+-  int inf, tag, xclass;
+-  inf = ASN1_get_object(&p, &len, &tag, &xclass, length);
+-  if (inf & 0x80) {
+-    OPENSSL_PUT_ERROR(ASN1, ASN1_R_BAD_OBJECT_HEADER);
+-    return ASN1_BOOLEAN_NONE;
+-  }
+-
+-  if (inf & V_ASN1_CONSTRUCTED) {
+-    OPENSSL_PUT_ERROR(ASN1, ASN1_R_TYPE_NOT_PRIMITIVE);
++ASN1_BOOLEAN d2i_ASN1_BOOLEAN(ASN1_BOOLEAN *out, const unsigned char **inp,
++                              long len) {
++  if (len < 0) {
+     return ASN1_BOOLEAN_NONE;
+   }
+ 
+-  if (tag != V_ASN1_BOOLEAN || xclass != V_ASN1_UNIVERSAL) {
+-    OPENSSL_PUT_ERROR(ASN1, ASN1_R_EXPECTING_A_BOOLEAN);
++  CBS cbs;
++  CBS_init(&cbs, *inp, (size_t)len);
++  int val;
++  if (!CBS_get_asn1_bool(&cbs, &val)) {
++    OPENSSL_PUT_ERROR(ASN1, ASN1_R_DECODE_ERROR);
+     return ASN1_BOOLEAN_NONE;
+   }
+ 
+-  if (len != 1) {
+-    OPENSSL_PUT_ERROR(ASN1, ASN1_R_BOOLEAN_IS_WRONG_LENGTH);
+-    return ASN1_BOOLEAN_NONE;
+-  }
+-  ASN1_BOOLEAN ret = (ASN1_BOOLEAN) * (p++);
+-  if (a != NULL) {
+-    (*a) = ret;
++  ASN1_BOOLEAN ret = val ? ASN1_BOOLEAN_TRUE : ASN1_BOOLEAN_FALSE;
++  if (out != NULL) {
++    *out = ret;
+   }
+-  *pp = p;
++  *inp = CBS_data(&cbs);
+   return ret;
+ }
+diff --git a/crypto/asn1/a_object.c b/crypto/asn1/a_object.c
+index 56219e1f8..77bd175ea 100644
+--- a/crypto/asn1/a_object.c
++++ b/crypto/asn1/a_object.c
+@@ -59,46 +59,36 @@
+ #include <limits.h>
+ #include <string.h>
+ 
++#include <openssl/bytestring.h>
+ #include <openssl/err.h>
+ #include <openssl/mem.h>
+ #include <openssl/obj.h>
+ 
++#include "../bytestring/internal.h"
+ #include "../internal.h"
+ #include "internal.h"
+ 
+ 
+-int i2d_ASN1_OBJECT(const ASN1_OBJECT *a, unsigned char **pp) {
+-  if (a == NULL) {
++int i2d_ASN1_OBJECT(const ASN1_OBJECT *in, unsigned char **outp) {
++  if (in == NULL) {
+     OPENSSL_PUT_ERROR(ASN1, ERR_R_PASSED_NULL_PARAMETER);
+     return -1;
+   }
+ 
+-  if (a->length == 0) {
++  if (in->length <= 0) {
+     OPENSSL_PUT_ERROR(ASN1, ASN1_R_ILLEGAL_OBJECT);
+     return -1;
+   }
+ 
+-  int objsize = ASN1_object_size(0, a->length, V_ASN1_OBJECT);
+-  if (pp == NULL || objsize == -1) {
+-    return objsize;
+-  }
+-
+-  unsigned char *p, *allocated = NULL;
+-  if (*pp == NULL) {
+-    if ((p = allocated = OPENSSL_malloc(objsize)) == NULL) {
+-      return -1;
+-    }
+-  } else {
+-    p = *pp;
++  CBB cbb, child;
++  if (!CBB_init(&cbb, (size_t)in->length + 2) ||
++      !CBB_add_asn1(&cbb, &child, CBS_ASN1_OBJECT) ||
++      !CBB_add_bytes(&child, in->data, in->length)) {
++    CBB_cleanup(&cbb);
++    return -1;
+   }
+ 
+-  ASN1_put_object(&p, 0, a->length, V_ASN1_OBJECT, V_ASN1_UNIVERSAL);
+-  OPENSSL_memcpy(p, a->data, a->length);
+-
+-  // If a new buffer was allocated, just return it back.
+-  // If not, return the incremented buffer pointer.
+-  *pp = allocated != NULL ? allocated : p + a->length;
+-  return objsize;
++  return CBB_finish_i2d(&cbb, outp);
+ }
+ 
+ int i2t_ASN1_OBJECT(char *buf, int buf_len, const ASN1_OBJECT *a) {
+@@ -140,29 +130,25 @@ int i2a_ASN1_OBJECT(BIO *bp, const ASN1_OBJECT *a) {
+   return ret;
+ }
+ 
+-ASN1_OBJECT *d2i_ASN1_OBJECT(ASN1_OBJECT **a, const unsigned char **pp,
+-                             long length) {
+-  long len;
+-  int tag, xclass;
+-  const unsigned char *p = *pp;
+-  int inf = ASN1_get_object(&p, &len, &tag, &xclass, length);
+-  if (inf & 0x80) {
+-    OPENSSL_PUT_ERROR(ASN1, ASN1_R_BAD_OBJECT_HEADER);
++ASN1_OBJECT *d2i_ASN1_OBJECT(ASN1_OBJECT **out, const unsigned char **inp,
++                             long len) {
++  if (len < 0) {
+     return NULL;
+   }
+ 
+-  if (inf & V_ASN1_CONSTRUCTED) {
+-    OPENSSL_PUT_ERROR(ASN1, ASN1_R_TYPE_NOT_PRIMITIVE);
++  CBS cbs, child;
++  CBS_init(&cbs, *inp, (size_t)len);
++  if (!CBS_get_asn1(&cbs, &child, CBS_ASN1_OBJECT)) {
++    OPENSSL_PUT_ERROR(ASN1, ASN1_R_DECODE_ERROR);
+     return NULL;
+   }
+ 
+-  if (tag != V_ASN1_OBJECT || xclass != V_ASN1_UNIVERSAL) {
+-    OPENSSL_PUT_ERROR(ASN1, ASN1_R_EXPECTING_AN_OBJECT);
+-    return NULL;
+-  }
+-  ASN1_OBJECT *ret = c2i_ASN1_OBJECT(a, &p, len);
+-  if (ret) {
+-    *pp = p;
++  const uint8_t *contents = CBS_data(&child);
++  ASN1_OBJECT *ret = c2i_ASN1_OBJECT(out, &contents, CBS_len(&child));
++  if (ret != NULL) {
++    // |c2i_ASN1_OBJECT| should have consumed the entire input.
++    assert(CBS_data(&cbs) == contents);
++    *inp = CBS_data(&cbs);
+   }
+   return ret;
+ }
+diff --git a/crypto/asn1/asn1_test.cc b/crypto/asn1/asn1_test.cc
+index 1aebc7845..733150464 100644
+--- a/crypto/asn1/asn1_test.cc
++++ b/crypto/asn1/asn1_test.cc
+@@ -551,8 +551,10 @@ TEST(ASN1Test, Boolean) {
+       {0x81, 0x01, 0x00},
+       // Element is constructed.
+       {0x21, 0x01, 0x00},
+-      // TODO(https://crbug.com/boringssl/354): Reject non-DER encodings of TRUE
+-      // and test this.
++      // Not a DER encoding of TRUE.
++      {0x01, 0x01, 0x01},
++      // Non-minimal tag length.
++      {0x01, 0x81, 0x01, 0xff},
+   };
+   for (const auto &invalid : kInvalidBooleans) {
+     SCOPED_TRACE(Bytes(invalid));
+@@ -689,6 +691,8 @@ TEST(ASN1Test, ParseASN1Object) {
+       {0x86, 0x03, 0x2b, 0x65, 0x70},
+       // Element is constructed.
+       {0x26, 0x03, 0x2b, 0x65, 0x70},
++      // Non-minimal tag length.
++      {0x06, 0x81, 0x03, 0x2b, 0x65, 0x70},
+   };
+   for (const auto &invalid : kInvalidObjects) {
+     SCOPED_TRACE(Bytes(invalid));
+diff --git a/include/openssl/asn1.h b/include/openssl/asn1.h
+index 0aa234ee2..5bc29711f 100644
+--- a/include/openssl/asn1.h
++++ b/include/openssl/asn1.h
+@@ -471,9 +471,6 @@ OPENSSL_EXPORT ASN1_STRING *ASN1_item_pack(void *obj, const ASN1_ITEM *it,
+ //
+ // WARNING: This function's is slightly different from other |d2i_*| functions
+ // because |ASN1_BOOLEAN| is not a pointer type.
+-//
+-// TODO(https://crbug.com/boringssl/354): This function currently also accepts
+-// BER, but this will be removed in the future.
+ OPENSSL_EXPORT ASN1_BOOLEAN d2i_ASN1_BOOLEAN(ASN1_BOOLEAN *out,
+                                              const unsigned char **inp,
+                                              long len);
+@@ -1476,16 +1473,13 @@ OPENSSL_EXPORT ASN1_OBJECT *ASN1_OBJECT_create(int nid, const uint8_t *data,
+ OPENSSL_EXPORT void ASN1_OBJECT_free(ASN1_OBJECT *a);
+ 
+ // d2i_ASN1_OBJECT parses a DER-encoded ASN.1 OBJECT IDENTIFIER from up to |len|
+-// bytes at |*inp|, as described in |d2i_SAMPLE_with_reuse|.
+-//
+-// TODO(https://crbug.com/boringssl/354): This function currently also accepts
+-// BER, but this will be removed in the future.
++// bytes at |*inp|, as described in |d2i_SAMPLE|.
+ OPENSSL_EXPORT ASN1_OBJECT *d2i_ASN1_OBJECT(ASN1_OBJECT **out,
+                                             const uint8_t **inp, long len);
+ 
+ // i2d_ASN1_OBJECT marshals |in| as a DER-encoded ASN.1 OBJECT IDENTIFIER, as
+ // described in |i2d_SAMPLE|.
+-OPENSSL_EXPORT int i2d_ASN1_OBJECT(const ASN1_OBJECT *a, uint8_t **outp);
++OPENSSL_EXPORT int i2d_ASN1_OBJECT(const ASN1_OBJECT *in, uint8_t **outp);
+ 
+ // c2i_ASN1_OBJECT decodes |len| bytes from |*inp| as the contents of a
+ // DER-encoded OBJECT IDENTIFIER, excluding the tag and length. It behaves like

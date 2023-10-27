@@ -1,0 +1,22 @@
+From 28c85a29a45a69f37f8becb7cefe5faed96eb422 Mon Sep 17 00:00:00 2001
+From: Will Childs-Klein <childw@amazon.com>
+Date: Wed, 5 Apr 2023 16:30:54 -0400
+Subject: [PATCH] Bump AWS-LC API version (#900)
+
+---
+ include/openssl/base.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/openssl/base.h b/include/openssl/base.h
+index a3b72a534..012968da1 100644
+--- a/include/openssl/base.h
++++ b/include/openssl/base.h
+@@ -208,7 +208,7 @@ extern "C" {
+ // against multiple revisions of BoringSSL at the same time. It is not
+ // recommended to do so for longer than is necessary.
+ 
+-#define AWSLC_API_VERSION 20
++#define AWSLC_API_VERSION 21
+ 
+ // This string tracks the most current production release version on Github
+ // https://github.com/aws/aws-lc/releases.

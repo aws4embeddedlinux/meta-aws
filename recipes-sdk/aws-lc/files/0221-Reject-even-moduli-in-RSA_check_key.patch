@@ -1,0 +1,85 @@
+From 3f952aa5d8cc55be4dc0673030cbd9819a1ba42d Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 3 Feb 2023 18:15:09 -0500
+Subject: [PATCH] Reject even moduli in RSA_check_key.
+
+RSA state management is generally a mess right now, which causes thread
+contention issues in highly threaded servers. We need to do a lot
+of work within the library to fix it, but in the end state,
+RSA_check_key (called by the parser), BN_MONT_CTX_set_locked, and
+freeze_private_key should all be unified.
+
+This means that anything which can causes the latter two steps to fail
+will be lifted up into the parser, currently RSA_check_key. We've
+broadly done that, but odd moduli (n, p, and q) are currently not
+covered by RSA_check_key. Fix that. We only need to check for odd n,
+because odd p and q are then implied by p * q == n.
+
+Update-Note: RSA keys with even moduli already do not work. (In addition
+to being nonsensical, all operations will fail with them because we
+cannot do Montgomery reduction on even moduli.) This CL shifts the error
+from when you use the key, to when you parse the key, like our other
+validation steps. Also after this lands, the check for odd modulus in
+cl/447099278 can be removed.
+
+Bug: 316
+Change-Id: Ifa4af610316a8f717a026128078a5d38d046bff9
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56885
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit 29564f2b633b1275e3e97703d86b41296211fb79)
+---
+ crypto/evp_extra/evp_tests.txt   | 5 +++++
+ crypto/fipsmodule/rsa/rsa.c      | 3 ++-
+ crypto/fipsmodule/rsa/rsa_impl.c | 7 +++++++
+ 3 files changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/crypto/evp_extra/evp_tests.txt b/crypto/evp_extra/evp_tests.txt
+index 8906d0239..778288f6e 100644
+--- a/crypto/evp_extra/evp_tests.txt
++++ b/crypto/evp_extra/evp_tests.txt
+@@ -28,6 +28,11 @@ PublicKey = RSA-2048-SPKI-Negative
+ Input = 30820121300d06092a864886f70d01010105000382010e003082010902820100cd0081ea7b2ae1ea06d59f7c73d9ffb94a09615c2e4ba7c636cef08dd3533ec3185525b015c769b99a77d6725bf9c3532a9b6e5f6627d5fb85160768d3dda9cbd35974511717dc3d309d2fc47ee41f97e32adb7f9dd864a1c4767a666ecd71bc1aacf5e7517f4b38594fea9b05e42d5ada9912008013e45316a4d9bb8ed086b88d28758bacaf922d46a868b485d239c9baeb0e2b64592710f42b2d1ea0a4b4802c0becab328f8a68b0073bdb546feea9809d2849912b390c1532bc7e29c7658f8175fae46f34332ff87bcab3e40649b98577869da0ea718353f0722754886913648760d122be676e0fc483dd20ffc31bda96a31966c9aa2e75ad03de47e1c44f0203010001
+ Error = NEGATIVE_NUMBER
+ 
++# An RSA key with an even modulus
++PublicKey = RSA-2048-Even-Modulus
++Input = 30820122300d06092a864886f70d01010105000382010f003082010a0282010100cd0081ea7b2ae1ea06d59f7c73d9ffb94a09615c2e4ba7c636cef08dd3533ec3185525b015c769b99a77d6725bf9c3532a9b6e5f6627d5fb85160768d3dda9cbd35974511717dc3d309d2fc47ee41f97e32adb7f9dd864a1c4767a666ecd71bc1aacf5e7517f4b38594fea9b05e42d5ada9912008013e45316a4d9bb8ed086b88d28758bacaf922d46a868b485d239c9baeb0e2b64592710f42b2d1ea0a4b4802c0becab328f8a68b0073bdb546feea9809d2849912b390c1532bc7e29c7658f8175fae46f34332ff87bcab3e40649b98577869da0ea718353f0722754886913648760d122be676e0fc483dd20ffc31bda96a31966c9aa2e75ad03de47e1c44e0203010001
++Error = BAD_RSA_PARAMETERS
++
+ # The same key but with missing parameters rather than a NULL.
+ PublicKey = RSA-2048-SPKI-Invalid
+ Input = 30820120300b06092a864886f70d0101010382010f003082010a0282010100cd0081ea7b2ae1ea06d59f7c73d9ffb94a09615c2e4ba7c636cef08dd3533ec3185525b015c769b99a77d6725bf9c3532a9b6e5f6627d5fb85160768d3dda9cbd35974511717dc3d309d2fc47ee41f97e32adb7f9dd864a1c4767a666ecd71bc1aacf5e7517f4b38594fea9b05e42d5ada9912008013e45316a4d9bb8ed086b88d28758bacaf922d46a868b485d239c9baeb0e2b64592710f42b2d1ea0a4b4802c0becab328f8a68b0073bdb546feea9809d2849912b390c1532bc7e29c7658f8175fae46f34332ff87bcab3e40649b98577869da0ea718353f0722754886913648760d122be676e0fc483dd20ffc31bda96a31966c9aa2e75ad03de47e1c44f0203010001
+diff --git a/crypto/fipsmodule/rsa/rsa.c b/crypto/fipsmodule/rsa/rsa.c
+index cc70c6663..fd0331648 100644
+--- a/crypto/fipsmodule/rsa/rsa.c
++++ b/crypto/fipsmodule/rsa/rsa.c
+@@ -805,7 +805,8 @@ int RSA_validate_key(const RSA *key, rsa_asn1_key_encoding_t key_enc_type) {
+ 
+   // Check that p * q == n. Before we multiply, we check that p and q are in
+   // bounds, to avoid a DoS vector in |bn_mul_consttime| below. Note that
+-  // n was bound by |rsa_check_public_key|.
++  // n was bound by |rsa_check_public_key|. This also implicitly checks p and q
++  // are odd, which is a necessary condition for Montgomery reduction.
+   if (BN_is_negative(key->p) || BN_cmp(key->p, key->n) >= 0 ||
+       BN_is_negative(key->q) || BN_cmp(key->q, key->n) >= 0) {
+     OPENSSL_PUT_ERROR(RSA, RSA_R_N_NOT_EQUAL_P_Q);
+diff --git a/crypto/fipsmodule/rsa/rsa_impl.c b/crypto/fipsmodule/rsa/rsa_impl.c
+index e2dcbac38..c260b98c1 100644
+--- a/crypto/fipsmodule/rsa/rsa_impl.c
++++ b/crypto/fipsmodule/rsa/rsa_impl.c
+@@ -87,6 +87,13 @@ int rsa_check_public_key(const RSA *rsa, rsa_asn1_key_encoding_t key_enc_type) {
+     return 0;
+   }
+ 
++  // RSA moduli must be odd. In addition to being necessary for RSA in general,
++  // we cannot setup Montgomery reduction with even moduli.
++  if (!BN_is_odd(rsa->n)) {
++    OPENSSL_PUT_ERROR(RSA, RSA_R_BAD_RSA_PARAMETERS);
++    return 0;
++  }
++
+   // Verify |n > e|. Comparing |n_bits| to |kMaxExponentBits| is a small
+   // shortcut to comparing |n| and |e| directly. In reality, |kMaxExponentBits|
+   // is much smaller than the minimum RSA key size that any application should

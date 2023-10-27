@@ -1,0 +1,67 @@
+From c7a9fd0dd20c0e35a5b7b98f22b78f16c8c34567 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Fri, 31 Mar 2023 11:10:33 -0700
+Subject: [PATCH] Zeroize data immediately after use for FIPS (#911)
+
+---
+ crypto/fipsmodule/digest/internal.h | 1 +
+ crypto/fipsmodule/ecdsa/ecdsa.c     | 2 ++
+ crypto/fipsmodule/hmac/hmac.c       | 6 ++++--
+ 3 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/fipsmodule/digest/internal.h b/crypto/fipsmodule/digest/internal.h
+index 2d06ed07b..ac3c77d1d 100644
+--- a/crypto/fipsmodule/digest/internal.h
++++ b/crypto/fipsmodule/digest/internal.h
+@@ -63,6 +63,7 @@
+ extern "C" {
+ #endif
+ 
++#define EVP_MAX_MD_BLOCK_SIZE_BYTES  (EVP_MAX_MD_BLOCK_SIZE / 8)
+ 
+ struct env_md_st {
+   // type contains a NID identifing the digest function. (For example,
+diff --git a/crypto/fipsmodule/ecdsa/ecdsa.c b/crypto/fipsmodule/ecdsa/ecdsa.c
+index 93e09d787..b475678e6 100644
+--- a/crypto/fipsmodule/ecdsa/ecdsa.c
++++ b/crypto/fipsmodule/ecdsa/ecdsa.c
+@@ -341,6 +341,7 @@ ECDSA_SIG *ECDSA_do_sign(const uint8_t *digest, size_t digest_len,
+   for (;;) {
+     EC_SCALAR k;
+     if (!ec_random_nonzero_scalar(group, &k, additional_data)) {
++      OPENSSL_cleanse(&k, sizeof(EC_SCALAR));
+       return NULL;
+     }
+ 
+@@ -348,6 +349,7 @@ ECDSA_SIG *ECDSA_do_sign(const uint8_t *digest, size_t digest_len,
+     ECDSA_SIG *sig =
+         ecdsa_sign_impl(group, &retry, priv_key, &k, digest, digest_len);
+     if (sig != NULL || !retry) {
++      OPENSSL_cleanse(&k, sizeof(EC_SCALAR));
+       return sig;
+     }
+   }
+diff --git a/crypto/fipsmodule/hmac/hmac.c b/crypto/fipsmodule/hmac/hmac.c
+index eb14ab2bc..20d718e2c 100644
+--- a/crypto/fipsmodule/hmac/hmac.c
++++ b/crypto/fipsmodule/hmac/hmac.c
+@@ -286,8 +286,8 @@ int HMAC_Init_ex(HMAC_CTX *ctx, const void *key, size_t key_len,
+   FIPS_service_indicator_lock_state();
+   int result = 0;
+ 
+-  uint64_t pad[EVP_MAX_MD_BLOCK_SIZE / 8] = {0};
+-  uint64_t key_block[EVP_MAX_MD_BLOCK_SIZE / 8] = {0};
++  uint64_t pad[EVP_MAX_MD_BLOCK_SIZE_BYTES] = {0};
++  uint64_t key_block[EVP_MAX_MD_BLOCK_SIZE_BYTES] = {0};
+   if (block_size < key_len) {
+     // Long keys are hashed.
+     if (!methods->init(&ctx->md_ctx) ||
+@@ -319,6 +319,8 @@ int HMAC_Init_ex(HMAC_CTX *ctx, const void *key, size_t key_len,
+ 
+   result = 1;
+ end:
++  OPENSSL_cleanse(pad, EVP_MAX_MD_BLOCK_SIZE_BYTES);
++  OPENSSL_cleanse(key_block, EVP_MAX_MD_BLOCK_SIZE_BYTES);
+   FIPS_service_indicator_unlock_state();
+   if (result != 1) {
+     // We're in some error state, so return our context to a known and well defined zero state.

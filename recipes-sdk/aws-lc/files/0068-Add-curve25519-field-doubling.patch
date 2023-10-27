@@ -1,0 +1,41 @@
+From b6a8a8007c989ed25783cd3d036b19ec3bc01571 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Tue, 11 Oct 2022 16:44:05 -0700
+Subject: [PATCH] Add curve25519 field doubling
+
+A trivial simplification of bignum_add_p25519. Also tweaked a few
+ARM functions where "adcs" could be "adc" because the carry is not
+needed.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/07994facb87fa5d9e5d996d7a8f07d8189a36c6b
+---
+ arm/curve25519/curve25519_x25519.S     | 2 +-
+ arm/curve25519/curve25519_x25519_alt.S | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arm/curve25519/curve25519_x25519.S b/arm/curve25519/curve25519_x25519.S
+index bea6d50ce..fcd05cb5e 100644
+--- a/arm/curve25519/curve25519_x25519.S
++++ b/arm/curve25519/curve25519_x25519.S
+@@ -648,7 +648,7 @@
+         ldp     x2, x3, [p1+16];                \
+         ldp     x6, x7, [p2+16];                \
+         adcs    x2, x2, x6;                     \
+-        adcs    x3, x3, x7;                     \
++        adc     x3, x3, x7;                     \
+         stp     x0, x1, [p0];                   \
+         stp     x2, x3, [p0+16]
+ 
+diff --git a/arm/curve25519/curve25519_x25519_alt.S b/arm/curve25519/curve25519_x25519_alt.S
+index 8a0495f97..662446a90 100644
+--- a/arm/curve25519/curve25519_x25519_alt.S
++++ b/arm/curve25519/curve25519_x25519_alt.S
+@@ -462,7 +462,7 @@
+         ldp     x2, x3, [p1+16];                \
+         ldp     x6, x7, [p2+16];                \
+         adcs    x2, x2, x6;                     \
+-        adcs    x3, x3, x7;                     \
++        adc     x3, x3, x7;                     \
+         stp     x0, x1, [p0];                   \
+         stp     x2, x3, [p0+16]
+ 

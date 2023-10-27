@@ -1,0 +1,249 @@
+From 82e43ab0afc9a45f4b88ceed2d650defd3816691 Mon Sep 17 00:00:00 2001
+From: dkostic <25055813+dkostic@users.noreply.github.com>
+Date: Tue, 9 May 2023 10:00:35 -0700
+Subject: [PATCH] P-384/521 fallback to small implementation when OPENSSL_SMALL
+ is set (#984)
+
+We should use the generic `EC_GFp_mont_method` for P-384/521
+when `OPENSSL_SMALL` flag is defined.
+
+Co-authored-by: dkostic <dkostic@amazon.com>
+---
+ crypto/ecdh_extra/ecdh_test.cc  | 39 ++++++++++++++-------------
+ crypto/fipsmodule/ec/ec.c       | 14 ++++++++--
+ crypto/fipsmodule/ec/ec_test.cc | 48 ++++++++++++++++-----------------
+ crypto/fipsmodule/ec/p384.c     |  3 +++
+ crypto/fipsmodule/ec/p521.c     |  3 ++-
+ 5 files changed, 62 insertions(+), 45 deletions(-)
+
+diff --git a/crypto/ecdh_extra/ecdh_test.cc b/crypto/ecdh_extra/ecdh_test.cc
+index 01b6feb46..165f025ff 100644
+--- a/crypto/ecdh_extra/ecdh_test.cc
++++ b/crypto/ecdh_extra/ecdh_test.cc
+@@ -130,12 +130,19 @@ TEST(ECDHTest, TestVectors) {
+   });
+ }
+ 
+-static int has_uint128_and_not_small() {
++// Returns 1 if the curve defined by |nid| is using Montgomery representation
++// for field elements (based on the build configuration). Returns 0 otherwise.
++static int is_curve_using_mont_felem_impl(int nid) {
++  if (nid == NID_secp224r1) {
+ #if defined(BORINGSSL_HAS_UINT128) && !defined(OPENSSL_SMALL)
+-  return 1;
+-#else
+-  return 0;
++    return 0;
++#endif
++  } else if (nid == NID_secp521r1) {
++#if !defined(OPENSSL_SMALL)
++    return 0;
+ #endif
++  }
++  return 1;
+ }
+ 
+ // The following test is adapted from ECTest.LargeXCoordinateVectors
+@@ -170,12 +177,10 @@ TEST(ECDHTest, InvalidPubKeyLargeCoord) {
+                                     SHA512_DIGEST_LENGTH : len);
+ 
+     ASSERT_TRUE(EC_KEY_set_group(peer_key.get(), group.get()));
+-    // The following call converts the point to Montgomery form for P-256/384.
+-    // For P-224, when the functions from simple.c are used, i.e. when
+-    // group->meth = EC_GFp_nistp224_method, the coordinate representation
+-    // is not changed. This is determined based on compile flags in ec.c
+-    // that are also used below in has_uint128_and_not_small().
+-    // For P-521, the plain non-Motgomery representation is always used.
++
++    // |EC_POINT_set_affine_coordinates_GFp| sets given (x, y) according to the
++    // form the curve is using. If the curve is using Montgomery form, |x| and
++    // |y| will be converted to Montgomery form.
+     ASSERT_TRUE(EC_POINT_set_affine_coordinates_GFp(
+                   group.get(), pub_key.get(), x.get(), y.get(), nullptr));
+     ASSERT_TRUE(EC_KEY_set_public_key(peer_key.get(), pub_key.get()));
+@@ -196,19 +201,17 @@ TEST(ECDHTest, InvalidPubKeyLargeCoord) {
+     OPENSSL_memset(peer_key.get()->pub_key->raw.Z.bytes, 0, len);
+     peer_key.get()->pub_key->raw.Z.bytes[0] = 1;
+ 
+-    // As mentioned, for P-224 and P-521, setting the raw point directly
+-    // with the coordinates still passes |EC_KEY_check_fips|.
+-    // For P-256 and 384, the failure is due to that the coordinates are
+-    // not in Montgomery representation, hence the checks fail earlier in
+-    // |EC_KEY_check_key| in the point-on-the-curve calculations, which use
+-    // Montgomery arithmetic.
++    // |ECDH_compute_key_fips| calls |EC_KEY_check_fips| that calls
++    // |EC_KEY_check_key| function which checks if the computed key point is on
++    // the curve (among other checks). If the curve uses Montgomery form then
++    // the point-on-curve check will fail because we set the raw point
++    // coordinates in regular form above.
+     ret = ECDH_compute_key_fips(shared_key.data(), shared_key.size(),
+                                 EC_KEY_get0_public_key(peer_key.get()),
+                                 priv_key.get());
+ 
+     int curve_nid = group.get()->curve_name;
+-    if ((has_uint128_and_not_small() && (curve_nid == NID_secp224r1)) ||
+-        (curve_nid == NID_secp521r1)) {
++    if (!is_curve_using_mont_felem_impl(curve_nid)) {
+       ASSERT_TRUE(ret);
+     } else {
+       ASSERT_FALSE(ret);
+diff --git a/crypto/fipsmodule/ec/ec.c b/crypto/fipsmodule/ec/ec.c
+index d070adbf3..5bf3c998f 100644
+--- a/crypto/fipsmodule/ec/ec.c
++++ b/crypto/fipsmodule/ec/ec.c
+@@ -251,7 +251,12 @@ DEFINE_METHOD_FUNCTION(struct built_in_curves, OPENSSL_built_in_curves) {
+   out->curves[0].comment = "NIST P-521";
+   out->curves[0].param_len = 66;
+   out->curves[0].params = kP521Params;
+-  out->curves[0].method = EC_GFp_nistp521_method();
++  out->curves[0].method =
++#if !defined(OPENSSL_SMALL)
++      EC_GFp_nistp521_method();
++#else
++      EC_GFp_mont_method();
++#endif
+ 
+   // 1.3.132.0.34
+   static const uint8_t kOIDP384[] = {0x2b, 0x81, 0x04, 0x00, 0x22};
+@@ -261,7 +266,12 @@ DEFINE_METHOD_FUNCTION(struct built_in_curves, OPENSSL_built_in_curves) {
+   out->curves[1].comment = "NIST P-384";
+   out->curves[1].param_len = 48;
+   out->curves[1].params = kP384Params;
+-  out->curves[1].method = EC_GFp_nistp384_method();
++  out->curves[1].method =
++#if !defined(OPENSSL_SMALL)
++      EC_GFp_nistp384_method();
++#else
++      EC_GFp_mont_method();
++#endif
+ 
+   // 1.2.840.10045.3.1.7
+   static const uint8_t kOIDP256[] = {0x2a, 0x86, 0x48, 0xce,
+diff --git a/crypto/fipsmodule/ec/ec_test.cc b/crypto/fipsmodule/ec/ec_test.cc
+index edafe32cf..57d3d1d35 100644
+--- a/crypto/fipsmodule/ec/ec_test.cc
++++ b/crypto/fipsmodule/ec/ec_test.cc
+@@ -1845,12 +1845,19 @@ static bool HasSuffix(const char *str, const char *suffix) {
+   return strcmp(str + str_len - suffix_len, suffix) == 0;
+ }
+ 
+-static int has_uint128_and_not_small() {
++// Returns 1 if the curve defined by |nid| is using Montgomery representation
++// for field elements (based on the build configuration). Returns 0 otherwise.
++static int is_curve_using_mont_felem_impl(int nid) {
++  if (nid == NID_secp224r1) {
+ #if defined(BORINGSSL_HAS_UINT128) && !defined(OPENSSL_SMALL)
+-  return 1;
+-#else
+-  return 0;
++    return 0;
++#endif
++  } else if (nid == NID_secp521r1) {
++#if !defined(OPENSSL_SMALL)
++    return 0;
+ #endif
++  }
++  return 1;
+ }
+ 
+ // Test for out-of-range coordinates in public-key validation in
+@@ -1881,12 +1888,10 @@ TEST(ECTest, LargeXCoordinateVectors) {
+ 
+     size_t len = BN_num_bytes(&group.get()->field); // Modulus byte-length
+     ASSERT_TRUE(EC_KEY_set_group(key.get(), group.get()));
+-    // The following call converts the point to Montgomery form for P-256/384.
+-    // For P-224, when the functions from simple.c are used, i.e. when
+-    // group->meth = EC_GFp_nistp224_method, the coordinate representation
+-    // is not changed. This is determined based on compile flags in ec.c
+-    // that are also used below in has_uint128_and_not_small().
+-    // For P-521, the plain non-Motgomery representation is always used.
++
++    // |EC_POINT_set_affine_coordinates_GFp| sets given (x, y) according to the
++    // form the curve is using. If the curve is using Montgomery form, |x| and
++    // |y| will be converted to Montgomery form.
+     ASSERT_TRUE(EC_POINT_set_affine_coordinates_GFp(
+                     group.get(), pub_key.get(), x.get(), y.get(), nullptr));
+     ASSERT_TRUE(EC_KEY_set_public_key(key.get(), pub_key.get()));
+@@ -1901,15 +1906,12 @@ TEST(ECTest, LargeXCoordinateVectors) {
+     OPENSSL_memset(key.get()->pub_key->raw.Z.bytes, 0, len);
+     key.get()->pub_key->raw.Z.bytes[0] = 1;
+ 
+-    // As mentioned, for P-224 and P-521, setting the raw point directly
+-    // with the coordinates still passes |EC_KEY_check_fips|.
+-    // For P-256 and 384, the failure is due to that the coordinates are
+-    // not in Montgomery representation, hence the checks fail earlier in
+-    // |EC_KEY_check_key| in the point-on-the-curve calculations, which use
+-    // Montgomery arithmetic.
++    // |EC_KEY_check_fips| first calls the |EC_KEY_check_key| function that
++    // checks if the key point is on the curve (among other checks). If the
++    // curve uses Montgomery form the point-on-curve check will fail because
++    // we set the raw point coordinates in regular form above.
+     int curve_nid = group.get()->curve_name;
+-    if ((has_uint128_and_not_small() && (curve_nid == NID_secp224r1)) ||
+-        (curve_nid == NID_secp521r1)) {
++    if (!is_curve_using_mont_felem_impl(curve_nid)) {
+       ASSERT_TRUE(EC_KEY_check_fips(key.get()));
+     } else {
+       ASSERT_FALSE(EC_KEY_check_fips(key.get()));
+@@ -1921,14 +1923,12 @@ TEST(ECTest, LargeXCoordinateVectors) {
+     // Now replace the x-coordinate with the larger one, x+p.
+     OPENSSL_memcpy(key.get()->pub_key->raw.X.bytes,
+                    (const uint8_t *)xpp.get()->d, len);
++    // We expect |EC_KEY_check_fips| to always fail when given key with x > p.
+     ASSERT_FALSE(EC_KEY_check_fips(key.get()));
+ 
+-    // |EC_KEY_check_fips| check on coordinate range can only be exercised
+-    // for P-224 and P-521 when the coordinates in the raw point are not
+-    // in Montgomery representation. For the other curves, they fail
+-    // for the same reason as above.
+-    if ((has_uint128_and_not_small() && (curve_nid == NID_secp224r1)) ||
+-        (curve_nid == NID_secp521r1)) {
++    // But the failure is for different reasons in case of curves using the
++    // Montgomery form versus those that don't, as explained above.
++    if (!is_curve_using_mont_felem_impl(curve_nid)) {
+       EXPECT_EQ(EC_R_COORDINATES_OUT_OF_RANGE,
+                 ERR_GET_REASON(ERR_peek_last_error_line(&file, &line)));
+       EXPECT_PRED2(HasSuffix, file, "ec_key.c"); // within EC_KEY_check_fips
+diff --git a/crypto/fipsmodule/ec/p384.c b/crypto/fipsmodule/ec/p384.c
+index c2ee2aa31..11f511eac 100644
+--- a/crypto/fipsmodule/ec/p384.c
++++ b/crypto/fipsmodule/ec/p384.c
+@@ -15,6 +15,8 @@
+ #include "../delocate.h"
+ #include "internal.h"
+ 
++#if !defined(OPENSSL_SMALL)
++
+ // We have two implementations of the field arithmetic for P-384 curve:
+ //   - Fiat-crypto
+ //   - s2n-bignum
+@@ -1481,3 +1483,4 @@ DEFINE_METHOD_FUNCTION(EC_METHOD, EC_GFp_nistp384_method) {
+ //     a = -0xfffffffffffffffffffffffffffffffffffffffffffffffc7634d81f4372ddf581a0db248b0a77aecec196accc52973
+ // '''
+ //
++#endif // !defined(OPENSSL_SMALL)
+diff --git a/crypto/fipsmodule/ec/p521.c b/crypto/fipsmodule/ec/p521.c
+index 3b6635868..fbfe06fec 100644
+--- a/crypto/fipsmodule/ec/p521.c
++++ b/crypto/fipsmodule/ec/p521.c
+@@ -18,6 +18,7 @@
+ #include "../delocate.h"
+ #include "internal.h"
+ 
++#if !defined(OPENSSL_SMALL)
+ // We have two implementations of the field arithmetic for P-521 curve:
+ //   - Fiat-crypto
+ //   - s2n-bignum
+@@ -32,7 +33,6 @@
+ // when Fiat-crypto is used, or as:
+ //   #define p521_felem_add(out, in0, in1) bignum_add_p521(out, in0, in1)
+ // when s2n-bignum is used.
+-//
+ #if !defined(OPENSSL_NO_ASM) && \
+     (defined(OPENSSL_LINUX) ||  defined(OPENSSL_APPLE)) && \
+     (defined(OPENSSL_X86_64) || defined(OPENSSL_AARCH64)) && \
+@@ -1095,3 +1095,4 @@ DEFINE_METHOD_FUNCTION(EC_METHOD, EC_GFp_nistp521_method) {
+ // ----------------------------------------------------------------------------
+ //  Analysis of the doubling case occurrence in the Joye-Tunstall recoding:
+ //  see the analysis at the bottom of the |p384.c| file.
++#endif // !defined(OPENSSL_SMALL)

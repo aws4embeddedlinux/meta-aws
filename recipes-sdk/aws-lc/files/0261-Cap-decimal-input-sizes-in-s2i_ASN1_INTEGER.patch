@@ -1,0 +1,136 @@
+From 346b340af2d39b68c53119b6cd1c801a1e613ce5 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 13 Feb 2023 10:21:56 -0500
+Subject: [PATCH] Cap decimal input sizes in s2i_ASN1_INTEGER
+
+Decoding from decimal takes quadratic time, and BN_dec2bn will happily
+decode however large of input you pass in. This frustrates fuzzers.
+
+I've added a cap to the input length in s2i_ASN1_INTEGER for now, rather
+than BN_dec2bn, because we've seen people use BN for surprisingly large
+calculator operations, and BN generally doesn't cap inputs to quadratic
+(or worse) algorithms beyond memory limits. (We generally rely on
+cryptography using fixed parameter sizes, though RSA, DSA, and DH were
+misstandardized and need ad-hoc limits everywhere.)
+
+Update-Note: The stringly-typed API for constructing X.509 extensions
+now has (very generous) maximum input length for decimal integers of
+8,192 digits. If anyone was relying on a higher input, this will break.
+This is unlikely and should be caught by unit tests; if a project hits
+this outside of tests, that means they are passing untrusted input into
+this function, which is a security vulnerability in itself, and means
+they especially need this change to avoid a DoS.
+
+Bug: chromium:1415108
+Change-Id: I138249d23ca6b1996f8437dba98633349bb3042b
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57205
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit d5e93f521b3fd4f57049583a1584d285e5aab16c)
+---
+ crypto/x509/x509_test.cc | 10 +++++++---
+ crypto/x509v3/v3_utl.c   | 10 ++++++++++
+ include/openssl/bn.h     | 12 ++++++++++++
+ 3 files changed, 29 insertions(+), 3 deletions(-)
+
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 229eab702..609dde539 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -5397,7 +5397,8 @@ TEST(X509Test, ExtensionFromConf) {
+   static const char kTestOID[] = "1.2.840.113554.4.1.72585.2";
+   const struct {
+     const char *name;
+-    const char *value;
++    std::string value;
++    // conf is the serialized confdb, or nullptr if none is to be provided.
+     const char *conf;
+     // expected is the resulting extension, encoded in DER, or the empty string
+     // if an error is expected.
+@@ -6031,6 +6032,9 @@ val1 = IA5:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+ val2 = IA5:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+ )",
+        {}},
++
++      // Integer sizes are capped to mitigate quadratic behavior.
++      {kTestOID, "ASN1:INT:" + std::string(16384, '9'), nullptr, {}},
+   };
+   for (const auto &t : kTests) {
+     SCOPED_TRACE(t.name);
+@@ -6049,7 +6053,7 @@ val2 = IA5:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+     }
+ 
+     bssl::UniquePtr<X509_EXTENSION> ext(
+-        X509V3_EXT_nconf(conf.get(), nullptr, t.name, t.value));
++        X509V3_EXT_nconf(conf.get(), nullptr, t.name, t.value.c_str()));
+     if (t.expected.empty()) {
+       EXPECT_FALSE(ext);
+     } else {
+@@ -6065,7 +6069,7 @@ val2 = IA5:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+     X509V3_CTX ctx;
+     X509V3_set_ctx(&ctx, nullptr, nullptr, nullptr, nullptr, 0);
+     X509V3_set_nconf(&ctx, conf.get());
+-    ext.reset(X509V3_EXT_nconf(conf.get(), &ctx, t.name, t.value));
++    ext.reset(X509V3_EXT_nconf(conf.get(), &ctx, t.name, t.value.c_str()));
+     if (t.expected.empty()) {
+       EXPECT_FALSE(ext);
+     } else {
+diff --git a/crypto/x509v3/v3_utl.c b/crypto/x509v3/v3_utl.c
+index 9d16f34f3..c1ee94313 100644
+--- a/crypto/x509v3/v3_utl.c
++++ b/crypto/x509v3/v3_utl.c
+@@ -260,6 +260,16 @@ ASN1_INTEGER *s2i_ASN1_INTEGER(const X509V3_EXT_METHOD *method,
+   if (ishex) {
+     ret = BN_hex2bn(&bn, value);
+   } else {
++    // Decoding from decimal scales quadratically in the input length. Bound the
++    // largest decimal input we accept in the config parser. 8,192 decimal
++    // digits allows values up to 27,213 bits. Ths exceeds the largest RSA, DSA,
++    // or DH modulus we support, and those are not usefully represented in
++    // decimal.
++    if (strlen(value) > 8192) {
++      BN_free(bn);
++      OPENSSL_PUT_ERROR(X509V3, X509V3_R_INVALID_NUMBER);
++      return 0;
++    }
+     ret = BN_dec2bn(&bn, value);
+   }
+ 
+diff --git a/include/openssl/bn.h b/include/openssl/bn.h
+index b722188f7..acde58d29 100644
+--- a/include/openssl/bn.h
++++ b/include/openssl/bn.h
+@@ -146,6 +146,10 @@ extern "C" {
+ // strategies that may not be ideal for other applications. Non-cryptographic
+ // uses should use a more general-purpose integer library, especially if
+ // performance-sensitive.
++//
++// Many functions in BN scale quadratically or higher in the bit length of their
++// input. Callers at this layer are assumed to have capped input sizes within
++// their performance tolerances.
+ 
+ 
+ // BN_ULONG is the native word size when working with big integers.
+@@ -293,6 +297,10 @@ OPENSSL_EXPORT int BN_hex2bn(BIGNUM **outp, const char *in);
+ // BN_bn2dec returns an allocated string that contains a NUL-terminated,
+ // decimal representation of |bn|. If |bn| is negative, the first char in the
+ // resulting string will be '-'. Returns NULL on allocation failure.
++//
++// Converting an arbitrarily large integer to decimal is quadratic in the bit
++// length of |a|. This function assumes the caller has capped the input within
++// performance tolerances.
+ OPENSSL_EXPORT char *BN_bn2dec(const BIGNUM *a);
+ 
+ // BN_dec2bn parses the leading decimal number from |in|, which may be
+@@ -301,6 +309,10 @@ OPENSSL_EXPORT char *BN_bn2dec(const BIGNUM *a);
+ // decimal number and stores it in |*outp|. If |*outp| is NULL then it
+ // allocates a new BIGNUM and updates |*outp|. It returns the number of bytes
+ // of |in| processed or zero on error.
++//
++// Converting an arbitrarily large integer to decimal is quadratic in the bit
++// length of |a|. This function assumes the caller has capped the input within
++// performance tolerances.
+ OPENSSL_EXPORT int BN_dec2bn(BIGNUM **outp, const char *in);
+ 
+ // BN_asc2bn acts like |BN_dec2bn| or |BN_hex2bn| depending on whether |in|

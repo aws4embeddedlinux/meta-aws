@@ -1,0 +1,37 @@
+From 4d3605da30f4d166e82feb8d47e65e9598bf2fdf Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 4 May 2023 15:11:16 -0400
+Subject: [PATCH] Clarify that X25519 also supports
+ EVP_PKEY_new_raw_private_key, etc
+
+Fixed: 605
+Change-Id: Id2b7d0221c3e43c102ce77c800f7ab65c74e0582
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59625
+Commit-Queue: Adam Langley <agl@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit 2e565ef29f736ca7cb07bc56c0540e2d7e9f4ad4)
+---
+ include/openssl/evp.h | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/include/openssl/evp.h b/include/openssl/evp.h
+index 0d76ddb3e..99476270d 100644
+--- a/include/openssl/evp.h
++++ b/include/openssl/evp.h
+@@ -253,10 +253,11 @@ OPENSSL_EXPORT int EVP_marshal_private_key_v2(CBB *cbb, const EVP_PKEY *key);
+ 
+ // Raw keys
+ //
+-// Some keys types support a "raw" serialization. For Ed25519 the public key
+-// and private key formats are those specified in RFC 8032. Note the RFC 8032
+-// private key format is the 32-byte prefix of |ED25519_sign|'s 64-byte private
+-// key. For Dilithium the public key and private key formats are those specified
++// Some keys types support a "raw" serialization. Currently the only supported
++// raw formats are X25519 and Ed25519, where the formats are those specified in
++// RFC 7748 and RFC 8032, respectively. Note the RFC 8032 private key format
++// is the 32-byte prefix of |ED25519_sign|'s 64-byte private key.
++// For Dilithium the public key and private key formats are those specified
+ // in draft-ietf-lamps-dilithium-certificates-00 and the Dilithium specification.
+ 
+ // EVP_PKEY_new_raw_private_key returns a newly allocated |EVP_PKEY| wrapping a

@@ -1,0 +1,449 @@
+From b20f6aeeba789e695a29779095b90ac1ff084cc1 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 5 May 2023 10:22:43 -0400
+Subject: [PATCH] Add APIs to query a list of possible strings for TLS features
+
+Envoy needs to have the possible cipher, etc., strings predeclared to
+reduce synchronization needs in the steady state. It currently does this
+by (1) iterating over SSL_CTX_get_ciphers at SSL_CTX creation time and
+(2) hard-coding a lists of known TLS 1.3 ciphers, TLS versions,
+NamedGroups, etc.
+
+(1) would work for some applications, but it breaks any applications
+that configure ciphers on the SSL on a certificate callback, etc. If the
+callback configures a cipher that wasn't configured on the SSL_CTX (e.g.
+if the SSL_CTX were left at defaults), Envoy's logging breaks and we hit
+an ENVOY_BUG assertion.
+
+(2) breaks whenever BoringSSL adds a new feature. In principle, we could
+update Envoy when updating BoringSSL, but this is an unresasonable
+development overhead for just one of many BoringSSL consumers to impose.
+Such costs are particularly high when considering needing to coordinate
+updates to Envoy and BoringSSL across different repositories.
+
+Add APIs to enumerate the possible strings these functions can return.
+These string lists are a superset of those that any one application may
+care about (e.g. we may have a deprecated cipher that Envoy no longer
+needs, or an experimental cipher that's not yet ready for Envoy's
+stability goals), but this is fine provided this is just used to
+initialize the table. In particular, they are *not* intended to
+enumerate supported features.
+
+Bump BORINGSSL_API_VERSION to aid in patching these into Envoy.
+
+Bug: b:280350955
+Change-Id: I4d11db980eebed5620d3657778c09dbec004653c
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59667
+Commit-Queue: Adam Langley <agl@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit a972b78d1b11009cd07852fb4be2cc938489e031)
+---
+ include/openssl/ssl.h | 75 +++++++++++++++++++++++++++++++++++++++++++
+ ssl/ssl_cipher.cc     | 22 +++++++++++++
+ ssl/ssl_key_share.cc  | 10 ++++++
+ ssl/ssl_privkey.cc    | 22 +++++++++++++
+ ssl/ssl_test.cc       | 47 +++++++++++++++++++++++++++
+ ssl/ssl_versions.cc   | 55 +++++++++++++++++++------------
+ ssl/test/bssl_shim.cc | 38 ++++++++++++++++++++++
+ 7 files changed, 248 insertions(+), 21 deletions(-)
+
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index 7a7c04b6f..8616da323 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -1152,6 +1152,21 @@ OPENSSL_EXPORT int SSL_set_ocsp_response(SSL *ssl, const uint8_t *response,
+ OPENSSL_EXPORT const char *SSL_get_signature_algorithm_name(uint16_t sigalg,
+                                                             int include_curve);
+ 
++// SSL_get_all_signature_algorithm_names outputs a list of possible strings
++// |SSL_get_signature_algorithm_name| may return in this version of BoringSSL.
++// It writes at most |max_out| entries to |out| and returns the total number it
++// would have written, if |max_out| had been large enough. |max_out| may be
++// initially set to zero to size the output.
++//
++// This function is only intended to help initialize tables in callers that want
++// possible strings pre-declared. This list would not be suitable to set a list
++// of supported features. It is in no particular order, and may contain
++// placeholder, experimental, or deprecated values that do not apply to every
++// caller. Future versions of BoringSSL may also return strings not in this
++// list, so this does not apply if, say, sending strings across services.
++OPENSSL_EXPORT size_t SSL_get_all_signature_algorithm_names(const char **out,
++                                                            size_t max_out);
++
+ // SSL_get_signature_algorithm_key_type returns the key type associated with
+ // |sigalg| as an |EVP_PKEY_*| constant or |EVP_PKEY_NONE| if unknown.
+ OPENSSL_EXPORT int SSL_get_signature_algorithm_key_type(uint16_t sigalg);
+@@ -1465,6 +1480,37 @@ OPENSSL_EXPORT const char *SSL_CIPHER_get_kx_name(const SSL_CIPHER *cipher);
+ OPENSSL_EXPORT int SSL_CIPHER_get_bits(const SSL_CIPHER *cipher,
+                                        int *out_alg_bits);
+ 
++// SSL_get_all_cipher_names outputs a list of possible strings
++// |SSL_CIPHER_get_name| may return in this version of BoringSSL. It writes at
++// most |max_out| entries to |out| and returns the total number it would have
++// written, if |max_out| had been large enough. |max_out| may be initially set
++// to zero to size the output.
++//
++// This function is only intended to help initialize tables in callers that want
++// possible strings pre-declared. This list would not be suitable to set a list
++// of supported features. It is in no particular order, and may contain
++// placeholder, experimental, or deprecated values that do not apply to every
++// caller. Future versions of BoringSSL may also return strings not in this
++// list, so this does not apply if, say, sending strings across services.
++OPENSSL_EXPORT size_t SSL_get_all_cipher_names(const char **out,
++                                               size_t max_out);
++
++
++// SSL_get_all_standard_cipher_names outputs a list of possible strings
++// |SSL_CIPHER_standard_name| may return in this version of BoringSSL. It writes
++// at most |max_out| entries to |out| and returns the total number it would have
++// written, if |max_out| had been large enough. |max_out| may be initially set
++// to zero to size the output.
++//
++// This function is only intended to help initialize tables in callers that want
++// possible strings pre-declared. This list would not be suitable to set a list
++// of supported features. It is in no particular order, and may contain
++// placeholder, experimental, or deprecated values that do not apply to every
++// caller. Future versions of BoringSSL may also return strings not in this
++// list, so this does not apply if, say, sending strings across services.
++OPENSSL_EXPORT size_t SSL_get_all_standard_cipher_names(const char **out,
++                                                        size_t max_out);
++
+ 
+ // Cipher suite configuration.
+ //
+@@ -2568,6 +2614,20 @@ OPENSSL_EXPORT int SSL_to_bytes(const SSL *in, uint8_t **out_data,
+ OPENSSL_EXPORT SSL *SSL_from_bytes(const uint8_t *in, size_t in_len,
+                                    SSL_CTX *ctx);
+ 
++// SSL_get_all_curve_names outputs a list of possible strings
++// |SSL_get_curve_name| may return in this version of BoringSSL. It writes at
++// most |max_out| entries to |out| and returns the total number it would have
++// written, if |max_out| had been large enough. |max_out| may be initially set
++// to zero to size the output.
++//
++// This function is only intended to help initialize tables in callers that want
++// possible strings pre-declared. This list would not be suitable to set a list
++// of supported features. It is in no particular order, and may contain
++// placeholder, experimental, or deprecated values that do not apply to every
++// caller. Future versions of BoringSSL may also return strings not in this
++// list, so this does not apply if, say, sending strings across services.
++OPENSSL_EXPORT size_t SSL_get_all_curve_names(const char **out, size_t max_out);
++
+ // SSL_CTX_set1_groups calls |SSL_CTX_set1_curves|.
+ OPENSSL_EXPORT int SSL_CTX_set1_groups(SSL_CTX *ctx, const int *groups,
+                                        size_t groups_len);
+@@ -5150,6 +5210,21 @@ OPENSSL_EXPORT long SSL_get_default_timeout(const SSL *ssl);
+ // For example, "TLSv1.2" or "DTLSv1".
+ OPENSSL_EXPORT const char *SSL_get_version(const SSL *ssl);
+ 
++// SSL_get_all_version_names outputs a list of possible strings
++// |SSL_get_version| may return in this version of BoringSSL. It writes at most
++// |max_out| entries to |out| and returns the total number it would have
++// written, if |max_out| had been large enough. |max_out| may be initially set
++// to zero to size the output.
++//
++// This function is only intended to help initialize tables in callers that want
++// possible strings pre-declared. This list would not be suitable to set a list
++// of supported features. It is in no particular order, and may contain
++// placeholder, experimental, or deprecated values that do not apply to every
++// caller. Future versions of BoringSSL may also return strings not in this
++// list, so this does not apply if, say, sending strings across services.
++OPENSSL_EXPORT size_t SSL_get_all_version_names(const char **out,
++                                                size_t max_out);
++
+ // SSL_get_cipher_list returns the name of the |n|th cipher in the output of
+ // |SSL_get_ciphers| or NULL if out of range. Use |SSL_get_ciphers| instead.
+ OPENSSL_EXPORT const char *SSL_get_cipher_list(const SSL *ssl, int n);
+diff --git a/ssl/ssl_cipher.cc b/ssl/ssl_cipher.cc
+index 0d7b8e0dd..b7c3862e0 100644
+--- a/ssl/ssl_cipher.cc
++++ b/ssl/ssl_cipher.cc
+@@ -1803,3 +1803,25 @@ const char *SSL_COMP_get0_name(const SSL_COMP *comp) { return comp->name; }
+ int SSL_COMP_get_id(const SSL_COMP *comp) { return comp->id; }
+ 
+ void SSL_COMP_free_compression_methods(void) {}
++
++size_t SSL_get_all_cipher_names(const char **out, size_t max_out) {
++  auto span = MakeSpan(out, max_out);
++  if (!span.empty()) {
++    // |SSL_CIPHER_get_name| returns "(NONE)" for null.
++    span[0] = "(NONE)";
++    span = span.subspan(1);
++  }
++  span = span.subspan(0, OPENSSL_ARRAY_SIZE(kCiphers));
++  for (size_t i = 0; i < span.size(); i++) {
++    span[i] = kCiphers[i].name;
++  }
++  return 1 + OPENSSL_ARRAY_SIZE(kCiphers);
++}
++
++size_t SSL_get_all_standard_cipher_names(const char **out, size_t max_out) {
++  auto span = MakeSpan(out, max_out).subspan(0, OPENSSL_ARRAY_SIZE(kCiphers));
++  for (size_t i = 0; i < span.size(); i++) {
++    span[i] = kCiphers[i].standard_name;
++  }
++  return OPENSSL_ARRAY_SIZE(kCiphers);
++}
+diff --git a/ssl/ssl_key_share.cc b/ssl/ssl_key_share.cc
+index 4f2dc1c12..2b8c26763 100644
+--- a/ssl/ssl_key_share.cc
++++ b/ssl/ssl_key_share.cc
+@@ -28,6 +28,7 @@
+ #include <openssl/mem.h>
+ #include <openssl/nid.h>
+ #include <openssl/rand.h>
++#include <openssl/span.h>
+ 
+ #include "internal.h"
+ #include "../crypto/internal.h"
+@@ -251,3 +252,12 @@ const char* SSL_get_curve_name(uint16_t group_id) {
+   }
+   return nullptr;
+ }
++
++size_t SSL_get_all_curve_names(const char **out, size_t max_out) {
++  auto span =
++      MakeSpan(out, max_out).subspan(0, OPENSSL_ARRAY_SIZE(kNamedGroups));
++  for (size_t i = 0; i < span.size(); i++) {
++    span[i] = kNamedGroups[i].name;
++  }
++  return OPENSSL_ARRAY_SIZE(kNamedGroups);
++}
+diff --git a/ssl/ssl_privkey.cc b/ssl/ssl_privkey.cc
+index 9c60ea955..6c65d6986 100644
+--- a/ssl/ssl_privkey.cc
++++ b/ssl/ssl_privkey.cc
+@@ -64,6 +64,7 @@
+ #include <openssl/err.h>
+ #include <openssl/evp.h>
+ #include <openssl/mem.h>
++#include <openssl/span.h>
+ 
+ #include "../crypto/internal.h"
+ #include "internal.h"
+@@ -554,6 +555,27 @@ const char *SSL_get_signature_algorithm_name(uint16_t sigalg,
+   return NULL;
+ }
+ 
++size_t SSL_get_all_signature_algorithm_names(const char **out, size_t max_out) {
++  auto span = MakeSpan(out, max_out);
++  if (!span.empty()) {
++    span[0] = "ecdsa_sha256";
++    span = span.subspan(1);
++  }
++  if (!span.empty()) {
++    span[0] = "ecdsa_sha384";
++    span = span.subspan(1);
++  }
++  if (!span.empty()) {
++    span[0] = "ecdsa_sha512";
++    span = span.subspan(1);
++  }
++  span = span.subspan(0, OPENSSL_ARRAY_SIZE(kSignatureAlgorithmNames));
++  for (size_t i = 0; i < span.size(); i++) {
++    span[i] = kSignatureAlgorithmNames[i].name;
++  }
++  return 3 + OPENSSL_ARRAY_SIZE(kSignatureAlgorithmNames);
++}
++
+ int SSL_get_signature_algorithm_key_type(uint16_t sigalg) {
+   const SSL_SIGNATURE_ALGORITHM *alg = get_signature_algorithm(sigalg);
+   return alg != nullptr ? alg->pkey_type : EVP_PKEY_NONE;
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index 82a7c2bc5..00a959c71 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -9697,5 +9697,52 @@ TEST(SSLTest, ErrorStrings) {
+   EXPECT_EQ(Bytes(SSL_alert_type_string(unknown_value)), Bytes("U"));
+ }
+ 
++TEST(SSLTest, NameLists) {
++  struct {
++    size_t (*func)(const char **, size_t);
++    std::vector<std::string> expected;
++  } kTests[] = {
++      {SSL_get_all_version_names, {"TLSv1.3", "DTLSv1.2", "unknown"}},
++      {SSL_get_all_standard_cipher_names,
++       {"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", "TLS_AES_128_GCM_SHA256"}},
++      {SSL_get_all_cipher_names,
++       {"ECDHE-ECDSA-AES128-GCM-SHA256", "TLS_AES_128_GCM_SHA256", "(NONE)"}},
++      {SSL_get_all_curve_names, {"P-256", "X25519"}},
++      {SSL_get_all_signature_algorithm_names,
++       {"rsa_pkcs1_sha256", "ecdsa_secp256r1_sha256", "ecdsa_sha256"}},
++  };
++  for (const auto &t : kTests) {
++    size_t num = t.func(nullptr, 0);
++    EXPECT_GT(num, 0u);
++
++    std::vector<const char*> list(num);
++    EXPECT_EQ(num, t.func(list.data(), list.size()));
++
++    // Check the expected values are in the list.
++    for (const auto &s : t.expected) {
++      EXPECT_NE(list.end(), std::find(list.begin(), list.end(), s))
++          << "Could not find " << s;
++    }
++
++    // Passing in a larger buffer should leave excess space alone.
++    std::vector<const char *> list2(num + 1, "placeholder");
++    EXPECT_EQ(num, t.func(list2.data(), list2.size()));
++    for (size_t i = 0; i < num; i++) {
++      EXPECT_STREQ(list[i], list2[i]);
++    }
++    EXPECT_STREQ(list2.back(), "placeholder");
++
++    // Passing in a shorter buffer should truncate the list.
++    for (size_t l = 0; l < num; l++) {
++      SCOPED_TRACE(l);
++      list2.resize(l);
++      EXPECT_EQ(num, t.func(list2.data(), list2.size()));
++      for (size_t i = 0; i < l; i++) {
++        EXPECT_STREQ(list[i], list2[i]);
++      }
++    }
++  }
++}
++
+ }  // namespace
+ BSSL_NAMESPACE_END
+diff --git a/ssl/ssl_versions.cc b/ssl/ssl_versions.cc
+index 964f7c93e..a836606d0 100644
+--- a/ssl/ssl_versions.cc
++++ b/ssl/ssl_versions.cc
+@@ -16,8 +16,11 @@
+ 
+ #include <assert.h>
+ 
++#include <algorithm>
++
+ #include <openssl/bytestring.h>
+ #include <openssl/err.h>
++#include <openssl/span.h>
+ 
+ #include "internal.h"
+ #include "../crypto/internal.h"
+@@ -82,29 +85,25 @@ bool ssl_method_supports_version(const SSL_PROTOCOL_METHOD *method,
+ // The following functions map between API versions and wire versions. The
+ // public API works on wire versions.
+ 
+-static const char *ssl_version_to_string(uint16_t version) {
+-  switch (version) {
+-    case TLS1_3_VERSION:
+-      return "TLSv1.3";
+-
+-    case TLS1_2_VERSION:
+-      return "TLSv1.2";
+-
+-    case TLS1_1_VERSION:
+-      return "TLSv1.1";
+-
+-    case TLS1_VERSION:
+-      return "TLSv1";
+-
+-    case DTLS1_VERSION:
+-      return "DTLSv1";
+-
+-    case DTLS1_2_VERSION:
+-      return "DTLSv1.2";
++static const struct {
++  uint16_t version;
++  const char *name;
++} kVersionNames[] = {
++    {TLS1_3_VERSION, "TLSv1.3"},
++    {TLS1_2_VERSION, "TLSv1.2"},
++    {TLS1_1_VERSION, "TLSv1.1"},
++    {TLS1_VERSION, "TLSv1"},
++    {DTLS1_VERSION, "DTLSv1"},
++    {DTLS1_2_VERSION, "DTLSv1.2"},
++};
+ 
+-    default:
+-      return "unknown";
++static const char *ssl_version_to_string(uint16_t version) {
++  for (const auto &v : kVersionNames) {
++    if (v.version == version) {
++      return v.name;
++    }
+   }
++  return "unknown";
+ }
+ 
+ static uint16_t wire_version_to_api(uint16_t version) {
+@@ -383,6 +382,20 @@ const char *SSL_get_version(const SSL *ssl) {
+   return ssl_version_to_string(ssl_version(ssl));
+ }
+ 
++size_t SSL_get_all_version_names(const char **out, size_t max_out) {
++  auto span = MakeSpan(out, max_out);
++  if (!span.empty()) {
++    // |ssl_version_to_string| returns "unknown" for unknown versions.
++    span[0] = "unknown";
++    span = span.subspan(1);
++  }
++  span = span.subspan(0, OPENSSL_ARRAY_SIZE(kVersionNames));
++  for (size_t i = 0; i < span.size(); i++) {
++    span[i] = kVersionNames[i].name;
++  }
++  return 1 + OPENSSL_ARRAY_SIZE(kVersionNames);
++}
++
+ const char *SSL_SESSION_get_version(const SSL_SESSION *session) {
+   return ssl_version_to_string(session->ssl_version);
+ }
+diff --git a/ssl/test/bssl_shim.cc b/ssl/test/bssl_shim.cc
+index dbc9fff61..dd60a4182 100644
+--- a/ssl/test/bssl_shim.cc
++++ b/ssl/test/bssl_shim.cc
+@@ -299,6 +299,20 @@ static uint16_t GetProtocolVersion(const SSL *ssl) {
+   return 0x0201 + ~version;
+ }
+ 
++static bool CheckListContains(const char *type,
++                              size_t (*list_func)(const char **, size_t),
++                              const char *str) {
++  std::vector<const char *> list(list_func(nullptr, 0));
++  list_func(list.data(), list.size());
++  for (const char *expected : list) {
++    if (strcmp(expected, str) == 0) {
++      return true;
++    }
++  }
++  fprintf(stderr, "Unexpected %s: %s\n", type, str);
++  return false;
++}
++
+ // CheckAuthProperties checks, after the initial handshake is completed or
+ // after a renegotiation, that authentication-related properties match |config|.
+ static bool CheckAuthProperties(SSL *ssl, bool is_resume,
+@@ -693,6 +707,30 @@ static bool CheckHandshakeProperties(SSL *ssl, bool is_resume,
+     return false;
+   }
+ 
++  // Check all the selected parameters are covered by the string APIs.
++  if (!CheckListContains("version", SSL_get_all_version_names,
++                         SSL_get_version(ssl)) ||
++      !CheckListContains(
++          "cipher", SSL_get_all_standard_cipher_names,
++          SSL_CIPHER_standard_name(SSL_get_current_cipher(ssl))) ||
++      !CheckListContains("OpenSSL cipher name", SSL_get_all_cipher_names,
++                         SSL_CIPHER_get_name(SSL_get_current_cipher(ssl))) ||
++      (SSL_get_curve_id(ssl) != 0 &&
++       !CheckListContains("curve", SSL_get_all_curve_names,
++                          SSL_get_curve_name(SSL_get_curve_id(ssl)))) ||
++      (SSL_get_peer_signature_algorithm(ssl) != 0 &&
++       !CheckListContains(
++           "sigalg", SSL_get_all_signature_algorithm_names,
++           SSL_get_signature_algorithm_name(
++               SSL_get_peer_signature_algorithm(ssl), /*include_curve=*/0))) ||
++      (SSL_get_peer_signature_algorithm(ssl) != 0 &&
++       !CheckListContains(
++           "sigalg with curve", SSL_get_all_signature_algorithm_names,
++           SSL_get_signature_algorithm_name(
++               SSL_get_peer_signature_algorithm(ssl), /*include_curve=*/1)))) {
++    return false;
++  }
++
+   // Test that handshake hints correctly skipped the expected operations.
+   if (config->handshake_hints && !config->allow_hint_mismatch) {
+     const TestState *state = GetTestState(ssl);

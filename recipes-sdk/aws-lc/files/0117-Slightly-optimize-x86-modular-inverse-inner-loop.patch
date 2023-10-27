@@ -1,0 +1,282 @@
+From eb2947e5bda947d02bb79ca090e81806206513c8 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Thu, 9 Feb 2023 19:07:49 -0800
+Subject: [PATCH] Slightly optimize x86 modular inverse inner loop
+
+The new one is somewhat shorter (29 instructions versus 33) and
+seems to be appreciably faster on several microarchitectures. Also
+made analogous changes to the coprimality test and the embedded
+instances of modular inverse within scalar multiplications.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/d1ef8cfa08845e4150f5b0a707a3b49f03f13055
+---
+ x86_att/curve25519/curve25519_x25519.S        | 50 +++++++++----------
+ x86_att/curve25519/curve25519_x25519_alt.S    | 50 +++++++++----------
+ x86_att/curve25519/curve25519_x25519base.S    | 50 +++++++++----------
+ .../curve25519/curve25519_x25519base_alt.S    | 50 +++++++++----------
+ 4 files changed, 92 insertions(+), 108 deletions(-)
+
+diff --git a/x86_att/curve25519/curve25519_x25519.S b/x86_att/curve25519/curve25519_x25519.S
+index 2887c510f..689429c4b 100644
+--- a/x86_att/curve25519/curve25519_x25519.S
++++ b/x86_att/curve25519/curve25519_x25519.S
+@@ -888,38 +888,34 @@ toploop:
+         movq    %r8, (%rsp)
+         movq    %r15, 0x18(%rsp)
+ innerloop:
+-        movq    %rbp, %rax
+-        movq    %rsi, %rdi
+-        movq    %rcx, %r13
+-        movq    %rdx, %r15
+-        movq    $0x1, %rbx
+-        negq    %rdi
+-        andq    %r14, %rbx
+-        cmoveq  %rbx, %rax
+-        cmoveq  %rbx, %rdi
+-        cmoveq  %rbx, %r13
+-        cmoveq  %rbx, %r15
+-        movq    %r12, %rbx
+-        addq    %r14, %rdi
+-        movq    %rdi, %r8
+-        negq    %rdi
+-        subq    %rax, %rbx
++        xorl    %eax, %eax
++        xorl    %ebx, %ebx
++        xorq    %r8, %r8
++        xorq    %r15, %r15
++        btq     $0x0, %r14
++        cmovbq  %rbp, %rax
++        cmovbq  %rsi, %rbx
++        cmovbq  %rcx, %r8
++        cmovbq  %rdx, %r15
++        movq    %r14, %r13
++        subq    %rbx, %r14
++        subq    %r13, %rbx
++        movq    %r12, %rdi
++        subq    %rax, %rdi
+         cmovbq  %r12, %rbp
+-        cmovbq  %r14, %rsi
++        leaq    -0x1(%rdi), %r12
++        cmovbq  %rbx, %r14
++        cmovbq  %r13, %rsi
++        notq    %r12
+         cmovbq  %r10, %rcx
+         cmovbq  %r11, %rdx
+-        cmovaeq %r8, %rdi
+-        movq    %rbx, %r12
+-        notq    %rbx
+-        incq    %rbx
+-        cmovbq  %rbx, %r12
+-        movq    %rdi, %r14
+-        addq    %r13, %r10
++        cmovaeq %rdi, %r12
++        shrq    $1, %r14
++        addq    %r8, %r10
+         addq    %r15, %r11
+         shrq    $1, %r12
+-        shrq    $1, %r14
+-        leaq    (%rcx,%rcx), %rcx
+-        leaq    (%rdx,%rdx), %rdx
++        addq    %rcx, %rcx
++        addq    %rdx, %rdx
+         decq    %r9
+         jne     innerloop
+         movq    0x8(%rsp), %rdi
+diff --git a/x86_att/curve25519/curve25519_x25519_alt.S b/x86_att/curve25519/curve25519_x25519_alt.S
+index fa34c2e88..1d132ab05 100644
+--- a/x86_att/curve25519/curve25519_x25519_alt.S
++++ b/x86_att/curve25519/curve25519_x25519_alt.S
+@@ -1054,38 +1054,34 @@ toploop:
+         movq    %r8, (%rsp)
+         movq    %r15, 0x18(%rsp)
+ innerloop:
+-        movq    %rbp, %rax
+-        movq    %rsi, %rdi
+-        movq    %rcx, %r13
+-        movq    %rdx, %r15
+-        movq    $0x1, %rbx
+-        negq    %rdi
+-        andq    %r14, %rbx
+-        cmoveq  %rbx, %rax
+-        cmoveq  %rbx, %rdi
+-        cmoveq  %rbx, %r13
+-        cmoveq  %rbx, %r15
+-        movq    %r12, %rbx
+-        addq    %r14, %rdi
+-        movq    %rdi, %r8
+-        negq    %rdi
+-        subq    %rax, %rbx
++        xorl    %eax, %eax
++        xorl    %ebx, %ebx
++        xorq    %r8, %r8
++        xorq    %r15, %r15
++        btq     $0x0, %r14
++        cmovbq  %rbp, %rax
++        cmovbq  %rsi, %rbx
++        cmovbq  %rcx, %r8
++        cmovbq  %rdx, %r15
++        movq    %r14, %r13
++        subq    %rbx, %r14
++        subq    %r13, %rbx
++        movq    %r12, %rdi
++        subq    %rax, %rdi
+         cmovbq  %r12, %rbp
+-        cmovbq  %r14, %rsi
++        leaq    -0x1(%rdi), %r12
++        cmovbq  %rbx, %r14
++        cmovbq  %r13, %rsi
++        notq    %r12
+         cmovbq  %r10, %rcx
+         cmovbq  %r11, %rdx
+-        cmovaeq %r8, %rdi
+-        movq    %rbx, %r12
+-        notq    %rbx
+-        incq    %rbx
+-        cmovbq  %rbx, %r12
+-        movq    %rdi, %r14
+-        addq    %r13, %r10
++        cmovaeq %rdi, %r12
++        shrq    $1, %r14
++        addq    %r8, %r10
+         addq    %r15, %r11
+         shrq    $1, %r12
+-        shrq    $1, %r14
+-        leaq    (%rcx,%rcx), %rcx
+-        leaq    (%rdx,%rdx), %rdx
++        addq    %rcx, %rcx
++        addq    %rdx, %rdx
+         decq    %r9
+         jne     innerloop
+         movq    0x8(%rsp), %rdi
+diff --git a/x86_att/curve25519/curve25519_x25519base.S b/x86_att/curve25519/curve25519_x25519base.S
+index 177ad685d..673287830 100644
+--- a/x86_att/curve25519/curve25519_x25519base.S
++++ b/x86_att/curve25519/curve25519_x25519base.S
+@@ -1011,38 +1011,34 @@ toploop:
+         movq    %r8, (%rsp)
+         movq    %r15, 0x18(%rsp)
+ innerloop:
+-        movq    %rbp, %rax
+-        movq    %rsi, %rdi
+-        movq    %rcx, %r13
+-        movq    %rdx, %r15
+-        movq    $0x1, %rbx
+-        negq    %rdi
+-        andq    %r14, %rbx
+-        cmoveq  %rbx, %rax
+-        cmoveq  %rbx, %rdi
+-        cmoveq  %rbx, %r13
+-        cmoveq  %rbx, %r15
+-        movq    %r12, %rbx
+-        addq    %r14, %rdi
+-        movq    %rdi, %r8
+-        negq    %rdi
+-        subq    %rax, %rbx
++        xorl    %eax, %eax
++        xorl    %ebx, %ebx
++        xorq    %r8, %r8
++        xorq    %r15, %r15
++        btq     $0x0, %r14
++        cmovbq  %rbp, %rax
++        cmovbq  %rsi, %rbx
++        cmovbq  %rcx, %r8
++        cmovbq  %rdx, %r15
++        movq    %r14, %r13
++        subq    %rbx, %r14
++        subq    %r13, %rbx
++        movq    %r12, %rdi
++        subq    %rax, %rdi
+         cmovbq  %r12, %rbp
+-        cmovbq  %r14, %rsi
++        leaq    -0x1(%rdi), %r12
++        cmovbq  %rbx, %r14
++        cmovbq  %r13, %rsi
++        notq    %r12
+         cmovbq  %r10, %rcx
+         cmovbq  %r11, %rdx
+-        cmovaeq %r8, %rdi
+-        movq    %rbx, %r12
+-        notq    %rbx
+-        incq    %rbx
+-        cmovbq  %rbx, %r12
+-        movq    %rdi, %r14
+-        addq    %r13, %r10
++        cmovaeq %rdi, %r12
++        shrq    $1, %r14
++        addq    %r8, %r10
+         addq    %r15, %r11
+         shrq    $1, %r12
+-        shrq    $1, %r14
+-        leaq    (%rcx,%rcx), %rcx
+-        leaq    (%rdx,%rdx), %rdx
++        addq    %rcx, %rcx
++        addq    %rdx, %rdx
+         decq    %r9
+         jne     innerloop
+         movq    0x8(%rsp), %rdi
+diff --git a/x86_att/curve25519/curve25519_x25519base_alt.S b/x86_att/curve25519/curve25519_x25519base_alt.S
+index 67b98ff99..4e0285088 100644
+--- a/x86_att/curve25519/curve25519_x25519base_alt.S
++++ b/x86_att/curve25519/curve25519_x25519base_alt.S
+@@ -1087,38 +1087,34 @@ toploop:
+         movq    %r8, (%rsp)
+         movq    %r15, 0x18(%rsp)
+ innerloop:
+-        movq    %rbp, %rax
+-        movq    %rsi, %rdi
+-        movq    %rcx, %r13
+-        movq    %rdx, %r15
+-        movq    $0x1, %rbx
+-        negq    %rdi
+-        andq    %r14, %rbx
+-        cmoveq  %rbx, %rax
+-        cmoveq  %rbx, %rdi
+-        cmoveq  %rbx, %r13
+-        cmoveq  %rbx, %r15
+-        movq    %r12, %rbx
+-        addq    %r14, %rdi
+-        movq    %rdi, %r8
+-        negq    %rdi
+-        subq    %rax, %rbx
++        xorl    %eax, %eax
++        xorl    %ebx, %ebx
++        xorq    %r8, %r8
++        xorq    %r15, %r15
++        btq     $0x0, %r14
++        cmovbq  %rbp, %rax
++        cmovbq  %rsi, %rbx
++        cmovbq  %rcx, %r8
++        cmovbq  %rdx, %r15
++        movq    %r14, %r13
++        subq    %rbx, %r14
++        subq    %r13, %rbx
++        movq    %r12, %rdi
++        subq    %rax, %rdi
+         cmovbq  %r12, %rbp
+-        cmovbq  %r14, %rsi
++        leaq    -0x1(%rdi), %r12
++        cmovbq  %rbx, %r14
++        cmovbq  %r13, %rsi
++        notq    %r12
+         cmovbq  %r10, %rcx
+         cmovbq  %r11, %rdx
+-        cmovaeq %r8, %rdi
+-        movq    %rbx, %r12
+-        notq    %rbx
+-        incq    %rbx
+-        cmovbq  %rbx, %r12
+-        movq    %rdi, %r14
+-        addq    %r13, %r10
++        cmovaeq %rdi, %r12
++        shrq    $1, %r14
++        addq    %r8, %r10
+         addq    %r15, %r11
+         shrq    $1, %r12
+-        shrq    $1, %r14
+-        leaq    (%rcx,%rcx), %rcx
+-        leaq    (%rdx,%rdx), %rdx
++        addq    %rcx, %rcx
++        addq    %rdx, %rdx
+         decq    %r9
+         jne     innerloop
+         movq    0x8(%rsp), %rdi

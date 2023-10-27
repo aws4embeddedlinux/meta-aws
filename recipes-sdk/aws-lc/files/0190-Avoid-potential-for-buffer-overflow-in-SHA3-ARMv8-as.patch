@@ -1,0 +1,133 @@
+From e1065a0eed2143cf3451291d732c3ca4670979f6 Mon Sep 17 00:00:00 2001
+From: Brian Jarvis <92757966+brian-jarvis-aws@users.noreply.github.com>
+Date: Mon, 13 Mar 2023 15:49:12 -0400
+Subject: [PATCH] Avoid potential for buffer overflow in SHA3 ARMv8 assembly
+ (#863)
+
+---
+ crypto/fipsmodule/sha/asm/keccak1600-armv8.pl                | 5 +++++
+ .../ios-aarch64/crypto/fipsmodule/keccak1600-armv8.S         | 5 +++++
+ .../linux-aarch64/crypto/fipsmodule/keccak1600-armv8.S       | 5 +++++
+ .../win-aarch64/crypto/fipsmodule/keccak1600-armv8.S         | 5 +++++
+ 4 files changed, 20 insertions(+)
+
+diff --git a/crypto/fipsmodule/sha/asm/keccak1600-armv8.pl b/crypto/fipsmodule/sha/asm/keccak1600-armv8.pl
+index 1a7bfbbbd..2215e470e 100755
+--- a/crypto/fipsmodule/sha/asm/keccak1600-armv8.pl
++++ b/crypto/fipsmodule/sha/asm/keccak1600-armv8.pl
+@@ -450,6 +450,8 @@ SHA3_Squeeze:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-48]!
+ 	add	x29,sp,#0
++	cmp	x2,#0
++	beq	.Lsqueeze_abort
+ 	stp	x19,x20,[sp,#16]
+ 	stp	x21,x22,[sp,#32]
+ 	mov	$A_flat,x0			// put aside arguments
+@@ -503,6 +505,7 @@ SHA3_Squeeze:
+ .Lsqueeze_done:
+ 	ldp	x19,x20,[sp,#16]
+ 	ldp	x21,x22,[sp,#32]
++.Lsqueeze_abort:
+ 	ldp	x29,x30,[sp],#48
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+@@ -729,6 +732,8 @@ SHA3_Squeeze_cext:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-16]!
+ 	add	x29,sp,#0
++	cmp	$len,#0
++	beq	.Lsqueeze_done_ce
+ 	mov	x9,$ctx
+ 	mov	x10,$bsz
+ .Loop_squeeze_ce:
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/keccak1600-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+index cef1efe68..b9f6696d9 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/keccak1600-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+@@ -489,6 +489,8 @@ _SHA3_Squeeze:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-48]!
+ 	add	x29,sp,#0
++	cmp	x2,#0
++	beq	Lsqueeze_abort
+ 	stp	x19,x20,[sp,#16]
+ 	stp	x21,x22,[sp,#32]
+ 	mov	x19,x0			// put aside arguments
+@@ -542,6 +544,7 @@ Lsqueeze_tail:
+ Lsqueeze_done:
+ 	ldp	x19,x20,[sp,#16]
+ 	ldp	x21,x22,[sp,#32]
++Lsqueeze_abort:
+ 	ldp	x29,x30,[sp],#48
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+@@ -900,6 +903,8 @@ _SHA3_Squeeze_cext:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-16]!
+ 	add	x29,sp,#0
++	cmp	x2,#0
++	beq	Lsqueeze_done_ce
+ 	mov	x9,x0
+ 	mov	x10,x3
+ Loop_squeeze_ce:
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/keccak1600-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+index 3180533a2..d43f936ba 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/keccak1600-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+@@ -489,6 +489,8 @@ SHA3_Squeeze:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-48]!
+ 	add	x29,sp,#0
++	cmp	x2,#0
++	beq	.Lsqueeze_abort
+ 	stp	x19,x20,[sp,#16]
+ 	stp	x21,x22,[sp,#32]
+ 	mov	x19,x0			// put aside arguments
+@@ -542,6 +544,7 @@ SHA3_Squeeze:
+ .Lsqueeze_done:
+ 	ldp	x19,x20,[sp,#16]
+ 	ldp	x21,x22,[sp,#32]
++.Lsqueeze_abort:
+ 	ldp	x29,x30,[sp],#48
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+@@ -900,6 +903,8 @@ SHA3_Squeeze_cext:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-16]!
+ 	add	x29,sp,#0
++	cmp	x2,#0
++	beq	.Lsqueeze_done_ce
+ 	mov	x9,x0
+ 	mov	x10,x3
+ .Loop_squeeze_ce:
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/keccak1600-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+index 5dff7f42a..67636c270 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/keccak1600-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+@@ -497,6 +497,8 @@ SHA3_Squeeze:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-48]!
+ 	add	x29,sp,#0
++	cmp	x2,#0
++	beq	Lsqueeze_abort
+ 	stp	x19,x20,[sp,#16]
+ 	stp	x21,x22,[sp,#32]
+ 	mov	x19,x0			// put aside arguments
+@@ -550,6 +552,7 @@ Lsqueeze_tail:
+ Lsqueeze_done:
+ 	ldp	x19,x20,[sp,#16]
+ 	ldp	x21,x22,[sp,#32]
++Lsqueeze_abort:
+ 	ldp	x29,x30,[sp],#48
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+@@ -916,6 +919,8 @@ SHA3_Squeeze_cext:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-16]!
+ 	add	x29,sp,#0
++	cmp	x2,#0
++	beq	Lsqueeze_done_ce
+ 	mov	x9,x0
+ 	mov	x10,x3
+ Loop_squeeze_ce:

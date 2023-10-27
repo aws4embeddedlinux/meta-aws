@@ -1,0 +1,55 @@
+From 39f643c21fb07bf1229eec70d7767f8cc2c60df4 Mon Sep 17 00:00:00 2001
+From: sachiang <sachiang@amazon.com>
+Date: Fri, 28 Oct 2022 14:45:01 -0700
+Subject: [PATCH] update license headers of Makefiles and sed files
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/5746a969ad2cff94b6172151375fc4319375879f
+---
+ arm/p384/Makefile | 12 +-----------
+ arm/p521/Makefile | 12 +-----------
+ 2 files changed, 2 insertions(+), 22 deletions(-)
+
+diff --git a/arm/p384/Makefile b/arm/p384/Makefile
+index 11a560550..d3feb070c 100644
+--- a/arm/p384/Makefile
++++ b/arm/p384/Makefile
+@@ -1,16 +1,6 @@
+ #############################################################################
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-#
+-# Licensed under the Apache License, Version 2.0 (the "License").
+-# You may not use this file except in compliance with the License.
+-# A copy of the License is located at
+-#
+-#  http://aws.amazon.com/apache2.0
+-#
+-# or in the "LICENSE" file accompanying this file. This file is distributed
+-# on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+-# express or implied. See the License for the specific language governing
+-# permissions and limitations under the License.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
+ #############################################################################
+ 
+ # If actually on an ARM8 machine, just use the GNU assmbler (as). Otherwise
+diff --git a/arm/p521/Makefile b/arm/p521/Makefile
+index 9ea36beb9..b8ad763c3 100644
+--- a/arm/p521/Makefile
++++ b/arm/p521/Makefile
+@@ -1,16 +1,6 @@
+ #############################################################################
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-#
+-# Licensed under the Apache License, Version 2.0 (the "License").
+-# You may not use this file except in compliance with the License.
+-# A copy of the License is located at
+-#
+-#  http://aws.amazon.com/apache2.0
+-#
+-# or in the "LICENSE" file accompanying this file. This file is distributed
+-# on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+-# express or implied. See the License for the specific language governing
+-# permissions and limitations under the License.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
+ #############################################################################
+ 
+ # If actually on an ARM8 machine, just use the GNU assmbler (as). Otherwise

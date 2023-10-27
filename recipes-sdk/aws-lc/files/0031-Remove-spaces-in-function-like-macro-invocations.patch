@@ -1,0 +1,811 @@
+From a54bd0e4756b9a91f579fa51364aa39033c595c9 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Tue, 14 Sep 2021 16:58:11 -0700
+Subject: [PATCH] Remove spaces in function-like macro invocations
+
+This involves transforming "f (arg1,...,argn)" -> "f(arg1,...,argn)"
+on invocations of each macro f, since there exist preprocessors that
+don't expand the macro if the whitespace is there. Arguably their
+behavior is buggy, at least in the context of actual C compilation,
+but removing the space seems if anything more readable and natural.
+(Note that this is a different question from spaces in the
+*definition* of a macro, where of course they would make it an
+object-like macro.)
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/c456426d6fd353598e80020474e35fd1cd20dad3
+---
+ arm/p384/bignum_bigendian_6.S      | 12 +++---
+ arm/p384/bignum_deamont_p384.S     | 12 +++---
+ arm/p384/bignum_demont_p384.S      | 12 +++---
+ arm/p384/bignum_mod_n384.S         |  6 +--
+ arm/p384/bignum_mod_n384_6.S       |  6 +--
+ arm/p384/bignum_montmul_p384.S     | 30 +++++++-------
+ arm/p384/bignum_montsqr_p384.S     | 18 ++++-----
+ arm/p384/bignum_tomont_p384.S      | 12 +++---
+ x86_att/p384/bignum_deamont_p384.S | 14 +++----
+ x86_att/p384/bignum_demont_p384.S  | 14 +++----
+ x86_att/p384/bignum_montmul_p384.S | 64 +++++++++++++++---------------
+ x86_att/p384/bignum_montsqr_p384.S | 30 +++++++-------
+ x86_att/p384/bignum_tomont_p384.S  | 50 +++++++++++------------
+ x86_att/p521/bignum_montsqr_p521.S |  4 +-
+ x86_att/p521/bignum_sqr_p521.S     |  4 +-
+ 15 files changed, 144 insertions(+), 144 deletions(-)
+
+diff --git a/arm/p384/bignum_bigendian_6.S b/arm/p384/bignum_bigendian_6.S
+index 780ee07ce..f2c786e5e 100644
+--- a/arm/p384/bignum_bigendian_6.S
++++ b/arm/p384/bignum_bigendian_6.S
+@@ -78,22 +78,22 @@ bignum_tobytes_6:
+ 
+ // 0 and 5 words
+ 
+-                accumdigit (a, 0)
+-                accumdigit (c, 5)
++                accumdigit(a, 0)
++                accumdigit(c, 5)
+                 str     a, [z, #40]
+                 str     c, [z]
+ 
+ // 1 and 4 words
+ 
+-                accumdigit (a, 1)
+-                accumdigit (c, 4)
++                accumdigit(a, 1)
++                accumdigit(c, 4)
+                 str     a, [z, #32]
+                 str     c, [z, #8]
+ 
+ // 2 and 3 words
+ 
+-                accumdigit (a, 2)
+-                accumdigit (c, 3)
++                accumdigit(a, 2)
++                accumdigit(c, 3)
+                 str     a, [z, #24]
+                 str     c, [z, #16]
+ 
+diff --git a/arm/p384/bignum_deamont_p384.S b/arm/p384/bignum_deamont_p384.S
+index 76d00cd27..f237d6533 100644
+--- a/arm/p384/bignum_deamont_p384.S
++++ b/arm/p384/bignum_deamont_p384.S
+@@ -97,17 +97,17 @@ bignum_deamont_p384:
+ 
+ // Systematically scroll left doing 1-step reductions
+ 
+-                montreds (d0,d5,d4,d3,d2,d1,d0, u,v,w)
++                montreds(d0,d5,d4,d3,d2,d1,d0, u,v,w)
+ 
+-                montreds (d1,d0,d5,d4,d3,d2,d1, u,v,w)
++                montreds(d1,d0,d5,d4,d3,d2,d1, u,v,w)
+ 
+-                montreds (d2,d1,d0,d5,d4,d3,d2, u,v,w)
++                montreds(d2,d1,d0,d5,d4,d3,d2, u,v,w)
+ 
+-                montreds (d3,d2,d1,d0,d5,d4,d3, u,v,w)
++                montreds(d3,d2,d1,d0,d5,d4,d3, u,v,w)
+ 
+-                montreds (d4,d3,d2,d1,d0,d5,d4, u,v,w)
++                montreds(d4,d3,d2,d1,d0,d5,d4, u,v,w)
+ 
+-                montreds (d5,d4,d3,d2,d1,d0,d5, u,v,w)
++                montreds(d5,d4,d3,d2,d1,d0,d5, u,v,w)
+ 
+ // Now compare end result in [d5;d4;d3;d2;d1;d0] = dd with p_384 by *adding*
+ // 2^384 - p_384 = [0;0;0;w;v;u]. This will set CF if
+diff --git a/arm/p384/bignum_demont_p384.S b/arm/p384/bignum_demont_p384.S
+index c7af5f813..35852513a 100644
+--- a/arm/p384/bignum_demont_p384.S
++++ b/arm/p384/bignum_demont_p384.S
+@@ -97,17 +97,17 @@ bignum_demont_p384:
+ 
+ // Systematically scroll left doing 1-step reductions
+ 
+-                montreds (d0,d5,d4,d3,d2,d1,d0, u,v,w)
++                montreds(d0,d5,d4,d3,d2,d1,d0, u,v,w)
+ 
+-                montreds (d1,d0,d5,d4,d3,d2,d1, u,v,w)
++                montreds(d1,d0,d5,d4,d3,d2,d1, u,v,w)
+ 
+-                montreds (d2,d1,d0,d5,d4,d3,d2, u,v,w)
++                montreds(d2,d1,d0,d5,d4,d3,d2, u,v,w)
+ 
+-                montreds (d3,d2,d1,d0,d5,d4,d3, u,v,w)
++                montreds(d3,d2,d1,d0,d5,d4,d3, u,v,w)
+ 
+-                montreds (d4,d3,d2,d1,d0,d5,d4, u,v,w)
++                montreds(d4,d3,d2,d1,d0,d5,d4, u,v,w)
+ 
+-                montreds (d5,d4,d3,d2,d1,d0,d5, u,v,w)
++                montreds(d5,d4,d3,d2,d1,d0,d5, u,v,w)
+ 
+ // This is already our answer with no correction needed
+ 
+diff --git a/arm/p384/bignum_mod_n384.S b/arm/p384/bignum_mod_n384.S
+index 3f4d24ad9..3cd37ecaa 100644
+--- a/arm/p384/bignum_mod_n384.S
++++ b/arm/p384/bignum_mod_n384.S
+@@ -90,9 +90,9 @@ bignum_mod_n384:
+ 
+ // Load the complicated three words of 2^384 - n_384 = [0; 0; 0; n2; n1; n0]
+ 
+-                movbig ( n0, #0x1313, #0xe695, #0x333a, #0xd68d)
+-                movbig ( n1, #0xa7e5, #0xf24d, #0xb74f, #0x5885)
+-                movbig ( n2, #0x389c, #0xb27e, #0x0bc8, #0xd220)
++                movbig( n0, #0x1313, #0xe695, #0x333a, #0xd68d)
++                movbig( n1, #0xa7e5, #0xf24d, #0xb74f, #0x5885)
++                movbig( n2, #0x389c, #0xb27e, #0x0bc8, #0xd220)
+ 
+ // Reduce the top 6 digits mod n_384 (a conditional subtraction of n_384)
+ 
+diff --git a/arm/p384/bignum_mod_n384_6.S b/arm/p384/bignum_mod_n384_6.S
+index e7e22763a..f8b3ff4ef 100644
+--- a/arm/p384/bignum_mod_n384_6.S
++++ b/arm/p384/bignum_mod_n384_6.S
+@@ -56,9 +56,9 @@ bignum_mod_n384_6:
+ 
+ // Load the complicated lower three words of n_384
+ 
+-                movbig ( n0, #0xecec, #0x196a, #0xccc5, #0x2973)
+-                movbig ( n1, #0x581a, #0x0db2, #0x48b0, #0xa77a)
+-                movbig ( n2, #0xc763, #0x4d81, #0xf437, #0x2ddf)
++                movbig( n0, #0xecec, #0x196a, #0xccc5, #0x2973)
++                movbig( n1, #0x581a, #0x0db2, #0x48b0, #0xa77a)
++                movbig( n2, #0xc763, #0x4d81, #0xf437, #0x2ddf)
+ 
+ // Load the input number
+ 
+diff --git a/arm/p384/bignum_montmul_p384.S b/arm/p384/bignum_montmul_p384.S
+index 4599edcb7..a78cf4d76 100644
+--- a/arm/p384/bignum_montmul_p384.S
++++ b/arm/p384/bignum_montmul_p384.S
+@@ -152,7 +152,7 @@ bignum_montmul_p384:
+                 adcs    s4, s4, t4
+                 adc     s5, s5, xzr
+ 
+-                muldiffn (t3,t2,t1, t4, a0,a1, b1,b0)
++                muldiffn(t3,t2,t1, t4, a0,a1, b1,b0)
+                 adds    xzr, t3, #1
+                 adcs    s1, s1, t1
+                 adcs    s2, s2, t2
+@@ -160,14 +160,14 @@ bignum_montmul_p384:
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+-                muldiffn (t3,t2,t1, t4, a0,a2, b2,b0)
++                muldiffn(t3,t2,t1, t4, a0,a2, b2,b0)
+                 adds    xzr, t3, #1
+                 adcs    s2, s2, t1
+                 adcs    s3, s3, t2
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+-                muldiffn (t3,t2,t1, t4, a1,a2, b2,b1)
++                muldiffn(t3,t2,t1, t4, a1,a2, b2,b1)
+                 adds    xzr, t3, #1
+                 adcs    s3, s3, t1
+                 adcs    s4, s4, t2
+@@ -179,11 +179,11 @@ bignum_montmul_p384:
+ // We could keep this in registers by directly adding to it in the next
+ // ADK block, but if anything that seems to be slightly slower
+ 
+-                montreds (s0,s5,s4,s3,s2,s1,s0, t1,t2,t3)
++                montreds(s0,s5,s4,s3,s2,s1,s0, t1,t2,t3)
+ 
+-                montreds (s1,s0,s5,s4,s3,s2,s1, t1,t2,t3)
++                montreds(s1,s0,s5,s4,s3,s2,s1, t1,t2,t3)
+ 
+-                montreds (s2,s1,s0,s5,s4,s3,s2, t1,t2,t3)
++                montreds(s2,s1,s0,s5,s4,s3,s2, t1,t2,t3)
+ 
+                 stp     s3, s4, [x0]
+                 stp     s5, s0, [x0, #16]
+@@ -212,7 +212,7 @@ bignum_montmul_p384:
+                 adcs    s4, s4, t4
+                 adc     s5, s5, xzr
+ 
+-                muldiffn (t3,t2,t1, t4, a3,a4, b4,b3)
++                muldiffn(t3,t2,t1, t4, a3,a4, b4,b3)
+                 adds    xzr, t3, #1
+                 adcs    s1, s1, t1
+                 adcs    s2, s2, t2
+@@ -220,14 +220,14 @@ bignum_montmul_p384:
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+-                muldiffn (t3,t2,t1, t4, a3,a5, b5,b3)
++                muldiffn(t3,t2,t1, t4, a3,a5, b5,b3)
+                 adds    xzr, t3, #1
+                 adcs    s2, s2, t1
+                 adcs    s3, s3, t2
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+-                muldiffn (t3,t2,t1, t4, a4,a5, b5,b4)
++                muldiffn(t3,t2,t1, t4, a4,a5, b5,b4)
+                 adds    xzr, t3, #1
+                 adcs    s3, s3, t1
+                 adcs    s4, s4, t2
+@@ -306,7 +306,7 @@ bignum_montmul_p384:
+                 adcs    s4, s4, t4
+                 adc     s5, s5, xzr
+ 
+-                muldiffn (t3,t2,t1, t4, a3,a4, b1,b0)
++                muldiffn(t3,t2,t1, t4, a3,a4, b1,b0)
+                 adds    xzr, t3, #1
+                 adcs    s1, s1, t1
+                 adcs    s2, s2, t2
+@@ -314,14 +314,14 @@ bignum_montmul_p384:
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+-                muldiffn (t3,t2,t1, t4, a3,a5, b2,b0)
++                muldiffn(t3,t2,t1, t4, a3,a5, b2,b0)
+                 adds    xzr, t3, #1
+                 adcs    s2, s2, t1
+                 adcs    s3, s3, t2
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+-                muldiffn (t3,t2,t1, t4, a4,a5, b2,b1)
++                muldiffn(t3,t2,t1, t4, a4,a5, b2,b1)
+                 adds    xzr, t3, #1
+                 adcs    s3, s3, t1
+                 adcs    s4, s4, t2
+@@ -367,9 +367,9 @@ bignum_montmul_p384:
+ 
+ // Do three more Montgomery steps on the composed term
+ 
+-                montreds (s0,s5,s4,s3,s2,s1,s0, t1,t2,t3)
+-                montreds (s1,s0,s5,s4,s3,s2,s1, t1,t2,t3)
+-                montreds (s2,s1,s0,s5,s4,s3,s2, t1,t2,t3)
++                montreds(s0,s5,s4,s3,s2,s1,s0, t1,t2,t3)
++                montreds(s1,s0,s5,s4,s3,s2,s1, t1,t2,t3)
++                montreds(s2,s1,s0,s5,s4,s3,s2, t1,t2,t3)
+ 
+                 adds    b0, b0, s0
+                 adcs    b1, b1, s1
+diff --git a/arm/p384/bignum_montsqr_p384.S b/arm/p384/bignum_montsqr_p384.S
+index aa74ec3a7..6592fff18 100644
+--- a/arm/p384/bignum_montsqr_p384.S
++++ b/arm/p384/bignum_montsqr_p384.S
+@@ -147,11 +147,11 @@ bignum_montsqr_p384:
+ // This shifts it to an offset compatible with middle product
+ // Stash the result temporarily in the output buffer (to avoid more registers)
+ 
+-                montreds (c0,c5,c4,c3,c2,c1,c0, d1,d2,d3)
++                montreds(c0,c5,c4,c3,c2,c1,c0, d1,d2,d3)
+ 
+-                montreds (c1,c0,c5,c4,c3,c2,c1, d1,d2,d3)
++                montreds(c1,c0,c5,c4,c3,c2,c1, d1,d2,d3)
+ 
+-                montreds (c2,c1,c0,c5,c4,c3,c2, d1,d2,d3)
++                montreds(c2,c1,c0,c5,c4,c3,c2, d1,d2,d3)
+ 
+                 stp     c3, c4, [x0]
+                 stp     c5, c0, [x0, #16]
+@@ -205,7 +205,7 @@ bignum_montsqr_p384:
+                 adcs    s4, s4, h1
+                 adc     s5, h2, xzr
+ 
+-                muldiffn (c,h,l, t, a0,a1, a4,a3)
++                muldiffn(c,h,l, t, a0,a1, a4,a3)
+                 adds    xzr, c, #1
+                 adcs    s1, s1, l
+                 adcs    s2, s2, h
+@@ -213,14 +213,14 @@ bignum_montsqr_p384:
+                 adcs    s4, s4, c
+                 adc     s5, s5, c
+ 
+-                muldiffn (c,h,l, t, a0,a2, a5,a3)
++                muldiffn(c,h,l, t, a0,a2, a5,a3)
+                 adds    xzr, c, #1
+                 adcs    s2, s2, l
+                 adcs    s3, s3, h
+                 adcs    s4, s4, c
+                 adc     s5, s5, c
+ 
+-                muldiffn (c,h,l, t, a1,a2, a5,a4)
++                muldiffn(c,h,l, t, a1,a2, a5,a4)
+                 adds    xzr, c, #1
+                 adcs    s3, s3, l
+                 adcs    s4, s4, h
+@@ -249,11 +249,11 @@ bignum_montsqr_p384:
+ 
+ // Montgomery-reduce the combined low and middle term another thrice
+ 
+-                montreds (s0,s5,s4,s3,s2,s1,s0, a0,a1,a2)
++                montreds(s0,s5,s4,s3,s2,s1,s0, a0,a1,a2)
+ 
+-                montreds (s1,s0,s5,s4,s3,s2,s1, a0,a1,a2)
++                montreds(s1,s0,s5,s4,s3,s2,s1, a0,a1,a2)
+ 
+-                montreds (s2,s1,s0,s5,s4,s3,s2, a0,a1,a2)
++                montreds(s2,s1,s0,s5,s4,s3,s2, a0,a1,a2)
+ 
+                 adds    s6, s6, s0
+                 adcs    s0, s1, xzr
+diff --git a/arm/p384/bignum_tomont_p384.S b/arm/p384/bignum_tomont_p384.S
+index 90e0ead93..7f86fd796 100644
+--- a/arm/p384/bignum_tomont_p384.S
++++ b/arm/p384/bignum_tomont_p384.S
+@@ -118,12 +118,12 @@ bignum_tomont_p384:
+ 
+ // Successively multiply by 2^64 and reduce
+ 
+-                modstep_p384 (d5,d4,d3,d2,d1,d0,d6, t1,t2,t3)
+-                modstep_p384 (d4,d3,d2,d1,d0,d6,d5, t1,t2,t3)
+-                modstep_p384 (d3,d2,d1,d0,d6,d5,d4, t1,t2,t3)
+-                modstep_p384 (d2,d1,d0,d6,d5,d4,d3, t1,t2,t3)
+-                modstep_p384 (d1,d0,d6,d5,d4,d3,d2, t1,t2,t3)
+-                modstep_p384 (d0,d6,d5,d4,d3,d2,d1, t1,t2,t3)
++                modstep_p384(d5,d4,d3,d2,d1,d0,d6, t1,t2,t3)
++                modstep_p384(d4,d3,d2,d1,d0,d6,d5, t1,t2,t3)
++                modstep_p384(d3,d2,d1,d0,d6,d5,d4, t1,t2,t3)
++                modstep_p384(d2,d1,d0,d6,d5,d4,d3, t1,t2,t3)
++                modstep_p384(d1,d0,d6,d5,d4,d3,d2, t1,t2,t3)
++                modstep_p384(d0,d6,d5,d4,d3,d2,d1, t1,t2,t3)
+ 
+ // Store the result and return
+ 
+diff --git a/x86_att/p384/bignum_deamont_p384.S b/x86_att/p384/bignum_deamont_p384.S
+index 9c6eff28c..a84a99e1a 100644
+--- a/x86_att/p384/bignum_deamont_p384.S
++++ b/x86_att/p384/bignum_deamont_p384.S
+@@ -48,7 +48,7 @@
+ // not for the general case of Montgomery multiplication. It is fine
+ // for d6 to be the same register as d0.
+ //
+-// Parms:  montreds (d6,d5,d4,d3,d2,d1,d0)
++// Parms:  montreds(d6,d5,d4,d3,d2,d1,d0)
+ //
+ // We want to add (2^384 - 2^128 - 2^96 + 2^32 - 1) * w
+ // where w = [d0 + (d0<<32)] mod 2^64
+@@ -96,27 +96,27 @@ bignum_deamont_p384:
+ 
+ // Montgomery reduce window 0
+ 
+-        montreds (%r8,%r13,%r12,%r11,%r10,%r9,%r8)
++        montreds(%r8,%r13,%r12,%r11,%r10,%r9,%r8)
+ 
+ // Montgomery reduce window 1
+ 
+-        montreds (%r9,%r8,%r13,%r12,%r11,%r10,%r9)
++        montreds(%r9,%r8,%r13,%r12,%r11,%r10,%r9)
+ 
+ // Montgomery reduce window 2
+ 
+-        montreds (%r10,%r9,%r8,%r13,%r12,%r11,%r10)
++        montreds(%r10,%r9,%r8,%r13,%r12,%r11,%r10)
+ 
+ // Montgomery reduce window 3
+ 
+-        montreds (%r11,%r10,%r9,%r8,%r13,%r12,%r11)
++        montreds(%r11,%r10,%r9,%r8,%r13,%r12,%r11)
+ 
+ // Montgomery reduce window 4
+ 
+-        montreds (%r12,%r11,%r10,%r9,%r8,%r13,%r12)
++        montreds(%r12,%r11,%r10,%r9,%r8,%r13,%r12)
+ 
+ // Montgomery reduce window 5
+ 
+-        montreds (%r13,%r12,%r11,%r10,%r9,%r8,%r13)
++        montreds(%r13,%r12,%r11,%r10,%r9,%r8,%r13)
+ 
+ // Do a test addition of dd = [%r13;%r12;%r11;%r10;%r9;%r8] and
+ // 2^384 - p_384 = [0;0;0;1;v;u], hence setting CF iff
+diff --git a/x86_att/p384/bignum_demont_p384.S b/x86_att/p384/bignum_demont_p384.S
+index a375417a0..ea85bbcef 100644
+--- a/x86_att/p384/bignum_demont_p384.S
++++ b/x86_att/p384/bignum_demont_p384.S
+@@ -40,7 +40,7 @@
+ // not for the general case of Montgomery multiplication. It is fine
+ // for d6 to be the same register as d0.
+ //
+-// Parms:  montreds (d6,d5,d4,d3,d2,d1,d0)
++// Parms:  montreds(d6,d5,d4,d3,d2,d1,d0)
+ //
+ // We want to add (2^384 - 2^128 - 2^96 + 2^32 - 1) * w
+ // where w = [d0 + (d0<<32)] mod 2^64
+@@ -88,27 +88,27 @@ bignum_demont_p384:
+ 
+ // Montgomery reduce window 0
+ 
+-        montreds (%r8,%r13,%r12,%r11,%r10,%r9,%r8)
++        montreds(%r8,%r13,%r12,%r11,%r10,%r9,%r8)
+ 
+ // Montgomery reduce window 1
+ 
+-        montreds (%r9,%r8,%r13,%r12,%r11,%r10,%r9)
++        montreds(%r9,%r8,%r13,%r12,%r11,%r10,%r9)
+ 
+ // Montgomery reduce window 2
+ 
+-        montreds (%r10,%r9,%r8,%r13,%r12,%r11,%r10)
++        montreds(%r10,%r9,%r8,%r13,%r12,%r11,%r10)
+ 
+ // Montgomery reduce window 3
+ 
+-        montreds (%r11,%r10,%r9,%r8,%r13,%r12,%r11)
++        montreds(%r11,%r10,%r9,%r8,%r13,%r12,%r11)
+ 
+ // Montgomery reduce window 4
+ 
+-        montreds (%r12,%r11,%r10,%r9,%r8,%r13,%r12)
++        montreds(%r12,%r11,%r10,%r9,%r8,%r13,%r12)
+ 
+ // Montgomery reduce window 5
+ 
+-        montreds (%r13,%r12,%r11,%r10,%r9,%r8,%r13)
++        montreds(%r13,%r12,%r11,%r10,%r9,%r8,%r13)
+ 
+ // Write back the result
+ 
+diff --git a/x86_att/p384/bignum_montmul_p384.S b/x86_att/p384/bignum_montmul_p384.S
+index 0b956627d..2fd3a0d18 100644
+--- a/x86_att/p384/bignum_montmul_p384.S
++++ b/x86_att/p384/bignum_montmul_p384.S
+@@ -61,7 +61,7 @@
+ // We want to add (2^384 - 2^128 - 2^96 + 2^32 - 1) * w
+ // where w = [d0 + (d0<<32)] mod 2^64
+ //
+-//       montredc (d7,d6,d5,d4,d3,d2,d1,d0)
++//       montredc(d7,d6,d5,d4,d3,d2,d1,d0)
+ //
+ // This particular variant, with its mix of addition and subtraction
+ // at the top, is not intended to maintain a coherent carry or borrow out.
+@@ -129,17 +129,17 @@ bignum_montmul_p384:
+ 
+ // Montgomery reduce the zeroth window
+ 
+-        montredc (%r15, %r14,%r13,%r12,%r11,%r10,%r9,%r8)
++        montredc(%r15, %r14,%r13,%r12,%r11,%r10,%r9,%r8)
+ 
+ // Add row 1
+ 
+         movq    8(y), %rdx
+         xorl    %r8d, %r8d
+-        mulpadd (%r10,%r9,(x))
+-        mulpadd (%r11,%r10, 8(x))
+-        mulpadd (%r12,%r11,16(x))
+-        mulpadd (%r13,%r12,24(x))
+-        mulpadd (%r14,%r13,32(x))
++        mulpadd(%r10,%r9,(x))
++        mulpadd(%r11,%r10, 8(x))
++        mulpadd(%r12,%r11,16(x))
++        mulpadd(%r13,%r12,24(x))
++        mulpadd(%r14,%r13,32(x))
+         adoxq   %r8, %r15
+         mulxq   40(x), %rax, %rbx
+         adcq    %rax, %r14
+@@ -148,17 +148,17 @@ bignum_montmul_p384:
+ 
+ // Montgomery reduce window 1
+ 
+-        montredc (%r8, %r15,%r14,%r13,%r12,%r11,%r10,%r9)
++        montredc(%r8, %r15,%r14,%r13,%r12,%r11,%r10,%r9)
+ 
+ // Add row 2
+ 
+         movq    16(y), %rdx
+         xorl    %r9d, %r9d
+-        mulpadd (%r11,%r10,(x))
+-        mulpadd (%r12,%r11,8(x))
+-        mulpadd (%r13,%r12,16(x))
+-        mulpadd (%r14,%r13,24(x))
+-        mulpadd (%r15,%r14,32(x))
++        mulpadd(%r11,%r10,(x))
++        mulpadd(%r12,%r11,8(x))
++        mulpadd(%r13,%r12,16(x))
++        mulpadd(%r14,%r13,24(x))
++        mulpadd(%r15,%r14,32(x))
+         adoxq   %r9, %r8
+         mulxq   40(x), %rax, %rbx
+         adcq    %rax, %r15
+@@ -167,17 +167,17 @@ bignum_montmul_p384:
+ 
+ // Montgomery reduce window 2
+ 
+-        montredc (%r9, %r8,%r15,%r14,%r13,%r12,%r11,%r10)
++        montredc(%r9, %r8,%r15,%r14,%r13,%r12,%r11,%r10)
+ 
+ // Add row 3
+ 
+         movq    24(y), %rdx
+         xorl    %r10d, %r10d
+-        mulpadd (%r12,%r11,(x))
+-        mulpadd (%r13,%r12,8(x))
+-        mulpadd (%r14,%r13,16(x))
+-        mulpadd (%r15,%r14,24(x))
+-        mulpadd (%r8,%r15,32(x))
++        mulpadd(%r12,%r11,(x))
++        mulpadd(%r13,%r12,8(x))
++        mulpadd(%r14,%r13,16(x))
++        mulpadd(%r15,%r14,24(x))
++        mulpadd(%r8,%r15,32(x))
+         adoxq   %r10, %r9
+         mulxq   40(x), %rax, %rbx
+         adcq    %rax, %r8
+@@ -186,17 +186,17 @@ bignum_montmul_p384:
+ 
+ // Montgomery reduce window 3
+ 
+-        montredc (%r10, %r9,%r8,%r15,%r14,%r13,%r12,%r11)
++        montredc(%r10, %r9,%r8,%r15,%r14,%r13,%r12,%r11)
+ 
+ // Add row 4
+ 
+         movq    32(y), %rdx
+         xorl    %r11d, %r11d
+-        mulpadd (%r13,%r12,(x))
+-        mulpadd (%r14,%r13,8(x))
+-        mulpadd (%r15,%r14,16(x))
+-        mulpadd (%r8,%r15,24(x))
+-        mulpadd (%r9,%r8,32(x))
++        mulpadd(%r13,%r12,(x))
++        mulpadd(%r14,%r13,8(x))
++        mulpadd(%r15,%r14,16(x))
++        mulpadd(%r8,%r15,24(x))
++        mulpadd(%r9,%r8,32(x))
+         adoxq   %r11, %r10
+         mulxq   40(x), %rax, %rbx
+         adcq    %rax, %r9
+@@ -205,17 +205,17 @@ bignum_montmul_p384:
+ 
+ // Montgomery reduce window 4
+ 
+-        montredc (%r11, %r10,%r9,%r8,%r15,%r14,%r13,%r12)
++        montredc(%r11, %r10,%r9,%r8,%r15,%r14,%r13,%r12)
+ 
+ // Add row 5
+ 
+         movq    40(y), %rdx
+         xorl    %r12d, %r12d
+-        mulpadd (%r14,%r13,(x))
+-        mulpadd (%r15,%r14,8(x))
+-        mulpadd (%r8,%r15,16(x))
+-        mulpadd (%r9,%r8,24(x))
+-        mulpadd (%r10,%r9,32(x))
++        mulpadd(%r14,%r13,(x))
++        mulpadd(%r15,%r14,8(x))
++        mulpadd(%r8,%r15,16(x))
++        mulpadd(%r9,%r8,24(x))
++        mulpadd(%r10,%r9,32(x))
+         adoxq   %r12, %r11
+         mulxq   40(x), %rax, %rbx
+         adcq    %rax, %r10
+@@ -224,7 +224,7 @@ bignum_montmul_p384:
+ 
+ // Montgomery reduce window 5
+ 
+-        montredc (%r12, %r11,%r10,%r9,%r8,%r15,%r14,%r13)
++        montredc(%r12, %r11,%r10,%r9,%r8,%r15,%r14,%r13)
+ 
+ // We now have a pre-reduced 7-word form z = [%r12; %r11;%r10;%r9;%r8;%r15;%r14]
+ // Next, accumulate in different registers z - p_384, or more precisely
+diff --git a/x86_att/p384/bignum_montsqr_p384.S b/x86_att/p384/bignum_montsqr_p384.S
+index 3e2cbbdbf..8c3c91331 100644
+--- a/x86_att/p384/bignum_montsqr_p384.S
++++ b/x86_att/p384/bignum_montsqr_p384.S
+@@ -63,7 +63,7 @@
+ // We want to add (2^384 - 2^128 - 2^96 + 2^32 - 1) * w
+ // where w = [d0 + (d0<<32)] mod 2^64
+ //
+-//       montreds (d6,d5,d4,d3,d2,d1,d0)
++//       montreds(d6,d5,d4,d3,d2,d1,d0)
+ 
+ #define montreds(d6,d5,d4,d3,d2,d1,d0)                                  \
+ /* Our correction multiplier is w = [d0 + (d0<<32)] mod 2^64 */         \
+@@ -119,12 +119,12 @@ bignum_montsqr_p384:
+ // (no carry-out possible)
+ 
+         movq    16(x), %rdx
+-        mulpadd (%r11,%r10,(x))
+-        mulpadd (%r12,%r11,8(x))
++        mulpadd(%r11,%r10,(x))
++        mulpadd(%r12,%r11,8(x))
+         movq    8(x), %rdx
+-        mulpadd (%r13,%r12,24(x))
+-        mulpadd (%r14,%r13,32(x))
+-        mulpadd (%r15,%r14,40(x))
++        mulpadd(%r13,%r12,24(x))
++        mulpadd(%r14,%r13,32(x))
++        mulpadd(%r15,%r14,40(x))
+         adcxq   zero, %r15
+         adoxq   zero, %rcx
+         adcq    zero, %rcx
+@@ -140,10 +140,10 @@ bignum_montsqr_p384:
+ // our result so far is in [%rbp;%rbx;%rcx;%r15;...%r9]
+ 
+         movq    32(x), %rdx
+-        mulpadd (%r13,%r12,(x))
++        mulpadd(%r13,%r12,(x))
+         movq    16(x), %rdx
+-        mulpadd (%r14,%r13,24(x))
+-        mulpadd (%r15,%r14,32(x))
++        mulpadd(%r14,%r13,24(x))
++        mulpadd(%r15,%r14,32(x))
+         mulxq   40(x), %rax, %rdx
+         adcxq   %rax, %r15
+         adoxq   %rdx, %rcx
+@@ -213,12 +213,12 @@ bignum_montsqr_p384:
+ 
+ // Montgomery reduce the %r13,...,%r8 window 6 times
+ 
+-        montreds (%r8,%r13,%r12,%r11,%r10,%r9,%r8)
+-        montreds (%r9,%r8,%r13,%r12,%r11,%r10,%r9)
+-        montreds (%r10,%r9,%r8,%r13,%r12,%r11,%r10)
+-        montreds (%r11,%r10,%r9,%r8,%r13,%r12,%r11)
+-        montreds (%r12,%r11,%r10,%r9,%r8,%r13,%r12)
+-        montreds (%r13,%r12,%r11,%r10,%r9,%r8,%r13)
++        montreds(%r8,%r13,%r12,%r11,%r10,%r9,%r8)
++        montreds(%r9,%r8,%r13,%r12,%r11,%r10,%r9)
++        montreds(%r10,%r9,%r8,%r13,%r12,%r11,%r10)
++        montreds(%r11,%r10,%r9,%r8,%r13,%r12,%r11)
++        montreds(%r12,%r11,%r10,%r9,%r8,%r13,%r12)
++        montreds(%r13,%r12,%r11,%r10,%r9,%r8,%r13)
+ 
+ // Now we can safely restore %rbx before accumulating
+ 
+diff --git a/x86_att/p384/bignum_tomont_p384.S b/x86_att/p384/bignum_tomont_p384.S
+index 24a90b15f..9491cfe74 100644
+--- a/x86_att/p384/bignum_tomont_p384.S
++++ b/x86_att/p384/bignum_tomont_p384.S
+@@ -60,7 +60,7 @@
+ // We want to add (2^384 - 2^128 - 2^96 + 2^32 - 1) * w
+ // where w = [d0 + (d0<<32)] mod 2^64
+ //
+-//       montredc (d7,d6,d5,d4,d3,d2,d1,d0)
++//       montredc(d7,d6,d5,d4,d3,d2,d1,d0)
+ //
+ // This particular variant, with its mix of addition and subtraction
+ // at the top, is not intended to maintain a coherent carry or borrow out.
+@@ -127,64 +127,64 @@ bignum_tomont_p384:
+ // Montgomery reduce the zeroth window
+ 
+         xorq    %r15, %r15
+-        montredc (%r15, %r14,%r13,%r12,%r11,%r10,%r9,%r8)
++        montredc(%r15, %r14,%r13,%r12,%r11,%r10,%r9,%r8)
+ 
+ // Add row 1
+ 
+         xorq    zero, zero
+         movq    $0x0000000200000000, %rdx
+         xorq    %r8, %r8
+-        mulpadd (%r10,%r9,(x))
+-        mulpadd (%r11,%r10,8(x))
+-        mulpadd (%r12,%r11,16(x))
+-        mulpadd (%r13,%r12,24(x))
+-        mulpadd (%r14,%r13,32(x))
+-        mulpadd (%r15,%r14,40(x))
++        mulpadd(%r10,%r9,(x))
++        mulpadd(%r11,%r10,8(x))
++        mulpadd(%r12,%r11,16(x))
++        mulpadd(%r13,%r12,24(x))
++        mulpadd(%r14,%r13,32(x))
++        mulpadd(%r15,%r14,40(x))
+         adcxq   zero, %r15
+         adoxq   zero, %r8
+         adcxq   zero, %r8
+ 
+ // Montgomery reduce window 1
+ 
+-        montredc (%r8, %r15,%r14,%r13,%r12,%r11,%r10,%r9)
++        montredc(%r8, %r15,%r14,%r13,%r12,%r11,%r10,%r9)
+ 
+ // Add row 2
+ 
+         xorq    zero, zero
+         movq    $0xfffffffe00000000, %rdx
+         xorq    %r9, %r9
+-        mulpadd (%r11,%r10,(x))
+-        mulpadd (%r12,%r11,8(x))
+-        mulpadd (%r13,%r12,16(x))
+-        mulpadd (%r14,%r13,24(x))
+-        mulpadd (%r15,%r14,32(x))
+-        mulpadd (%r8,%r15,40(x))
++        mulpadd(%r11,%r10,(x))
++        mulpadd(%r12,%r11,8(x))
++        mulpadd(%r13,%r12,16(x))
++        mulpadd(%r14,%r13,24(x))
++        mulpadd(%r15,%r14,32(x))
++        mulpadd(%r8,%r15,40(x))
+         adcxq   zero, %r8
+         adoxq   zero, %r9
+         adcxq   zero, %r9
+ 
+ // Montgomery reduce window 2
+ 
+-        montredc (%r9, %r8,%r15,%r14,%r13,%r12,%r11,%r10)
++        montredc(%r9, %r8,%r15,%r14,%r13,%r12,%r11,%r10)
+ 
+ // Add row 3
+ 
+         xorq    zero, zero
+         movq    $0x0000000200000000, %rdx
+         xorq    %r10, %r10
+-        mulpadd (%r12,%r11,(x))
+-        mulpadd (%r13,%r12,8(x))
+-        mulpadd (%r14,%r13,16(x))
+-        mulpadd (%r15,%r14,24(x))
+-        mulpadd (%r8,%r15,32(x))
+-        mulpadd (%r9,%r8,40(x))
++        mulpadd(%r12,%r11,(x))
++        mulpadd(%r13,%r12,8(x))
++        mulpadd(%r14,%r13,16(x))
++        mulpadd(%r15,%r14,24(x))
++        mulpadd(%r8,%r15,32(x))
++        mulpadd(%r9,%r8,40(x))
+         adcxq   zero, %r9
+         adoxq   zero, %r10
+         adcxq   zero, %r10
+ 
+ // Montgomery reduce window 3
+ 
+-        montredc (%r10, %r9,%r8,%r15,%r14,%r13,%r12,%r11)
++        montredc(%r10, %r9,%r8,%r15,%r14,%r13,%r12,%r11)
+ 
+ // Add row 4. The multiplier y[4] = 1, so we just add x to the window
+ // while extending it with one more digit, initially this carry
+@@ -201,7 +201,7 @@ bignum_tomont_p384:
+ 
+ // Montgomery reduce window 4
+ 
+-        montredc (%r11, %r10,%r9,%r8,%r15,%r14,%r13,%r12)
++        montredc(%r11, %r10,%r9,%r8,%r15,%r14,%r13,%r12)
+ 
+ // Add row 5, The multiplier y[5] = 0, so this is trivial: all we do is
+ // bring down another zero digit into the window.
+@@ -210,7 +210,7 @@ bignum_tomont_p384:
+ 
+ // Montgomery reduce window 5
+ 
+-        montredc (%r12, %r11,%r10,%r9,%r8,%r15,%r14,%r13)
++        montredc(%r12, %r11,%r10,%r9,%r8,%r15,%r14,%r13)
+ 
+ // We now have a pre-reduced 7-word form [%r12;%r11;%r10;%r9;%r8;%r15;%r14]
+ 
+diff --git a/x86_att/p521/bignum_montsqr_p521.S b/x86_att/p521/bignum_montsqr_p521.S
+index 45c89145b..a90b4c48b 100644
+--- a/x86_att/p521/bignum_montsqr_p521.S
++++ b/x86_att/p521/bignum_montsqr_p521.S
+@@ -40,7 +40,7 @@
+ #define zero %rbp
+ #define zeroe %ebp
+ 
+-// mulpadd (high,low,i) adds %rdx * x[i] to a register-pair (high,low)
++// mulpadd(high,low,i) adds %rdx * x[i] to a register-pair (high,low)
+ // maintaining consistent double-carrying with adcx and adox,
+ // using %rax and %rcx as temporaries.
+ 
+@@ -49,7 +49,7 @@
+         adcxq   %rax, low ;               \
+         adoxq   %rcx, high
+ 
+-// mulpade (hight,low,i) adds %rdx * x[i] to a register-pair (high,low)
++// mulpade(hight,low,i) adds %rdx * x[i] to a register-pair (high,low)
+ // maintaining consistent double-carrying with adcx and adox,
+ // using %rax as a temporary, assuming high created from scratch
+ // and that zero has value zero.
+diff --git a/x86_att/p521/bignum_sqr_p521.S b/x86_att/p521/bignum_sqr_p521.S
+index 5739b881d..afc145d4f 100644
+--- a/x86_att/p521/bignum_sqr_p521.S
++++ b/x86_att/p521/bignum_sqr_p521.S
+@@ -34,7 +34,7 @@
+ #define zero %rbp
+ #define zeroe %ebp
+ 
+-// mulpadd (high,low,i) adds %rdx * x[i] to a register-pair (high,low)
++// mulpadd(high,low,i) adds %rdx * x[i] to a register-pair (high,low)
+ // maintaining consistent double-carrying with adcx and adox,
+ // using %rax and %rcx as temporaries.
+ 
+@@ -43,7 +43,7 @@
+         adcxq   %rax, low ;               \
+         adoxq   %rcx, high
+ 
+-// mulpade (hight,low,i) adds %rdx * x[i] to a register-pair (high,low)
++// mulpade(hight,low,i) adds %rdx * x[i] to a register-pair (high,low)
+ // maintaining consistent double-carrying with adcx and adox,
+ // using %rax as a temporary, assuming high created from scratch
+ // and that zero has value zero.

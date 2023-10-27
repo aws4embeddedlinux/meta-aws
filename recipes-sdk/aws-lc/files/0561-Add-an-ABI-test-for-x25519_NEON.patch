@@ -1,0 +1,51 @@
+From 54849db1e601895d407ae690c7794277cb09c14d Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 25 May 2023 14:21:11 -0400
+Subject: [PATCH] Add an ABI test for x25519_NEON
+
+Change-Id: I84dd6750276b334bf3349b4592fee6227403580c
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/60145
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit e30750c9f46058c8247ad1652fe3af917c162661)
+---
+ crypto/curve25519/x25519_test.cc | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/crypto/curve25519/x25519_test.cc b/crypto/curve25519/x25519_test.cc
+index 1bf398f99..3cea9fbb9 100644
+--- a/crypto/curve25519/x25519_test.cc
++++ b/crypto/curve25519/x25519_test.cc
+@@ -21,9 +21,11 @@
+ #include <openssl/curve25519.h>
+ 
+ #include "../internal.h"
++#include "../test/abi_test.h"
+ #include "../test/file_test.h"
+ #include "../test/test_util.h"
+ #include "../test/wycheproof_util.h"
++#include "internal.h"
+ 
+ 
+ TEST(X25519Test, TestVector) {
+@@ -147,3 +149,20 @@ TEST(X25519Test, Wycheproof) {
+       EXPECT_EQ(Bytes(secret), Bytes(shared));
+   });
+ }
++
++#if defined(BORINGSSL_X25519_NEON) && defined(SUPPORTS_ABI_TEST)
++TEST(X25519Test, NeonABI) {
++  static const uint8_t kScalar[32] = {
++      0xa5, 0x46, 0xe3, 0x6b, 0xf0, 0x52, 0x7c, 0x9d, 0x3b, 0x16, 0x15,
++      0x4b, 0x82, 0x46, 0x5e, 0xdd, 0x62, 0x14, 0x4c, 0x0a, 0xc1, 0xfc,
++      0x5a, 0x18, 0x50, 0x6a, 0x22, 0x44, 0xba, 0x44, 0x9a, 0xc4,
++  };
++  static const uint8_t kPoint[32] = {
++      0xe6, 0xdb, 0x68, 0x67, 0x58, 0x30, 0x30, 0xdb, 0x35, 0x94, 0xc1,
++      0xa4, 0x24, 0xb1, 0x5f, 0x7c, 0x72, 0x66, 0x24, 0xec, 0x26, 0xb3,
++      0x35, 0x3b, 0x10, 0xa9, 0x03, 0xa6, 0xd0, 0xab, 0x1c, 0x4c,
++  };
++  uint8_t secret[32];
++  CHECK_ABI(x25519_NEON, secret, kScalar, kPoint);
++}
++#endif  // BORINGSSL_X25519_NEON && SUPPORTS_ABI_TEST

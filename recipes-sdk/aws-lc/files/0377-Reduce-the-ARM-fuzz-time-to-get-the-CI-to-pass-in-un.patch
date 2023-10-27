@@ -1,0 +1,48 @@
+From 6be7cd0bb803c6286b381d8e1d655525d451d046 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Mon, 22 May 2023 16:21:42 -0700
+Subject: [PATCH] Reduce the ARM fuzz time to get the CI to pass in under an
+ hour (#1021)
+
+---
+ crypto/dilithium/p_dilithium_test.cc | 6 ++----
+ tests/ci/run_fuzz_tests.sh           | 9 ++++++++-
+ 2 files changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/crypto/dilithium/p_dilithium_test.cc b/crypto/dilithium/p_dilithium_test.cc
+index 4e576fd9a..46417fb86 100644
+--- a/crypto/dilithium/p_dilithium_test.cc
++++ b/crypto/dilithium/p_dilithium_test.cc
+@@ -738,10 +738,8 @@ TEST(Dilithium3Test, KAT) {
+ 
+ TEST(Dilithium3Test, EvpDisabled) {
+   ASSERT_EQ(nullptr, EVP_PKEY_CTX_new_id(NID_DILITHIUM3_R3, nullptr));
+-
+-  EVP_PKEY *pkey = EVP_PKEY_new();
+-  ASSERT_FALSE(EVP_PKEY_set_type(pkey, NID_DILITHIUM3_R3));
+-  EVP_PKEY_free(pkey);
++  bssl::UniquePtr<EVP_PKEY> pkey(EVP_PKEY_new());
++  ASSERT_FALSE(EVP_PKEY_set_type(pkey.get(), NID_DILITHIUM3_R3));
+ }
+ 
+ #endif
+diff --git a/tests/ci/run_fuzz_tests.sh b/tests/ci/run_fuzz_tests.sh
+index 845b6cd3c..7fbe8551f 100755
+--- a/tests/ci/run_fuzz_tests.sh
++++ b/tests/ci/run_fuzz_tests.sh
+@@ -13,7 +13,14 @@ set -u
+ # 2 minutes to build AWS-LC
+ # 25 minutes (1500 seconds) for all fuzzing
+ # 18 minutes for cleanup and merging files
+-TOTAL_FUZZ_TEST_TIME=1500
++if [[ $PLATFORM == "aarch64" ]]; then
++  # Arm sanitizers are very slow which causes the clean up time to take longer per
++  # fuzz test, only run for 16 minutes
++  TOTAL_FUZZ_TEST_TIME=1000
++else
++  TOTAL_FUZZ_TEST_TIME=1500
++fi
++
+ FUZZ_TEST_TIMEOUT=5
+ 
+ FUZZ_TESTS=$(find "${BUILD_ROOT}/fuzz" -type f -executable)

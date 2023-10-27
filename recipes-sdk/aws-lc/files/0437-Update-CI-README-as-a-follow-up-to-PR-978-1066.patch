@@ -1,0 +1,25 @@
+From 6774ab9825ce8b94803230fb7ac36dfd0696074e Mon Sep 17 00:00:00 2001
+From: Nevine Ebeid <66388554+nebeid@users.noreply.github.com>
+Date: Wed, 21 Jun 2023 13:49:04 -0400
+Subject: [PATCH] Update CI README as a follow-up to PR#978 (#1066)
+
+---
+ tests/ci/README.md | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/tests/ci/README.md b/tests/ci/README.md
+index 20c0330f8..cd4a19e4a 100644
+--- a/tests/ci/README.md
++++ b/tests/ci/README.md
+@@ -155,9 +155,10 @@ CodeBuild| clang 15.0.6 |aarch64|AL2023
+ 
+ The following Valgrind tests are run for a subset of targets in `utils/all_tests.json` using the debug build of AWS-LC:
+ 
+-CI Tool|Compiler|CPU platform| OS     | memcheck 
++CI Tool|Compiler|CPU platform| OS     | memcheck
+ ------------ | -------------| -------------|--------|-------------
+ CodeBuild|gcc 11|x86-64| AL2023 | X
++CodeBuild|gcc 11|aarch64| AL2023 | X
+ 
+ ### Fuzz tests
+ 

@@ -1,0 +1,238 @@
+From 976944545153afde1d070e0d9baa9d42ef9e29c0 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 11 Aug 2023 18:37:18 -0400
+Subject: [PATCH] Default to q = (p-1)/2 for DH keygen
+
+As with large p, q, or g in the preceding CL, an application that uses
+Diffie-Hellman incorrectly could be given a large private key length.
+Computing the public key and shared secret will then be very slow.
+
+This matters for a (p, g)-only group, where q is unknown. One way or
+another, we should bound or clamp dh->priv_length. The two relevant
+specifications I could find are SP 800-56A Rev3 and PKCS#3. SP 800-56A
+wants a value for q, so we'd need to fabricate one. I believe X9.42's
+Diffie-Hellman formulation similarly expects an explicit q. PKCS#3 is
+(p, g)-only and seems to match what OpenSSL does. In PKCS#3:
+
+- DH groups have an optional l, such that 2^(l-1) <= p
+
+- For keygen, if l was provided, pick 2^(l-1) <= x < 2^l. Otherwise,
+  pick 0 < x < p-1
+
+Our current q-less keygen behavior matches this, with
+l = num_bits(p) - 1. Interestingly, the first constraint allows
+l = num_bits(p), but doing so allows x >= p - 1! This is a bit odd and
+will wrap around the multiplicative group.
+
+OpenSSL 3.0 (but not 1.1.1) bounds l in their q-less path, and cites
+PKCS#3's 2^(l-1) <= p in a comment. But their actual check doesn't match
+and excludes num_bits(p). The two problems cancel each other out.
+
+PKCS#3 is quite old and does not even discuss subgroups or safe primes,
+only this uninspiring text:
+
+> Some additional conditions on the choice of prime, base, and
+> private-value length may well be taken into account in order to deter
+> discrete logarithm computation. These security conditions fall outside
+> the scope of this standard.
+
+I'm thus not inclined to give the document much weight in 2023. SP
+800-56A Rev3 is not ideal either. First, we must fabricate a value for
+q. (p-1)/2 is most natural, though it assumes g indeed generates a
+prime-order subgroup and not the whole multiplicative group.
+
+The second annoyance with SP 800-56A Rev3 is its insistance on uniformly
+selecting between [1, 2^N-1] instead of [0, 2^N-1] or [1, 2^N]. For all
+plausible values of N, this difference will not matter, yet NIST
+specifies rejection sampling, defeating the point of a power-of-two
+bound.
+
+None of these really matters. p should be large enough to make the
+differences between all these schemes negligible. Since we want to
+follow NIST for the (p, q, g) path, using the same scheme for the (p, g)
+path seems the most reasonable. Thus this CL recasts that path from
+PKCS#3 to SP 800-56A, except dh->priv_length is clamped before invoking
+the algorithm, to avoid worrying about whether someone expects
+DH_set_length(BN_num_bits(p)) to work.
+
+Change-Id: I270f235a6f04c69f8abf59edeaf39d837e2c79f8
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/62228
+Reviewed-by: Bob Beck <bbe@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit cb583e783500d92bbda9a850e43cd94df0b2d5e1)
+---
+ crypto/dh_extra/dh_test.cc | 98 ++++++++++++++++++++++++++++++++++++++
+ crypto/fipsmodule/dh/dh.c  | 35 ++++++++++----
+ 2 files changed, 124 insertions(+), 9 deletions(-)
+
+diff --git a/crypto/dh_extra/dh_test.cc b/crypto/dh_extra/dh_test.cc
+index 016e31687..3f18f83c6 100644
+--- a/crypto/dh_extra/dh_test.cc
++++ b/crypto/dh_extra/dh_test.cc
+@@ -705,3 +705,101 @@ TEST(DHTest, InvalidParameters) {
+   EXPECT_FALSE(
+       DH_generate_parameters_ex(dh.get(), 20000, DH_GENERATOR_5, nullptr));
+ }
++
++TEST(DHTest, PrivateKeyLength) {
++  // Use a custom P, rather than one of the MODP primes, to pick one which does
++  // not begin with all ones. Otherwise some of the tests for boundary
++  // conditions below will not notice mistakes.
++  static const uint8_t kP[] = {
++      0xb6, 0xfa, 0x00, 0x07, 0x0a, 0x1f, 0xfb, 0x28, 0x7e, 0x6e, 0x6a, 0x97,
++      0xca, 0xa4, 0x6d, 0xf5, 0x25, 0x84, 0x76, 0xc6, 0xc4, 0xa5, 0x47, 0xb6,
++      0xb2, 0x7d, 0x76, 0x46, 0xf2, 0xb5, 0x7c, 0xc6, 0xc6, 0xb4, 0xb4, 0x82,
++      0xc5, 0xed, 0x7b, 0xd9, 0x30, 0x6e, 0x41, 0xdb, 0x7f, 0x93, 0x2f, 0xb5,
++      0x85, 0xa7, 0x38, 0x9e, 0x08, 0xc4, 0x25, 0x92, 0x7d, 0x5d, 0x2b, 0x77,
++      0x09, 0xe0, 0x2f, 0x4e, 0x14, 0x36, 0x8a, 0x08, 0x0b, 0xfd, 0x89, 0x22,
++      0x47, 0xb4, 0xbd, 0xff, 0x79, 0x4e, 0x78, 0x66, 0x2a, 0x77, 0x74, 0xbd,
++      0x85, 0xb6, 0xce, 0x5a, 0x89, 0xb7, 0x60, 0xc3, 0x8d, 0x2a, 0x1f, 0xb7,
++      0x30, 0x33, 0x1a, 0xc4, 0x51, 0xa8, 0x18, 0x62, 0x40, 0xb6, 0x5a, 0xb5,
++      0x6c, 0xf5, 0xf9, 0xbc, 0x94, 0x50, 0xba, 0xeb, 0xa2, 0xe9, 0xb3, 0x99,
++      0xde, 0xf8, 0x55, 0xfd, 0xed, 0x46, 0x1b, 0x69, 0xa5, 0x6a, 0x04, 0xe3,
++      0xa9, 0x2c, 0x0c, 0x89, 0x41, 0xfe, 0xe4, 0xa0, 0x85, 0x85, 0x2c, 0x45,
++      0xf1, 0xcb, 0x96, 0x04, 0x23, 0x4a, 0x7d, 0x56, 0x38, 0xd8, 0x86, 0x9d,
++      0xfc, 0xe0, 0x33, 0x65, 0x1a, 0xff, 0x07, 0xf0, 0xfb, 0xc6, 0x5d, 0x26,
++      0xa2, 0x96, 0xd4, 0xb5, 0xe8, 0xcd, 0x48, 0xd7, 0x8e, 0x53, 0xfe, 0xcb,
++      0x4b, 0xf2, 0x3a, 0x8b, 0x35, 0x87, 0x0a, 0x79, 0xbe, 0x8d, 0x36, 0x45,
++      0x12, 0x6e, 0x1b, 0xd4, 0xa5, 0x57, 0xe0, 0x98, 0xb7, 0x59, 0xba, 0xc2,
++      0xd8, 0x2e, 0x05, 0x0f, 0xe1, 0x70, 0x39, 0x5b, 0xe6, 0x4e, 0xdb, 0xb0,
++      0xdd, 0x7e, 0xe6, 0x66, 0x13, 0x85, 0x26, 0x32, 0x27, 0xa1, 0x00, 0x7f,
++      0x6a, 0xa9, 0xda, 0x2e, 0x50, 0x25, 0x87, 0x73, 0xab, 0x71, 0xfb, 0xa0,
++      0x92, 0xba, 0x8e, 0x9c, 0x4e, 0xea, 0x18, 0x32, 0xc4, 0x02, 0x8f, 0xe8,
++      0x95, 0x9e, 0xcb, 0x9f};
++  bssl::UniquePtr<BIGNUM> p(BN_bin2bn(kP, sizeof(kP), nullptr));
++  ASSERT_TRUE(p);
++  bssl::UniquePtr<BIGNUM> g(BN_new());
++  ASSERT_TRUE(g);
++  ASSERT_TRUE(BN_set_word(g.get(), 2));
++  bssl::UniquePtr<BIGNUM> q(BN_new());
++  ASSERT_TRUE(q);
++  ASSERT_TRUE(BN_rshift1(q.get(), p.get()));  // (p-1)/2
++
++  EXPECT_EQ(BN_num_bits(p.get()), 2048u);
++  EXPECT_EQ(BN_num_bits(q.get()), 2047u);
++
++  // This test will only probabilistically notice some kinds of failures, so we
++  // repeat it for several iterations.
++  constexpr unsigned kIterations = 100;
++
++  // If the private key was chosen from the range [1, M), num_bits(priv_key)
++  // should be very close to num_bits(M), but may be a few bits short. Allow 128
++  // leading zeros, which should fail with negligible probability.
++  constexpr unsigned kMaxLeadingZeros = 128;
++
++  for (unsigned i = 0; i < kIterations; i++) {
++    // If unspecified, the private key is bounded by q = (p-1)/2.
++    bssl::UniquePtr<DH> dh = NewDHGroup(p.get(), /*q=*/nullptr, g.get());
++    ASSERT_TRUE(dh);
++    ASSERT_TRUE(DH_generate_key(dh.get()));
++    EXPECT_LT(BN_cmp(DH_get0_priv_key(dh.get()), q.get()), 0);
++    EXPECT_LE(BN_num_bits(q.get()) - kMaxLeadingZeros,
++              BN_num_bits(DH_get0_priv_key(dh.get())));
++
++    // Setting too large of a private key length should not be a DoS vector. The
++    // key is clamped to q = (p-1)/2.
++    dh = NewDHGroup(p.get(), /*q=*/nullptr, g.get());
++    ASSERT_TRUE(dh);
++    DH_set_length(dh.get(), 10000000);
++    ASSERT_TRUE(DH_generate_key(dh.get()));
++    EXPECT_LT(BN_cmp(DH_get0_priv_key(dh.get()), q.get()), 0);
++    EXPECT_LE(BN_num_bits(q.get()) - kMaxLeadingZeros,
++              BN_num_bits(DH_get0_priv_key(dh.get())));
++
++    // A small private key size should bound the private key.
++    dh = NewDHGroup(p.get(), /*q=*/nullptr, g.get());
++    ASSERT_TRUE(dh);
++    unsigned bits = 1024;
++    DH_set_length(dh.get(), bits);
++    ASSERT_TRUE(DH_generate_key(dh.get()));
++    EXPECT_LE(BN_num_bits(DH_get0_priv_key(dh.get())), bits);
++    EXPECT_LE(bits - kMaxLeadingZeros, BN_num_bits(DH_get0_priv_key(dh.get())));
++
++    // If the private key length is num_bits(q) - 1, the length should be the
++    // limiting factor.
++    dh = NewDHGroup(p.get(), /*q=*/nullptr, g.get());
++    ASSERT_TRUE(dh);
++    bits = BN_num_bits(q.get()) - 1;
++    DH_set_length(dh.get(), bits);
++    ASSERT_TRUE(DH_generate_key(dh.get()));
++    EXPECT_LE(BN_num_bits(DH_get0_priv_key(dh.get())), bits);
++    EXPECT_LE(bits - kMaxLeadingZeros, BN_num_bits(DH_get0_priv_key(dh.get())));
++
++    // If the private key length is num_bits(q), q should be the limiting
++    // factor.
++    dh = NewDHGroup(p.get(), /*q=*/nullptr, g.get());
++    ASSERT_TRUE(dh);
++    DH_set_length(dh.get(), BN_num_bits(q.get()));
++    ASSERT_TRUE(DH_generate_key(dh.get()));
++    EXPECT_LT(BN_cmp(DH_get0_priv_key(dh.get()), q.get()), 0);
++    EXPECT_LE(BN_num_bits(q.get()) - kMaxLeadingZeros,
++              BN_num_bits(DH_get0_priv_key(dh.get())));
++  }
++}
+diff --git a/crypto/fipsmodule/dh/dh.c b/crypto/fipsmodule/dh/dh.c
+index 41984294f..73d63dfb0 100644
+--- a/crypto/fipsmodule/dh/dh.c
++++ b/crypto/fipsmodule/dh/dh.c
+@@ -212,7 +212,7 @@ int DH_generate_key(DH *dh) {
+   int ok = 0;
+   int generate_new_key = 0;
+   BN_CTX *ctx = NULL;
+-  BIGNUM *pub_key = NULL, *priv_key = NULL;
++  BIGNUM *pub_key = NULL, *priv_key = NULL, *priv_key_limit = NULL;
+ 
+   ctx = BN_CTX_new();
+   if (ctx == NULL) {
+@@ -249,18 +249,34 @@ int DH_generate_key(DH *dh) {
+         goto err;
+       }
+     } else {
+-      // secret exponent length
+-      unsigned priv_bits = dh->priv_length;
+-      if (priv_bits == 0) {
+-        const unsigned p_bits = BN_num_bits(dh->p);
+-        if (p_bits == 0) {
++      // If q is unspecified, we expect p to be a safe prime, with g generating
++      // the (p-1)/2 subgroup. So, we use q = (p-1)/2. (If g generates a smaller
++      // prime-order subgroup, q will still divide (p-1)/2.)
++      //
++      // We set N from |dh->priv_length|. Section 5.6.1.1.4 of SP 800-56A Rev3
++      // says to reject N > len(q), or N > num_bits(p) - 1. However, this logic
++      // originally aligned with PKCS#3, which allows num_bits(p). Instead, we
++      // clamp |dh->priv_length| before invoking the algorithm.
++
++      // Compute M = min(2^N, q).
++      priv_key_limit = BN_new();
++      if (priv_key_limit == NULL) {
++        goto err;
++      }
++      if (dh->priv_length == 0 || dh->priv_length >= BN_num_bits(dh->p) - 1) {
++        // M = q = (p - 1) / 2.
++        if (!BN_rshift1(priv_key_limit, dh->p)) {
++          goto err;
++        }
++      } else {
++        // M = 2^N.
++        if (!BN_set_bit(priv_key_limit, dh->priv_length)) {
+           goto err;
+         }
+-
+-        priv_bits = p_bits - 1;
+       }
+ 
+-      if (!BN_rand(priv_key, priv_bits, BN_RAND_TOP_ONE, BN_RAND_BOTTOM_ANY)) {
++      // Choose a private key uniformly from [1, M-1].
++      if (!BN_rand_range_ex(priv_key, 1, priv_key_limit)) {
+         goto err;
+       }
+     }
+@@ -286,6 +302,7 @@ err:
+   if (dh->priv_key == NULL) {
+     BN_free(priv_key);
+   }
++  BN_free(priv_key_limit);
+   BN_CTX_free(ctx);
+   return ok;
+ }

@@ -1,0 +1,82 @@
+From 90a9c353253e8f5c2fc75aa385725bfe924d16b1 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 2 Feb 2023 11:25:15 -0500
+Subject: [PATCH] Cap bit indices in the unsafe string-based X.509 extensions
+ API
+
+Without a limit, a short input can translate into a very large allocation,
+which is upsetting the fuzzers. Set a limit of 256, which allows up to a
+32-byte allocation. (The highest bit index of any type in RFC 5280 is
+8, so this is plenty of buffer.)
+
+We do not consider this function to be safe with untrusted inputs (even
+without bugs, it is prone to string injection vulnerabilities), so DoS
+is not truly a concern, but the limit is necessary to keep fuzzing
+effective.
+
+Update-Note: If anyone is using FORMAT:BITLIST to create very large BIT
+STRINGs, this will break. This is unlikely and should be caught by
+unit tests; if a project hits this outside of tests, that means they are
+passing untrusted input into this function, which is a security
+vulnerability in itself, and means they especially need this change to
+avoid a DoS.
+
+Bug: oss-fuzz:55603
+Change-Id: Ie9ec0d35c7d67a568371dfa961867bf1404f7e2f
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56785
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit 50de086abd0f23b58320d6aa310bacdd48e80e53)
+---
+ crypto/x509/asn1_gen.c   | 11 ++++++++++-
+ crypto/x509/x509_test.cc | 14 ++++++++++++--
+ 2 files changed, 22 insertions(+), 3 deletions(-)
+
+diff --git a/crypto/x509/asn1_gen.c b/crypto/x509/asn1_gen.c
+index 6dcf1292e..37048087f 100644
+--- a/crypto/x509/asn1_gen.c
++++ b/crypto/x509/asn1_gen.c
+@@ -541,7 +541,16 @@ static int bitstr_cb(const char *elem, size_t len, void *bitstr) {
+   CBS_init(&cbs, (const uint8_t *)elem, len);
+   uint64_t bitnum;
+   if (!CBS_get_u64_decimal(&cbs, &bitnum) || CBS_len(&cbs) != 0 ||
+-      bitnum > INT_MAX) {
++      // Cap the highest allowed bit so this mechanism cannot be used to create
++      // extremely large allocations with short inputs. The highest named bit in
++      // RFC 5280 is 8, so 256 should give comfortable margin but still only
++      // allow a 32-byte allocation.
++      //
++      // We do not consider this function to be safe with untrusted inputs (even
++      // without bugs, it is prone to string injection vulnerabilities), so DoS
++      // is not truly a concern, but the limit is necessary to keep fuzzing
++      // effective.
++      bitnum > 256) {
+     OPENSSL_PUT_ERROR(ASN1, ASN1_R_INVALID_NUMBER);
+     return 0;
+   }
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 24def514b..9fd5dec18 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -5768,8 +5768,18 @@ TEST(X509Test, ExtensionFromConf) {
+         0x01, 0x84, 0xb7, 0x09, 0x02, 0x04, 0x04, 0x03, 0x02, 0x02, 0x44}},
+ 
+       {kTestOID, "ASN1:FORMAT:BITLIST,BITSTR:1,invalid,5", nullptr, {}},
+-      // Overflow.
+-      {kTestOID, "ASN1:FORMAT:BITLIST,BITSTR:4294967296", nullptr, {}},
++      // Negative bit inidices are not allowed.
++      {kTestOID, "ASN1:FORMAT:BITLIST,BITSTR:-1", nullptr, {}},
++      // We cap bit indices at 256.
++      {kTestOID, "ASN1:FORMAT:BITLIST,BITSTR:257", nullptr, {}},
++      {kTestOID,
++       "ASN1:FORMAT:BITLIST,BITSTR:256",
++       nullptr,
++       {0x30, 0x34, 0x06, 0x0c, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x12, 0x04,
++        0x01, 0x84, 0xb7, 0x09, 0x02, 0x04, 0x24, 0x03, 0x22, 0x07, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80}},
+ 
+       // Unsupported formats for string types.
+       {kTestOID, "ASN1:FORMAT:BITLIST,IA5:abcd", nullptr, {}},

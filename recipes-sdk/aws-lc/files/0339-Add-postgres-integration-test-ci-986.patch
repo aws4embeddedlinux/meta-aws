@@ -1,0 +1,188 @@
+From d1552fa791f5e9265853d2e5afbbd6d9429f2bdb Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Mon, 8 May 2023 14:23:33 -0700
+Subject: [PATCH] Add postgres integration test ci (#986)
+
+The file was largely taken from our current s2n integration test script.
+A patch is needed to resolve the inconsistent error messages we have
+with OpenSSL. PostGres's SSL tests depend on specifically on OpenSSL's
+error messaging format. We might make an upstream contribution to
+understand our error messages at some point.
+---
+ .../github_ci_linux_x86_omnibus.yaml          |  8 ++
+ .../linux-x86/postgres_integration.yml        | 17 ++++
+ .../linux-x86/ubuntu-22.04_base/Dockerfile    |  7 ++
+ .../linux-x86/ubuntu-22.04_gcc-12x/Dockerfile |  6 ++
+ tests/ci/run_postgres_integration.sh          | 79 +++++++++++++++++++
+ 5 files changed, 117 insertions(+)
+ create mode 100644 tests/ci/codebuild/linux-x86/postgres_integration.yml
+ create mode 100755 tests/ci/run_postgres_integration.sh
+
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+index acac1ce6b..6f04155c2 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+@@ -353,6 +353,14 @@ batch:
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-9x_latest
+ 
++    - identifier: postgres_integration
++      buildspec: ./tests/ci/codebuild/linux-x86/postgres_integration.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
++
+     - identifier: install_shared_and_static
+       buildspec: ./tests/ci/codebuild/linux-x86/install_shared_and_static.yml
+       env:
+diff --git a/tests/ci/codebuild/linux-x86/postgres_integration.yml b/tests/ci/codebuild/linux-x86/postgres_integration.yml
+new file mode 100644
+index 000000000..b6ff3a867
+--- /dev/null
++++ b/tests/ci/codebuild/linux-x86/postgres_integration.yml
+@@ -0,0 +1,17 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++version: 0.2
++
++phases:
++  install:
++    run-as: root
++    commands:
++      # Let postgres user in docker image take ownership of codebuild artifacts.
++      - chown -R postgres:postgres /codebuild/output
++      # Go caches build objects in /root/.cache.
++      - chown -R postgres:postgres /root/
++  build:
++    run-as: postgres
++    commands:
++      - ./tests/ci/run_postgres_integration.sh
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+index 57efc2e99..ee4dc5301 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+@@ -22,6 +22,7 @@ RUN set -ex && \
+     apt-get -y --no-install-recommends install \
+     software-properties-common \
+     cmake \
++    make \
+     ninja-build \
+     perl \
+     libunwind-dev \
+@@ -32,6 +33,12 @@ RUN set -ex && \
+     lld \
+     llvm \
+     llvm-dev \
++    libicu-dev \
++    libipc-run-perl \
++    libreadline-dev \
++    zlib1g-dev \
++    flex \
++    bison \
+     curl \
+     unzip && \
+     # Based on https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-22.04_gcc-12x/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-22.04_gcc-12x/Dockerfile
+index fa66f02e7..011de85cd 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-22.04_gcc-12x/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-22.04_gcc-12x/Dockerfile
+@@ -16,5 +16,11 @@ RUN set -ex && \
+     rm -rf /var/lib/apt/lists/* && \
+     rm -rf /tmp/*
+ 
++# Postgres's integration tests cannot be ran as root, so we have to define
++# a non-root user here to use in Codebuild.
++RUN adduser --disabled-password --gecos '' postgres && \
++    adduser postgres sudo && \
++    echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
++
+ ENV CC=gcc-12
+ ENV CXX=g++-12
+diff --git a/tests/ci/run_postgres_integration.sh b/tests/ci/run_postgres_integration.sh
+new file mode 100755
+index 000000000..1864d3135
+--- /dev/null
++++ b/tests/ci/run_postgres_integration.sh
+@@ -0,0 +1,79 @@
++#!/bin/bash -exu
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++source tests/ci/common_posix_setup.sh
++
++# Set up environment.
++
++# ROOT
++#  |
++#  - AWS_LC_DIR
++#    |
++#    - aws-lc
++#  |
++#  - SCRATCH_FOLDER
++#    |
++#    - postgres
++#    - AWS_LC_BUILD_FOLDER
++#    - AWS_LC_INSTALL_FOLDER
++#    - POSTGRES_BUILD_FOLDER
++
++# Assumes script is executed from the root of aws-lc directory
++AWS_LC_DIR=$(pwd)
++cd ../
++ROOT=$(pwd)
++
++SCRATCH_FOLDER=${ROOT}/"POSTGRES_BUILD_ROOT"
++POSTGRES_SRC_FOLDER="${SCRATCH_FOLDER}/postgres"
++POSTGRES_BUILD_FOLDER="${SCRATCH_FOLDER}/postgres/build"
++AWS_LC_BUILD_FOLDER="${SCRATCH_FOLDER}/aws-lc-build"
++AWS_LC_INSTALL_FOLDER="${POSTGRES_SRC_FOLDER}/aws-lc-install"
++
++mkdir -p ${SCRATCH_FOLDER}
++rm -rf ${SCRATCH_FOLDER}/*
++cd ${SCRATCH_FOLDER}
++
++function aws_lc_build() {
++  ${CMAKE_COMMAND} ${AWS_LC_DIR} -GNinja "-B${AWS_LC_BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${AWS_LC_INSTALL_FOLDER}"
++  ninja -C ${AWS_LC_BUILD_FOLDER} install
++  ls -R ${AWS_LC_INSTALL_FOLDER}
++  rm -rf ${AWS_LC_BUILD_FOLDER}/*
++}
++
++function postgres_build() {
++  ./configure --with-openssl --enable-tap-tests --with-includes=${AWS_LC_INSTALL_FOLDER}/include --with-libraries=${AWS_LC_INSTALL_FOLDER}/lib --prefix=$(pwd)/build
++  make -j ${NUM_CPU_THREADS}
++  # Build additional modules for postgres.
++  make -j ${NUM_CPU_THREADS} -C contrib all
++  ls -R build
++}
++
++function postgres_run_tests() {
++  make -j ${NUM_CPU_THREADS} check
++  # Run additional tests, particularly the "SSL" tests.
++  make -j ${NUM_CPU_THREADS} check-world PG_TEST_EXTRA='ssl'
++  cd ${SCRATCH_FOLDER}
++}
++
++# SSL tests expect the OpenSSL style of error messages. We patch this to expect AWS-LC's style.
++# TODO: Remove this when we make an upstream contribution.
++function postgres_patch() {
++  POSTGRES_ERROR_STRING=("certificate verify failed" "bad decrypt" "sslv3 alert certificate revoked" "tlsv1 alert unknown ca")
++  AWS_LC_EXPECTED_ERROR_STRING=("CERTIFICATE_VERIFY_FAILED" "BAD_DECRYPT" "SSLV3_ALERT_CERTIFICATE_REVOKED" "TLSV1_ALERT_UNKNOWN_CA")
++  for i in "${!POSTGRES_ERROR_STRING[@]}"; do
++    find ./ -type f -name "001_ssltests.pl" | xargs sed -i -e "s|${POSTGRES_ERROR_STRING[$i]}|${AWS_LC_EXPECTED_ERROR_STRING[$i]}|g"
++  done
++}
++
++# Get latest postgres version.
++git clone https://github.com/postgres/postgres.git ${POSTGRES_SRC_FOLDER}
++mkdir -p ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER} ${POSTGRES_BUILD_FOLDER}
++ls
++
++aws_lc_build
++cd ${POSTGRES_SRC_FOLDER}
++postgres_patch
++postgres_build
++postgres_run_tests
++

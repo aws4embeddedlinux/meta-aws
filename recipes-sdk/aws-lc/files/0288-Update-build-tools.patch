@@ -1,0 +1,75 @@
+From 32b35119e325beb403943b069b51db3fec5fd980 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 10 Feb 2023 16:51:30 -0500
+Subject: [PATCH] Update build tools
+
+Change-Id: I5682358b5564dbaa734c5910c11a8274e88ca67a
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57186
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit f30c031f0b42280edce0bfc66ef1f7486b015820)
+---
+ util/bot/DEPS            | 9 +++++----
+ util/bot/update_clang.py | 4 ++--
+ util/bot/vs_toolchain.py | 4 ++--
+ 3 files changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/util/bot/DEPS b/util/bot/DEPS
+index 66b4006a4..181d3e970 100644
+--- a/util/bot/DEPS
++++ b/util/bot/DEPS
+@@ -25,17 +25,18 @@ vars = {
+   #  cipd describe PACKAGE_NAME -version latest
+ 
+   # infra/3pp/tools/cmake/linux-amd64
+-  'cmake_version': 'version:2@3.25.0.chromium.5',
++  'cmake_version': 'version:2@3.25.2.chromium.6',
+   # infra/3pp/tools/go/linux-amd64
+-  'go_version': 'version:2@1.19.3',
++  'go_version': 'version:2@1.20',
+ 
+   # Update the following from
+   # https://chromium.googlesource.com/chromium/src/+/main/DEPS
+   'android_sdk_platform-tools_version': 'RSI3iwryh7URLGRgJHsCvUxj092woTPnKt4pwFcJ6L8C',
+   'android_ndk_revision': '8388a2be5421311dc75c5f937aae13d821a27f3d',
+   'libfuzzer_revision': 'debe7d2d1982e540fbd6bd78604bf001753f9e74',
+-  'libcxx_revision': 'cd0a05047451dfbdef5ba85f97ac4888e432a377',
+-  'libcxxabi_revision': '1a32724f721e1c3b6c590a07fe4a954344f15e48',
++  'libcxx_revision': '7f648d9b44c2876dfc4329256a6c0750e1e77c7f',
++  'libcxxabi_revision': 'b74d7716111d7eda5c03cb8f5dfc940e1c2c0030',
++  'ninja_version': 'version:2@1.11.1.chromium.6',
+ }
+ 
+ deps = {
+diff --git a/util/bot/update_clang.py b/util/bot/update_clang.py
+index 097051409..92ff3ac60 100644
+--- a/util/bot/update_clang.py
++++ b/util/bot/update_clang.py
+@@ -28,8 +28,8 @@ except ImportError:
+ # CLANG_REVISION and CLANG_SUB_REVISION determine the build of clang
+ # to use. These should be synced with tools/clang/scripts/update.py in
+ # Chromium.
+-CLANG_REVISION = 'llvmorg-16-init-10736-ged9638c4'
+-CLANG_SUB_REVISION = 1
++CLANG_REVISION = 'llvmorg-16-init-17653-g39da55e8'
++CLANG_SUB_REVISION = 3
+ 
+ PACKAGE_VERSION = '%s-%s' % (CLANG_REVISION, CLANG_SUB_REVISION)
+ 
+diff --git a/util/bot/vs_toolchain.py b/util/bot/vs_toolchain.py
+index 791093dc9..5081a2af5 100644
+--- a/util/bot/vs_toolchain.py
++++ b/util/bot/vs_toolchain.py
+@@ -71,9 +71,9 @@ def _GetDesiredVsToolchainHashes(version):
+     # libraries.
+     return ['418b3076791776573a815eb298c8aa590307af63']
+   if version == '2019':
+-    # VS 2019 16.61 with 10.0.20348.0 SDK, 10.0.19041 version of Debuggers
++    # VS 2019 16.61 with 10.0.20348.0 SDK, 10.0.22621.755 version of Debuggers,
+     # with ARM64 libraries and UWP support.
+-    return ['1023ce2e82']
++    return ['0b5ee4d2b1']
+   raise Exception('Unsupported VS version %s' % version)
+ 
+ 

@@ -1,0 +1,136 @@
+From 65642d17e43e3eb5636fa2eb5f76c64963446b2b Mon Sep 17 00:00:00 2001
+From: Will Childs-Klein <childw@amazon.com>
+Date: Fri, 17 Feb 2023 18:44:09 -0500
+Subject: [PATCH] Allow keys without e in RSA_set0_key (#814)
+
+* Allow keys without e in RSA_set0_key
+
+In a [previous pull request][1], we added support for JCA-style
+"stripped" RSA private keys defined only in terms of modulus `d` and
+private exponent `e`. When that change was made, ACCP only gave these
+keys to AWS-LC in the form of a DER-encoded ASN.1 structure.
+Consequently, we only adjusted the key-decoding code path to account for
+these stripped keys.
+
+This changed, however, when ACCP implemented native KeyFactory support.
+That change [uses][3] AWS-LC's `RSA_set0_key` function to create RSA
+private keys. Because the key factory branch predated ACCP's migration
+from OpenSSL to AWS-LC, it [relied][4] on OpenSSL's behavior of treating
+0-valued public exponents as absent in order to specify JCA-style
+stripped keys. Because these stripped keys don't supply the public
+exponent `e`, the caller must turn off blinding. Some historical commits
+([here][5], [here][6]) reference this need for `e` to perform blinding;
+apparently the `RSA_set0_key` behavior assumed that blinding would
+always be performed when that function was used to construct the key.
+
+Previously, the `RSA_set*` methods didn't have any coverage, so we add a
+few test cases to cover the source code affected by this change.
+
+[1]: https://github.com/aws/aws-lc/pull/436
+[2]: https://github.com/corretto/amazon-corretto-crypto-provider/pull/132
+[3]: https://github.com/corretto/amazon-corretto-crypto-provider/blob/8d32fe3fb685875c9e7418fdb30f2d70a8c4d80b/csrc/java_evp_keys.cpp#L588
+[4]: https://github.com/corretto/amazon-corretto-crypto-provider/blob/8d32fe3fb685875c9e7418fdb30f2d70a8c4d80b/csrc/java_evp_keys.cpp#L578-L580
+[5]: https://github.com/aws/aws-lc/commit/86361a391062e02012c92d1eefa20df3deb897f3
+[6]: https://github.com/aws/aws-lc/commit/598e55a795fa206571f94a7cb2e5834728b85c98
+
+* Wrap reference exponents in BN_dup
+
+* Update RSA_set0_key doc comment
+---
+ crypto/fipsmodule/rsa/rsa.c  |  2 +-
+ crypto/rsa_extra/rsa_test.cc | 51 ++++++++++++++++++++++++++++++++++++
+ include/openssl/rsa.h        |  6 +++--
+ 3 files changed, 56 insertions(+), 3 deletions(-)
+
+diff --git a/crypto/fipsmodule/rsa/rsa.c b/crypto/fipsmodule/rsa/rsa.c
+index 5624f20fc..0358fee8d 100644
+--- a/crypto/fipsmodule/rsa/rsa.c
++++ b/crypto/fipsmodule/rsa/rsa.c
+@@ -230,7 +230,7 @@ void RSA_get0_crt_params(const RSA *rsa, const BIGNUM **out_dmp1,
+ 
+ int RSA_set0_key(RSA *rsa, BIGNUM *n, BIGNUM *e, BIGNUM *d) {
+   if ((rsa->n == NULL && n == NULL) ||
+-      (rsa->e == NULL && e == NULL)) {
++      (rsa->e == NULL && e == NULL && rsa->d == NULL && d == NULL)) {
+     return 0;
+   }
+ 
+diff --git a/crypto/rsa_extra/rsa_test.cc b/crypto/rsa_extra/rsa_test.cc
+index 0a93c584e..ddbbc47b8 100644
+--- a/crypto/rsa_extra/rsa_test.cc
++++ b/crypto/rsa_extra/rsa_test.cc
+@@ -648,6 +648,57 @@ TEST(RSATest, OnlyDGiven) {
+                          buf_len, key.get()));
+ }
+ 
++TEST(RSATest, Set0Key) {
++  const int hash_nid = NID_sha256;
++  const uint8_t kDummyHash[32] = {0};
++  uint8_t sig[256];
++  unsigned sig_len = sizeof(sig);
++
++  // Reference RSA key that needs to be reset before each case as
++  // RSA_set0_key takes ownership of its parameters
++  bssl::UniquePtr<RSA> rsa;
++
++  // Allocate an empty key to imitate JCA keys via calls to RSA_set0_key
++  bssl::UniquePtr<RSA> jcaKey(RSA_new());
++  ASSERT_TRUE(jcaKey);
++
++  // FULL KEY, BLINDING => OK
++  rsa.reset(RSA_private_key_from_bytes(kKey1, sizeof(kKey1) - 1));
++  ASSERT_TRUE(rsa);
++  jcaKey.reset(RSA_new());
++  ASSERT_TRUE(jcaKey);
++  EXPECT_TRUE(RSA_set0_key(jcaKey.get(), BN_dup(rsa->n), BN_dup(rsa->e), BN_dup(rsa->d)));
++  EXPECT_TRUE(RSA_sign(hash_nid, kDummyHash, sizeof(kDummyHash), sig,
++                       &sig_len, jcaKey.get()));
++  EXPECT_TRUE(RSA_verify(hash_nid, kDummyHash, sizeof(kDummyHash), sig,
++                         sig_len, rsa.get()));
++
++  // NO |e|, BLINDNG => ERR
++  rsa.reset(RSA_private_key_from_bytes(kKey1, sizeof(kKey1) - 1));
++  ASSERT_TRUE(rsa);
++  jcaKey.reset(RSA_new());
++  ASSERT_TRUE(jcaKey);
++  EXPECT_TRUE(RSA_set0_key(jcaKey.get(), BN_dup(rsa->n), NULL, BN_dup(rsa->d)));
++  EXPECT_FALSE(RSA_sign(hash_nid, kDummyHash, sizeof(kDummyHash), sig,
++                        &sig_len, jcaKey.get()));
++  uint32_t err = ERR_get_error();
++  EXPECT_EQ(ERR_LIB_RSA, ERR_GET_LIB(err));
++  EXPECT_EQ(RSA_R_NO_PUBLIC_EXPONENT, ERR_GET_REASON(err));
++  ERR_clear_error();
++
++  // NO |e|, NO BLINDNG => OK
++  rsa.reset(RSA_private_key_from_bytes(kKey1, sizeof(kKey1) - 1));
++  ASSERT_TRUE(rsa);
++  jcaKey.reset(RSA_new());
++  ASSERT_TRUE(jcaKey);
++  EXPECT_TRUE(RSA_set0_key(jcaKey.get(), BN_dup(rsa->n), NULL, BN_dup(rsa->d)));
++  jcaKey->flags |= RSA_FLAG_NO_BLINDING;
++  EXPECT_TRUE(RSA_sign(hash_nid, kDummyHash, sizeof(kDummyHash), sig,
++                       &sig_len, jcaKey.get()));
++  EXPECT_TRUE(RSA_verify(hash_nid, kDummyHash, sizeof(kDummyHash), sig,
++                         sig_len, rsa.get()));
++}
++
+ TEST(RSATest, ASN1) {
+   // Test that private keys may be decoded.
+   bssl::UniquePtr<RSA> rsa(
+diff --git a/include/openssl/rsa.h b/include/openssl/rsa.h
+index 427e8bddd..5c05c7ad7 100644
+--- a/include/openssl/rsa.h
++++ b/include/openssl/rsa.h
+@@ -152,8 +152,10 @@ OPENSSL_EXPORT void RSA_get0_crt_params(const RSA *rsa, const BIGNUM **out_dmp1,
+ // |n|, |e|, and |d| respectively, if non-NULL. On success, it takes ownership
+ // of each argument and returns one. Otherwise, it returns zero.
+ //
+-// |d| may be NULL, but |n| and |e| must either be non-NULL or already
+-// configured on |rsa|.
++// For a public key, |d| may be NULL, but |n| and |e| must either be non-NULL
++// or already configured on |rsa|. For a private key, |e| may be NULL, but |n|
++// and |d| must either be non-NULL or already configured on |rsa|. Private keys
++// missing |e| are often used by the JCA.
+ //
+ // It is an error to call this function after |rsa| has been used for a
+ // cryptographic operation. Construct a new |RSA| object instead.

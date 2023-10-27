@@ -1,0 +1,99 @@
+From 7e150a4e2246b4221575beefd17667502c664dd9 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 19 Apr 2023 15:38:47 -0400
+Subject: [PATCH] Update docs to recommend a much more convenient CMake
+ invocation
+
+Newer CMakes support a -B parameter, which saves some fuss.
+
+Change-Id: Ifdbbb50b3720cdc42af098eb32941283692e9d99
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58966
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Reviewed-by: Nabil Wadih <nwadih@google.com>
+(cherry picked from commit 1a5570b8e8e4b57bc7f0f1fdff93b28c6475c364)
+---
+ BUILDING.md | 23 +++++++++--------------
+ FUZZING.md  |  6 ++----
+ 2 files changed, 11 insertions(+), 18 deletions(-)
+
+diff --git a/BUILDING.md b/BUILDING.md
+index a50c7e56f..ead32c56d 100644
+--- a/BUILDING.md
++++ b/BUILDING.md
+@@ -56,17 +56,13 @@ name is `cmake`. Modify command snippets below accordingly.
+ 
+ Using Ninja (note the 'N' is capitalized in the cmake invocation):
+ 
+-    mkdir build
+-    cd build
+-    cmake -GNinja ..
+-    ninja
++    cmake -GNinja -B build
++    ninja -C build
+ 
+ Using Make (does not work on Windows):
+ 
+-    mkdir build
+-    cd build
+-    cmake ..
+-    make
++    cmake -B build
++    make -C build
+ 
+ You usually don't need to run `cmake` again after changing `CMakeLists.txt`
+ files because the build scripts will detect changes to them and rebuild
+@@ -77,10 +73,9 @@ debugging—optimisation isn't enabled. Pass `-DCMAKE_BUILD_TYPE=Release` to
+ `cmake` to configure a release build.
+ 
+ If you want to cross-compile then there is an example toolchain file for 32-bit
+-Intel in `util/`. Wipe out the build directory, recreate it and run `cmake` like
+-this:
++Intel in `util/`. Wipe out the build directory, run `cmake` like this:
+ 
+-    cmake -DCMAKE_TOOLCHAIN_FILE=../util/32-bit-toolchain.cmake -GNinja ..
++    cmake -B build -DCMAKE_TOOLCHAIN_FILE=../util/32-bit-toolchain.cmake -GNinja
+ 
+ If you want to build as a shared library, pass `-DBUILD_SHARED_LIBS=1`. On
+ Windows, where functions need to be tagged with `dllimport` when coming from a
+@@ -101,12 +96,12 @@ versions of the NDK include a CMake toolchain file which works with CMake 3.6.0
+ or later. This has been tested with version r16b of the NDK.
+ 
+ Unpack the Android NDK somewhere and export `ANDROID_NDK` to point to the
+-directory. Then make a build directory as above and run CMake like this:
++directory. Then run CMake like this:
+ 
+     cmake -DANDROID_ABI=armeabi-v7a \
+           -DANDROID_PLATFORM=android-19 \
+           -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
+-          -GNinja ..
++          -GNinja -B build
+ 
+ Once you've run that, Ninja should produce Android-compatible binaries.  You
+ can replace `armeabi-v7a` in the above with `arm64-v8a` and use API level 21 or
+@@ -148,7 +143,7 @@ In order to build with prefixed symbols, the `BORINGSSL_PREFIX` CMake variable
+ should specify the prefix to add to all symbols, and the
+ `BORINGSSL_PREFIX_SYMBOLS` CMake variable should specify the path to a file
+ which contains a list of symbols which should be prefixed (one per line;
+-comments are supported with `#`). In other words, `cmake ..
++comments are supported with `#`). In other words, `cmake -B build
+ -DBORINGSSL_PREFIX=MY_CUSTOM_PREFIX
+ -DBORINGSSL_PREFIX_SYMBOLS=/path/to/symbols.txt` will configure the build to add
+ the prefix `MY_CUSTOM_PREFIX` to all of the symbols listed in
+diff --git a/FUZZING.md b/FUZZING.md
+index db0a49aff..05690e50c 100644
+--- a/FUZZING.md
++++ b/FUZZING.md
+@@ -7,10 +7,8 @@ We use Clang's [libFuzzer](http://llvm.org/docs/LibFuzzer.html) for fuzz testing
+ In order to build the fuzz tests you will need at least Clang 6.0. Pass `-DFUZZ=1` on the CMake command line to enable building BoringSSL with coverage and AddressSanitizer, and to build the fuzz test binaries. You'll probably need to set the `CC` and `CXX` environment variables too, like this:
+ 
+ ```
+-mkdir build
+-cd build
+-CC=clang CXX=clang++ cmake -GNinja -DFUZZ=1 ..
+-ninja
++CC=clang CXX=clang++ cmake -GNinja -DFUZZ=1 -B build
++ninja -C build
+ ```
+ 
+ 

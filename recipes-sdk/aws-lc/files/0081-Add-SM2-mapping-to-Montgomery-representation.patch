@@ -1,0 +1,23 @@
+From a15f0fa6358d284991d539b52ed0a85f114e9aee Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Mon, 9 Jan 2023 17:51:29 -0800
+Subject: [PATCH] Add SM2 mapping to Montgomery representation
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/0579f2c5d9c0fe75951d3c0f4e45d3c0b8709bbb
+---
+ arm/p384/bignum_tomont_p384.S | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arm/p384/bignum_tomont_p384.S b/arm/p384/bignum_tomont_p384.S
+index c5bea5e0d..efed55f8c 100644
+--- a/arm/p384/bignum_tomont_p384.S
++++ b/arm/p384/bignum_tomont_p384.S
+@@ -91,7 +91,7 @@ S2N_BN_SYMBOL(bignum_tomont_p384_alt):
+         ldp     d4, d5, [x1, #32]
+ 
+ // Do an initial reduction to make sure this is < p_384, using just
+-// a copy of the bignum_mod_p384 code. This is needed to set up the
++// a copy of the bignum_mod_p384_6 code. This is needed to set up the
+ // invariant "input < p_384" for the main modular reduction steps.
+ 
+         mov     n0, #0x00000000ffffffff

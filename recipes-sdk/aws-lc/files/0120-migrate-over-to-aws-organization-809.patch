@@ -1,0 +1,456 @@
+From c2d188671649f87e3e737ced12560da6fd8ec8b6 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Tue, 14 Feb 2023 17:02:53 -0800
+Subject: [PATCH] migrate over to aws organization (#809)
+
+---
+ .github/ISSUE_TEMPLATE/build-issue.md                |  2 +-
+ README.md                                            | 10 +++++-----
+ bindings/rust/README.md                              |  4 ++--
+ bindings/rust/aws-lc-fips-sys-template/Cargo.toml    |  2 +-
+ bindings/rust/aws-lc-fips-sys-template/README.md     | 12 ++++++------
+ bindings/rust/aws-lc-sys-template/Cargo.toml         |  2 +-
+ bindings/rust/aws-lc-sys-template/README.md          | 10 +++++-----
+ bindings/rust/generate/generate-fips.sh              |  2 +-
+ bindings/rust/generate/generate.sh                   |  2 +-
+ crypto/kyber/README.md                               |  2 +-
+ crypto/x509v3/v3_utl.c                               |  2 +-
+ docs/Coverage.md                                     |  2 +-
+ include/openssl/base.h                               |  2 +-
+ include/openssl/mem.h                                |  2 +-
+ tests/ci/build_run_benchmarks.sh                     |  2 +-
+ .../cdk/codebuild/github_ci_linux_arm_omnibus.yaml   |  2 +-
+ .../cdk/codebuild/github_ci_linux_x86_omnibus.yaml   |  2 +-
+ tests/ci/cdk/run-cdk.sh                              |  8 ++++----
+ tests/ci/cdk/util/metadata.py                        |  2 +-
+ tests/ci/common_posix_setup.sh                       |  2 +-
+ tests/ci/docker_images/windows/README.md             |  2 +-
+ tests/ci/run_posix_sanitizers.sh                     |  4 ++--
+ util/asm_dev/armv8/p256/Readme.md                    |  2 +-
+ .../ec/p256_awslc_ossl/benchmark-build-run.sh        |  2 +-
+ 24 files changed, 42 insertions(+), 42 deletions(-)
+
+diff --git a/.github/ISSUE_TEMPLATE/build-issue.md b/.github/ISSUE_TEMPLATE/build-issue.md
+index 1cbeb0837..4c650c3a5 100644
+--- a/.github/ISSUE_TEMPLATE/build-issue.md
++++ b/.github/ISSUE_TEMPLATE/build-issue.md
+@@ -9,7 +9,7 @@ assignees: ''
+ 
+ ### Problem:
+ 
+-A short description of the problem you are facing. Please include any build output, reproduction steps and environment(e.g. [Docker image](https://github.com/awslabs/aws-lc/blame/e7413d237bb60bf639e78aa43ff3c1b1783f0712/tests/ci/docker_images/linux-x86/ubuntu-20.04_base/Dockerfile)).
++A short description of the problem you are facing. Please include any build output, reproduction steps and environment(e.g. [Docker image](https://github.com/aws/aws-lc/blame/e7413d237bb60bf639e78aa43ff3c1b1783f0712/tests/ci/docker_images/linux-x86/ubuntu-20.04_base/Dockerfile)).
+ 
+ #### Relevant details
+ AWS-LC commit: (6b1bce0...)
+diff --git a/README.md b/README.md
+index e02fdd14a..707f8911d 100644
+--- a/README.md
++++ b/README.md
+@@ -29,14 +29,14 @@ ninja-build run_tests && ninja-build install
+ cd ../aws-lc-install/
+ ls *
+ ```
+-See [Building.md](https://github.com/awslabs/aws-lc/blob/main/BUILDING.md) for more
++See [Building.md](https://github.com/aws/aws-lc/blob/main/BUILDING.md) for more
+ information about required dependencies and build options. If you’re interested in
+ getting involved open an Issue to discuss your plan or talk to us on Gitter.
+-[Contributing.md](https://github.com/awslabs/aws-lc/blob/main/CONTRIBUTING.md) has
++[Contributing.md](https://github.com/aws/aws-lc/blob/main/CONTRIBUTING.md) has
+ info for how to specifically make the change and get it reviewed by AWS-LC maintainers.
+ If you just want to use AWS-LC see our existing documentation in the public header
+ files, if you’re moving your application from OpenSSL see
+-[Porting_to_AWS-LC.md](https://github.com/awslabs/aws-lc/blob/main/PORTING_TO_AWSLC.md)
++[Porting_to_AWS-LC.md](https://github.com/aws/aws-lc/blob/main/PORTING_TO_AWSLC.md)
+ for more information.
+ 
+ ## Why AWS-LC?
+@@ -58,7 +58,7 @@ understanding your use case in an Issue or on Gitter.
+ 
+ AWS-LC correctness is tested on a variety of C/C++ compiler, OS, and CPU
+ combinations. For a complete list of tested combinations see
+-[tests/ci/Readme.md](https://github.com/awslabs/aws-lc/blob/main/tests/ci/README.md).
++[tests/ci/Readme.md](https://github.com/aws/aws-lc/blob/main/tests/ci/README.md).
+ If you use a different combination and would like to make sure we test it,
+ please open an issue to discuss adding it to our CI.
+ 
+@@ -81,7 +81,7 @@ adding it to our CI.
+ ### Automated testing
+ 
+ Every change is tested with our
+-[CI](https://github.com/awslabs/aws-lc/blob/main/tests/ci/README.md) that includes
++[CI](https://github.com/aws/aws-lc/blob/main/tests/ci/README.md) that includes
+ positive and negative unit tests, fuzz tests, Sanitizers
+ ([Address](https://clang.llvm.org/docs/AddressSanitizer.html),
+ [Memory](https://clang.llvm.org/docs/MemorySanitizer.html),
+diff --git a/bindings/rust/README.md b/bindings/rust/README.md
+index d4c420b58..ef8e3390c 100644
+--- a/bindings/rust/README.md
++++ b/bindings/rust/README.md
+@@ -13,7 +13,7 @@ In order to generate the `aws-lc-sys` crate, you need to have the following inst
+ * Rust - installable with [rustup](https://rustup.rs/)
+ * libclang
+ * docker
+-* C compilation tools to build AWS-LC. We pull in [generated-src](https://github.com/awslabs/aws-lc/tree/main/generated-src) into `aws-lc-sys`, so Go and Perl aren't needed (for non-FIPS).
++* C compilation tools to build AWS-LC. We pull in [generated-src](https://github.com/aws/aws-lc/tree/main/generated-src) into `aws-lc-sys`, so Go and Perl aren't needed (for non-FIPS).
+ * CMake3 or above. [`cmake-rs`](https://docs.rs/cmake/latest/cmake/) appends build options after the path, which isn't supported in older versions of cmake.
+ 
+ ### To Use
+@@ -25,7 +25,7 @@ be [built](../../tests/ci/docker_images/rust/build_images.sh) and available loca
+ ./bindings/rust/generate/generate.sh
+ ```
+ 
+-See AWS-LC build documentation for more details: https://github.com/awslabs/aws-lc/blob/main/BUILDING.md
++See AWS-LC build documentation for more details: https://github.com/aws/aws-lc/blob/main/BUILDING.md
+ 
+ ### Publishing
+ The `aws-lc-sys` crate should be fully generated and tested by running the [generate.sh](./generate/generate.sh) script, prior to publishing.
+diff --git a/bindings/rust/aws-lc-fips-sys-template/Cargo.toml b/bindings/rust/aws-lc-fips-sys-template/Cargo.toml
+index 4d3465fd8..aee6bb9e4 100644
+--- a/bindings/rust/aws-lc-fips-sys-template/Cargo.toml
++++ b/bindings/rust/aws-lc-fips-sys-template/Cargo.toml
+@@ -4,7 +4,7 @@ description = "AWS-LC is a general-purpose cryptographic library maintained by t
+ version = "__AWS_LC_FIPS_SYS_VERSION__"
+ authors = ["AWS-LC"]
+ edition = "2021"
+-repository = "https://github.com/awslabs/aws-lc"
++repository = "https://github.com/aws/aws-lc"
+ license = "Apache-2.0 OR ISC"
+ rust-version = "1.57.0"
+ include = [
+diff --git a/bindings/rust/aws-lc-fips-sys-template/README.md b/bindings/rust/aws-lc-fips-sys-template/README.md
+index 891ef2f20..c268e968a 100644
+--- a/bindings/rust/aws-lc-fips-sys-template/README.md
++++ b/bindings/rust/aws-lc-fips-sys-template/README.md
+@@ -4,7 +4,7 @@
+ 
+ **Autogenerated** low-level AWS-LC FIPS bindings for the Rust programming language. We do not recommend directly relying on these bindings.
+ 
+-[Documentation](https://github.com/awslabs/aws-lc).
++[Documentation](https://github.com/aws/aws-lc).
+ 
+ ## Release Support
+ 
+@@ -20,20 +20,20 @@ arm-64|Linux
+ 
+ ### Tested AWS-LC FIPS Build Environments
+ 
+-`aws-lc-fips-sys` currently relies on the AWS-LC FIPS static build, please see our CI documentation at [AWS-LC](https://github.com/awslabs/aws-lc/tree/main/tests/ci#unit-tests).
++`aws-lc-fips-sys` currently relies on the AWS-LC FIPS static build, please see our CI documentation at [AWS-LC](https://github.com/aws/aws-lc/tree/main/tests/ci#unit-tests).
+ 
+ ## Build Prerequisites
+ 
+ Since this crate builds AWS-LC as a native library, all build tools needed to build AWS-LC are applicable to `aws-lc-fips-sys` as well. This includes Go and Perl, which are hard dependencies for the AWS-LC FIPS build.
+ 
+-[Building AWS-LC](https://github.com/awslabs/aws-lc/blob/main/BUILDING.md)
++[Building AWS-LC](https://github.com/aws/aws-lc/blob/main/BUILDING.md)
+ 
+-If you use a different build combination for FIPS and would like us to support it, please open an issue to us at [AWS-LC](https://github.com/awslabs/aws-lc/issues/new?assignees=&labels=&template=build-issue.md&title=).
++If you use a different build combination for FIPS and would like us to support it, please open an issue to us at [AWS-LC](https://github.com/aws/aws-lc/issues/new?assignees=&labels=&template=build-issue.md&title=).
+ 
+ ## Contribution
+ 
+-See contributing file at [AWS-LC](https://github.com/awslabs/aws-lc/blob/main/CONTRIBUTING.md)
++See contributing file at [AWS-LC](https://github.com/aws/aws-lc/blob/main/CONTRIBUTING.md)
+ 
+ ## Licensing
+ 
+-See license at [AWS-LC](https://github.com/awslabs/aws-lc/blob/main/LICENSE)
++See license at [AWS-LC](https://github.com/aws/aws-lc/blob/main/LICENSE)
+diff --git a/bindings/rust/aws-lc-sys-template/Cargo.toml b/bindings/rust/aws-lc-sys-template/Cargo.toml
+index 63b4836fd..f16fc1bb5 100644
+--- a/bindings/rust/aws-lc-sys-template/Cargo.toml
++++ b/bindings/rust/aws-lc-sys-template/Cargo.toml
+@@ -4,7 +4,7 @@ description = "AWS-LC is a general-purpose cryptographic library maintained by t
+ version = "__AWS_LC_SYS_VERSION__"
+ authors = ["AWS-LC"]
+ edition = "2021"
+-repository = "https://github.com/awslabs/aws-lc"
++repository = "https://github.com/aws/aws-lc"
+ license = "Apache-2.0 OR ISC"
+ rust-version = "1.57.0"
+ include = [
+diff --git a/bindings/rust/aws-lc-sys-template/README.md b/bindings/rust/aws-lc-sys-template/README.md
+index 397e3611a..88bb584dc 100644
+--- a/bindings/rust/aws-lc-sys-template/README.md
++++ b/bindings/rust/aws-lc-sys-template/README.md
+@@ -4,7 +4,7 @@
+ 
+ **Autogenerated** Low-level AWS-LC bindings for the Rust programming language. We do not recommend directly relying on these bindings.
+ 
+-[Documentation](https://github.com/awslabs/aws-lc).
++[Documentation](https://github.com/aws/aws-lc).
+ 
+ ## Release Support
+ 
+@@ -23,9 +23,9 @@ x86-64|MacOS
+ 
+ Since this crate builds AWS-LC as a native library, most build tools needed to build AWS-LC are applicable to `aws-lc-sys` as well. Go and Perl aren't absolutely necessary for `aws-lc-sys`, as AWS-LC provides generated build files.
+ 
+-[Building AWS-LC](https://github.com/awslabs/aws-lc/blob/main/BUILDING.md)
++[Building AWS-LC](https://github.com/aws/aws-lc/blob/main/BUILDING.md)
+ 
+-AWS-LC is tested on a variety of C/C++ compiler, OS, and CPU combinations. For a complete list of tested combinations see [tests/ci/Readme.md](https://github.com/awslabs/aws-lc/tree/main/tests/ci#unit-tests). If you use a different build combination and would like us to support it, please open an issue to us at [AWS-LC](https://github.com/awslabs/aws-lc/issues/new?assignees=&labels=&template=build-issue.md&title=).
++AWS-LC is tested on a variety of C/C++ compiler, OS, and CPU combinations. For a complete list of tested combinations see [tests/ci/Readme.md](https://github.com/aws/aws-lc/tree/main/tests/ci#unit-tests). If you use a different build combination and would like us to support it, please open an issue to us at [AWS-LC](https://github.com/aws/aws-lc/issues/new?assignees=&labels=&template=build-issue.md&title=).
+ 
+ ## Building with a FIPS-validated module
+ 
+@@ -33,8 +33,8 @@ This crate does not offer the AWS-LC FIPS build. To use AWS-LC FIPS, please use
+ 
+ ## Contribution
+ 
+-See contributing file at [AWS-LC](https://github.com/awslabs/aws-lc/blob/main/CONTRIBUTING.md)
++See contributing file at [AWS-LC](https://github.com/aws/aws-lc/blob/main/CONTRIBUTING.md)
+ 
+ ## Licensing
+ 
+-See license at [AWS-LC](https://github.com/awslabs/aws-lc/blob/main/LICENSE)
++See license at [AWS-LC](https://github.com/aws/aws-lc/blob/main/LICENSE)
+diff --git a/bindings/rust/generate/generate-fips.sh b/bindings/rust/generate/generate-fips.sh
+index b54bf93e1..8ed0bec74 100755
+--- a/bindings/rust/generate/generate-fips.sh
++++ b/bindings/rust/generate/generate-fips.sh
+@@ -30,7 +30,7 @@ source "${SCRIPT_DIR}"/_generation_tools.sh
+ # Clone the FIPS branch in local.
+ function clone_fips_branch {
+   pushd "${TMP_DIR}"
+-  git clone -b ${AWS_LC_FIPS_BRANCH} --depth 1 --single-branch https://github.com/awslabs/aws-lc.git
++  git clone -b ${AWS_LC_FIPS_BRANCH} --depth 1 --single-branch https://github.com/aws/aws-lc.git
+   popd
+ }
+ 
+diff --git a/bindings/rust/generate/generate.sh b/bindings/rust/generate/generate.sh
+index f09ff8cb5..a4817e62e 100755
+--- a/bindings/rust/generate/generate.sh
++++ b/bindings/rust/generate/generate.sh
+@@ -29,7 +29,7 @@ source "${SCRIPT_DIR}"/_generation_tools.sh
+ # Clone the main branch in local.
+ function clone_main_branch {
+   pushd "${TMP_DIR}"
+-  git clone -b main --depth 1 --single-branch https://github.com/awslabs/aws-lc.git
++  git clone -b main --depth 1 --single-branch https://github.com/aws/aws-lc.git
+   popd
+ }
+ 
+diff --git a/crypto/kyber/README.md b/crypto/kyber/README.md
+index 5b21ae8bc..c9e507166 100644
+--- a/crypto/kyber/README.md
++++ b/crypto/kyber/README.md
+@@ -23,6 +23,6 @@ The following changes were made to the source code in `pqcrystals_kyber_ref_comm
+ * `kem.c`: calls to `randombytes` function is replaced with calls to `pq_custom_randombytes` and the appropriate header file is included (`crypto/rand_extra/pq_custom_randombytes.h`).
+ * `verify.c`: change to fix MSVC compiler warning (see the file for details).
+ * `symmetric-shake.c`: unnecessary include of `fips202.h` is removed.
+-* `api.h`, `fips202.h`, `params.h`: modified [in this PR](https://github.com/awslabs/aws-lc/pull/655) to support our [prefixed symbols build](https://github.com/awslabs/aws-lc/blob/main/BUILDING.md#building-with-prefixed-symbols).
++* `api.h`, `fips202.h`, `params.h`: modified [in this PR](https://github.com/aws/aws-lc/pull/655) to support our [prefixed symbols build](https://github.com/aws/aws-lc/blob/main/BUILDING.md#building-with-prefixed-symbols).
+ 
+ **Usage.** The KEM API is defined and documented in `include/openssl/evp.h`. To see examples of how to use any KEM, including Kyber, see `crypto/kem/README.md`.
+diff --git a/crypto/x509v3/v3_utl.c b/crypto/x509v3/v3_utl.c
+index a8f31e4ed..9a1c0e3ef 100644
+--- a/crypto/x509v3/v3_utl.c
++++ b/crypto/x509v3/v3_utl.c
+@@ -1265,7 +1265,7 @@ static int ipv6_from_asc(unsigned char v6[16], const char *in) {
+ 
+     // Zero middle
+     // This condition is to suppress gcc-12 warning.
+-    // https://github.com/awslabs/aws-lc/issues/487
++    // https://github.com/aws/aws-lc/issues/487
+     if (v6stat.zero_pos >= v6stat.total) {
+         // This should not happen.
+         return 0;
+diff --git a/docs/Coverage.md b/docs/Coverage.md
+index 586697095..428445643 100644
+--- a/docs/Coverage.md
++++ b/docs/Coverage.md
+@@ -1,6 +1,6 @@
+ # Coverage Report
+ ```shell script
+-git clone git@github.com:awslabs/aws-lc.git
++git clone git@github.com:aws/aws-lc.git
+ mkdir build
+ cd build
+ cmake -GNinja -DGCOV=1 ../aws-lc
+diff --git a/include/openssl/base.h b/include/openssl/base.h
+index 0bc096294..38f4469ff 100644
+--- a/include/openssl/base.h
++++ b/include/openssl/base.h
+@@ -211,7 +211,7 @@ extern "C" {
+ #define AWSLC_API_VERSION 20
+ 
+ // This string tracks the most current production release version on Github
+-// https://github.com/awslabs/aws-lc/releases.
++// https://github.com/aws/aws-lc/releases.
+ // When bumping the encoded version number, also update the test fixture:
+ // ServiceIndicatorTest.AWSLCVersionString
+ // Note: there are two versions of this test. Only one test is compiled
+diff --git a/include/openssl/mem.h b/include/openssl/mem.h
+index d39cf4a48..91dc22d9a 100644
+--- a/include/openssl/mem.h
++++ b/include/openssl/mem.h
+@@ -170,7 +170,7 @@ OPENSSL_EXPORT void OPENSSL_clear_free(void *ptr, size_t len);
+ // |OPENSSL_malloc/free/realloc| can be customized by implementing |OPENSSL_memory_alloc/free/realloc| or calling
+ // CRYPTO_set_mem_functions. If  |OPENSSL_memory_alloc/free/realloc| is defined CRYPTO_set_mem_functions will fail.
+ // All of the warnings for |OPENSSL_malloc/free/realloc| apply to CRYPTO_set_mem_functions:
+-// -- https://github.com/awslabs/aws-lc/blame/d164f5762b1ad5d4f2d1561fb85daa556fdff5ef/crypto/mem.c#L111-L127
++// -- https://github.com/aws/aws-lc/blame/d164f5762b1ad5d4f2d1561fb85daa556fdff5ef/crypto/mem.c#L111-L127
+ // This function is only recommended for debug purpose(e.g. track mem usage).
+ // AWS-LC differs from OpenSSL's  CRYPTO_set_mem_functions in that __FILE__ and __LINE__ are not supplied.
+ //
+diff --git a/tests/ci/build_run_benchmarks.sh b/tests/ci/build_run_benchmarks.sh
+index 382fdbe1c..5cf3ca5d8 100755
+--- a/tests/ci/build_run_benchmarks.sh
++++ b/tests/ci/build_run_benchmarks.sh
+@@ -21,7 +21,7 @@ AWSLC_PROD_ROOT=$(pwd)/aws-lc-prod
+ source ${AWSLC_PR_ROOT}/tests/ci/common_posix_setup.sh
+ 
+ # clone the various repositories we need (we already have aws-lc-pr since we need it to run this script)
+-git clone https://github.com/awslabs/aws-lc.git aws-lc-prod
++git clone https://github.com/aws/aws-lc.git aws-lc-prod
+ 
+ # build AWSLC pr
+ mkdir -p "${PR_FOLDER_NAME}"/build
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
+index 3e41d0cb9..c07021b25 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
+@@ -139,7 +139,7 @@ batch:
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2_clang-7x_latest
+         variables:
+           # AL2 Clang-7 does not support AddressSanitizer. Related ticket is linked in CryptoAlg-694.
+-          # https://github.com/awslabs/aws-lc/pull/120#issuecomment-808439279
++          # https://github.com/aws/aws-lc/pull/120#issuecomment-808439279
+           AWSLC_NO_ASM_FIPS: 0
+ 
+     - identifier: amazonlinux2_gcc7x_aarch_fips
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+index d62aefa78..58c7968d0 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+@@ -221,7 +221,7 @@ batch:
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_clang-7x_latest
+         variables:
+           # AL2 Clang-7 does not support AddressSanitizer. Related ticket is linked in CryptoAlg-694.
+-          # https://github.com/awslabs/aws-lc/pull/120#issuecomment-808439279
++          # https://github.com/aws/aws-lc/pull/120#issuecomment-808439279
+           AWSLC_NO_ASM_FIPS: 0
+ 
+     - identifier: amazonlinux2_gcc7x_intel_sde_x86_64
+diff --git a/tests/ci/cdk/run-cdk.sh b/tests/ci/cdk/run-cdk.sh
+index 948e12539..eefbb0345 100755
+--- a/tests/ci/cdk/run-cdk.sh
++++ b/tests/ci/cdk/run-cdk.sh
+@@ -263,7 +263,7 @@ Options:
+     --help                       Displays this help
+     --aws-account                AWS account for CDK deploy/destroy. Default to '620771051181'.
+     --aws-region                 AWS region for AWS resources creation. Default to 'us-west-2'.
+-    --github-repo-owner          GitHub repository owner. Default to 'awslabs'.
++    --github-repo-owner          GitHub repository owner. Default to 'aws'.
+     --github-source-version      GitHub source version. Default to 'main'.
+     --action                     Required. The value can be
+                                    'deploy-ci': deploys aws-lc ci. This includes AWS and Docker image resources creation.
+@@ -289,7 +289,7 @@ function export_global_variables() {
+     export AWS_DEFAULT_REGION="${CDK_DEPLOY_REGION}"
+   fi
+   if [[ -z "${GITHUB_REPO_OWNER+x}" || -z "${GITHUB_REPO_OWNER}" ]]; then
+-    export GITHUB_REPO_OWNER='awslabs'
++    export GITHUB_REPO_OWNER='aws'
+   fi
+   if [[ -z "${GITHUB_SOURCE_VERSION+x}" || -z "${GITHUB_SOURCE_VERSION}" ]]; then
+     export GITHUB_SOURCE_VERSION='main'
+@@ -307,8 +307,8 @@ function export_global_variables() {
+   export WIN_DOCKER_BUILD_SSM_DOCUMENT="windows-ssm-document-${DATE_NOW}"
+   export IMG_BUILD_STATUS='unknown'
+   # 620771051181 is AWS-LC team AWS account.
+-  if [[ "${CDK_DEPLOY_ACCOUNT}" != "620771051181" ]] && [[ "${GITHUB_REPO_OWNER}" == 'awslabs' ]]; then
+-    echo "Only team account is allowed to create CI stacks on awslabs repo."
++  if [[ "${CDK_DEPLOY_ACCOUNT}" != "620771051181" ]] && [[ "${GITHUB_REPO_OWNER}" == 'aws' ]]; then
++    echo "Only team account is allowed to create CI stacks on aws repo."
+     exit 1
+   fi
+ }
+diff --git a/tests/ci/cdk/util/metadata.py b/tests/ci/cdk/util/metadata.py
+index f744f12af..9a0398dc5 100644
+--- a/tests/ci/cdk/util/metadata.py
++++ b/tests/ci/cdk/util/metadata.py
+@@ -19,7 +19,7 @@ LINUX_X86_ECR_REPO = EnvUtil.get("ECR_LINUX_X86_REPO_NAME", "aws-lc-docker-image
+ WINDOWS_X86_ECR_REPO = EnvUtil.get("ECR_WINDOWS_X86_REPO_NAME", "aws-lc-docker-images-windows-x86")
+ 
+ # Used when AWS CodeBuild needs to create web_hooks.
+-GITHUB_REPO_OWNER = EnvUtil.get("GITHUB_REPO_OWNER", "awslabs")
++GITHUB_REPO_OWNER = EnvUtil.get("GITHUB_REPO_OWNER", "aws")
+ GITHUB_REPO_NAME = EnvUtil.get("GITHUB_REPO_NAME", "aws-lc")
+ GITHUB_SOURCE_VERSION = EnvUtil.get("GITHUB_SOURCE_VERSION", "main")
+ 
+diff --git a/tests/ci/common_posix_setup.sh b/tests/ci/common_posix_setup.sh
+index 4156296dd..d55ae958e 100644
+--- a/tests/ci/common_posix_setup.sh
++++ b/tests/ci/common_posix_setup.sh
+@@ -112,7 +112,7 @@ function fips_build_and_test {
+   # Upon completion of the build process. The module’s status can be verified by 'tool/bssl isfips'.
+   # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp3678.pdf
+   # FIPS mode is enabled when 'defined(BORINGSSL_FIPS) && !defined(OPENSSL_ASAN)'.
+-  # https://github.com/awslabs/aws-lc/blob/220e266d4e415cf0101388b89a2bd855e0e4e203/crypto/fipsmodule/is_fips.c#L22
++  # https://github.com/aws/aws-lc/blob/220e266d4e415cf0101388b89a2bd855e0e4e203/crypto/fipsmodule/is_fips.c#L22
+   expect_fips_mode=1
+   for build_flag in "$@"
+   do
+diff --git a/tests/ci/docker_images/windows/README.md b/tests/ci/docker_images/windows/README.md
+index f87682e2b..93172b447 100644
+--- a/tests/ci/docker_images/windows/README.md
++++ b/tests/ci/docker_images/windows/README.md
+@@ -26,7 +26,7 @@ You can test the images by running `docker run -it vs2015` or `docker run -it
+ vs2017`. To emulate a CodeBuild run locally execute the following inside one of
+ the docker images :
+ ```
+-$ git clone https://github.com/awslabs/aws-lc.git -b main --depth 1
++$ git clone https://github.com/aws/aws-lc.git -b main --depth 1
+ $ cd aws-lc
+ # Depending on the docker image run:
+ $ .\tests\ci\run_windows_tests.bat "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
+diff --git a/tests/ci/run_posix_sanitizers.sh b/tests/ci/run_posix_sanitizers.sh
+index 18fe0bca2..0dcf6ea7a 100755
+--- a/tests/ci/run_posix_sanitizers.sh
++++ b/tests/ci/run_posix_sanitizers.sh
+@@ -31,7 +31,7 @@ build_and_test -DUBSAN=1 "${cflags[@]}"
+ unset UBSAN_OPTIONS
+ 
+ if [ $(uname -p) == "aarch64" ]; then
+-  # ARM MSAN runs get stuck on PoolTest.Threads for over an hour https://github.com/awslabs/aws-lc/issues/13
++  # ARM MSAN runs get stuck on PoolTest.Threads for over an hour https://github.com/aws/aws-lc/issues/13
+   echo "Building AWS-LC in ${build_type} mode with memory sanitizer."
+   run_build -DMSAN=1 -DUSE_CUSTOM_LIBCXX=1 "${cflags[@]}"
+ else
+@@ -40,7 +40,7 @@ else
+ fi
+ 
+ if [ $(uname -p) == "x86_64" ]; then
+-  # x86 TSAN runs get stuck on PoolTest.Threads for over an hour https://github.com/awslabs/aws-lc/issues/13
++  # x86 TSAN runs get stuck on PoolTest.Threads for over an hour https://github.com/aws/aws-lc/issues/13
+   echo "Building AWS-LC in ${build_type} mode with thread sanitizer."
+   run_build -DTSAN=1 -DUSE_CUSTOM_LIBCXX=1 "${cflags[@]}"
+ else
+diff --git a/util/asm_dev/armv8/p256/Readme.md b/util/asm_dev/armv8/p256/Readme.md
+index 7327338b2..c75e19701 100644
+--- a/util/asm_dev/armv8/p256/Readme.md
++++ b/util/asm_dev/armv8/p256/Readme.md
+@@ -3,7 +3,7 @@ SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+ #P256 Armv8 Assembly Functions
+ This application was used to develop the assembly functions committed to
+-[awsls:p256-armv8](https://github.com/awslabs/aws-lc/tree/p256-armv8)
++[awsls:p256-armv8](https://github.com/aws/aws-lc/tree/p256-armv8)
+ 
+ The goal is bringing the P-256 performance on ARMv8 at par with x86_64.
+ The ARMv8 assembly code is taken from OpenSSL 1.1.1 (at [this commit](openssl/openssl@46a9ee8)).
+diff --git a/util/benchmark/ec/p256_awslc_ossl/benchmark-build-run.sh b/util/benchmark/ec/p256_awslc_ossl/benchmark-build-run.sh
+index 08444a197..7b1c9c294 100755
+--- a/util/benchmark/ec/p256_awslc_ossl/benchmark-build-run.sh
++++ b/util/benchmark/ec/p256_awslc_ossl/benchmark-build-run.sh
+@@ -45,7 +45,7 @@ then
+ ## checkout AWS-LC if it doesn't exist already
+ #     echo "Checkout AWS-LC main tip" && \
+ #         cd .. && \
+-#         git clone https://github.com/awslabs/aws-lc.git && \
++#         git clone https://github.com/aws/aws-lc.git && \
+ #         cd ${BENCH_DIR}
+ fi
+ 

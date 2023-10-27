@@ -1,0 +1,168 @@
+From 8927fa4ad2242eca56869ffc0ee3982e8ae3a99a Mon Sep 17 00:00:00 2001
+From: Adam Langley <agl@imperialviolet.org>
+Date: Sun, 8 Jan 2023 16:41:34 -0800
+Subject: [PATCH] Drop the preference for 256-bit ciphers with CECPQ2.
+
+I did this because I was tired of explaining Grover's algorithm and
+circuit depth, but it never large amounts of sense and it conflates any
+measurements of post-quantum impact. If you want to configure a server
+with a preference for 256-bit ciphers, that's still completely possible.
+
+Change-Id: I3dc951ec724a713bb4da75c204d1105c62de8d74
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/55929
+Commit-Queue: Adam Langley <agl@google.com>
+Reviewed-by: David Benjamin <davidben@google.com>
+(cherry picked from commit ec6425ca2a85389606105c71be4d4ceb01621e7d)
+---
+ ssl/s3_both.cc            | 13 ++----
+ ssl/test/runner/runner.go | 89 ---------------------------------------
+ 2 files changed, 4 insertions(+), 98 deletions(-)
+
+diff --git a/ssl/s3_both.cc b/ssl/s3_both.cc
+index 2015bd2eb..d02434685 100644
+--- a/ssl/s3_both.cc
++++ b/ssl/s3_both.cc
+@@ -664,31 +664,26 @@ void tls_next_message(SSL *ssl) {
+ // the client.
+ class CipherScorer {
+  public:
+-  CipherScorer(uint16_t group_id)
+-      : aes_is_fine_(EVP_has_aes_hardware()),
+-        security_128_is_fine_(group_id != SSL_CURVE_CECPQ2) {}
++  CipherScorer() : aes_is_fine_(EVP_has_aes_hardware()) {}
+ 
+-  typedef std::tuple<bool, bool, bool> Score;
++  typedef std::tuple<bool, bool> Score;
+ 
+   // MinScore returns a |Score| that will compare less than the score of all
+   // cipher suites.
+   Score MinScore() const {
+-    return Score(false, false, false);
++    return Score(false, false);
+   }
+ 
+   Score Evaluate(const SSL_CIPHER *a) const {
+     return Score(
+         // Something is always preferable to nothing.
+         true,
+-        // Either 128-bit is fine, or 256-bit is preferred.
+-        security_128_is_fine_ || a->algorithm_enc != SSL_AES128GCM,
+         // Either AES is fine, or else ChaCha20 is preferred.
+         aes_is_fine_ || a->algorithm_enc == SSL_CHACHA20POLY1305);
+   }
+ 
+  private:
+   const bool aes_is_fine_;
+-  const bool security_128_is_fine_;
+ };
+ 
+ const SSL_CIPHER *ssl_choose_tls13_cipher(CBS cipher_suites, uint16_t version,
+@@ -699,7 +694,7 @@ const SSL_CIPHER *ssl_choose_tls13_cipher(CBS cipher_suites, uint16_t version,
+   }
+ 
+   const SSL_CIPHER *best = nullptr;
+-  CipherScorer scorer(group_id);
++  CipherScorer scorer;
+   CipherScorer::Score best_score = scorer.MinScore();
+ 
+   while (CBS_len(&cipher_suites) > 0) {
+diff --git a/ssl/test/runner/runner.go b/ssl/test/runner/runner.go
+index 33506cb3c..8e07792ad 100644
+--- a/ssl/test/runner/runner.go
++++ b/ssl/test/runner/runner.go
+@@ -15334,95 +15334,6 @@ func addTLS13CipherPreferenceTests() {
+ 		expectedError:      ":NO_SHARED_CIPHER:",
+ 		expectedLocalError: "remote error: handshake failure",
+ 	})
+-
+-	// CECPQ2 prefers 256-bit ciphers but will use AES-128 if there's nothing else.
+-	testCases = append(testCases, testCase{
+-		testType: serverTest,
+-		name:     "TLS13-CipherPreference-CECPQ2-AES128Only",
+-		config: Config{
+-			MaxVersion: VersionTLS13,
+-			CipherSuites: []uint16{
+-				TLS_AES_128_GCM_SHA256,
+-			},
+-		},
+-		flags: []string{
+-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
+-		},
+-	})
+-
+-	// When a 256-bit cipher is offered, even if not in first place, it should be
+-	// picked.
+-	testCases = append(testCases, testCase{
+-		testType: serverTest,
+-		name:     "TLS13-CipherPreference-CECPQ2-AES256Preferred",
+-		config: Config{
+-			MaxVersion: VersionTLS13,
+-			CipherSuites: []uint16{
+-				TLS_AES_128_GCM_SHA256,
+-				TLS_AES_256_GCM_SHA384,
+-			},
+-		},
+-		flags: []string{
+-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
+-		},
+-		expectations: connectionExpectations{
+-			cipher: TLS_AES_256_GCM_SHA384,
+-		},
+-	})
+-	// ... but when CECPQ2 isn't being used, the client's preference controls.
+-	testCases = append(testCases, testCase{
+-		testType: serverTest,
+-		name:     "TLS13-CipherPreference-CECPQ2-AES128PreferredOtherwise",
+-		config: Config{
+-			MaxVersion: VersionTLS13,
+-			CipherSuites: []uint16{
+-				TLS_AES_128_GCM_SHA256,
+-				TLS_AES_256_GCM_SHA384,
+-			},
+-		},
+-		flags: []string{
+-			"-curves", strconv.Itoa(int(CurveX25519)),
+-		},
+-		expectations: connectionExpectations{
+-			cipher: TLS_AES_128_GCM_SHA256,
+-		},
+-	})
+-
+-	// Test that CECPQ2 continues to honor AES vs ChaCha20 logic.
+-	testCases = append(testCases, testCase{
+-		testType: serverTest,
+-		name:     "TLS13-CipherPreference-CECPQ2-AES128-ChaCha20-AES256",
+-		config: Config{
+-			MaxVersion: VersionTLS13,
+-			CipherSuites: []uint16{
+-				TLS_AES_128_GCM_SHA256,
+-				TLS_CHACHA20_POLY1305_SHA256,
+-				TLS_AES_256_GCM_SHA384,
+-			},
+-		},
+-		flags: []string{
+-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
+-			"-expect-cipher-aes", strconv.Itoa(int(TLS_CHACHA20_POLY1305_SHA256)),
+-			"-expect-cipher-no-aes", strconv.Itoa(int(TLS_CHACHA20_POLY1305_SHA256)),
+-		},
+-	})
+-	testCases = append(testCases, testCase{
+-		testType: serverTest,
+-		name:     "TLS13-CipherPreference-CECPQ2-AES128-AES256-ChaCha20",
+-		config: Config{
+-			MaxVersion: VersionTLS13,
+-			CipherSuites: []uint16{
+-				TLS_AES_128_GCM_SHA256,
+-				TLS_AES_256_GCM_SHA384,
+-				TLS_CHACHA20_POLY1305_SHA256,
+-			},
+-		},
+-		flags: []string{
+-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
+-			"-expect-cipher-aes", strconv.Itoa(int(TLS_AES_256_GCM_SHA384)),
+-			"-expect-cipher-no-aes", strconv.Itoa(int(TLS_CHACHA20_POLY1305_SHA256)),
+-		},
+-	})
+ }
+ 
+ func addPeekTests() {

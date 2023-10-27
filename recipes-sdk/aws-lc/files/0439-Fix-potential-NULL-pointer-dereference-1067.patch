@@ -1,0 +1,39 @@
+From f49fc135c4b989676df32529d46ca23d6afb1790 Mon Sep 17 00:00:00 2001
+From: dkostic <25055813+dkostic@users.noreply.github.com>
+Date: Thu, 22 Jun 2023 18:45:55 +0200
+Subject: [PATCH] Fix potential NULL pointer dereference (#1067)
+
+---
+ crypto/x509/name_print.c | 4 ++++
+ crypto/x509/x509_req.c   | 3 +++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/crypto/x509/name_print.c b/crypto/x509/name_print.c
+index 5dc34dae5..7d17b1172 100644
+--- a/crypto/x509/name_print.c
++++ b/crypto/x509/name_print.c
+@@ -178,6 +178,10 @@ static int do_name_ex(BIO *out, const X509_NAME *n, int indent,
+     } else {
+       objbuf = OBJ_nid2sn(fn_nid);
+     }
++    if (objbuf == NULL) {
++      return -1;
++    }
++
+     int objlen = strlen(objbuf);
+     if (!maybe_write(out, objbuf, objlen) ||
+         !maybe_write(out, sep_eq, sep_eq_len)) {
+diff --git a/crypto/x509/x509_req.c b/crypto/x509/x509_req.c
+index 69eb63c27..c659e0e36 100644
+--- a/crypto/x509/x509_req.c
++++ b/crypto/x509/x509_req.c
+@@ -185,6 +185,9 @@ int X509_REQ_get_attr_by_OBJ(const X509_REQ *req, const ASN1_OBJECT *obj,
+   for (; lastpos < n; lastpos++) {
+     const X509_ATTRIBUTE *attr =
+         sk_X509_ATTRIBUTE_value(req->req_info->attributes, lastpos);
++    if (attr == NULL) {
++      return -1;
++    }
+     if (OBJ_cmp(attr->object, obj) == 0) {
+       return lastpos;
+     }

@@ -1,0 +1,196 @@
+From 61503f7fe72457e12d3446853a5452d175560c49 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sat, 7 Jan 2023 23:21:52 -0800
+Subject: [PATCH] Use Windows Interlocked* APIs for refcounts when C11 isn't
+ available
+
+Right now, MSVC has to fallback to refcount_lock.c, which uses a single,
+global lock for all refcount operations. Instead, use the Interlocked*
+APIs to implement them.
+
+The motivation is two-fold. First, this removes a performance cliff when
+building for Windows on a non-Clang compiler. (Although I've not been
+able to measure it in an end-to-end EVP benchmark, only a synthetic
+refcount-only benchmark.)
+
+More importantly, it gets us closer to assuming atomics support on all
+non-NO_THREADS configurations. (The next CL will clear through that.)
+That, in turn, will make it easier to add an atomics-like abstractions
+to some of our hotter synchronization points. (Even in newer glibc, with
+its better rwlock, read locks fundamentally need to write to memory, so
+we have some cacheline contention on shared locks.)
+
+Annoyingly, the Windows atomic_load replacement is not quite right. I've
+used a "no-op" InterlockedCompareExchange(p, 0, 0) which, empirically,
+still results in a write. But a write to the refcount cacheline is
+surely better than taking a global exclusive lock. See comments in file
+for details. OpenSSL uses InterlockedOr(p, 0), but that actually results
+in even worse code. (InterlockedOr needs a retry loop when the
+underlying cmpxchg fails, whereas InterlockedCompareExchange is a single
+cmpxchg.)
+
+Hopefully, in the future (perhaps when we require VS 2022's successor,
+based on [1]), this can be removed in favor of C11 atomics everywhere.
+
+[1] https://devblogs.microsoft.com/cppblog/c11-atomics-in-visual-studio-2022-version-17-5-preview-2/
+
+Bug: 570
+Cq-Include-Trybots: luci.boringssl.try:linux_clang_rel_tsan
+Change-Id: I125da139e2fd3ae51e54309309fda16ba97ccf20
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59846
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit 5b845de636224ef3e065be8e1c7d2df3389aa175)
+---
+ crypto/CMakeLists.txt  |  1 +
+ crypto/internal.h      |  8 ++++
+ crypto/refcount_lock.c |  4 +-
+ crypto/refcount_win.c  | 89 ++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 100 insertions(+), 2 deletions(-)
+ create mode 100644 crypto/refcount_win.c
+
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index a82b1cb59..e5a7fdde1 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -431,6 +431,7 @@ add_library(
+   rc4/rc4.c
+   refcount_c11.c
+   refcount_lock.c
++  refcount_win.c
+   rsa_extra/rsa_asn1.c
+   rsa_extra/rsassa_pss_asn1.c
+   rsa_extra/rsa_print.c
+diff --git a/crypto/internal.h b/crypto/internal.h
+index 52cfbbac7..8098e8fd4 100644
+--- a/crypto/internal.h
++++ b/crypto/internal.h
+@@ -494,6 +494,14 @@ OPENSSL_EXPORT void CRYPTO_once(CRYPTO_once_t *once, void (*init)(void));
+ #define OPENSSL_C11_ATOMIC
+ #endif
+ 
++// Older MSVC does not support C11 atomics, so we fallback to the Windows APIs.
++// This can be removed once we can rely on
++// https://devblogs.microsoft.com/cppblog/c11-atomics-in-visual-studio-2022-version-17-5-preview-2/
++#if !defined(OPENSSL_C11_ATOMIC) && defined(OPENSSL_THREADS) && \
++    defined(OPENSSL_WINDOWS)
++#define OPENSSL_WINDOWS_ATOMIC
++#endif
++
+ // CRYPTO_REFCOUNT_MAX is the value at which the reference count saturates.
+ #define CRYPTO_REFCOUNT_MAX 0xffffffff
+ 
+diff --git a/crypto/refcount_lock.c b/crypto/refcount_lock.c
+index f6484a8d8..63cbb5140 100644
+--- a/crypto/refcount_lock.c
++++ b/crypto/refcount_lock.c
+@@ -19,7 +19,7 @@
+ #include <openssl/type_check.h>
+ 
+ 
+-#if !defined(OPENSSL_C11_ATOMIC)
++#if !defined(OPENSSL_C11_ATOMIC) && !defined(OPENSSL_WINDOWS_ATOMIC)
+ 
+ OPENSSL_STATIC_ASSERT((CRYPTO_refcount_t)-1 == CRYPTO_REFCOUNT_MAX,
+                       CRYPTO_REFCOUNT_MAX_is_incorrect)
+@@ -50,4 +50,4 @@ int CRYPTO_refcount_dec_and_test_zero(CRYPTO_refcount_t *count) {
+   return ret;
+ }
+ 
+-#endif  // OPENSSL_C11_ATOMIC
++#endif  // !OPENSSL_C11_ATOMIC && !OPENSSL_WINDOWS_ATOMICS
+diff --git a/crypto/refcount_win.c b/crypto/refcount_win.c
+new file mode 100644
+index 000000000..7a2740bc2
+--- /dev/null
++++ b/crypto/refcount_win.c
+@@ -0,0 +1,89 @@
++/* Copyright (c) 2023, Google Inc.
++ *
++ * Permission to use, copy, modify, and/or distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
++ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
++ * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
++ * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
++
++#include "internal.h"
++
++#if defined(OPENSSL_WINDOWS_ATOMIC)
++
++#include <windows.h>
++
++
++// See comment above the typedef of CRYPTO_refcount_t about these tests.
++static_assert(alignof(CRYPTO_refcount_t) == alignof(LONG),
++              "CRYPTO_refcount_t does not match LONG alignment");
++static_assert(sizeof(CRYPTO_refcount_t) == sizeof(LONG),
++              "CRYPTO_refcount_t does not match LONG size");
++
++static_assert((CRYPTO_refcount_t)-1 == CRYPTO_REFCOUNT_MAX,
++              "CRYPTO_REFCOUNT_MAX is incorrect");
++
++static uint32_t atomic_load_u32(volatile LONG *ptr) {
++  // This is not ideal because it still writes to a cacheline. MSVC is not able
++  // to optimize this to a true atomic read, and Windows does not provide an
++  // InterlockedLoad function.
++  //
++  // The Windows documentation [1] does say "Simple reads and writes to
++  // properly-aligned 32-bit variables are atomic operations", but this is not
++  // phrased in terms of the C11 and C++11 memory models, and indeed a read or
++  // write seems to produce slightly different code on MSVC than a sequentially
++  // consistent std::atomic::load in C++. Moreover, it is unclear if non-MSVC
++  // compilers on Windows provide the same guarantees. Thus we avoid relying on
++  // this and instead still use an interlocked function. This is still
++  // preferable a global mutex, and eventually this code will be replaced by
++  // [2]. Additionally, on clang-cl, we'll use the |OPENSSL_C11_ATOMIC| path.
++  //
++  // [1] https://learn.microsoft.com/en-us/windows/win32/sync/interlocked-variable-access
++  // [2] https://devblogs.microsoft.com/cppblog/c11-atomics-in-visual-studio-2022-version-17-5-preview-2/
++  return (uint32_t)InterlockedCompareExchange(ptr, 0, 0);
++}
++
++static int atomic_compare_exchange_u32(volatile LONG *ptr, uint32_t *expected32,
++                                       uint32_t desired) {
++  LONG expected = (LONG)*expected32;
++  LONG actual = InterlockedCompareExchange(ptr, (LONG)desired, expected);
++  *expected32 = (uint32_t)actual;
++  return actual == expected;
++}
++
++void CRYPTO_refcount_inc(CRYPTO_refcount_t *in_count) {
++  volatile LONG *count = (volatile LONG *)in_count;
++  uint32_t expected = atomic_load_u32(count);
++
++  while (expected != CRYPTO_REFCOUNT_MAX) {
++    const uint32_t new_value = expected + 1;
++    if (atomic_compare_exchange_u32(count, &expected, new_value)) {
++      break;
++    }
++  }
++}
++
++int CRYPTO_refcount_dec_and_test_zero(CRYPTO_refcount_t *in_count) {
++  volatile LONG *count = (volatile LONG *)in_count;
++  uint32_t expected = atomic_load_u32(count);
++
++  for (;;) {
++    if (expected == 0) {
++      abort();
++    } else if (expected == CRYPTO_REFCOUNT_MAX) {
++      return 0;
++    } else {
++      const uint32_t new_value = expected - 1;
++      if (atomic_compare_exchange_u32(count, &expected, new_value)) {
++        return new_value == 0;
++      }
++    }
++  }
++}
++
++#endif  // OPENSSL_WINDOWS_ATOMIC

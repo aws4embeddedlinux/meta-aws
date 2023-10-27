@@ -1,0 +1,86 @@
+From b7bd7269bc00ce43f4ba355b9f6dc0e4f79d9857 Mon Sep 17 00:00:00 2001
+From: Justin Smith <justsmth@amazon.com>
+Date: Fri, 20 May 2022 12:23:37 -0400
+Subject: [PATCH] Cleanup and indentation
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/f96fbcdc5a2ac4a4215bb08b0eeadd7bdbf87819
+---
+ arm/p384/bignum_bigendian_6.S    |  7 +++----
+ arm/p384/bignum_littleendian_6.S |  7 +++----
+ include/_internal_s2n_bignum.h   | 28 ++++++++++++++--------------
+ 3 files changed, 20 insertions(+), 22 deletions(-)
+
+diff --git a/arm/p384/bignum_bigendian_6.S b/arm/p384/bignum_bigendian_6.S
+index d7f463aee..e0a85e7cc 100644
+--- a/arm/p384/bignum_bigendian_6.S
++++ b/arm/p384/bignum_bigendian_6.S
+@@ -59,10 +59,9 @@
+ // to allow x and z to point to the same buffer without using more
+ // intermediate registers.
+ 
+-S2N_BN_SYMBOL(bignum_bignum_bigendian_6):
+-
+-S2N_BN_SYMBOL(bignum_bignum_frombebytes_6):
+-S2N_BN_SYMBOL(bignum_bignum_tobebytes_6):
++S2N_BN_SYMBOL(bignum_bigendian_6):
++S2N_BN_SYMBOL(bignum_frombebytes_6):
++S2N_BN_SYMBOL(bignum_tobebytes_6):
+ 
+ // 0 and 5 words
+ 
+diff --git a/arm/p384/bignum_littleendian_6.S b/arm/p384/bignum_littleendian_6.S
+index 3c35b397f..19748ecac 100644
+--- a/arm/p384/bignum_littleendian_6.S
++++ b/arm/p384/bignum_littleendian_6.S
+@@ -54,10 +54,9 @@
+ #define dshort w2
+ #define a x3
+ 
+-S2N_BN_SYMBOL(bignum_bignum_littleendian_6):
+-
+-S2N_BN_SYMBOL(bignum_bignum_fromlebytes_6):
+-S2N_BN_SYMBOL(bignum_bignum_tolebytes_6):
++S2N_BN_SYMBOL(bignum_littleendian_6):
++S2N_BN_SYMBOL(bignum_fromlebytes_6):
++S2N_BN_SYMBOL(bignum_tolebytes_6):
+ 
+ // word 0
+ 
+diff --git a/include/_internal_s2n_bignum.h b/include/_internal_s2n_bignum.h
+index 490fe3dc0..255759161 100644
+--- a/include/_internal_s2n_bignum.h
++++ b/include/_internal_s2n_bignum.h
+@@ -1,18 +1,18 @@
+ 
+ #ifdef __APPLE__
+-#define S2N_BN_SYM_VISIBILITY_DIRECTIVE(name) .globl _##name
+-#ifdef S2N_BN_HIDE_SYMBOLS
+-#define S2N_BN_SYM_PRIVACY_DIRECTIVE(name) .private_extern _##name
++#   define S2N_BN_SYM_VISIBILITY_DIRECTIVE(name) .globl _##name
++#   ifdef S2N_BN_HIDE_SYMBOLS
++#      define S2N_BN_SYM_PRIVACY_DIRECTIVE(name) .private_extern _##name
++#   else
++#      define S2N_BN_SYM_PRIVACY_DIRECTIVE(name)  /* NO-OP: S2N_BN_SYM_PRIVACY_DIRECTIVE */
++#   endif
++#   define S2N_BN_SYMBOL(name) _##name
+ #else
+-#define S2N_BN_SYM_PRIVACY_DIRECTIVE(name)  /* NO-OP: S2N_BN_SYM_PRIVACY_DIRECTIVE */
+-#endif
+-#define S2N_BN_SYMBOL(name) _##name
+-#else
+-#define S2N_BN_SYM_VISIBILITY_DIRECTIVE(name) .globl name
+-#ifdef S2N_BN_HIDE_SYMBOLS
+-#define S2N_BN_SYM_PRIVACY_DIRECTIVE(name) .hidden name
+-#else
+-#define S2N_BN_SYM_PRIVACY_DIRECTIVE(name)  /* NO-OP: S2N_BN_SYM_PRIVACY_DIRECTIVE */
+-#endif
+-#define S2N_BN_SYMBOL(name) name
++#   define S2N_BN_SYM_VISIBILITY_DIRECTIVE(name) .globl name
++#   ifdef S2N_BN_HIDE_SYMBOLS
++#      define S2N_BN_SYM_PRIVACY_DIRECTIVE(name) .hidden name
++#   else
++#      define S2N_BN_SYM_PRIVACY_DIRECTIVE(name)  /* NO-OP: S2N_BN_SYM_PRIVACY_DIRECTIVE */
++#   endif
++#   define S2N_BN_SYMBOL(name) name
+ #endif
+\ No newline at end of file

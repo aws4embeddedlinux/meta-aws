@@ -1,0 +1,224 @@
+From 3966e4c624c357e331c2c7ed4d14ff386a4e55d3 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 2 Feb 2023 14:50:36 -0500
+Subject: [PATCH] Add bn_add_words and bn_sub_words assembly for aarch64.
+
+It is 2023 and compilers *still* cannot use carry flags effectively,
+particularly GCC.
+
+There are some Clang-specific built-ins which help x86_64 (where we have
+asm anyway) but, on aarch64, the built-ins actually *regress
+performance* over the current formulation! I suspect Clang is getting
+confused by Arm and Intel having opposite borrow flags.
+https://clang.llvm.org/docs/LanguageExtensions.html#multiprecision-arithmetic-builtins
+
+Just include aarch64 assembly to avoid this. This provides a noticeable
+perf boost in code that uses these functions (Where bn_mul_mont is
+available, they're not used much in RSA, but the generic EC
+implementation does modular additions, and RSA private key checking
+spends a lot of time in our add/sub-based bn_div_consttime.)
+
+The new code is also smaller than the generic one (18 instructions
+each), probably because it avoids all the flag spills and only tries to
+unroll by two iterations.
+
+Before:
+Did 7137 RSA 2048 signing operations in 4022094us (1774.4 ops/sec)
+Did 326000 RSA 2048 verify (same key) operations in 4001828us (81462.8 ops/sec)
+Did 278000 RSA 2048 verify (fresh key) operations in 4001392us (69475.8 ops/sec)
+Did 34830 RSA 2048 private key parse operations in 4038893us (8623.7 ops/sec)
+Did 1196 RSA 4096 signing operations in 4015759us (297.8 ops/sec)
+Did 90000 RSA 4096 verify (same key) operations in 4041959us (22266.4 ops/sec)
+Did 79000 RSA 4096 verify (fresh key) operations in 4034561us (19580.8 ops/sec)
+Did 12222 RSA 4096 private key parse operations in 4004831us (3051.8 ops/sec)
+Did 10626 ECDSA P-384 signing operations in 4030764us (2636.2 ops/sec)
+Did 10800 ECDSA P-384 verify operations in 4052718us (2664.9 ops/sec)
+Did 4182 ECDSA P-521 signing operations in 4076198us (1026.0 ops/sec)
+Did 4059 ECDSA P-521 verify operations in 4063819us (998.8 ops/sec)
+
+After:
+Did 7189 RSA 2048 signing operations in 4021331us (1787.7 ops/sec) [+0.7%]
+Did 326000 RSA 2048 verify (same key) operations in 4010811us (81280.3 ops/sec) [-0.2%]
+Did 278000 RSA 2048 verify (fresh key) operations in 4004206us (69427.0 ops/sec) [-0.1%]
+Did 53040 RSA 2048 private key parse operations in 4050953us (13093.2 ops/sec) [+51.8%]
+Did 1200 RSA 4096 signing operations in 4035548us (297.4 ops/sec) [-0.2%]
+Did 90000 RSA 4096 verify (same key) operations in 4035686us (22301.0 ops/sec) [+0.2%]
+Did 80000 RSA 4096 verify (fresh key) operations in 4020989us (19895.6 ops/sec) [+1.6%]
+Did 20468 RSA 4096 private key parse operations in 4037474us (5069.5 ops/sec) [+66.1%]
+Did 11070 ECDSA P-384 signing operations in 4023595us (2751.3 ops/sec) [+4.4%]
+Did 11232 ECDSA P-384 verify operations in 4063116us (2764.4 ops/sec) [+3.7%]
+Did 4387 ECDSA P-521 signing operations in 4052728us (1082.5 ops/sec) [+5.5%]
+Did 4305 ECDSA P-521 verify operations in 4064660us (1059.1 ops/sec) [+6.0%]
+
+Change-Id: If2f739373cdd10fa1d4925d5e2725e87d2255fc0
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56966
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit d1b451676eada2f2dcad9a20debf8b76fa17f403)
+---
+ crypto/fipsmodule/CMakeLists.txt     |   2 +
+ crypto/fipsmodule/bn/asm/bn-armv8.pl | 118 +++++++++++++++++++++++++++
+ crypto/fipsmodule/bn/generic.c       |   5 ++
+ 3 files changed, 125 insertions(+)
+ create mode 100755 crypto/fipsmodule/bn/asm/bn-armv8.pl
+
+diff --git a/crypto/fipsmodule/CMakeLists.txt b/crypto/fipsmodule/CMakeLists.txt
+index 8a1d0543d..e615c0768 100644
+--- a/crypto/fipsmodule/CMakeLists.txt
++++ b/crypto/fipsmodule/CMakeLists.txt
+@@ -77,6 +77,7 @@ if(ARCH STREQUAL "aarch64")
+     aesv8-armx.${ASM_EXT}
+     aesv8-gcm-armv8.${ASM_EXT}
+     armv8-mont.${ASM_EXT}
++    bn-armv8.${ASM_EXT}
+     ghash-neon-armv8.${ASM_EXT}
+     ghashv8-armx.${ASM_EXT}
+     keccak1600-armv8.${ASM_EXT}
+@@ -109,6 +110,7 @@ if(PERL_EXECUTABLE)
+   perlasm(armv4-mont.${ASM_EXT} bn/asm/armv4-mont.pl)
+   perlasm(armv8-mont.${ASM_EXT} bn/asm/armv8-mont.pl)
+   perlasm(bn-586.${ASM_EXT} bn/asm/bn-586.pl)
++  perlasm(bn-armv8.${ASM_EXT} bn/asm/bn-armv8.pl)
+   perlasm(bsaes-armv7.${ASM_EXT} aes/asm/bsaes-armv7.pl)
+   perlasm(co-586.${ASM_EXT} bn/asm/co-586.pl)
+   perlasm(ghash-armv4.${ASM_EXT} modes/asm/ghash-armv4.pl)
+diff --git a/crypto/fipsmodule/bn/asm/bn-armv8.pl b/crypto/fipsmodule/bn/asm/bn-armv8.pl
+new file mode 100755
+index 000000000..5aed8df15
+--- /dev/null
++++ b/crypto/fipsmodule/bn/asm/bn-armv8.pl
+@@ -0,0 +1,118 @@
++#!/usr/bin/env perl
++# Copyright (c) 2023, Google Inc.
++#
++# Permission to use, copy, modify, and/or distribute this software for any
++# purpose with or without fee is hereby granted, provided that the above
++# copyright notice and this permission notice appear in all copies.
++#
++# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
++# SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
++# OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
++# CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++
++use strict;
++
++my $flavour = shift;
++my $output  = shift;
++if ($flavour =~ /\./) { $output = $flavour; undef $flavour; }
++
++$0 =~ m/(.*[\/\\])[^\/\\]+$/;
++my $dir = $1;
++my $xlate;
++( $xlate="${dir}arm-xlate.pl" and -f $xlate ) or
++( $xlate="${dir}../../../perlasm/arm-xlate.pl" and -f $xlate) or
++die "can't locate arm-xlate.pl";
++
++open OUT, "| \"$^X\" \"$xlate\" $flavour \"$output\"";
++*STDOUT = *OUT;
++
++my ($rp, $ap, $bp, $num) = ("x0", "x1", "x2", "x3");
++my ($a0, $a1, $b0, $b1, $num_pairs) = ("x4", "x5", "x6", "x7", "x8");
++my $code = <<____;
++#include <openssl/arm_arch.h>
++
++.text
++
++// BN_ULONG bn_add_words(BN_ULONG *rp, const BN_ULONG *ap, const BN_ULONG *bp,
++//                       size_t num);
++.type	bn_add_words, %function
++.globl	bn_add_words
++.align	4
++bn_add_words:
++	AARCH64_VALID_CALL_TARGET
++	# Clear the carry flag.
++	cmn	xzr, xzr
++
++	# aarch64 can load two registers at a time, so we do two loop iterations at
++	# at a time. Split $num = 2 * $num_pairs + $num. This allows loop
++	# operations to use CBNZ without clobbering the carry flag.
++	lsr	$num_pairs, $num, #1
++	and	$num, $num, #1
++
++	cbz	$num_pairs, .Ladd_tail
++.Ladd_loop:
++	ldp	$a0, $a1, [$ap], #16
++	ldp	$b0, $b1, [$bp], #16
++	sub	$num_pairs, $num_pairs, #1
++	adcs	$a0, $a0, $b0
++	adcs	$a1, $a1, $b1
++	stp	$a0, $a1, [$rp], #16
++	cbnz	$num_pairs, .Ladd_loop
++
++.Ladd_tail:
++	cbz	$num, .Ladd_exit
++	ldr	$a0, [$ap], #8
++	ldr	$b0, [$bp], #8
++	adcs	$a0, $a0, $b0
++	str	$a0, [$rp], #8
++
++.Ladd_exit:
++	cset	x0, cs
++	ret
++.size	bn_add_words,.-bn_add_words
++
++// BN_ULONG bn_sub_words(BN_ULONG *rp, const BN_ULONG *ap, const BN_ULONG *bp,
++//                       size_t num);
++.type	bn_sub_words, %function
++.globl	bn_sub_words
++.align	4
++bn_sub_words:
++	AARCH64_VALID_CALL_TARGET
++	# Set the carry flag. Arm's borrow bit is flipped from the carry flag,
++	# so we want C = 1 here.
++	cmp	xzr, xzr
++
++	# aarch64 can load two registers at a time, so we do two loop iterations at
++	# at a time. Split $num = 2 * $num_pairs + $num. This allows loop
++	# operations to use CBNZ without clobbering the carry flag.
++	lsr	$num_pairs, $num, #1
++	and	$num, $num, #1
++
++	cbz	$num_pairs, .Lsub_tail
++.Lsub_loop:
++	ldp	$a0, $a1, [$ap], #16
++	ldp	$b0, $b1, [$bp], #16
++	sub	$num_pairs, $num_pairs, #1
++	sbcs	$a0, $a0, $b0
++	sbcs	$a1, $a1, $b1
++	stp	$a0, $a1, [$rp], #16
++	cbnz	$num_pairs, .Lsub_loop
++
++.Lsub_tail:
++	cbz	$num, .Lsub_exit
++	ldr	$a0, [$ap], #8
++	ldr	$b0, [$bp], #8
++	sbcs	$a0, $a0, $b0
++	str	$a0, [$rp], #8
++
++.Lsub_exit:
++	cset x0, cc
++	ret
++size	bn_sub_words,.-bn_sub_words
++____
++
++print $code;
++close STDOUT or die "error closing STDOUT: $!";
+diff --git a/crypto/fipsmodule/bn/generic.c b/crypto/fipsmodule/bn/generic.c
+index 3efa1fc8d..0439a8b99 100644
+--- a/crypto/fipsmodule/bn/generic.c
++++ b/crypto/fipsmodule/bn/generic.c
+@@ -74,6 +74,11 @@
+ #define BN_MUL_ASM
+ #endif
+ 
++#if !defined(OPENSSL_NO_ASM) && defined(OPENSSL_AARCH64)
++// See asm/bn-armv8.pl.
++#define BN_ADD_ASM
++#endif
++
+ #if !defined(BN_MUL_ASM)
+ 
+ #ifdef BN_ULLONG

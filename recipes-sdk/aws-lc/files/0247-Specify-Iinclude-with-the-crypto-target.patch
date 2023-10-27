@@ -1,0 +1,155 @@
+From 1c70f589880c8ae9da57093971ca292a3530084c Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sat, 4 Feb 2023 20:06:30 -0500
+Subject: [PATCH] Specify -Iinclude with the crypto target.
+
+It's unclear to me whether doing it target-by-target is an improvement
+in crypto/fipsmodule, but this otherwise does seem a bit tidier. This
+aligns with CMake's documentation and "modern CMake" which prefers this
+pattern.
+
+Change-Id: I36c81842bff8b36eeaaf5dd3e0695fb45f3376c9
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56585
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+---
+ crypto/CMakeLists.txt                            | 5 +++--
+ crypto/fipsmodule/CMakeLists.txt                 | 8 +++++---
+ fuzz/CMakeLists.txt                              | 5 +----
+ ssl/CMakeLists.txt                               | 2 --
+ ssl/test/CMakeLists.txt                          | 2 --
+ util/fipstools/CMakeLists.txt                    | 2 --
+ util/fipstools/acvp/modulewrapper/CMakeLists.txt | 2 --
+ 7 files changed, 9 insertions(+), 17 deletions(-)
+
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index 0ba347224..b702d5413 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -1,5 +1,3 @@
+-include_directories(../include)
+-
+ if(NOT OPENSSL_NO_ASM)
+   if(UNIX)
+     if(ARCH STREQUAL "aarch64")
+@@ -502,6 +500,7 @@ add_library(
+ )
+ 
+ target_compile_definitions(crypto_objects PRIVATE BORINGSSL_IMPLEMENTATION)
++target_include_directories(crypto_objects PRIVATE ../include)
+ 
+ # For the prefix build, the object files need the prefix header files to build.
+ add_dependencies(crypto_objects boringssl_prefix_symbols)
+@@ -553,6 +552,8 @@ if(FIPS_SHARED)
+       generated_fips_shared_support.c
+       ${PROJECT_SOURCE_DIR}/crypto/fipsmodule/cpucap/cpucap.c
+     )
++    target_include_directories(generated_fipsmodule PRIVATE ../include)
++
+     build_libcrypto(crypto $<TARGET_OBJECTS:generated_fipsmodule>)
+   else()
+     # On Apple and Linux platforms inject_hash.go can parse libcrypto and inject
+diff --git a/crypto/fipsmodule/CMakeLists.txt b/crypto/fipsmodule/CMakeLists.txt
+index ffcf9c90c..66b131dcd 100644
+--- a/crypto/fipsmodule/CMakeLists.txt
++++ b/crypto/fipsmodule/CMakeLists.txt
+@@ -1,5 +1,3 @@
+-include_directories(../../include)
+-
+ if(ANDROID)
+   # Since "--Wa,--noexecstack" is not used during the preprocessor step of Android (because assembler is not invoked),
+   # Clang reports that argument as unused. We remove the flag only for the FIPS build of Android.
+@@ -292,7 +290,7 @@ if(FIPS_DELOCATE)
+   endif()
+ 
+   add_dependencies(bcm_c_generated_asm boringssl_prefix_symbols)
+-
++  target_include_directories(bcm_c_generated_asm PRIVATE ../../include)
+   set_target_properties(bcm_c_generated_asm PROPERTIES COMPILE_OPTIONS "-S")
+   set_target_properties(bcm_c_generated_asm PROPERTIES POSITION_INDEPENDENT_CODE ON)
+ 
+@@ -344,6 +342,7 @@ if(FIPS_DELOCATE)
+   target_compile_definitions(fipsmodule PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+   add_dependencies(fipsmodule boringssl_prefix_symbols)
++  target_include_directories(fipsmodule PRIVATE ../../include)
+ 
+   set_target_properties(fipsmodule PROPERTIES LINKER_LANGUAGE C)
+ elseif(FIPS_SHARED)
+@@ -362,6 +361,7 @@ elseif(FIPS_SHARED)
+   target_compile_definitions(fipsmodule PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+   add_dependencies(fipsmodule boringssl_prefix_symbols)
++  target_include_directories(fipsmodule PRIVATE ../../include)
+ 
+   add_library(
+     bcm_library
+@@ -376,6 +376,7 @@ elseif(FIPS_SHARED)
+   target_include_directories(bcm_library PRIVATE ../../include)
+ 
+   add_dependencies(bcm_library boringssl_prefix_symbols)
++  target_include_directories(bcm_library PRIVATE ../../include)
+   if (APPLE)
+     set(BCM_NAME bcm.o)
+     # The linker on macOS doesn't have the ability to process linker scripts,
+@@ -470,4 +471,5 @@ else()
+   target_compile_definitions(fipsmodule PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+   add_dependencies(fipsmodule boringssl_prefix_symbols)
++  target_include_directories(fipsmodule PRIVATE ../../include)
+ endif()
+diff --git a/fuzz/CMakeLists.txt b/fuzz/CMakeLists.txt
+index b30663c41..c25bc4a7b 100644
+--- a/fuzz/CMakeLists.txt
++++ b/fuzz/CMakeLists.txt
+@@ -1,9 +1,6 @@
+-include_directories(../include)
+-
+-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-missing-prototypes")
+-
+ macro(fuzzer name)
+   add_executable(${name} ${name}.cc)
++  target_compile_options(${name} PRIVATE "-Wno-missing-prototypes")
+   target_link_libraries(${name} crypto ${ARGN})
+   if(LIBFUZZER_FROM_DEPS)
+     set_target_properties(${name} PROPERTIES LINK_FLAGS "-fsanitize=fuzzer-no-link")
+diff --git a/ssl/CMakeLists.txt b/ssl/CMakeLists.txt
+index 81353e76b..fde8fcbf6 100644
+--- a/ssl/CMakeLists.txt
++++ b/ssl/CMakeLists.txt
+@@ -1,5 +1,3 @@
+-include_directories(../include)
+-
+ add_library(
+   ssl
+ 
+diff --git a/ssl/test/CMakeLists.txt b/ssl/test/CMakeLists.txt
+index 91b20f256..9412a25de 100644
+--- a/ssl/test/CMakeLists.txt
++++ b/ssl/test/CMakeLists.txt
+@@ -1,5 +1,3 @@
+-include_directories(../../include)
+-
+ add_executable(
+   bssl_shim
+ 
+diff --git a/util/fipstools/CMakeLists.txt b/util/fipstools/CMakeLists.txt
+index 3f8252c9e..87abf0ab1 100644
+--- a/util/fipstools/CMakeLists.txt
++++ b/util/fipstools/CMakeLists.txt
+@@ -1,5 +1,3 @@
+-include_directories(../../include)
+-
+ if(FIPS)
+   add_executable(
+     test_fips
+diff --git a/util/fipstools/acvp/modulewrapper/CMakeLists.txt b/util/fipstools/acvp/modulewrapper/CMakeLists.txt
+index 449acbc4e..7938d3900 100644
+--- a/util/fipstools/acvp/modulewrapper/CMakeLists.txt
++++ b/util/fipstools/acvp/modulewrapper/CMakeLists.txt
+@@ -1,5 +1,3 @@
+-include_directories(../../../../include)
+-
+ if(FIPS)
+   add_executable(
+     modulewrapper

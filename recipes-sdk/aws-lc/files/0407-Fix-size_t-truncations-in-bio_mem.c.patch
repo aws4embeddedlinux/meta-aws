@@ -1,0 +1,137 @@
+From 2d8d89d45f30540646e96f8e488ecaa26dcd19d7 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sat, 1 Apr 2023 17:23:30 +0900
+Subject: [PATCH] Fix size_t truncations in bio_mem.c
+
+The outl <= 0, etc., checks are actually redundant with logic in the
+wrappers, but it seems easier to just add the check and avoid worrying
+about it. Maybe someday we'll make the internals use size_t and this
+will be moot.
+
+Bug: 516
+Change-Id: I0bea5ac325c79b9765d822c816661fe4f2bcd4cc
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58546
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit e8b168dffef7c423ade6b5d21953dfed454a80b9)
+---
+ crypto/bio/bio_mem.c | 80 ++++++++++++++++++--------------------------
+ 1 file changed, 33 insertions(+), 47 deletions(-)
+
+diff --git a/crypto/bio/bio_mem.c b/crypto/bio/bio_mem.c
+index dcd200006..76ab90700 100644
+--- a/crypto/bio/bio_mem.c
++++ b/crypto/bio/bio_mem.c
+@@ -130,13 +130,15 @@ static int mem_free(BIO *bio) {
+ }
+ 
+ static int mem_read(BIO *bio, char *out, int outl) {
+-  int ret;
+-  BUF_MEM *b = (BUF_MEM*) bio->ptr;
+-
+   BIO_clear_retry_flags(bio);
+-  ret = outl;
+-  if (b->length < INT_MAX && ret > (int)b->length) {
+-    ret = b->length;
++  if (outl <= 0) {
++    return 0;
++  }
++
++  BUF_MEM *b = bio->ptr;
++  int ret = outl;
++  if ((size_t)ret > b->length) {
++    ret = (int)b->length;
+   }
+ 
+   if (ret > 0) {
+@@ -157,65 +159,49 @@ static int mem_read(BIO *bio, char *out, int outl) {
+ }
+ 
+ static int mem_write(BIO *bio, const char *in, int inl) {
+-  int ret = -1;
+-  int blen;
+-  BUF_MEM *b;
+-
+-  b = (BUF_MEM *)bio->ptr;
++  BIO_clear_retry_flags(bio);
++  if (inl <= 0) {
++    return 0;  // Successfully write zero bytes.
++  }
+ 
+   if (bio->flags & BIO_FLAGS_MEM_RDONLY) {
+     OPENSSL_PUT_ERROR(BIO, BIO_R_WRITE_TO_READ_ONLY_BIO);
+-    goto err;
++    return -1;
+   }
+ 
+-  BIO_clear_retry_flags(bio);
+-  blen = b->length;
+-  if (INT_MAX - blen < inl) {
+-    goto err;
++  BUF_MEM *b = bio->ptr;
++  if (!BUF_MEM_append(b, in, inl)) {
++    return -1;
+   }
+-  if (BUF_MEM_grow_clean(b, blen + inl) != ((size_t) blen) + inl) {
+-    goto err;
+-  }
+-  OPENSSL_memcpy(&b->data[blen], in, inl);
+-  ret = inl;
+ 
+-err:
+-  return ret;
++  return inl;
+ }
+ 
+ static int mem_gets(BIO *bio, char *buf, int size) {
+-  int i, j;
+-  char *p;
+-  BUF_MEM *b = (BUF_MEM *)bio->ptr;
+-
+   BIO_clear_retry_flags(bio);
+-  j = b->length;
+-  if (size - 1 < j) {
+-    j = size - 1;
+-  }
+-  if (j <= 0) {
+-    if (size > 0) {
+-      *buf = 0;
+-    }
++  if (size <= 0) {
+     return 0;
+   }
+ 
+-  p = b->data;
+-  for (i = 0; i < j; i++) {
+-    if (p[i] == '\n') {
+-      i++;
+-      break;
+-    }
++  // The buffer size includes space for the trailing NUL, so we can read at most
++  // one fewer byte.
++  BUF_MEM *b = bio->ptr;
++  int ret = size - 1;
++  if ((size_t)ret > b->length) {
++    ret = (int)b->length;
+   }
+ 
+-  // i is now the max num of bytes to copy, either j or up to and including the
+-  // first newline
++  // Stop at the first newline.
++  const char *newline = OPENSSL_memchr(b->data, '\n', ret);
++  if (newline != NULL) {
++    ret = (int)(newline - b->data + 1);
++  }
+ 
+-  i = mem_read(bio, buf, i);
+-  if (i > 0) {
+-    buf[i] = '\0';
++  ret = mem_read(bio, buf, ret);
++  if (ret >= 0) {
++    buf[ret] = '\0';
+   }
+-  return i;
++  return ret;
+ }
+ 
+ static long mem_ctrl(BIO *bio, int cmd, long num, void *ptr) {

@@ -1,0 +1,55 @@
+From c97c504a13ecac562f1319b2e96f59980a9c0f95 Mon Sep 17 00:00:00 2001
+From: Roland Shoemaker <bracewell@google.com>
+Date: Tue, 25 Apr 2023 09:21:10 -0700
+Subject: [PATCH] Allow passing extra flags to BoGo shim
+
+Add a new flag, -shim-extra-flags, which allows specifying additional
+flags to pass to the shim binary on all invocations. These flags will be
+passed as the first flags to the shim in order to take advantage of some
+slightly confusing Go flag semantics.
+
+Change-Id: I382f47bfe2662903b43135fcb249b46646fc9e7b
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59245
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: David Benjamin <davidben@google.com>
+(cherry picked from commit edf7662c8207b116f45e3b31f13c326916b93d34)
+---
+ ssl/test/runner/runner.go | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/ssl/test/runner/runner.go b/ssl/test/runner/runner.go
+index ecabd1ce2..5592d7f53 100644
+--- a/ssl/test/runner/runner.go
++++ b/ssl/test/runner/runner.go
+@@ -66,6 +66,7 @@ var (
+ 	allowHintMismatch  = flag.String("allow-hint-mismatch", "", "Semicolon-separated patterns of tests where hints may mismatch")
+ 	numWorkersFlag     = flag.Int("num-workers", runtime.NumCPU(), "The number of workers to run in parallel.")
+ 	shimPath           = flag.String("shim-path", "../../../build/ssl/test/bssl_shim", "The location of the shim binary.")
++	shimExtraFlags     = flag.String("shim-extra-flags", "", "Semicolon-separated extra flags to pass to the shim binary on each invocation.")
+ 	handshakerPath     = flag.String("handshaker-path", "../../../build/ssl/test/handshaker", "The location of the handshaker binary.")
+ 	resourceDir        = flag.String("resource-dir", ".", "The directory in which to find certificate and key files.")
+ 	fuzzer             = flag.Bool("fuzzer", false, "If true, tests against a BoringSSL built in fuzzer mode.")
+@@ -1488,6 +1489,9 @@ func runTest(statusChan chan statusMsg, test *testCase, shimPath string, mallocN
+ 	}()
+ 
+ 	var flags []string
++	if len(*shimExtraFlags) > 0 {
++		flags = strings.Split(*shimExtraFlags, ";")
++	}
+ 	if test.testType == serverTest {
+ 		flags = append(flags, "-server")
+ 
+@@ -1957,7 +1961,12 @@ func bigFromHex(hex string) *big.Int {
+ 
+ func convertToSplitHandshakeTests(tests []testCase) (splitHandshakeTests []testCase, err error) {
+ 	var stdout bytes.Buffer
+-	shim := exec.Command(*shimPath, "-is-handshaker-supported")
++	var flags []string
++	if len(*shimExtraFlags) > 0 {
++		flags = strings.Split(*shimExtraFlags, ";")
++	}
++	flags = append(flags, "-is-handshaker-supported")
++	shim := exec.Command(*shimPath, flags...)
+ 	shim.Stdout = &stdout
+ 	if err := shim.Run(); err != nil {
+ 		return nil, err

@@ -1,0 +1,629 @@
+From 779d13f705c8897bbc75354e3e63b055c846c78e Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 27 Jul 2023 13:54:29 -0700
+Subject: [PATCH] Consistently reject large p and large q in DH
+
+When applications use Diffie-Hellman incorrectly, and use
+attacker-supplied domain parameters, rather than known-valid ones (as
+required by SP 800-56A, 5.5.2), algorithms that aren't designed with
+attacker-supplied parameters in mind become attack surfaces.
+
+CVE-2023-3446 and CVE-2023-3817 in OpenSSL cover problems with the
+DH_check function given large p and large q. This CL adds some fast
+validity checks to the DH parameters before running any operation. This
+differs from upstream in a few ways:
+
+- Upstream only addressed issues with DH_check. We also check in
+  DH_generate_key and DH_check_pub_key.
+
+- For a more consistent invariant, reuse the existing DH modulus limit.
+  Ideally we'd enforce these invariants on DH creation, but this is not
+  possible due to OpenSSL's API. We additionally check some other
+  cheap invariants.
+
+This does not impact TLS, or any applications that used Diffie-Hellman
+correctly, with trusted, well-known domain parameters.
+
+Ultimately, that this comes up at all is a flaw in how DH was specified.
+This is analogous to the issues with ECC with arbitrary groups and DSA,
+which led to https://github.com/openssl/openssl/issues/20268
+CVE-2022-0778, CVE-2020-0601, and likely others. Cryptographic
+primitives should be limited to a small set of named, well-known domain
+parameters.
+
+Update-Note: Egregiously large or invalid DH p, q, or g values will be
+more consistently rejected in DH operations. This does not impact TLS.
+Applications should switch to modern primitives such as X25519 or ECDH
+with P-256.
+
+Change-Id: I666fe0b9f8b71632f6cf8064c8ea0251e5c286bb
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/62226
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit d85444e741b73a77fe4359cd3db189482d4f4806)
+---
+ crypto/dh_extra/dh_asn1.c       |   4 +
+ crypto/dh_extra/dh_test.cc      | 169 ++++++++++++++++++--------------
+ crypto/dh_extra/params.c        |   5 +
+ crypto/err/dh.errordata         |   3 +-
+ crypto/err/err_data_generate.go |   2 +-
+ crypto/fipsmodule/dh/check.c    |  52 +++++++---
+ crypto/fipsmodule/dh/dh.c       |  14 +--
+ crypto/fipsmodule/dh/internal.h |   7 ++
+ generated-src/err_data.c        |  33 ++++---
+ include/openssl/dh.h            |   1 +
+ 10 files changed, 171 insertions(+), 119 deletions(-)
+
+diff --git a/crypto/dh_extra/dh_asn1.c b/crypto/dh_extra/dh_asn1.c
+index de01077d7..4e2e2c44f 100644
+--- a/crypto/dh_extra/dh_asn1.c
++++ b/crypto/dh_extra/dh_asn1.c
+@@ -110,6 +110,10 @@ DH *DH_parse_parameters(CBS *cbs) {
+     goto err;
+   }
+ 
++  if (!dh_check_params_fast(ret)) {
++    goto err;
++  }
++
+   return ret;
+ 
+ err:
+diff --git a/crypto/dh_extra/dh_test.cc b/crypto/dh_extra/dh_test.cc
+index 5a02d75e0..016e31687 100644
+--- a/crypto/dh_extra/dh_test.cc
++++ b/crypto/dh_extra/dh_test.cc
+@@ -72,7 +72,6 @@
+ #include <openssl/nid.h>
+ 
+ #include "../fipsmodule/dh/internal.h"
+-#include "../internal.h"
+ #include "../test/test_util.h"
+ 
+ 
+@@ -113,54 +112,6 @@ TEST(DHTest, Basic) {
+   EXPECT_GE(key1.size(), 4u);
+ }
+ 
+-TEST(DHTest, OversizedModulus) {
+-  bssl::UniquePtr<DH> a(DH_new());
+-  ASSERT_TRUE(a);
+-
+-  const size_t LARGE_MOD_P = 4097;  // OPENSSL_DH_CHECK_MAX_MODULUS_BITS / 8 + 1
+-
+-  // Create a BigNumber which will be interpreted as a big-endian value
+-  auto number = std::unique_ptr<uint8_t[], std::default_delete<uint8_t[]>>(
+-      new uint8_t[LARGE_MOD_P]);
+-  for (size_t i = 0; i < LARGE_MOD_P; i++) {
+-    number[i] = 255;
+-  }
+-
+-  bssl::UniquePtr<BIGNUM> p(BN_bin2bn(number.get(), LARGE_MOD_P, nullptr));
+-  bssl::UniquePtr<BIGNUM> q(BN_new());
+-  bssl::UniquePtr<BIGNUM> g(BN_new());
+-
+-  // Q and G don't matter for this test, they just can't be null
+-  ASSERT_TRUE(DH_set0_pqg(a.get(), p.release(), q.release(), g.release()));
+-
+-  int check_result;
+-  ASSERT_FALSE(DH_check(a.get(), &check_result));
+-  uint32_t error = ERR_get_error();
+-  ASSERT_EQ(ERR_LIB_DH, ERR_GET_LIB(error));
+-  ASSERT_EQ(DH_R_MODULUS_TOO_LARGE, ERR_GET_REASON(error));
+-}
+-
+-TEST(DHTest, LargeQ) {
+-  bssl::UniquePtr<DH> a(DH_new());
+-  ASSERT_TRUE(a);
+-  ASSERT_TRUE(DH_generate_parameters_ex(a.get(), 64, DH_GENERATOR_5, nullptr));
+-
+-  bssl::UniquePtr<BIGNUM> q(BN_new());
+-  ASSERT_TRUE(q);
+-  BN_set_word(q.get(), 2039L);
+-
+-  a.get()->q = q.release();
+-
+-  ASSERT_TRUE(DH_generate_key(a.get()));
+-
+-  ASSERT_TRUE(BN_copy(a.get()->q, a.get()->p));
+-  ASSERT_TRUE(BN_add(a.get()->q, a.get()->q, BN_value_one()));
+-
+-  int check_result;
+-  ASSERT_TRUE(DH_check(a.get(), &check_result));
+-  ASSERT_TRUE(check_result & DH_CHECK_INVALID_Q_VALUE);
+-}
+-
+ // The following parameters are taken from RFC 5114, section 2.2. This is not a
+ // safe prime. Do not use these parameters.
+ static const uint8_t kRFC5114_2048_224P[] = {
+@@ -244,15 +195,35 @@ static const uint8_t kRFC5114_2048_224BadY[] = {
+     0x93, 0x74, 0x89, 0x59,
+ };
+ 
+-TEST(DHTest, BadY) {
++static bssl::UniquePtr<DH> NewDHGroup(const BIGNUM *p, const BIGNUM *q,
++                                      const BIGNUM *g) {
++  bssl::UniquePtr<BIGNUM> p_copy(BN_dup(p));
++  bssl::UniquePtr<BIGNUM> q_copy(q != nullptr ? BN_dup(q) : nullptr);
++  bssl::UniquePtr<BIGNUM> g_copy(BN_dup(g));
+   bssl::UniquePtr<DH> dh(DH_new());
++  if (p_copy == nullptr || (q != nullptr && q_copy == nullptr) ||
++      g_copy == nullptr || dh == nullptr ||
++      !DH_set0_pqg(dh.get(), p_copy.get(), q_copy.get(), g_copy.get())) {
++    return nullptr;
++  }
++  p_copy.release();
++  q_copy.release();
++  g_copy.release();
++  return dh;
++}
++
++TEST(DHTest, BadY) {
++  bssl::UniquePtr<BIGNUM> p(
++      BN_bin2bn(kRFC5114_2048_224P, sizeof(kRFC5114_2048_224P), nullptr));
++  bssl::UniquePtr<BIGNUM> q(
++      BN_bin2bn(kRFC5114_2048_224Q, sizeof(kRFC5114_2048_224Q), nullptr));
++  bssl::UniquePtr<BIGNUM> g(
++      BN_bin2bn(kRFC5114_2048_224G, sizeof(kRFC5114_2048_224G), nullptr));
++  ASSERT_TRUE(p);
++  ASSERT_TRUE(q);
++  ASSERT_TRUE(g);
++  bssl::UniquePtr<DH> dh = NewDHGroup(p.get(), q.get(), g.get());
+   ASSERT_TRUE(dh);
+-  dh->p = BN_bin2bn(kRFC5114_2048_224P, sizeof(kRFC5114_2048_224P), nullptr);
+-  dh->g = BN_bin2bn(kRFC5114_2048_224G, sizeof(kRFC5114_2048_224G), nullptr);
+-  dh->q = BN_bin2bn(kRFC5114_2048_224Q, sizeof(kRFC5114_2048_224Q), nullptr);
+-  ASSERT_TRUE(dh->p);
+-  ASSERT_TRUE(dh->g);
+-  ASSERT_TRUE(dh->q);
+ 
+   bssl::UniquePtr<BIGNUM> pub_key(
+       BN_bin2bn(kRFC5114_2048_224BadY, sizeof(kRFC5114_2048_224BadY), nullptr));
+@@ -568,11 +539,8 @@ TEST(DHTest, LeadingZeros) {
+   ASSERT_TRUE(g);
+   ASSERT_TRUE(BN_set_word(g.get(), 2));
+ 
+-  bssl::UniquePtr<DH> dh(DH_new());
++  bssl::UniquePtr<DH> dh = NewDHGroup(p.get(), /*q=*/nullptr, g.get());
+   ASSERT_TRUE(dh);
+-  ASSERT_TRUE(DH_set0_pqg(dh.get(), p.get(), /*q=*/nullptr, g.get()));
+-  p.release();
+-  g.release();
+ 
+   // These values are far too small to be reasonable Diffie-Hellman keys, but
+   // they are an easy way to get a shared secret with leading zeros.
+@@ -607,11 +575,8 @@ TEST(DHTest, Overwrite) {
+   ASSERT_TRUE(g);
+   ASSERT_TRUE(BN_set_word(g.get(), 2));
+ 
+-  bssl::UniquePtr<DH> key1(DH_new());
++  bssl::UniquePtr<DH> key1 = NewDHGroup(p.get(), /*q=*/nullptr, g.get());
+   ASSERT_TRUE(key1);
+-  ASSERT_TRUE(DH_set0_pqg(key1.get(), p.get(), /*q=*/nullptr, g.get()));
+-  p.release();
+-  g.release();
+   ASSERT_TRUE(DH_generate_key(key1.get()));
+ 
+   bssl::UniquePtr<BIGNUM> peer_key(BN_new());
+@@ -625,15 +590,8 @@ TEST(DHTest, Overwrite) {
+   // Generate a different key with a different group.
+   p.reset(BN_get_rfc3526_prime_2048(nullptr));
+   ASSERT_TRUE(p);
+-  g.reset(BN_new());
+-  ASSERT_TRUE(g);
+-  ASSERT_TRUE(BN_set_word(g.get(), 2));
+-
+-  bssl::UniquePtr<DH> key2(DH_new());
++  bssl::UniquePtr<DH> key2 = NewDHGroup(p.get(), /*q=*/nullptr, g.get());
+   ASSERT_TRUE(key2);
+-  ASSERT_TRUE(DH_set0_pqg(key2.get(), p.get(), /*q=*/nullptr, g.get()));
+-  p.release();
+-  g.release();
+   ASSERT_TRUE(DH_generate_key(key2.get()));
+ 
+   // Overwrite |key1|'s contents with |key2|.
+@@ -666,11 +624,8 @@ TEST(DHTest, GenerateKeyTwice) {
+   bssl::UniquePtr<BIGNUM> g(BN_new());
+   ASSERT_TRUE(g);
+   ASSERT_TRUE(BN_set_word(g.get(), 2));
+-  bssl::UniquePtr<DH> key1(DH_new());
++  bssl::UniquePtr<DH> key1 = NewDHGroup(p.get(), /*q=*/nullptr, g.get());
+   ASSERT_TRUE(key1);
+-  ASSERT_TRUE(DH_set0_pqg(key1.get(), p.get(), /*q=*/nullptr, g.get()));
+-  p.release();
+-  g.release();
+   ASSERT_TRUE(DH_generate_key(key1.get()));
+ 
+   // Copy the parameters and private key to a new DH object.
+@@ -688,3 +643,65 @@ TEST(DHTest, GenerateKeyTwice) {
+   EXPECT_EQ(BN_cmp(DH_get0_pub_key(key1.get()), DH_get0_pub_key(key2.get())),
+             0);
+ }
++
++// Bad parameters should be rejected, rather than cause a DoS risk in the
++// event that an application uses Diffie-Hellman incorrectly, with untrusted
++// domain parameters.
++TEST(DHTest, InvalidParameters) {
++  auto check_invalid_group = [](DH *dh) {
++    // All operations on egregiously invalid groups should fail.
++    EXPECT_FALSE(DH_generate_key(dh));
++    int check_result;
++    EXPECT_FALSE(DH_check(dh, &check_result));
++    bssl::UniquePtr<BIGNUM> pub_key(BN_new());
++    ASSERT_TRUE(pub_key);
++    ASSERT_TRUE(BN_set_u64(pub_key.get(), 42));
++    EXPECT_FALSE(DH_check_pub_key(dh, pub_key.get(), &check_result));
++    uint8_t buf[1024];
++    EXPECT_EQ(DH_compute_key(buf, pub_key.get(), dh), -1);
++    EXPECT_EQ(DH_compute_key_padded(buf, pub_key.get(), dh), -1);
++  };
++
++  bssl::UniquePtr<BIGNUM> p(BN_get_rfc3526_prime_2048(nullptr));
++  ASSERT_TRUE(p);
++  bssl::UniquePtr<BIGNUM> g(BN_new());
++  ASSERT_TRUE(g);
++  ASSERT_TRUE(BN_set_word(g.get(), 2));
++
++  // p is negative.
++  BN_set_negative(p.get(), 1);
++  bssl::UniquePtr<DH> dh = NewDHGroup(p.get(), /*q=*/nullptr, g.get());
++  ASSERT_TRUE(dh);
++  BN_set_negative(p.get(), 0);
++  check_invalid_group(dh.get());
++
++  // g is negative.
++  BN_set_negative(g.get(), 1);
++  dh = NewDHGroup(p.get(), /*q=*/nullptr, g.get());
++  ASSERT_TRUE(dh);
++  BN_set_negative(g.get(), 0);
++  check_invalid_group(dh.get());
++
++  // g is not reduced mod p.
++  dh = NewDHGroup(p.get(), /*q=*/nullptr, p.get());
++  ASSERT_TRUE(dh);
++  BN_set_negative(g.get(), 0);
++  check_invalid_group(dh.get());
++
++  // p is too large.
++  bssl::UniquePtr<BIGNUM> large(BN_new());
++  ASSERT_TRUE(BN_set_bit(large.get(), 0));
++  ASSERT_TRUE(BN_set_bit(large.get(), 10000000));
++  dh = NewDHGroup(large.get(), /*q=*/nullptr, g.get());
++  ASSERT_TRUE(dh);
++  check_invalid_group(dh.get());
++
++  // q is too large.
++  dh = NewDHGroup(p.get(), large.get(), g.get());
++  ASSERT_TRUE(dh);
++  check_invalid_group(dh.get());
++
++  // Attempting to generate too large of a Diffie-Hellman group should fail.
++  EXPECT_FALSE(
++      DH_generate_parameters_ex(dh.get(), 20000, DH_GENERATOR_5, nullptr));
++}
+diff --git a/crypto/dh_extra/params.c b/crypto/dh_extra/params.c
+index 30e8e9282..dd694d261 100644
+--- a/crypto/dh_extra/params.c
++++ b/crypto/dh_extra/params.c
+@@ -337,6 +337,11 @@ int DH_generate_parameters_ex(DH *dh, int prime_bits, int generator,
+   // It's just as OK (and in some sense better) to use a generator of the
+   // order-q subgroup.
+ 
++  if (prime_bits <= 0 || prime_bits > OPENSSL_DH_MAX_MODULUS_BITS) {
++    OPENSSL_PUT_ERROR(DH, DH_R_MODULUS_TOO_LARGE);
++    return 0;
++  }
++
+   BIGNUM *t1, *t2;
+   int g, ok = 0;
+   BN_CTX *ctx = NULL;
+diff --git a/crypto/err/dh.errordata b/crypto/err/dh.errordata
+index 1cc2d1360..dd9093a35 100644
+--- a/crypto/err/dh.errordata
++++ b/crypto/err/dh.errordata
+@@ -1,7 +1,8 @@
+ DH,100,BAD_GENERATOR
+ DH,104,DECODE_ERROR
+ DH,105,ENCODE_ERROR
++DH,106,INVALID_NID
++DH,107,INVALID_PARAMETERS
+ DH,101,INVALID_PUBKEY
+ DH,102,MODULUS_TOO_LARGE
+ DH,103,NO_PRIVATE_VALUE
+-DH,106,INVALID_NID
+diff --git a/crypto/err/err_data_generate.go b/crypto/err/err_data_generate.go
+index 9e80420c4..1b81b911e 100644
+--- a/crypto/err/err_data_generate.go
++++ b/crypto/err/err_data_generate.go
+@@ -110,7 +110,7 @@ func (st *stringList) Add(key uint32, value string) error {
+ 
+ 	for _, existing := range st.entries {
+ 		if existing>>15 == key>>15 {
+-			panic("duplicate entry")
++            panic(value)
+ 		}
+ 	}
+ 	st.entries = append(st.entries, key|offset)
+diff --git a/crypto/fipsmodule/dh/check.c b/crypto/fipsmodule/dh/check.c
+index 85519a5f6..d80190fa4 100644
+--- a/crypto/fipsmodule/dh/check.c
++++ b/crypto/fipsmodule/dh/check.c
+@@ -57,13 +57,39 @@
+ #include <openssl/dh.h>
+ 
+ #include <openssl/bn.h>
++#include <openssl/err.h>
+ 
+ #include "internal.h"
+ 
+-#define OPENSSL_DH_CHECK_MAX_MODULUS_BITS  32768
++int dh_check_params_fast(const DH *dh) {
++  // Most operations scale with p and q.
++  if (BN_is_negative(dh->p) || !BN_is_odd(dh->p) ||
++      BN_num_bits(dh->p) > OPENSSL_DH_MAX_MODULUS_BITS) {
++    OPENSSL_PUT_ERROR(DH, DH_R_INVALID_PARAMETERS);
++    return 0;
++  }
++
++  // q must be bounded by p.
++  if (dh->q != NULL && (BN_is_negative(dh->q) || BN_ucmp(dh->q, dh->p) > 0)) {
++    OPENSSL_PUT_ERROR(DH, DH_R_INVALID_PARAMETERS);
++    return 0;
++  }
++
++  // g must be an element of p's multiplicative group.
++  if (BN_is_negative(dh->g) || BN_is_zero(dh->g) ||
++      BN_ucmp(dh->g, dh->p) >= 0) {
++    OPENSSL_PUT_ERROR(DH, DH_R_INVALID_PARAMETERS);
++    return 0;
++  }
++
++  return 1;
++}
+ 
+ int DH_check_pub_key(const DH *dh, const BIGNUM *pub_key, int *out_flags) {
+   *out_flags = 0;
++  if (!dh_check_params_fast(dh)) {
++    return 0;
++  }
+ 
+   BN_CTX *ctx = BN_CTX_new();
+   if (ctx == NULL) {
+@@ -74,17 +100,14 @@ int DH_check_pub_key(const DH *dh, const BIGNUM *pub_key, int *out_flags) {
+   int ok = 0;
+ 
+   // Check |pub_key| is greater than 1.
+-  BIGNUM *tmp = BN_CTX_get(ctx);
+-  if (tmp == NULL ||
+-      !BN_set_word(tmp, 1)) {
+-    goto err;
+-  }
+-  if (BN_cmp(pub_key, tmp) <= 0) {
++  if (BN_cmp(pub_key, BN_value_one()) <= 0) {
+     *out_flags |= DH_CHECK_PUBKEY_TOO_SMALL;
+   }
+ 
+   // Check |pub_key| is less than |dh->p| - 1.
+-  if (!BN_copy(tmp, dh->p) ||
++  BIGNUM *tmp = BN_CTX_get(ctx);
++  if (tmp == NULL ||
++      !BN_copy(tmp, dh->p) ||
+       !BN_sub_word(tmp, 1)) {
+     goto err;
+   }
+@@ -114,6 +137,11 @@ err:
+ 
+ 
+ int DH_check(const DH *dh, int *out_flags) {
++  *out_flags = 0;
++  if (!dh_check_params_fast(dh)) {
++    return 0;
++  }
++
+   // Check that p is a safe prime and if g is 2, 3 or 5, check that it is a
+   // suitable generator where:
+   //   for 2, p mod 24 == 11
+@@ -125,14 +153,6 @@ int DH_check(const DH *dh, int *out_flags) {
+   BN_ULONG l;
+   BIGNUM *t1 = NULL, *t2 = NULL;
+ 
+-  *out_flags = 0;
+-
+-  /* Don't do any checks at all with an excessively large modulus */
+-  if (BN_num_bits(dh->p) > OPENSSL_DH_CHECK_MAX_MODULUS_BITS) {
+-    OPENSSL_PUT_ERROR(DH, DH_R_MODULUS_TOO_LARGE);
+-    return 0;
+-  }
+-
+   ctx = BN_CTX_new();
+   if (ctx == NULL) {
+     goto err;
+diff --git a/crypto/fipsmodule/dh/dh.c b/crypto/fipsmodule/dh/dh.c
+index 9d7084961..41984294f 100644
+--- a/crypto/fipsmodule/dh/dh.c
++++ b/crypto/fipsmodule/dh/dh.c
+@@ -69,8 +69,6 @@
+ #include "../bn/internal.h"
+ 
+ 
+-#define OPENSSL_DH_MAX_MODULUS_BITS 10000
+-
+ DH *DH_new(void) {
+   DH *dh = OPENSSL_malloc(sizeof(DH));
+   if (dh == NULL) {
+@@ -207,16 +205,15 @@ int DH_set_length(DH *dh, unsigned priv_length) {
+ int DH_generate_key(DH *dh) {
+   boringssl_ensure_ffdh_self_test();
+ 
++  if (!dh_check_params_fast(dh)) {
++    return 0;
++  }
++
+   int ok = 0;
+   int generate_new_key = 0;
+   BN_CTX *ctx = NULL;
+   BIGNUM *pub_key = NULL, *priv_key = NULL;
+ 
+-  if (BN_num_bits(dh->p) > OPENSSL_DH_MAX_MODULUS_BITS) {
+-    OPENSSL_PUT_ERROR(DH, DH_R_MODULUS_TOO_LARGE);
+-    goto err;
+-  }
+-
+   ctx = BN_CTX_new();
+   if (ctx == NULL) {
+     goto err;
+@@ -295,8 +292,7 @@ err:
+ 
+ static int dh_compute_key(DH *dh, BIGNUM *out_shared_key,
+                           const BIGNUM *peers_key, BN_CTX *ctx) {
+-  if (BN_num_bits(dh->p) > OPENSSL_DH_MAX_MODULUS_BITS) {
+-    OPENSSL_PUT_ERROR(DH, DH_R_MODULUS_TOO_LARGE);
++  if (!dh_check_params_fast(dh)) {
+     return 0;
+   }
+ 
+diff --git a/crypto/fipsmodule/dh/internal.h b/crypto/fipsmodule/dh/internal.h
+index fb525d4bb..e109e2448 100644
+--- a/crypto/fipsmodule/dh/internal.h
++++ b/crypto/fipsmodule/dh/internal.h
+@@ -24,6 +24,8 @@ extern "C" {
+ #endif
+ 
+ 
++#define OPENSSL_DH_MAX_MODULUS_BITS 10000
++
+ struct dh_st {
+   BIGNUM *p;
+   BIGNUM *g;
+@@ -42,6 +44,11 @@ struct dh_st {
+   CRYPTO_refcount_t references;
+ };
+ 
++// dh_check_params_fast checks basic invariants on |dh|'s domain parameters. It
++// does not check that |dh| forms a valid group, only that the sizes are within
++// DoS bounds.
++int dh_check_params_fast(const DH *dh);
++
+ // dh_compute_key_padded_no_self_test does the same as |DH_compute_key_padded|,
+ // but doesn't try to run the self-test first. This is for use in the self tests
+ // themselves, to prevent an infinite loop.
+diff --git a/generated-src/err_data.c b/generated-src/err_data.c
+index 840008115..1e6b7d56f 100644
+--- a/generated-src/err_data.c
++++ b/generated-src/err_data.c
+@@ -81,7 +81,7 @@ const uint32_t kOpenSSLReasonValues[] = {
+     0x1033992f,
+     0x10341942,
+     0x10348fed,
+-    0x10350d26,
++    0x10350d39,
+     0x10359955,
+     0x1036197f,
+     0x10369992,
+@@ -103,7 +103,7 @@ const uint32_t kOpenSSLReasonValues[] = {
+     0x103e9b02,
+     0x103f1b19,
+     0x103f9b2c,
+-    0x10400cde,
++    0x10400cfd,
+     0x10409b3f,
+     0x10411b5d,
+     0x10419b70,
+@@ -126,12 +126,13 @@ const uint32_t kOpenSSLReasonValues[] = {
+     0x104a196a,
+     0x107c0ffb,
+     0x14320cc1,
+-    0x14328ccf,
+-    0x14330cde,
+-    0x14338cf0,
++    0x14328cee,
++    0x14330cfd,
++    0x14338d0f,
+     0x143400b9,
+     0x143480f7,
+-    0x14350d01,
++    0x14350ccf,
++    0x14358cdb,
+     0x18320090,
+     0x18329058,
+     0x183300b9,
+@@ -165,7 +166,7 @@ const uint32_t kOpenSSLReasonValues[] = {
+     0x18411211,
+     0x184191dc,
+     0x184211fb,
+-    0x18428d32,
++    0x18428cdb,
+     0x18431179,
+     0x18439223,
+     0x18441097,
+@@ -192,14 +193,14 @@ const uint32_t kOpenSSLReasonValues[] = {
+     0x24389611,
+     0x24391624,
+     0x243995e1,
+-    0x28320d1a,
++    0x28320d2d,
+     0x28328d45,
+-    0x28330cde,
++    0x28330cfd,
+     0x28338d58,
+-    0x28340d26,
++    0x28340d39,
+     0x283480b9,
+     0x283500f7,
+-    0x28358d32,
++    0x28358cdb,
+     0x2836099a,
+     0x2c323667,
+     0x2c32963b,
+@@ -689,7 +690,7 @@ const uint32_t kOpenSSLReasonValues[] = {
+     0x4c3c183d,
+     0x4c3c984c,
+     0x4c3d1865,
+-    0x4c3d8d0d,
++    0x4c3d8d20,
+     0x4c3e18d2,
+     0x4c3e9874,
+     0x4c3f18f4,
+@@ -798,12 +799,12 @@ const uint32_t kOpenSSLReasonValues[] = {
+     0x6835099a,
+     0x68668ffb,
+     0x6c320fb3,
+-    0x6c328cf0,
++    0x6c328d0f,
+     0x6c330fbe,
+     0x6c338fd7,
+     0x74320a83,
+     0x743280b9,
+-    0x74330d0d,
++    0x74330d20,
+     0x783209cb,
+     0x783289e0,
+     0x783309ec,
+@@ -1025,14 +1026,14 @@ const char kOpenSSLReasonStringData[] =
+     "VARIABLE_EXPANSION_TOO_LONG\0"
+     "VARIABLE_HAS_NO_VALUE\0"
+     "BAD_GENERATOR\0"
++    "INVALID_NID\0"
++    "INVALID_PARAMETERS\0"
+     "INVALID_PUBKEY\0"
+     "MODULUS_TOO_LARGE\0"
+     "NO_PRIVATE_VALUE\0"
+-    "INVALID_NID\0"
+     "UNKNOWN_HASH\0"
+     "BAD_Q_VALUE\0"
+     "BAD_VERSION\0"
+-    "INVALID_PARAMETERS\0"
+     "MISSING_PARAMETERS\0"
+     "NEED_NEW_SETUP_VALUES\0"
+     "BIGNUM_OUT_OF_RANGE\0"
+diff --git a/include/openssl/dh.h b/include/openssl/dh.h
+index 591d41cc7..1a9be2cec 100644
+--- a/include/openssl/dh.h
++++ b/include/openssl/dh.h
+@@ -383,5 +383,6 @@ BSSL_NAMESPACE_END
+ #define DH_R_DECODE_ERROR 104
+ #define DH_R_ENCODE_ERROR 105
+ #define DH_R_INVALID_NID 106
++#define DH_R_INVALID_PARAMETERS 107
+ 
+ #endif  // OPENSSL_HEADER_DH_H

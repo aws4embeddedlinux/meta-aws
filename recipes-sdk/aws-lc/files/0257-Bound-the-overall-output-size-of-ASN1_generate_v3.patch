@@ -1,0 +1,207 @@
+From a1e7b54d5549ee651e3c2072a1628e992e99d539 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 9 Feb 2023 15:51:35 -0500
+Subject: [PATCH] Bound the overall output size of ASN1_generate_v3
+
+The output of ASN1_generate_v3 is *mostly* linear with the input, except
+SEQ and SET reference config sections. Sections can be referenced
+multiple times, and so the structure grows exponentially.
+
+Cap the total output size to mitigate this. As before, we don't consider
+these functions safe to use with untrusted inputs, but unbounded growth
+will frustrate fuzzing. This CL sets the limit to 64K, which should be
+enough for anyone. (This is the size of a single X.509 extension,
+whereas certificates themselves should not get that large.)
+
+While not strictly necessary, this also rearranges the
+ASN1_mbstring_copy call to pass in a maximum output. This portion does
+scale linearly with the output, so it's fine, but the fuzzer discovered
+an input with a 700K-byte input, which, with fuzzer instrumentation and
+sanitizers, seems to be a bit slow. This change should help the fuzzer
+get past those cases faster.
+
+Update-Note: The stringly-typed API for constructing X.509 extensions
+now has a maximum output size. If anyone was constructing an extension
+larger than 64K, this will break. This is unlikely and should be caught
+by unit tests; if a project hits this outside of tests, that means they
+are passing untrusted input into this function, which is a security
+vulnerability in itself, and means they especially need this change to
+avoid a DoS.
+
+Bug: oss-fuzz:55725
+Change-Id: Ibb65854293f44bf48ed5855016ef7cd46d2fae77
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57125
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit 9580424ca8579317d0ccf1d8db5e58539f239a20)
+---
+ crypto/asn1/a_mbstr.c    | 16 ++++-------
+ crypto/x509/asn1_gen.c   | 30 ++++++++++++++++++--
+ crypto/x509/x509_test.cc | 59 ++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 93 insertions(+), 12 deletions(-)
+
+diff --git a/crypto/asn1/a_mbstr.c b/crypto/asn1/a_mbstr.c
+index 81916c22e..e1a3df2e7 100644
+--- a/crypto/asn1/a_mbstr.c
++++ b/crypto/asn1/a_mbstr.c
+@@ -162,20 +162,16 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+ 
+     nchar++;
+     utf8_len += cbb_get_utf8_len(c);
++    if (maxsize > 0 && nchar > (size_t)maxsize) {
++      OPENSSL_PUT_ERROR(ASN1, ASN1_R_STRING_TOO_LONG);
++      ERR_add_error_dataf("maxsize=%ld", maxsize);
++      return -1;
++    }
+   }
+ 
+-  char strbuf[32];
+   if (minsize > 0 && nchar < (size_t)minsize) {
+     OPENSSL_PUT_ERROR(ASN1, ASN1_R_STRING_TOO_SHORT);
+-    BIO_snprintf(strbuf, sizeof strbuf, "%ld", minsize);
+-    ERR_add_error_data(2, "minsize=", strbuf);
+-    return -1;
+-  }
+-
+-  if (maxsize > 0 && nchar > (size_t)maxsize) {
+-    OPENSSL_PUT_ERROR(ASN1, ASN1_R_STRING_TOO_LONG);
+-    BIO_snprintf(strbuf, sizeof strbuf, "%ld", maxsize);
+-    ERR_add_error_data(2, "maxsize=", strbuf);
++    ERR_add_error_dataf("minsize=%ld", minsize);
+     return -1;
+   }
+ 
+diff --git a/crypto/x509/asn1_gen.c b/crypto/x509/asn1_gen.c
+index 37048087f..989deee1b 100644
+--- a/crypto/x509/asn1_gen.c
++++ b/crypto/x509/asn1_gen.c
+@@ -79,6 +79,11 @@
+ // ASN1_GEN_MAX_DEPTH is the maximum number of nested TLVs allowed.
+ #define ASN1_GEN_MAX_DEPTH 50
+ 
++// ASN1_GEN_MAX_OUTPUT is the maximum output, in bytes, allowed. This limit is
++// necessary because the SEQUENCE and SET section reference mechanism allows the
++// output length to grow super-linearly with the input length.
++#define ASN1_GEN_MAX_OUTPUT (64 * 1024)
++
+ // ASN1_GEN_FORMAT_* are the values for the format modifiers.
+ #define ASN1_GEN_FORMAT_ASCII 1
+ #define ASN1_GEN_FORMAT_UTF8 2
+@@ -105,6 +110,15 @@ ASN1_TYPE *ASN1_generate_v3(const char *str, const X509V3_CTX *cnf) {
+     return NULL;
+   }
+ 
++  // While not strictly necessary to avoid a DoS (we rely on any super-linear
++  // checks being performed internally), cap the overall output to
++  // |ASN1_GEN_MAX_OUTPUT| so the externally-visible behavior is consistent.
++  if (CBB_len(&cbb) > ASN1_GEN_MAX_OUTPUT) {
++    OPENSSL_PUT_ERROR(ASN1, ASN1_R_TOO_LONG);
++    CBB_cleanup(&cbb);
++    return NULL;
++  }
++
+   const uint8_t *der = CBB_data(&cbb);
+   ASN1_TYPE *ret = d2i_ASN1_TYPE(NULL, &der, CBB_len(&cbb));
+   CBB_cleanup(&cbb);
+@@ -446,9 +460,14 @@ static int generate_v3(CBB *cbb, const char *str, const X509V3_CTX *cnf,
+         return 0;
+       }
+ 
++      // |maxsize| is measured in code points, rather than bytes, but pass it in
++      // as a loose cap so fuzzers can exit from excessively long inputs
++      // earlier. This limit is not load-bearing because |ASN1_mbstring_ncopy|'s
++      // output is already linear in the input.
+       ASN1_STRING *obj = NULL;
+-      if (ASN1_mbstring_copy(&obj, (const uint8_t *)value, -1, encoding,
+-                             ASN1_tag2bit(type)) <= 0) {
++      if (ASN1_mbstring_ncopy(&obj, (const uint8_t *)value, -1, encoding,
++                              ASN1_tag2bit(type), /*minsize=*/0,
++                              /*maxsize=*/ASN1_GEN_MAX_OUTPUT) <= 0) {
+         return 0;
+       }
+       int ok = CBB_add_bytes(&child, obj->data, obj->length) && CBB_flush(cbb);
+@@ -522,6 +541,13 @@ static int generate_v3(CBB *cbb, const char *str, const X509V3_CTX *cnf,
+                            ASN1_GEN_FORMAT_ASCII, depth + 1)) {
+             return 0;
+           }
++          // This recursive call, by referencing |section|, is the one place
++          // where |generate_v3|'s output can be super-linear in the input.
++          // Check bounds here.
++          if (CBB_len(&child) > ASN1_GEN_MAX_OUTPUT) {
++            OPENSSL_PUT_ERROR(ASN1, ASN1_R_TOO_LONG);
++            return 0;
++          }
+         }
+       }
+       if (type == CBS_ASN1_SET) {
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index c64949bce..229eab702 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -5972,6 +5972,65 @@ key = FORMAT:HEX,OCTWRAP,OCT:9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703
+         0x20, 0x9d, 0x61, 0xb1, 0x9d, 0xef, 0xfd, 0x5a, 0x60, 0xba, 0x84,
+         0x4a, 0xf4, 0x92, 0xec, 0x2c, 0xc4, 0x44, 0x49, 0xc5, 0x69, 0x7b,
+         0x32, 0x69, 0x19, 0x70, 0x3b, 0xac, 0x03, 0x1c, 0xae, 0x7f, 0x60}},
++
++      // Sections can be referenced multiple times.
++      {kTestOID,
++       "ASN1:SEQUENCE:seq1",
++       R"(
++[seq1]
++val1 = SEQUENCE:seq2
++val2 = SEQUENCE:seq2
++[seq2]
++val1 = INT:1
++val2 = INT:2
++)",
++       {0x30, 0x22, 0x06, 0x0c, 0x2a, 0x86, 0x48, 0x86, 0xf7,
++        0x12, 0x04, 0x01, 0x84, 0xb7, 0x09, 0x02, 0x04, 0x12,
++        0x30, 0x10, 0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01,
++        0x02, 0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x02}},
++
++      // But we cap this before it blows up exponentially.
++      {kTestOID,
++       "ASN1:SEQ:seq1",
++       R"(
++[seq1]
++val1 = SEQ:seq2
++val2 = SEQ:seq2
++[seq2]
++val1 = SEQ:seq3
++val2 = SEQ:seq3
++[seq3]
++val1 = SEQ:seq4
++val2 = SEQ:seq4
++[seq4]
++val1 = SEQ:seq5
++val2 = SEQ:seq5
++[seq5]
++val1 = SEQ:seq6
++val2 = SEQ:seq6
++[seq6]
++val1 = SEQ:seq7
++val2 = SEQ:seq7
++[seq7]
++val1 = SEQ:seq8
++val2 = SEQ:seq8
++[seq8]
++val1 = SEQ:seq9
++val2 = SEQ:seq9
++[seq9]
++val1 = SEQ:seq10
++val2 = SEQ:seq10
++[seq10]
++val1 = SEQ:seq11
++val2 = SEQ:seq11
++[seq11]
++val1 = SEQ:seq12
++val2 = SEQ:seq12
++[seq12]
++val1 = IA5:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
++val2 = IA5:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
++)",
++       {}},
+   };
+   for (const auto &t : kTests) {
+     SCOPED_TRACE(t.name);

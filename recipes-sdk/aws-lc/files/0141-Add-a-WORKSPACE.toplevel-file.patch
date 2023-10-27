@@ -1,0 +1,28 @@
+From 1234c9de408dfcb402f3fb5c52ec59965dfcf5cb Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 25 Jan 2023 15:38:19 -0500
+Subject: [PATCH] Add a WORKSPACE.toplevel file
+
+The WORKSPACE file in master-with-bazel is currently synthesized by the
+script. If we end up with something like
+https://boringssl-review.googlesource.com/c/boringssl/+/55965, we'll
+need to be able to change it more easily. Make it the same way as
+BUILD.
+
+Change-Id: I12a91e9b346f4bd49bfb43ac7e4242e6ce37054c
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56306
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit dbbd79e89526f68589064e488b900cb1aedd7422)
+---
+ util/WORKSPACE.toplevel | 1 +
+ 1 file changed, 1 insertion(+)
+ create mode 100644 util/WORKSPACE.toplevel
+
+diff --git a/util/WORKSPACE.toplevel b/util/WORKSPACE.toplevel
+new file mode 100644
+index 000000000..58f81bba0
+--- /dev/null
++++ b/util/WORKSPACE.toplevel
+@@ -0,0 +1 @@
++workspace(name = "boringssl")

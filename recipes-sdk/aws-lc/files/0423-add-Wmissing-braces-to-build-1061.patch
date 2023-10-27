@@ -1,0 +1,95 @@
+From b77fcacf9399cb27f33fd0bf2d7e40ce66b92e3f Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Thu, 15 Jun 2023 09:51:07 -0700
+Subject: [PATCH] add -Wmissing-braces to build (#1061)
+
+---
+ CMakeLists.txt           |  5 ++++
+ crypto/ocsp/ocsp_test.cc | 51 ++++++++++++++++------------------------
+ 2 files changed, 25 insertions(+), 31 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 73818d9c7..6316237c8 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -324,6 +324,11 @@ if(GCC OR CLANG)
+     # and declare that the code is trying to free a stack pointer. GCC 4.1.3 and lower
+     # doesn't support this flag and can't use it.
+     set(C_CXX_FLAGS "${C_CXX_FLAGS} -Wno-free-nonheap-object")
++    # GCC (from at least 4.8) does not include -Wmissing-braces in -Wall due to Bug 25137.
++    # This warning is turned on everywhere internally however, so we have to define it here
++    # to check that our changes don't break the build.
++    # See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=25137
++    set(C_CXX_FLAGS "${C_CXX_FLAGS} -Wmissing-braces")
+   endif()
+ 
+   # -Wstring-concatenation was added in Clang 12.0.0, which corresponds to
+diff --git a/crypto/ocsp/ocsp_test.cc b/crypto/ocsp/ocsp_test.cc
+index 4bebf9848..88a5edbe8 100644
+--- a/crypto/ocsp/ocsp_test.cc
++++ b/crypto/ocsp/ocsp_test.cc
+@@ -1434,26 +1434,19 @@ TEST(OCSPTest, CertIDDup) {
+ 
+ TEST(OCSPTest, OCSPResponsePrint) {
+   static const std::array<std::string, 19> kExpected{
+-      "OCSP Response Data:",
+-      "    OCSP Response Status: successful (0x0)",
+-      "    Response Type: Basic OCSP Response",
+-      "    Version: 1 (0x0)",
+-      "    Responder Id: C = US, ST = WA, O = s2n, OU = s2n Test OCSP, CN = "
+-      "ocsp.s2ntest.com",
+-      "    Produced At: May 26 00:23:34 2021 GMT",
+-      "    Responses:",
+-      "    Certificate ID:",
+-      "      Hash Algorithm: sha1",
+-      "      Issuer Name Hash: DE7932B3217E48FB4E47AE0B9007A55376AE44CA",
+-      "      Issuer Key Hash: 12DF817571CA92D3CE1B2C2B773B9E3377F3F76F",
+-      "      Serial Number: 7778",
+-      "    Cert Status: good",
+-      "    This Update: May 26 00:23:34 2021 GMT",
+-      "    Next Update: May 24 00:23:34 2031 GMT",
+-      "",
+-      "    Response Extensions:",
+-      "        OCSP Nonce: ",
+-      "            0410AFABD4EC6A172C4A98FB1A6D22FF2928"};
++      {"OCSP Response Data:", "    OCSP Response Status: successful (0x0)",
++       "    Response Type: Basic OCSP Response", "    Version: 1 (0x0)",
++       "    Responder Id: C = US, ST = WA, O = s2n, OU = s2n Test OCSP, CN = "
++       "ocsp.s2ntest.com",
++       "    Produced At: May 26 00:23:34 2021 GMT",
++       "    Responses:", "    Certificate ID:", "      Hash Algorithm: sha1",
++       "      Issuer Name Hash: DE7932B3217E48FB4E47AE0B9007A55376AE44CA",
++       "      Issuer Key Hash: 12DF817571CA92D3CE1B2C2B773B9E3377F3F76F",
++       "      Serial Number: 7778", "    Cert Status: good",
++       "    This Update: May 26 00:23:34 2021 GMT",
++       "    Next Update: May 24 00:23:34 2031 GMT", "",
++       "    Response Extensions:", "        OCSP Nonce: ",
++       "            0410AFABD4EC6A172C4A98FB1A6D22FF2928"}};
+ 
+   std::string respData = GetTestData(
+       std::string("crypto/ocsp/test/aws/ocsp_response.der").c_str());
+@@ -1479,17 +1472,13 @@ TEST(OCSPTest, OCSPResponsePrint) {
+ 
+ TEST(OCSPTest, OCSPRequestPrint) {
+   static const std::array<std::string, 11> kExpected{
+-      "OCSP Request Data:",
+-      "    Version: 1 (0x0)",
+-      "    Requestor List:",
+-      "        Certificate ID:",
+-      "          Hash Algorithm: sha1",
+-      "          Issuer Name Hash: DE7932B3217E48FB4E47AE0B9007A55376AE44CA",
+-      "          Issuer Key Hash: 12DF817571CA92D3CE1B2C2B773B9E3377F3F76F",
+-      "          Serial Number: 7778",
+-      "    Request Extensions:",
+-      "        OCSP Nonce: ",
+-      "            0410303F128CD824A2B465F4C846882B3E1F"};
++      {"OCSP Request Data:", "    Version: 1 (0x0)", "    Requestor List:",
++       "        Certificate ID:", "          Hash Algorithm: sha1",
++       "          Issuer Name Hash: DE7932B3217E48FB4E47AE0B9007A55376AE44CA",
++       "          Issuer Key Hash: 12DF817571CA92D3CE1B2C2B773B9E3377F3F76F",
++       "          Serial Number: 7778",
++       "    Request Extensions:", "        OCSP Nonce: ",
++       "            0410303F128CD824A2B465F4C846882B3E1F"}};
+ 
+   std::string data =
+       GetTestData(std::string("crypto/ocsp/test/aws/ocsp_request.der").c_str());

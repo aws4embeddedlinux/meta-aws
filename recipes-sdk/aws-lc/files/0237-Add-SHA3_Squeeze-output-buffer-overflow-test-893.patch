@@ -1,0 +1,241 @@
+From 2b10a97ab3e05b17abc7ec445d2b9ed1c892ac8c Mon Sep 17 00:00:00 2001
+From: Will Childs-Klein <childw@amazon.com>
+Date: Fri, 31 Mar 2023 10:20:47 -0400
+Subject: [PATCH] Add SHA3_Squeeze output buffer overflow test (#893)
+
+* Add SHA3_Squeeze output buffer overflow test
+
+* Wrap SHA3 ARMv8 ASM optimizations in C function
+---
+ crypto/fipsmodule/sha/asm/keccak1600-armv8.pl | 16 +++++++--------
+ crypto/fipsmodule/sha/keccak1600.c            | 18 +++++++++++++++++
+ crypto/fipsmodule/sha/sha3_test.cc            | 20 +++++++++++++++++++
+ .../crypto/fipsmodule/keccak1600-armv8.S      | 12 +++++------
+ .../crypto/fipsmodule/keccak1600-armv8.S      | 20 +++++++++----------
+ .../crypto/fipsmodule/keccak1600-armv8.S      | 12 +++++------
+ 6 files changed, 68 insertions(+), 30 deletions(-)
+
+diff --git a/crypto/fipsmodule/sha/asm/keccak1600-armv8.pl b/crypto/fipsmodule/sha/asm/keccak1600-armv8.pl
+index 2215e470e..c82c21c8f 100755
+--- a/crypto/fipsmodule/sha/asm/keccak1600-armv8.pl
++++ b/crypto/fipsmodule/sha/asm/keccak1600-armv8.pl
+@@ -343,10 +343,10 @@ KeccakF1600:
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+ .size	KeccakF1600,.-KeccakF1600
+-.globl	SHA3_Absorb
+-.type	SHA3_Absorb,%function
++.globl	SHA3_Absorb_hw
++.type	SHA3_Absorb_hw,%function
+ .align	5
+-SHA3_Absorb:
++SHA3_Absorb_hw:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-128]!
+ 	add	x29,sp,#0
+@@ -438,15 +438,15 @@ $code.=<<___;
+ 	ldp	x29,x30,[sp],#128
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+-.size	SHA3_Absorb,.-SHA3_Absorb
++.size	SHA3_Absorb_hw,.-SHA3_Absorb_hw
+ ___
+ {
+ my ($A_flat,$out,$len,$bsz) = map("x$_",(19..22));
+ $code.=<<___;
+-.globl	SHA3_Squeeze
+-.type	SHA3_Squeeze,%function
++.globl	SHA3_Squeeze_hw
++.type	SHA3_Squeeze_hw,%function
+ .align	5
+-SHA3_Squeeze:
++SHA3_Squeeze_hw:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-48]!
+ 	add	x29,sp,#0
+@@ -509,7 +509,7 @@ SHA3_Squeeze:
+ 	ldp	x29,x30,[sp],#48
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+-.size	SHA3_Squeeze,.-SHA3_Squeeze
++.size	SHA3_Squeeze_hw,.-SHA3_Squeeze_hw
+ ___
+ }								}}}
+ 								{{{
+diff --git a/crypto/fipsmodule/sha/keccak1600.c b/crypto/fipsmodule/sha/keccak1600.c
+index fe965bd6a..24f809508 100644
+--- a/crypto/fipsmodule/sha/keccak1600.c
++++ b/crypto/fipsmodule/sha/keccak1600.c
+@@ -393,4 +393,22 @@ void SHA3_Squeeze(uint64_t A[SHA3_ROWS][SHA3_ROWS], uint8_t *out, size_t len, si
+         }
+     }
+ }
++
++#else
++
++size_t SHA3_Absorb_hw(uint64_t A[SHA3_ROWS][SHA3_ROWS], const uint8_t *inp, size_t len,
++                       size_t r);
++
++size_t SHA3_Absorb(uint64_t A[SHA3_ROWS][SHA3_ROWS], const uint8_t *inp, size_t len,
++                   size_t r) {
++    return SHA3_Absorb_hw(A, inp, len, r);
++}
++
++size_t SHA3_Squeeze_hw(uint64_t A[SHA3_ROWS][SHA3_ROWS], const uint8_t *out, size_t len,
++                        size_t r);
++
++void SHA3_Squeeze(uint64_t A[SHA3_ROWS][SHA3_ROWS], uint8_t *out, size_t len, size_t r) {
++    SHA3_Squeeze_hw(A, out, len, r);
++}
++
+ #endif // !KECCAK1600_ASM
+diff --git a/crypto/fipsmodule/sha/sha3_test.cc b/crypto/fipsmodule/sha/sha3_test.cc
+index d3d7ae202..e6ddd9bf7 100644
+--- a/crypto/fipsmodule/sha/sha3_test.cc
++++ b/crypto/fipsmodule/sha/sha3_test.cc
+@@ -211,6 +211,26 @@ TEST(SHA3Test, NISTTestVectors_SingleShot) {
+   });
+ }
+ 
++TEST(KeccakInternalTest, SqueezeOutputBufferOverflow) {
++    EVP_MD_unstable_sha3_enable(true);
++
++    KECCAK1600_CTX ctx;
++    std::vector<uint8_t> out;
++    std::vector<uint8_t> canary(8);
++    std::fill(canary.begin(), canary.end(), 0xff);
++
++    const size_t out_lens[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, (1<<5), (1<<16)+1 };
++    for (auto out_len : out_lens) {
++        EXPECT_TRUE(SHA3_Init(&ctx, SHA3_PAD_CHAR, SHA3_384_DIGEST_BITLENGTH));
++        out.resize(out_len + canary.size());
++        std::copy(canary.begin(), canary.end(), out.end() - canary.size());
++        SHA3_Squeeze(ctx.A, out.data(), out_len, ctx.block_size);
++        EXPECT_TRUE(std::equal(out.end() - canary.size(), out.end(), canary.begin()) == true);
++    }
++
++    EVP_MD_unstable_sha3_enable(false);
++}
++
+ TEST(SHAKE128Test, NISTTestVectors) {
+   FileTestGTest("crypto/fipsmodule/sha/testvectors/SHAKE128VariableOut.txt", [](FileTest *t) {
+     SHA3TestVector test_vec;
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/keccak1600-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+index b9f6696d9..774636992 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/keccak1600-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+@@ -248,11 +248,11 @@ KeccakF1600:
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+ 
+-.globl	_SHA3_Absorb
+-.private_extern	_SHA3_Absorb
++.globl	_SHA3_Absorb_hw
++.private_extern	_SHA3_Absorb_hw
+ 
+ .align	5
+-_SHA3_Absorb:
++_SHA3_Absorb_hw:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-128]!
+ 	add	x29,sp,#0
+@@ -481,11 +481,11 @@ Labsorbed:
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+ 
+-.globl	_SHA3_Squeeze
+-.private_extern	_SHA3_Squeeze
++.globl	_SHA3_Squeeze_hw
++.private_extern	_SHA3_Squeeze_hw
+ 
+ .align	5
+-_SHA3_Squeeze:
++_SHA3_Squeeze_hw:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-48]!
+ 	add	x29,sp,#0
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/keccak1600-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+index d43f936ba..e1e15df3d 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/keccak1600-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+@@ -248,11 +248,11 @@ KeccakF1600:
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+ .size	KeccakF1600,.-KeccakF1600
+-.globl	SHA3_Absorb
+-.hidden	SHA3_Absorb
+-.type	SHA3_Absorb,%function
++.globl	SHA3_Absorb_hw
++.hidden	SHA3_Absorb_hw
++.type	SHA3_Absorb_hw,%function
+ .align	5
+-SHA3_Absorb:
++SHA3_Absorb_hw:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-128]!
+ 	add	x29,sp,#0
+@@ -480,12 +480,12 @@ SHA3_Absorb:
+ 	ldp	x29,x30,[sp],#128
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+-.size	SHA3_Absorb,.-SHA3_Absorb
+-.globl	SHA3_Squeeze
+-.hidden	SHA3_Squeeze
+-.type	SHA3_Squeeze,%function
++.size	SHA3_Absorb_hw,.-SHA3_Absorb_hw
++.globl	SHA3_Squeeze_hw
++.hidden	SHA3_Squeeze_hw
++.type	SHA3_Squeeze_hw,%function
+ .align	5
+-SHA3_Squeeze:
++SHA3_Squeeze_hw:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-48]!
+ 	add	x29,sp,#0
+@@ -548,7 +548,7 @@ SHA3_Squeeze:
+ 	ldp	x29,x30,[sp],#48
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+-.size	SHA3_Squeeze,.-SHA3_Squeeze
++.size	SHA3_Squeeze_hw,.-SHA3_Squeeze_hw
+ .type	KeccakF1600_ce,%function
+ .align	5
+ KeccakF1600_ce:
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/keccak1600-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+index 67636c270..9a85cb8da 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/keccak1600-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/keccak1600-armv8.S
+@@ -252,13 +252,13 @@ KeccakF1600:
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+ 
+-.globl	SHA3_Absorb
++.globl	SHA3_Absorb_hw
+ 
+-.def SHA3_Absorb
++.def SHA3_Absorb_hw
+    .type 32
+ .endef
+ .align	5
+-SHA3_Absorb:
++SHA3_Absorb_hw:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-128]!
+ 	add	x29,sp,#0
+@@ -487,13 +487,13 @@ Labsorbed:
+ 	AARCH64_VALIDATE_LINK_REGISTER
+ 	ret
+ 
+-.globl	SHA3_Squeeze
++.globl	SHA3_Squeeze_hw
+ 
+-.def SHA3_Squeeze
++.def SHA3_Squeeze_hw
+    .type 32
+ .endef
+ .align	5
+-SHA3_Squeeze:
++SHA3_Squeeze_hw:
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-48]!
+ 	add	x29,sp,#0

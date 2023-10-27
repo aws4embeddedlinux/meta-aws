@@ -1,0 +1,45 @@
+From 3d90137cdb95c6220d0e1a2fb1a77c903f633630 Mon Sep 17 00:00:00 2001
+From: torben-hansen <50673096+torben-hansen@users.noreply.github.com>
+Date: Mon, 20 Mar 2023 18:06:31 -0700
+Subject: [PATCH] Stringify enum to pretty-print errors (#890)
+
+The enum type instructionType doesn't have an unwrap. I believe. In fact, not entirely sure how Errorf translates %w and it's argument. Instead, just stringify the enum type instructionType and pass that up the stack to pretty-print.
+---
+ util/fipstools/delocate/delocate.go | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/util/fipstools/delocate/delocate.go b/util/fipstools/delocate/delocate.go
+index 5e0fa7022..1d6b9baef 100644
+--- a/util/fipstools/delocate/delocate.go
++++ b/util/fipstools/delocate/delocate.go
+@@ -1099,6 +1099,7 @@ Args:
+ 
+ type instructionType int
+ 
++// also update stringifier when making changes to this enum.
+ const (
+ 	instrPush instructionType = iota
+ 	instrMove
+@@ -1121,6 +1122,13 @@ const (
+ 	instrOther
+ )
+ 
++func (index instructionType) String() string {
++	return [...]string{"instrPush", "instrMove", "instrTransformingMove",
++		"instrJump", "instrConditionalMove", "instrCombine",
++		"instrMemoryVectorCombine", "instrThreeArg",
++		"instrCompare", "instrOther"}[index]
++}
++
+ func classifyInstruction(instr string, args []*node32) instructionType {
+ 	switch instr {
+ 	case "push", "pushq":
+@@ -1419,7 +1427,7 @@ Args:
+ 
+ 				classification := classifyInstruction(instructionName, argNodes)
+ 				if classification != instrThreeArg && classification != instrCompare && i != 0 {
+-					return nil, fmt.Errorf("GOT access must be source operand, %w", classification)
++					return nil, fmt.Errorf("GOT access must be source operand, %s", classification)
+ 				}
+ 
+ 				// Reduce the instruction to movq symbol@GOTPCREL, targetReg.

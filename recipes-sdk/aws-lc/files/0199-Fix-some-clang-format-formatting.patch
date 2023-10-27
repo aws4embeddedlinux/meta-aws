@@ -1,0 +1,62 @@
+From cef76d0ed8aee9d94e17a45efa844d47893caf7e Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 30 Jan 2023 21:50:35 -0500
+Subject: [PATCH] Fix some clang-format formatting.
+
+I forgot to put ASN1_CHOICE_END_cb in the StatementMacros list, which
+caused it to mangle the formatting a bit. Also remove the duplicate
+ASN1_SEQUENCE_END.
+
+Change-Id: I58b6c6f028b81fb717722e02260f3dfaa4d17e4b
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56665
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 210674b62a804e9b30c53df3be020d86f8ce3b55)
+---
+ .clang-format           |  2 +-
+ crypto/x509v3/v3_crld.c | 10 ++++------
+ 2 files changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/.clang-format b/.clang-format
+index 0ab585e26..33b77f9ad 100644
+--- a/.clang-format
++++ b/.clang-format
+@@ -10,7 +10,6 @@ PointerAlignment: Right
+ IncludeBlocks: Preserve
+ TypenameMacros: ['LHASH_OF', 'STACK_OF']
+ StatementMacros:
+-  - "ASN1_SEQUENCE_END"
+   - "DECLARE_ASN1_ALLOC_FUNCTIONS"
+   - "DECLARE_ASN1_ALLOC_FUNCTIONS_name"
+   - "DECLARE_ASN1_ENCODE_FUNCTIONS"
+@@ -69,6 +68,7 @@ StatementMacros:
+   - "IMPLEMENT_PEM_write_fp_const"
+   - "ASN1_ADB_END"
+   - "ASN1_CHOICE_END"
++  - "ASN1_CHOICE_END_cb"
+   - "ASN1_ITEM_TEMPLATE_END"
+   - "ASN1_SEQUENCE_END"
+   - "ASN1_SEQUENCE_END_cb"
+diff --git a/crypto/x509v3/v3_crld.c b/crypto/x509v3/v3_crld.c
+index 0b6899a6f..c431b0834 100644
+--- a/crypto/x509v3/v3_crld.c
++++ b/crypto/x509v3/v3_crld.c
+@@ -384,14 +384,12 @@ static int dpn_cb(int operation, ASN1_VALUE **pval, const ASN1_ITEM *it,
+ }
+ 
+ 
+-ASN1_CHOICE_cb(DIST_POINT_NAME, dpn_cb) =
+-    {
+-        ASN1_IMP_SEQUENCE_OF(DIST_POINT_NAME, name.fullname, GENERAL_NAME, 0),
+-        ASN1_IMP_SET_OF(DIST_POINT_NAME, name.relativename, X509_NAME_ENTRY, 1),
++ASN1_CHOICE_cb(DIST_POINT_NAME, dpn_cb) = {
++    ASN1_IMP_SEQUENCE_OF(DIST_POINT_NAME, name.fullname, GENERAL_NAME, 0),
++    ASN1_IMP_SET_OF(DIST_POINT_NAME, name.relativename, X509_NAME_ENTRY, 1),
+ } ASN1_CHOICE_END_cb(DIST_POINT_NAME, DIST_POINT_NAME, type)
+ 
+-
+-        IMPLEMENT_ASN1_FUNCTIONS(DIST_POINT_NAME)
++IMPLEMENT_ASN1_FUNCTIONS(DIST_POINT_NAME)
+ 
+ ASN1_SEQUENCE(DIST_POINT) = {
+     ASN1_EXP_OPT(DIST_POINT, distpoint, DIST_POINT_NAME, 0),

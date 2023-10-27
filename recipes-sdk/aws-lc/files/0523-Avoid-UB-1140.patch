@@ -1,0 +1,24 @@
+From abc011dbc25437e3eca62338c320a5043d3939f1 Mon Sep 17 00:00:00 2001
+From: torben-hansen <50673096+torben-hansen@users.noreply.github.com>
+Date: Tue, 8 Aug 2023 15:19:50 -0700
+Subject: [PATCH] Avoid UB (#1140)
+
+NULL arguments to standard library functions is generally undefined behaviour. This is test code, but prevent it anyway.
+---
+ ssl/test/bssl_shim.cc | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/ssl/test/bssl_shim.cc b/ssl/test/bssl_shim.cc
+index dd60a4182..ceece8697 100644
+--- a/ssl/test/bssl_shim.cc
++++ b/ssl/test/bssl_shim.cc
+@@ -305,6 +305,9 @@ static bool CheckListContains(const char *type,
+   std::vector<const char *> list(list_func(nullptr, 0));
+   list_func(list.data(), list.size());
+   for (const char *expected : list) {
++    if (str == nullptr) {
++      break;
++    }
+     if (strcmp(expected, str) == 0) {
+       return true;
+     }

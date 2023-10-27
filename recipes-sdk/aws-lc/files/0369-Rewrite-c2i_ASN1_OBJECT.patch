@@ -1,0 +1,244 @@
+From 8df033d69869113c80e754c5c5cd58ff63b2842d Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sat, 11 Mar 2023 12:26:37 -0500
+Subject: [PATCH] Rewrite c2i_ASN1_OBJECT
+
+Removing object reuse makes it dramatically simpler. Along the way, lift
+the OID validity checker into crypto/bytestring, so we can use it more
+generally. (Although the difference between invalid OID and unknown OID
+is pretty academic, so this check isn't that important.)
+
+For now I've preserved the existing behavior, where the OID validity
+checker accepts arbitrarily large OID components. Though this results in
+an oddity where the OID to string functions reject inputs that the
+parser accepts. (There we only allow up to 2^64-1.)
+
+Update-Note: When we removed object-reuse from all the d2i functions, we
+missed one d2i_ASN1_OBJECT. See
+https://boringssl-review.googlesource.com/c/boringssl/+/56647.
+Otherwise, this CL is not expected to change behavior.
+
+Change-Id: If4d2d83d9f3c96abfdc268e156f2cf3a9a903b0c
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58147
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit 898de8d09e10960e64901e2d9836cdea5dd1d1a6)
+---
+ crypto/asn1/a_object.c               | 75 ++++++----------------------
+ crypto/bytestring/bytestring_test.cc | 24 ++++++---
+ crypto/bytestring/cbs.c              | 23 +++++++++
+ include/openssl/bytestring.h         |  8 +++
+ 4 files changed, 63 insertions(+), 67 deletions(-)
+
+diff --git a/crypto/asn1/a_object.c b/crypto/asn1/a_object.c
+index 55b6dadb0..e50193413 100644
+--- a/crypto/asn1/a_object.c
++++ b/crypto/asn1/a_object.c
+@@ -153,77 +153,32 @@ ASN1_OBJECT *d2i_ASN1_OBJECT(ASN1_OBJECT **out, const unsigned char **inp,
+   return ret;
+ }
+ 
+-ASN1_OBJECT *c2i_ASN1_OBJECT(ASN1_OBJECT **a, const unsigned char **pp,
++ASN1_OBJECT *c2i_ASN1_OBJECT(ASN1_OBJECT **out, const unsigned char **inp,
+                              long len) {
+-  ASN1_OBJECT *ret = NULL;
+-  const unsigned char *p;
+-  unsigned char *data;
+-  int i, length;
+-
+-  // Sanity check OID encoding. Need at least one content octet. MSB must
+-  // be clear in the last octet. can't have leading 0x80 in subidentifiers,
+-  // see: X.690 8.19.2
+-  if (len <= 0 || len > INT_MAX || pp == NULL || (p = *pp) == NULL ||
+-      p[len - 1] & 0x80) {
++  if (len < 0) {
+     OPENSSL_PUT_ERROR(ASN1, ASN1_R_INVALID_OBJECT_ENCODING);
+     return NULL;
+   }
+-  // Now 0 < len <= INT_MAX, so the cast is safe.
+-  length = (int)len;
+-  for (i = 0; i < length; i++, p++) {
+-    if (*p == 0x80 && (!i || !(p[-1] & 0x80))) {
+-      OPENSSL_PUT_ERROR(ASN1, ASN1_R_INVALID_OBJECT_ENCODING);
+-      return NULL;
+-    }
+-  }
+ 
+-  if ((a == NULL) || ((*a) == NULL) ||
+-      !((*a)->flags & ASN1_OBJECT_FLAG_DYNAMIC)) {
+-    if ((ret = ASN1_OBJECT_new()) == NULL) {
+-      return NULL;
+-    }
+-  } else {
+-    ret = (*a);
++  CBS cbs;
++  CBS_init(&cbs, *inp, (size_t)len);
++  if (!CBS_is_valid_asn1_oid(&cbs)) {
++    OPENSSL_PUT_ERROR(ASN1, ASN1_R_INVALID_OBJECT_ENCODING);
++    return NULL;
+   }
+ 
+-  p = *pp;
+-  // detach data from object
+-  data = (unsigned char *)ret->data;
+-  ret->data = NULL;
+-  // once detached we can change it
+-  if ((data == NULL) || (ret->length < length)) {
+-    ret->length = 0;
+-    OPENSSL_free(data);
+-    data = (unsigned char *)OPENSSL_malloc(length);
+-    if (data == NULL) {
+-      goto err;
+-    }
+-    ret->flags |= ASN1_OBJECT_FLAG_DYNAMIC_DATA;
+-  }
+-  OPENSSL_memcpy(data, p, length);
+-  // If there are dynamic strings, free them here, and clear the flag
+-  if ((ret->flags & ASN1_OBJECT_FLAG_DYNAMIC_STRINGS) != 0) {
+-    OPENSSL_free((char *)ret->sn);
+-    OPENSSL_free((char *)ret->ln);
+-    ret->flags &= ~ASN1_OBJECT_FLAG_DYNAMIC_STRINGS;
++  ASN1_OBJECT *ret = ASN1_OBJECT_create(NID_undef, *inp, (size_t)len,
++                                        /*sn=*/NULL, /*ln=*/NULL);
++  if (ret == NULL) {
++    return NULL;
+   }
+-  // reattach data to object, after which it remains const
+-  ret->data = data;
+-  ret->length = length;
+-  ret->sn = NULL;
+-  ret->ln = NULL;
+-  p += length;
+ 
+-  if (a != NULL) {
+-    (*a) = ret;
++  if (out != NULL) {
++    ASN1_OBJECT_free(*out);
++    *out = ret;
+   }
+-  *pp = p;
++  *inp += len;  // All bytes were consumed.
+   return ret;
+-err:
+-  if ((ret != NULL) && ((a == NULL) || (*a != ret))) {
+-    ASN1_OBJECT_free(ret);
+-  }
+-  return NULL;
+ }
+ 
+ ASN1_OBJECT *ASN1_OBJECT_new(void) {
+diff --git a/crypto/bytestring/bytestring_test.cc b/crypto/bytestring/bytestring_test.cc
+index ca22c41c3..10d34697a 100644
+--- a/crypto/bytestring/bytestring_test.cc
++++ b/crypto/bytestring/bytestring_test.cc
+@@ -1199,16 +1199,23 @@ TEST(CBBTest, AddOIDFromText) {
+       "2.18446744073709551536",
+   };
+ 
+-  const std::vector<uint8_t> kInvalidDER[] = {
++  const struct {
++    std::vector<uint8_t> der;
++    // If true, |der| is valid but has a component that exceeds 2^64-1.
++    bool overflow;
++  } kInvalidDER[] = {
+       // The empty string is not an OID.
+-      {},
++      {{}, false},
+       // Non-minimal representation.
+-      {0x80, 0x01},
++      {{0x80, 0x01}, false},
++      // Unterminated integer.
++      {{0x01, 0x02, 0x83}, false},
+       // Overflow. This is the DER representation of
+       // 1.2.840.113554.4.1.72585.18446744073709551616. (The final value is
+       // 2^64.)
+-      {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x12, 0x04, 0x01, 0x84, 0xb7, 0x09,
+-       0x82, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00},
++      {{0x2a, 0x86, 0x48, 0x86, 0xf7, 0x12, 0x04, 0x01, 0x84, 0xb7, 0x09,
++        0x82, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00},
++       true},
+   };
+ 
+   for (const auto &t : kValidOIDs) {
+@@ -1228,6 +1235,8 @@ TEST(CBBTest, AddOIDFromText) {
+     bssl::UniquePtr<char> text(CBS_asn1_oid_to_text(&cbs));
+     ASSERT_TRUE(text.get());
+     EXPECT_STREQ(t.text, text.get());
++
++    EXPECT_TRUE(CBS_is_valid_asn1_oid(&cbs));
+   }
+ 
+   for (const char *t : kInvalidTexts) {
+@@ -1238,11 +1247,12 @@ TEST(CBBTest, AddOIDFromText) {
+   }
+ 
+   for (const auto &t : kInvalidDER) {
+-    SCOPED_TRACE(Bytes(t));
++    SCOPED_TRACE(Bytes(t.der));
+     CBS cbs;
+-    CBS_init(&cbs, t.data(), t.size());
++    CBS_init(&cbs, t.der.data(), t.der.size());
+     bssl::UniquePtr<char> text(CBS_asn1_oid_to_text(&cbs));
+     EXPECT_FALSE(text);
++    EXPECT_EQ(t.overflow ? 1 : 0, CBS_is_valid_asn1_oid(&cbs));
+   }
+ }
+ 
+diff --git a/crypto/bytestring/cbs.c b/crypto/bytestring/cbs.c
+index 96ff18f0c..14adf2fb3 100644
+--- a/crypto/bytestring/cbs.c
++++ b/crypto/bytestring/cbs.c
+@@ -694,6 +694,29 @@ static int add_decimal(CBB *out, uint64_t v) {
+   return CBB_add_bytes(out, (const uint8_t *)buf, strlen(buf));
+ }
+ 
++int CBS_is_valid_asn1_oid(const CBS *cbs) {
++  if (CBS_len(cbs) == 0) {
++    return 0;  // OID encodings cannot be empty.
++  }
++
++  CBS copy = *cbs;
++  uint8_t v, prev = 0;
++  while (CBS_get_u8(&copy, &v)) {
++    // OID encodings are a sequence of minimally-encoded base-128 integers (see
++    // |parse_base128_integer|). If |prev|'s MSB was clear, it was the last byte
++    // of an integer (or |v| is the first byte). |v| is then the first byte of
++    // the next integer. If first byte of an integer is 0x80, it is not
++    // minimally-encoded.
++    if ((prev & 0x80) == 0 && v == 0x80) {
++      return 0;
++    }
++    prev = v;
++  }
++
++  // The last byte should must end an integer encoding.
++  return (prev & 0x80) == 0;
++}
++
+ char *CBS_asn1_oid_to_text(const CBS *cbs) {
+   CBB cbb;
+   if (!CBB_init(&cbb, 32)) {
+diff --git a/include/openssl/bytestring.h b/include/openssl/bytestring.h
+index 8f4e7e32d..c59bb82dc 100644
+--- a/include/openssl/bytestring.h
++++ b/include/openssl/bytestring.h
+@@ -358,11 +358,19 @@ OPENSSL_EXPORT int CBS_is_valid_asn1_integer(const CBS *cbs,
+ // ASN.1 INTEGER body and zero otherwise.
+ OPENSSL_EXPORT int CBS_is_unsigned_asn1_integer(const CBS *cbs);
+ 
++// CBS_is_valid_asn1_oid returns one if |cbs| is a valid DER-encoded ASN.1
++// OBJECT IDENTIFIER contents (not including the element framing) and zero
++// otherwise. This function tolerates arbitrarily large OID components.
++OPENSSL_EXPORT int CBS_is_valid_asn1_oid(const CBS *cbs);
++
+ // CBS_asn1_oid_to_text interprets |cbs| as DER-encoded ASN.1 OBJECT IDENTIFIER
+ // contents (not including the element framing) and returns the ASCII
+ // representation (e.g., "1.2.840.113554.4.1.72585") in a newly-allocated
+ // string, or NULL on failure. The caller must release the result with
+ // |OPENSSL_free|.
++//
++// This function may fail if |cbs| is an invalid OBJECT IDENTIFIER, or if any
++// OID components are too large.
+ OPENSSL_EXPORT char *CBS_asn1_oid_to_text(const CBS *cbs);
+ 
+ 

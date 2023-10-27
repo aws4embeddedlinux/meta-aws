@@ -1,0 +1,28 @@
+From 09c53d2bcd747412a5375e4ba6ba4ece5de31142 Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Tue, 27 Jun 2023 13:41:58 -0700
+Subject: [PATCH] Fix DISABLE_PERL=on builds for non-asm platforms (#1068)
+
+---
+ crypto/CMakeLists.txt | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index 1823ee638..21811bd4d 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -140,8 +140,12 @@ else()
+   endif()
+ 
+   if(DEFINED ASSEMBLY_SOURCE)
+-    message("Copying platform assembly files from ${ASSEMBLY_SOURCE} to ${CMAKE_CURRENT_BINARY_DIR}")
+-    file(COPY ${ASSEMBLY_SOURCE}/ DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
++    if(EXISTS ${ASSEMBLY_SOURCE})
++      message("Copying platform assembly files from ${ASSEMBLY_SOURCE} to ${CMAKE_CURRENT_BINARY_DIR}")
++      file(COPY ${ASSEMBLY_SOURCE}/ DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
++    else()
++      message(STATUS "${ASSEMBLY_SOURCE} assembly files do not exist.")
++    endif()
+   endif()
+ 
+ endif()

@@ -1,0 +1,93 @@
+From 0a2c5af587847c62996c3628355cb8bab277768b Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 31 Jan 2023 12:14:20 -0500
+Subject: [PATCH] Fix error-handling in X509V3_EXT_add_nconf_sk and
+ X509v3_add_ext.
+
+See also upstream's abcf241114c4dc33af95288ae7f7d10916c67db0.
+
+Fixed: oss-fuzz:55555, oss-fuzz:55556, oss-fuzz:55560
+Change-Id: I3b015822806ced39a498017bd2329323ed8dfbf0
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56685
+Auto-Submit: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 507ac830036d7531489490831814cf03e0d7c4d6)
+---
+ crypto/x509/x509_test.cc | 11 +++++++++++
+ crypto/x509/x509_v3.c    |  6 +++++-
+ crypto/x509v3/v3_conf.c  |  9 ++++-----
+ 3 files changed, 20 insertions(+), 6 deletions(-)
+
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 920d82eae..e85f2afd2 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -5899,3 +5899,14 @@ key = FORMAT:HEX,OCTWRAP,OCT:9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703
+     }
+   }
+ }
++
++TEST(X509, AddUnserializableExtension) {
++  bssl::UniquePtr<EVP_PKEY> key = PrivateKeyFromPEM(kP256Key);
++  ASSERT_TRUE(key);
++  bssl::UniquePtr<X509> x509 =
++      MakeTestCert("Issuer", "Subject", key.get(), /*is_ca=*/true);
++  ASSERT_TRUE(x509);
++  bssl::UniquePtr<X509_EXTENSION> ext(X509_EXTENSION_new());
++  ASSERT_TRUE(X509_EXTENSION_set_object(ext.get(), OBJ_nid2obj(NID_undef)));
++  EXPECT_FALSE(X509_add_ext(x509.get(), ext.get(), /*loc=*/-1));
++}
+diff --git a/crypto/x509/x509_v3.c b/crypto/x509/x509_v3.c
+index 9153dce19..dd8435243 100644
+--- a/crypto/x509/x509_v3.c
++++ b/crypto/x509/x509_v3.c
+@@ -148,6 +148,7 @@ STACK_OF(X509_EXTENSION) *X509v3_add_ext(STACK_OF(X509_EXTENSION) **x,
+   X509_EXTENSION *new_ex = NULL;
+   int n;
+   STACK_OF(X509_EXTENSION) *sk = NULL;
++  int free_sk = 0;
+ 
+   if (x == NULL) {
+     OPENSSL_PUT_ERROR(X509, ERR_R_PASSED_NULL_PARAMETER);
+@@ -158,6 +159,7 @@ STACK_OF(X509_EXTENSION) *X509v3_add_ext(STACK_OF(X509_EXTENSION) **x,
+     if ((sk = sk_X509_EXTENSION_new_null()) == NULL) {
+       goto err;
+     }
++    free_sk = 1;
+   } else {
+     sk = *x;
+   }
+@@ -183,7 +185,9 @@ err:
+   OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+ err2:
+   X509_EXTENSION_free(new_ex);
+-  sk_X509_EXTENSION_free(sk);
++  if (free_sk) {
++    sk_X509_EXTENSION_free(sk);
++  }
+   return NULL;
+ }
+ 
+diff --git a/crypto/x509v3/v3_conf.c b/crypto/x509v3/v3_conf.c
+index 480bb3b79..a4f172d3f 100644
+--- a/crypto/x509v3/v3_conf.c
++++ b/crypto/x509v3/v3_conf.c
+@@ -357,13 +357,12 @@ int X509V3_EXT_add_nconf_sk(const CONF *conf, const X509V3_CTX *ctx,
+   for (size_t i = 0; i < sk_CONF_VALUE_num(nval); i++) {
+     const CONF_VALUE *val = sk_CONF_VALUE_value(nval, i);
+     X509_EXTENSION *ext = X509V3_EXT_nconf(conf, ctx, val->name, val->value);
+-    if (ext == NULL) {
++    int ok = ext != NULL &&  //
++             (sk == NULL || X509v3_add_ext(sk, ext, -1) != NULL);
++    X509_EXTENSION_free(ext);
++    if (!ok) {
+       return 0;
+     }
+-    if (sk) {
+-      X509v3_add_ext(sk, ext, -1);
+-    }
+-    X509_EXTENSION_free(ext);
+   }
+   return 1;
+ }

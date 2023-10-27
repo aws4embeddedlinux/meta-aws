@@ -1,0 +1,3244 @@
+From 8524f68a41be8b3313cb9e8e5fd7cb6c72451fae Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Sat, 5 Feb 2022 11:50:48 -0800
+Subject: [PATCH] Add alternative variants of P-521 modular and Montgomery muls
+ and squares
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/290f01e48119113a74aa7cac9f4ca23b0bdb209f
+---
+ arm/p521/Makefile                      |   4 +
+ arm/p521/bignum_montmul_p521_alt.S     | 561 +++++++++++++++++++++++++
+ arm/p521/bignum_montsqr_p521_alt.S     | 394 +++++++++++++++++
+ arm/p521/bignum_mul_p521_alt.S         | 540 ++++++++++++++++++++++++
+ arm/p521/bignum_sqr_p521_alt.S         | 372 ++++++++++++++++
+ x86_att/p521/bignum_montmul_p521_alt.S | 336 +++++++++++++++
+ x86_att/p521/bignum_montsqr_p521_alt.S | 329 +++++++++++++++
+ x86_att/p521/bignum_mul_p521_alt.S     | 313 ++++++++++++++
+ x86_att/p521/bignum_sqr_p521_alt.S     | 304 ++++++++++++++
+ 9 files changed, 3153 insertions(+)
+ create mode 100644 arm/p521/bignum_montmul_p521_alt.S
+ create mode 100644 arm/p521/bignum_montsqr_p521_alt.S
+ create mode 100644 arm/p521/bignum_mul_p521_alt.S
+ create mode 100644 arm/p521/bignum_sqr_p521_alt.S
+ create mode 100644 x86_att/p521/bignum_montmul_p521_alt.S
+ create mode 100644 x86_att/p521/bignum_montsqr_p521_alt.S
+ create mode 100644 x86_att/p521/bignum_mul_p521_alt.S
+ create mode 100644 x86_att/p521/bignum_sqr_p521_alt.S
+
+diff --git a/arm/p521/Makefile b/arm/p521/Makefile
+index b9a664f75..8f9d2b6e3 100644
+--- a/arm/p521/Makefile
++++ b/arm/p521/Makefile
+@@ -40,11 +40,15 @@ OBJ = bignum_add_p521.o \
+       bignum_mod_n521_9.o \
+       bignum_mod_p521_9.o \
+       bignum_montmul_p521.o \
++      bignum_montmul_p521_alt.o \
+       bignum_montsqr_p521.o \
++      bignum_montsqr_p521_alt.o \
+       bignum_mul_p521.o \
++      bignum_mul_p521_alt.o \
+       bignum_neg_p521.o \
+       bignum_optneg_p521.o \
+       bignum_sqr_p521.o \
++      bignum_sqr_p521_alt.o \
+       bignum_sub_p521.o \
+       bignum_tomont_p521.o \
+       bignum_triple_p521.o
+diff --git a/arm/p521/bignum_montmul_p521_alt.S b/arm/p521/bignum_montmul_p521_alt.S
+new file mode 100644
+index 000000000..a9d5eb2f6
+--- /dev/null
++++ b/arm/p521/bignum_montmul_p521_alt.S
+@@ -0,0 +1,561 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Montgomery multiply, z := (x * y / 2^576) mod p_521
++// Inputs x[9], y[9]; output z[9]
++//
++//    extern void bignum_montmul_p521_alt
++//     (uint64_t z[static 9], uint64_t x[static 9], uint64_t y[static 9]);
++//
++// Does z := (x * y / 2^576) mod p_521, assuming x < p_521, y < p_521. This
++// means the Montgomery base is the "native size" 2^{9*64} = 2^576; since
++// p_521 is a Mersenne prime the basic modular multiplication bignum_mul_p521
++// can be considered a Montgomery operation to base 2^521.
++//
++// Standard ARM ABI: X0 = z, X1 = x, X2 = y
++// ----------------------------------------------------------------------------
++
++        .globl  bignum_montmul_p521_alt
++        .text
++        .balign 4
++
++#define z x0
++#define x x1
++#define y x2
++
++// These are repeated mod 2 as we load paris of inputs
++
++#define a0 x3
++#define a1 x4
++#define a2 x3
++#define a3 x4
++#define a4 x3
++#define a5 x4
++#define a6 x3
++#define a7 x4
++#define a8 x3
++
++#define b0 x5
++#define b1 x6
++#define b2 x7
++#define b3 x8
++#define b4 x9
++#define b5 x10
++#define b6 x11
++#define b7 x12
++#define b8 x13
++
++#define t x14
++
++// These repeat mod 11 as we stash some intermediate results in the
++// output buffer.
++
++#define u0 x15
++#define u1 x16
++#define u2 x17
++#define u3 x19
++#define u4 x20
++#define u5 x21
++#define u6 x22
++#define u7 x23
++#define u8 x24
++#define u9 x25
++#define u10 x26
++#define u11 x15
++#define u12 x16
++#define u13 x17
++#define u14 x19
++#define u15 x20
++#define u16 x21
++
++bignum_montmul_p521_alt:
++
++// Save more registers
++
++                stp     x19, x20, [sp, #-16]!
++                stp     x21, x22, [sp, #-16]!
++                stp     x23, x24, [sp, #-16]!
++                stp     x25, x26, [sp, #-16]!
++
++// Load operands and set up row 0 = [u9;...;u0] = a0 * [b8;...;b0]
++
++                ldp     a0, a1, [x]
++                ldp     b0, b1, [y]
++
++                mul     u0, a0, b0
++                umulh   u1, a0, b0
++                mul     t, a0, b1
++                umulh   u2, a0, b1
++                adds    u1, u1, t
++
++                ldp     b2, b3, [y, #16]
++
++                mul     t, a0, b2
++                umulh   u3, a0, b2
++                adcs    u2, u2, t
++
++                mul     t, a0, b3
++                umulh   u4, a0, b3
++                adcs    u3, u3, t
++
++                ldp     b4, b5, [y, #32]
++
++                mul     t, a0, b4
++                umulh   u5, a0, b4
++                adcs    u4, u4, t
++
++                mul     t, a0, b5
++                umulh   u6, a0, b5
++                adcs    u5, u5, t
++
++                ldp     b6, b7, [y, #48]
++
++                mul     t, a0, b6
++                umulh   u7, a0, b6
++                adcs    u6, u6, t
++
++                ldr     b8, [y, #64]
++
++                mul     t, a0, b7
++                umulh   u8, a0, b7
++                adcs    u7, u7, t
++
++                mul     t, a0, b8
++                umulh   u9, a0, b8
++                adcs    u8, u8, t
++
++                adc     u9, u9, xzr
++
++// Row 1 = [u10;...;u0] = [a1;a0] * [b8;...;b0]
++
++                mul     t, a1, b0
++                adds    u1, u1, t
++                mul     t, a1, b1
++                adcs    u2, u2, t
++                mul     t, a1, b2
++                adcs    u3, u3, t
++                mul     t, a1, b3
++                adcs    u4, u4, t
++                mul     t, a1, b4
++                adcs    u5, u5, t
++                mul     t, a1, b5
++                adcs    u6, u6, t
++                mul     t, a1, b6
++                adcs    u7, u7, t
++                mul     t, a1, b7
++                adcs    u8, u8, t
++                mul     t, a1, b8
++                adcs    u9, u9, t
++                cset    u10, cs
++
++                umulh   t, a1, b0
++                adds    u2, u2, t
++                umulh   t, a1, b1
++                adcs    u3, u3, t
++                umulh   t, a1, b2
++                adcs    u4, u4, t
++                umulh   t, a1, b3
++                adcs    u5, u5, t
++                umulh   t, a1, b4
++                adcs    u6, u6, t
++                umulh   t, a1, b5
++                adcs    u7, u7, t
++                umulh   t, a1, b6
++                adcs    u8, u8, t
++                umulh   t, a1, b7
++                adcs    u9, u9, t
++                umulh   t, a1, b8
++                adc     u10, u10, t
++
++                stp     u0, u1, [z]
++
++// Row 2 = [u11;...;u0] = [a2;a1;a0] * [b8;...;b0]
++
++                ldp     a2, a3, [x, #16]
++
++                mul     t, a2, b0
++                adds    u2, u2, t
++                mul     t, a2, b1
++                adcs    u3, u3, t
++                mul     t, a2, b2
++                adcs    u4, u4, t
++                mul     t, a2, b3
++                adcs    u5, u5, t
++                mul     t, a2, b4
++                adcs    u6, u6, t
++                mul     t, a2, b5
++                adcs    u7, u7, t
++                mul     t, a2, b6
++                adcs    u8, u8, t
++                mul     t, a2, b7
++                adcs    u9, u9, t
++                mul     t, a2, b8
++                adcs    u10, u10, t
++                cset    u11, cs
++
++                umulh   t, a2, b0
++                adds    u3, u3, t
++                umulh   t, a2, b1
++                adcs    u4, u4, t
++                umulh   t, a2, b2
++                adcs    u5, u5, t
++                umulh   t, a2, b3
++                adcs    u6, u6, t
++                umulh   t, a2, b4
++                adcs    u7, u7, t
++                umulh   t, a2, b5
++                adcs    u8, u8, t
++                umulh   t, a2, b6
++                adcs    u9, u9, t
++                umulh   t, a2, b7
++                adcs    u10, u10, t
++                umulh   t, a2, b8
++                adc     u11, u11, t
++
++// Row 3 = [u12;...;u0] = [a3;a2;a1;a0] * [b8;...;b0]
++
++                mul     t, a3, b0
++                adds    u3, u3, t
++                mul     t, a3, b1
++                adcs    u4, u4, t
++                mul     t, a3, b2
++                adcs    u5, u5, t
++                mul     t, a3, b3
++                adcs    u6, u6, t
++                mul     t, a3, b4
++                adcs    u7, u7, t
++                mul     t, a3, b5
++                adcs    u8, u8, t
++                mul     t, a3, b6
++                adcs    u9, u9, t
++                mul     t, a3, b7
++                adcs    u10, u10, t
++                mul     t, a3, b8
++                adcs    u11, u11, t
++                cset    u12, cs
++
++                umulh   t, a3, b0
++                adds    u4, u4, t
++                umulh   t, a3, b1
++                adcs    u5, u5, t
++                umulh   t, a3, b2
++                adcs    u6, u6, t
++                umulh   t, a3, b3
++                adcs    u7, u7, t
++                umulh   t, a3, b4
++                adcs    u8, u8, t
++                umulh   t, a3, b5
++                adcs    u9, u9, t
++                umulh   t, a3, b6
++                adcs    u10, u10, t
++                umulh   t, a3, b7
++                adcs    u11, u11, t
++                umulh   t, a3, b8
++                adc     u12, u12, t
++
++                stp     u2, u3, [z, #16]
++
++// Row 4 = [u13;...;u0] = [a4;a3;a2;a1;a0] * [b8;...;b0]
++
++                ldp     a4, a5, [x, #32]
++
++                mul     t, a4, b0
++                adds    u4, u4, t
++                mul     t, a4, b1
++                adcs    u5, u5, t
++                mul     t, a4, b2
++                adcs    u6, u6, t
++                mul     t, a4, b3
++                adcs    u7, u7, t
++                mul     t, a4, b4
++                adcs    u8, u8, t
++                mul     t, a4, b5
++                adcs    u9, u9, t
++                mul     t, a4, b6
++                adcs    u10, u10, t
++                mul     t, a4, b7
++                adcs    u11, u11, t
++                mul     t, a4, b8
++                adcs    u12, u12, t
++                cset    u13, cs
++
++                umulh   t, a4, b0
++                adds    u5, u5, t
++                umulh   t, a4, b1
++                adcs    u6, u6, t
++                umulh   t, a4, b2
++                adcs    u7, u7, t
++                umulh   t, a4, b3
++                adcs    u8, u8, t
++                umulh   t, a4, b4
++                adcs    u9, u9, t
++                umulh   t, a4, b5
++                adcs    u10, u10, t
++                umulh   t, a4, b6
++                adcs    u11, u11, t
++                umulh   t, a4, b7
++                adcs    u12, u12, t
++                umulh   t, a4, b8
++                adc     u13, u13, t
++
++// Row 5 = [u14;...;u0] = [a5;a4;a3;a2;a1;a0] * [b8;...;b0]
++
++                mul     t, a5, b0
++                adds    u5, u5, t
++                mul     t, a5, b1
++                adcs    u6, u6, t
++                mul     t, a5, b2
++                adcs    u7, u7, t
++                mul     t, a5, b3
++                adcs    u8, u8, t
++                mul     t, a5, b4
++                adcs    u9, u9, t
++                mul     t, a5, b5
++                adcs    u10, u10, t
++                mul     t, a5, b6
++                adcs    u11, u11, t
++                mul     t, a5, b7
++                adcs    u12, u12, t
++                mul     t, a5, b8
++                adcs    u13, u13, t
++                cset    u14, cs
++
++                umulh   t, a5, b0
++                adds    u6, u6, t
++                umulh   t, a5, b1
++                adcs    u7, u7, t
++                umulh   t, a5, b2
++                adcs    u8, u8, t
++                umulh   t, a5, b3
++                adcs    u9, u9, t
++                umulh   t, a5, b4
++                adcs    u10, u10, t
++                umulh   t, a5, b5
++                adcs    u11, u11, t
++                umulh   t, a5, b6
++                adcs    u12, u12, t
++                umulh   t, a5, b7
++                adcs    u13, u13, t
++                umulh   t, a5, b8
++                adc     u14, u14, t
++
++                stp     u4, u5, [z, #32]
++
++// Row 6 = [u15;...;u0] = [a6;a5;a4;a3;a2;a1;a0] * [b8;...;b0]
++
++                ldp     a6, a7, [x, #48]
++
++                mul     t, a6, b0
++                adds    u6, u6, t
++                mul     t, a6, b1
++                adcs    u7, u7, t
++                mul     t, a6, b2
++                adcs    u8, u8, t
++                mul     t, a6, b3
++                adcs    u9, u9, t
++                mul     t, a6, b4
++                adcs    u10, u10, t
++                mul     t, a6, b5
++                adcs    u11, u11, t
++                mul     t, a6, b6
++                adcs    u12, u12, t
++                mul     t, a6, b7
++                adcs    u13, u13, t
++                mul     t, a6, b8
++                adcs    u14, u14, t
++                cset    u15, cs
++
++                umulh   t, a6, b0
++                adds    u7, u7, t
++                umulh   t, a6, b1
++                adcs    u8, u8, t
++                umulh   t, a6, b2
++                adcs    u9, u9, t
++                umulh   t, a6, b3
++                adcs    u10, u10, t
++                umulh   t, a6, b4
++                adcs    u11, u11, t
++                umulh   t, a6, b5
++                adcs    u12, u12, t
++                umulh   t, a6, b6
++                adcs    u13, u13, t
++                umulh   t, a6, b7
++                adcs    u14, u14, t
++                umulh   t, a6, b8
++                adc     u15, u15, t
++
++// Row 7 = [u16;...;u0] = [a7;a6;a5;a4;a3;a2;a1;a0] * [b8;...;b0]
++
++                mul     t, a7, b0
++                adds    u7, u7, t
++                mul     t, a7, b1
++                adcs    u8, u8, t
++                mul     t, a7, b2
++                adcs    u9, u9, t
++                mul     t, a7, b3
++                adcs    u10, u10, t
++                mul     t, a7, b4
++                adcs    u11, u11, t
++                mul     t, a7, b5
++                adcs    u12, u12, t
++                mul     t, a7, b6
++                adcs    u13, u13, t
++                mul     t, a7, b7
++                adcs    u14, u14, t
++                mul     t, a7, b8
++                adcs    u15, u15, t
++                cset    u16, cs
++
++                umulh   t, a7, b0
++                adds    u8, u8, t
++                umulh   t, a7, b1
++                adcs    u9, u9, t
++                umulh   t, a7, b2
++                adcs    u10, u10, t
++                umulh   t, a7, b3
++                adcs    u11, u11, t
++                umulh   t, a7, b4
++                adcs    u12, u12, t
++                umulh   t, a7, b5
++                adcs    u13, u13, t
++                umulh   t, a7, b6
++                adcs    u14, u14, t
++                umulh   t, a7, b7
++                adcs    u15, u15, t
++                umulh   t, a7, b8
++                adc     u16, u16, t
++
++                stp     u6, u7, [z, #48]
++
++// Row 8 = [u16;...;u0] = [a8;a7;a6;a5;a4;a3;a2;a1;a0] * [b8;...;b0]
++
++                ldr     a8, [x, #64]
++
++                mul     t, a8, b0
++                adds    u8, u8, t
++                mul     t, a8, b1
++                adcs    u9, u9, t
++                mul     t, a8, b2
++                adcs    u10, u10, t
++                mul     t, a8, b3
++                adcs    u11, u11, t
++                mul     t, a8, b4
++                adcs    u12, u12, t
++                mul     t, a8, b5
++                adcs    u13, u13, t
++                mul     t, a8, b6
++                adcs    u14, u14, t
++                mul     t, a8, b7
++                adcs    u15, u15, t
++                mul     t, a8, b8
++                adc     u16, u16, t
++
++                umulh   t, a8, b0
++                adds    u9, u9, t
++                umulh   t, a8, b1
++                adcs    u10, u10, t
++                umulh   t, a8, b2
++                adcs    u11, u11, t
++                umulh   t, a8, b3
++                adcs    u12, u12, t
++                umulh   t, a8, b4
++                adcs    u13, u13, t
++                umulh   t, a8, b5
++                adcs    u14, u14, t
++                umulh   t, a8, b6
++                adcs    u15, u15, t
++                umulh   t, a8, b7
++                adc     u16, u16, t
++
++// Now we have the full product, which we consider as
++// 2^521 * h + l. Form h + l + 1
++
++                subs    xzr, xzr, xzr
++                ldp     b0, b1, [z]
++                extr    t, u9, u8, #9
++                adcs    b0, b0, t
++                extr    t, u10, u9, #9
++                adcs    b1, b1, t
++                ldp     b2, b3, [z, #16]
++                extr    t, u11, u10, #9
++                adcs    b2, b2, t
++                extr    t, u12, u11, #9
++                adcs    b3, b3, t
++                ldp     b4, b5, [z, #32]
++                extr    t, u13, u12, #9
++                adcs    b4, b4, t
++                extr    t, u14, u13, #9
++                adcs    b5, b5, t
++                ldp     b6, b7, [z, #48]
++                extr    t, u15, u14, #9
++                adcs    b6, b6, t
++                extr    t, u16, u15, #9
++                adcs    b7, b7, t
++                orr     b8, u8, #~0x1FF
++                lsr     t, u16, #9
++                adcs    b8, b8, t
++
++// Now CF is set if h + l + 1 >= 2^521, which means it's already
++// the answer, while if ~CF the answer is h + l so we should subtract
++// 1 (all considered in 521 bits). Hence subtract ~CF and mask.
++
++                sbcs    b0, b0, xzr
++                sbcs    b1, b1, xzr
++                sbcs    b2, b2, xzr
++                sbcs    b3, b3, xzr
++                sbcs    b4, b4, xzr
++                sbcs    b5, b5, xzr
++                sbcs    b6, b6, xzr
++                sbcs    b7, b7, xzr
++                sbc     b8, b8, xzr
++                and     b8, b8, #0x1FF
++
++// So far, this has been the same as a pure modular multiplication.
++// Now finally the Montgomery ingredient, which is just a 521-bit
++// rotation by 9*64 - 521 = 55 bits right.
++
++                lsl     t, b0, #9
++                extr    b0, b1, b0, #55
++                extr    b1, b2, b1, #55
++                extr    b2, b3, b2, #55
++                extr    b3, b4, b3, #55
++                orr     b8, b8, t
++                extr    b4, b5, b4, #55
++                extr    b5, b6, b5, #55
++                extr    b6, b7, b6, #55
++                extr    b7, b8, b7, #55
++                lsr     b8, b8, #55
++
++// Store back digits of final result
++
++                stp     b0, b1, [z]
++                stp     b2, b3, [z, #16]
++                stp     b4, b5, [z, #32]
++                stp     b6, b7, [z, #48]
++                str     b8, [z, #64]
++
++// Restore registers
++
++                ldp     x25, x26, [sp], #16
++                ldp     x23, x24, [sp], #16
++                ldp     x21, x22, [sp], #16
++                ldp     x19, x20, [sp], #16
++
++                ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p521/bignum_montsqr_p521_alt.S b/arm/p521/bignum_montsqr_p521_alt.S
+new file mode 100644
+index 000000000..e08b6a4cf
+--- /dev/null
++++ b/arm/p521/bignum_montsqr_p521_alt.S
+@@ -0,0 +1,394 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Montgomery square, z := (x^2 / 2^576) mod p_521
++// Input x[9]; output z[9]
++//
++//    extern void bignum_montsqr_p521_alt
++//     (uint64_t z[static 9], uint64_t x[static 9]);
++//
++// Does z := (x^2 / 2^576) mod p_521, assuming x < p_521. This means the
++// Montgomery base is the "native size" 2^{9*64} = 2^576; since p_521 is
++// a Mersenne prime the basic modular squaring bignum_sqr_p521 can be
++// considered a Montgomery operation to base 2^521.
++//
++// Standard ARM ABI: X0 = z, X1 = x
++// ----------------------------------------------------------------------------
++
++        .globl  bignum_montsqr_p521_alt
++        .text
++        .balign 4
++
++#define z x0
++#define x x1
++
++#define a0 x2
++#define a1 x3
++#define a2 x4
++#define a3 x5
++#define a4 x6
++#define a5 x7
++#define a6 x8
++#define a7 x9
++#define a8 x1 // Overwrites input argument at last load
++
++#define l x10
++
++#define u0 x11
++#define u1 x12
++#define u2 x13
++#define u3 x14
++#define u4 x15
++#define u5 x16
++#define u6 x17
++#define u7 x19
++#define u8 x20
++#define u9 x21
++#define u10 x22
++#define u11 x23
++#define u12 x24
++#define u13 x25
++#define u14 x26
++#define u15 x27
++#define u16 x29
++
++bignum_montsqr_p521_alt:
++
++// It's convenient to have more registers to play with
++
++                stp     x19, x20, [sp, #-16]!
++                stp     x21, x22, [sp, #-16]!
++                stp     x23, x24, [sp, #-16]!
++                stp     x25, x26, [sp, #-16]!
++                stp     x27, x29, [sp, #-16]!
++
++// Load low 8 elements as [a7;a6;a5;a4;a3;a2;a1;a0], set up an initial
++// window [u8;u7;u6;u5;u4;u3;u2;u1] =  10 + 20 + 30 + 40 + 50 + 60 + 70
++
++                ldp     a0, a1, [x]
++
++                mul     u1, a0, a1
++                umulh   u2, a0, a1
++
++                ldp     a2, a3, [x, #16]
++
++                mul     l, a0, a2
++                umulh   u3, a0, a2
++                adds    u2, u2, l
++
++                ldp     a4, a5, [x, #32]
++
++                mul     l, a0, a3
++                umulh   u4, a0, a3
++                adcs    u3, u3, l
++
++                ldp     a6, a7, [x, #48]
++
++                mul     l, a0, a4
++                umulh   u5, a0, a4
++                adcs    u4, u4, l
++
++                mul     l, a0, a5
++                umulh   u6, a0, a5
++                adcs    u5, u5, l
++
++                mul     l, a0, a6
++                umulh   u7, a0, a6
++                adcs    u6, u6, l
++
++                mul     l, a0, a7
++                umulh   u8, a0, a7
++                adcs    u7, u7, l
++
++                adc     u8, u8, xzr
++
++// Add in the next diagonal = 21 + 31 + 41 + 51 + 61 + 71 + 54
++
++                mul     l, a1, a2
++                adds    u3, u3, l
++                mul     l, a1, a3
++                adcs    u4, u4, l
++                mul     l, a1, a4
++                adcs    u5, u5, l
++                mul     l, a1, a5
++                adcs    u6, u6, l
++                mul     l, a1, a6
++                adcs    u7, u7, l
++                mul     l, a1, a7
++                adcs    u8, u8, l
++                cset    u9, cs
++
++                umulh   l, a1, a2
++                adds    u4, u4, l
++                umulh   l, a1, a3
++                adcs    u5, u5, l
++                umulh   l, a1, a4
++                adcs    u6, u6, l
++                umulh   l, a1, a5
++                adcs    u7, u7, l
++                umulh   l, a1, a6
++                adcs    u8, u8, l
++                umulh   l, a1, a7
++                adc     u9, u9, l
++                mul     l, a4, a5
++                umulh   u10, a4, a5
++                adds    u9, u9, l
++                adc     u10, u10, xzr
++
++// And the next one = 32 + 42 + 52 + 62 + 72 + 64 + 65
++
++                mul     l, a2, a3
++                adds    u5, u5, l
++                mul     l, a2, a4
++                adcs    u6, u6, l
++                mul     l, a2, a5
++                adcs    u7, u7, l
++                mul     l, a2, a6
++                adcs    u8, u8, l
++                mul     l, a2, a7
++                adcs    u9, u9, l
++                mul     l, a4, a6
++                adcs    u10, u10, l
++                cset    u11, cs
++
++                umulh   l, a2, a3
++                adds    u6, u6, l
++                umulh   l, a2, a4
++                adcs    u7, u7, l
++                umulh   l, a2, a5
++                adcs    u8, u8, l
++                umulh   l, a2, a6
++                adcs    u9, u9, l
++                umulh   l, a2, a7
++                adcs    u10, u10, l
++                umulh   l, a4, a6
++                adc     u11, u11, l
++                mul     l, a5, a6
++                umulh   u12, a5, a6
++                adds    u11, u11, l
++                adc     u12, u12, xzr
++
++// And the final one = 43 + 53 + 63 + 73 + 74 + 75 + 76
++
++                mul     l, a3, a4
++                adds    u7, u7, l
++                mul     l, a3, a5
++                adcs    u8, u8, l
++                mul     l, a3, a6
++                adcs    u9, u9, l
++                mul     l, a3, a7
++                adcs    u10, u10, l
++                mul     l, a4, a7
++                adcs    u11, u11, l
++                mul     l, a5, a7
++                adcs    u12, u12, l
++                cset    u13, cs
++
++                umulh   l, a3, a4
++                adds    u8, u8, l
++                umulh   l, a3, a5
++                adcs    u9, u9, l
++                umulh   l, a3, a6
++                adcs    u10, u10, l
++                umulh   l, a3, a7
++                adcs    u11, u11, l
++                umulh   l, a4, a7
++                adcs    u12, u12, l
++                umulh   l, a5, a7
++                adc     u13, u13, l
++                mul     l, a6, a7
++                umulh   u14, a6, a7
++                adds    u13, u13, l
++                adc     u14, u14, xzr
++
++// Double that, with u15 holding the top carry
++
++                adds    u1, u1, u1
++                adcs    u2, u2, u2
++                adcs    u3, u3, u3
++                adcs    u4, u4, u4
++                adcs    u5, u5, u5
++                adcs    u6, u6, u6
++                adcs    u7, u7, u7
++                adcs    u8, u8, u8
++                adcs    u9, u9, u9
++                adcs    u10, u10, u10
++                adcs    u11, u11, u11
++                adcs    u12, u12, u12
++                adcs    u13, u13, u13
++                adcs    u14, u14, u14
++                cset    u15, cs
++
++// Add the homogeneous terms 00 + 11 + 22 + 33 + 44 + 55 + 66 + 77
++
++                umulh   l, a0, a0
++                mul     u0, a0, a0
++                adds    u1, u1, l
++
++                mul     l, a1, a1
++                adcs    u2, u2, l
++                umulh   l, a1, a1
++                adcs    u3, u3, l
++
++                mul     l, a2, a2
++                adcs    u4, u4, l
++                umulh   l, a2, a2
++                adcs    u5, u5, l
++
++                mul     l, a3, a3
++                adcs    u6, u6, l
++                umulh   l, a3, a3
++                adcs    u7, u7, l
++
++                mul     l, a4, a4
++                adcs    u8, u8, l
++                umulh   l, a4, a4
++                adcs    u9, u9, l
++
++                mul     l, a5, a5
++                adcs    u10, u10, l
++                umulh   l, a5, a5
++                adcs    u11, u11, l
++
++                mul     l, a6, a6
++                adcs    u12, u12, l
++                umulh   l, a6, a6
++                adcs    u13, u13, l
++
++                mul     l, a7, a7
++                adcs    u14, u14, l
++                umulh   l, a7, a7
++                adc     u15, u15, l
++
++// Now load in the top digit a8, and also set up its double and square
++
++                ldr     a8, [x, #64]
++                mul     u16, a8, a8
++                add     a8, a8, a8
++
++// Add a8 * [a7;...;a0] into the top of the buffer
++
++                mul     l, a8, a0
++                adds    u8, u8, l
++                mul     l, a8, a1
++                adcs    u9, u9, l
++                mul     l, a8, a2
++                adcs    u10, u10, l
++                mul     l, a8, a3
++                adcs    u11, u11, l
++                mul     l, a8, a4
++                adcs    u12, u12, l
++                mul     l, a8, a5
++                adcs    u13, u13, l
++                mul     l, a8, a6
++                adcs    u14, u14, l
++                mul     l, a8, a7
++                adcs    u15, u15, l
++                adc     u16, u16, xzr
++
++                umulh   l, a8, a0
++                adds    u9, u9, l
++                umulh   l, a8, a1
++                adcs    u10, u10, l
++                umulh   l, a8, a2
++                adcs    u11, u11, l
++                umulh   l, a8, a3
++                adcs    u12, u12, l
++                umulh   l, a8, a4
++                adcs    u13, u13, l
++                umulh   l, a8, a5
++                adcs    u14, u14, l
++                umulh   l, a8, a6
++                adcs    u15, u15, l
++                umulh   l, a8, a7
++                adc     u16, u16, l
++
++// Now we have the full product, which we consider as
++// 2^521 * h + l. Form h + l + 1
++
++                subs    xzr, xzr, xzr
++                extr    l, u9, u8, #9
++                adcs    u0, u0, l
++                extr    l, u10, u9, #9
++                adcs    u1, u1, l
++                extr    l, u11, u10, #9
++                adcs    u2, u2, l
++                extr    l, u12, u11, #9
++                adcs    u3, u3, l
++                extr    l, u13, u12, #9
++                adcs    u4, u4, l
++                extr    l, u14, u13, #9
++                adcs    u5, u5, l
++                extr    l, u15, u14, #9
++                adcs    u6, u6, l
++                extr    l, u16, u15, #9
++                adcs    u7, u7, l
++                orr     u8, u8, #~0x1FF
++                lsr     l, u16, #9
++                adcs    u8, u8, l
++
++// Now CF is set if h + l + 1 >= 2^521, which means it's already
++// the answer, while if ~CF the answer is h + l so we should subtract
++// 1 (all considered in 521 bits). Hence subtract ~CF and mask.
++
++                sbcs    u0, u0, xzr
++                sbcs    u1, u1, xzr
++                sbcs    u2, u2, xzr
++                sbcs    u3, u3, xzr
++                sbcs    u4, u4, xzr
++                sbcs    u5, u5, xzr
++                sbcs    u6, u6, xzr
++                sbcs    u7, u7, xzr
++                sbc     u8, u8, xzr
++                and     u8, u8, #0x1FF
++
++// So far, this has been the same as a pure modular squaring
++// Now finally the Montgomery ingredient, which is just a 521-bit
++// rotation by 9*64 - 521 = 55 bits right.
++
++                lsl     l, u0, #9
++                extr    u0, u1, u0, #55
++                extr    u1, u2, u1, #55
++                extr    u2, u3, u2, #55
++                extr    u3, u4, u3, #55
++                orr     u8, u8, l
++                extr    u4, u5, u4, #55
++                extr    u5, u6, u5, #55
++                extr    u6, u7, u6, #55
++                extr    u7, u8, u7, #55
++                lsr     u8, u8, #55
++
++// Store back digits of final result
++
++                stp     u0, u1, [z]
++                stp     u2, u3, [z, #16]
++                stp     u4, u5, [z, #32]
++                stp     u6, u7, [z, #48]
++                str     u8, [z, #64]
++
++// Restore registers and return
++
++                ldp     x27, x29, [sp], #16
++                ldp     x25, x26, [sp], #16
++                ldp     x23, x24, [sp], #16
++                ldp     x21, x22, [sp], #16
++                ldp     x19, x20, [sp], #16
++
++                ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p521/bignum_mul_p521_alt.S b/arm/p521/bignum_mul_p521_alt.S
+new file mode 100644
+index 000000000..10c3f3700
+--- /dev/null
++++ b/arm/p521/bignum_mul_p521_alt.S
+@@ -0,0 +1,540 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Multiply modulo p_521, z := (x * y) mod p_521, assuming x and y reduced
++// Inputs x[9], y[9]; output z[9]
++//
++//    extern void bignum_mul_p521_alt
++//     (uint64_t z[static 9], uint64_t x[static 9], uint64_t y[static 9]);
++//
++// Standard ARM ABI: X0 = z, X1 = x, X2 = y
++// ----------------------------------------------------------------------------
++
++        .globl  bignum_mul_p521_alt
++        .text
++        .balign 4
++
++#define z x0
++#define x x1
++#define y x2
++
++// These are repeated mod 2 as we load paris of inputs
++
++#define a0 x3
++#define a1 x4
++#define a2 x3
++#define a3 x4
++#define a4 x3
++#define a5 x4
++#define a6 x3
++#define a7 x4
++#define a8 x3
++
++#define b0 x5
++#define b1 x6
++#define b2 x7
++#define b3 x8
++#define b4 x9
++#define b5 x10
++#define b6 x11
++#define b7 x12
++#define b8 x13
++
++#define t x14
++
++// These repeat mod 11 as we stash some intermediate results in the
++// output buffer.
++
++#define u0 x15
++#define u1 x16
++#define u2 x17
++#define u3 x19
++#define u4 x20
++#define u5 x21
++#define u6 x22
++#define u7 x23
++#define u8 x24
++#define u9 x25
++#define u10 x26
++#define u11 x15
++#define u12 x16
++#define u13 x17
++#define u14 x19
++#define u15 x20
++#define u16 x21
++
++bignum_mul_p521_alt:
++
++// Save more registers
++
++                stp     x19, x20, [sp, #-16]!
++                stp     x21, x22, [sp, #-16]!
++                stp     x23, x24, [sp, #-16]!
++                stp     x25, x26, [sp, #-16]!
++
++// Load operands and set up row 0 = [u9;...;u0] = a0 * [b8;...;b0]
++
++                ldp     a0, a1, [x]
++                ldp     b0, b1, [y]
++
++                mul     u0, a0, b0
++                umulh   u1, a0, b0
++                mul     t, a0, b1
++                umulh   u2, a0, b1
++                adds    u1, u1, t
++
++                ldp     b2, b3, [y, #16]
++
++                mul     t, a0, b2
++                umulh   u3, a0, b2
++                adcs    u2, u2, t
++
++                mul     t, a0, b3
++                umulh   u4, a0, b3
++                adcs    u3, u3, t
++
++                ldp     b4, b5, [y, #32]
++
++                mul     t, a0, b4
++                umulh   u5, a0, b4
++                adcs    u4, u4, t
++
++                mul     t, a0, b5
++                umulh   u6, a0, b5
++                adcs    u5, u5, t
++
++                ldp     b6, b7, [y, #48]
++
++                mul     t, a0, b6
++                umulh   u7, a0, b6
++                adcs    u6, u6, t
++
++                ldr     b8, [y, #64]
++
++                mul     t, a0, b7
++                umulh   u8, a0, b7
++                adcs    u7, u7, t
++
++                mul     t, a0, b8
++                umulh   u9, a0, b8
++                adcs    u8, u8, t
++
++                adc     u9, u9, xzr
++
++// Row 1 = [u10;...;u0] = [a1;a0] * [b8;...;b0]
++
++                mul     t, a1, b0
++                adds    u1, u1, t
++                mul     t, a1, b1
++                adcs    u2, u2, t
++                mul     t, a1, b2
++                adcs    u3, u3, t
++                mul     t, a1, b3
++                adcs    u4, u4, t
++                mul     t, a1, b4
++                adcs    u5, u5, t
++                mul     t, a1, b5
++                adcs    u6, u6, t
++                mul     t, a1, b6
++                adcs    u7, u7, t
++                mul     t, a1, b7
++                adcs    u8, u8, t
++                mul     t, a1, b8
++                adcs    u9, u9, t
++                cset    u10, cs
++
++                umulh   t, a1, b0
++                adds    u2, u2, t
++                umulh   t, a1, b1
++                adcs    u3, u3, t
++                umulh   t, a1, b2
++                adcs    u4, u4, t
++                umulh   t, a1, b3
++                adcs    u5, u5, t
++                umulh   t, a1, b4
++                adcs    u6, u6, t
++                umulh   t, a1, b5
++                adcs    u7, u7, t
++                umulh   t, a1, b6
++                adcs    u8, u8, t
++                umulh   t, a1, b7
++                adcs    u9, u9, t
++                umulh   t, a1, b8
++                adc     u10, u10, t
++
++                stp     u0, u1, [z]
++
++// Row 2 = [u11;...;u0] = [a2;a1;a0] * [b8;...;b0]
++
++                ldp     a2, a3, [x, #16]
++
++                mul     t, a2, b0
++                adds    u2, u2, t
++                mul     t, a2, b1
++                adcs    u3, u3, t
++                mul     t, a2, b2
++                adcs    u4, u4, t
++                mul     t, a2, b3
++                adcs    u5, u5, t
++                mul     t, a2, b4
++                adcs    u6, u6, t
++                mul     t, a2, b5
++                adcs    u7, u7, t
++                mul     t, a2, b6
++                adcs    u8, u8, t
++                mul     t, a2, b7
++                adcs    u9, u9, t
++                mul     t, a2, b8
++                adcs    u10, u10, t
++                cset    u11, cs
++
++                umulh   t, a2, b0
++                adds    u3, u3, t
++                umulh   t, a2, b1
++                adcs    u4, u4, t
++                umulh   t, a2, b2
++                adcs    u5, u5, t
++                umulh   t, a2, b3
++                adcs    u6, u6, t
++                umulh   t, a2, b4
++                adcs    u7, u7, t
++                umulh   t, a2, b5
++                adcs    u8, u8, t
++                umulh   t, a2, b6
++                adcs    u9, u9, t
++                umulh   t, a2, b7
++                adcs    u10, u10, t
++                umulh   t, a2, b8
++                adc     u11, u11, t
++
++// Row 3 = [u12;...;u0] = [a3;a2;a1;a0] * [b8;...;b0]
++
++                mul     t, a3, b0
++                adds    u3, u3, t
++                mul     t, a3, b1
++                adcs    u4, u4, t
++                mul     t, a3, b2
++                adcs    u5, u5, t
++                mul     t, a3, b3
++                adcs    u6, u6, t
++                mul     t, a3, b4
++                adcs    u7, u7, t
++                mul     t, a3, b5
++                adcs    u8, u8, t
++                mul     t, a3, b6
++                adcs    u9, u9, t
++                mul     t, a3, b7
++                adcs    u10, u10, t
++                mul     t, a3, b8
++                adcs    u11, u11, t
++                cset    u12, cs
++
++                umulh   t, a3, b0
++                adds    u4, u4, t
++                umulh   t, a3, b1
++                adcs    u5, u5, t
++                umulh   t, a3, b2
++                adcs    u6, u6, t
++                umulh   t, a3, b3
++                adcs    u7, u7, t
++                umulh   t, a3, b4
++                adcs    u8, u8, t
++                umulh   t, a3, b5
++                adcs    u9, u9, t
++                umulh   t, a3, b6
++                adcs    u10, u10, t
++                umulh   t, a3, b7
++                adcs    u11, u11, t
++                umulh   t, a3, b8
++                adc     u12, u12, t
++
++                stp     u2, u3, [z, #16]
++
++// Row 4 = [u13;...;u0] = [a4;a3;a2;a1;a0] * [b8;...;b0]
++
++                ldp     a4, a5, [x, #32]
++
++                mul     t, a4, b0
++                adds    u4, u4, t
++                mul     t, a4, b1
++                adcs    u5, u5, t
++                mul     t, a4, b2
++                adcs    u6, u6, t
++                mul     t, a4, b3
++                adcs    u7, u7, t
++                mul     t, a4, b4
++                adcs    u8, u8, t
++                mul     t, a4, b5
++                adcs    u9, u9, t
++                mul     t, a4, b6
++                adcs    u10, u10, t
++                mul     t, a4, b7
++                adcs    u11, u11, t
++                mul     t, a4, b8
++                adcs    u12, u12, t
++                cset    u13, cs
++
++                umulh   t, a4, b0
++                adds    u5, u5, t
++                umulh   t, a4, b1
++                adcs    u6, u6, t
++                umulh   t, a4, b2
++                adcs    u7, u7, t
++                umulh   t, a4, b3
++                adcs    u8, u8, t
++                umulh   t, a4, b4
++                adcs    u9, u9, t
++                umulh   t, a4, b5
++                adcs    u10, u10, t
++                umulh   t, a4, b6
++                adcs    u11, u11, t
++                umulh   t, a4, b7
++                adcs    u12, u12, t
++                umulh   t, a4, b8
++                adc     u13, u13, t
++
++// Row 5 = [u14;...;u0] = [a5;a4;a3;a2;a1;a0] * [b8;...;b0]
++
++                mul     t, a5, b0
++                adds    u5, u5, t
++                mul     t, a5, b1
++                adcs    u6, u6, t
++                mul     t, a5, b2
++                adcs    u7, u7, t
++                mul     t, a5, b3
++                adcs    u8, u8, t
++                mul     t, a5, b4
++                adcs    u9, u9, t
++                mul     t, a5, b5
++                adcs    u10, u10, t
++                mul     t, a5, b6
++                adcs    u11, u11, t
++                mul     t, a5, b7
++                adcs    u12, u12, t
++                mul     t, a5, b8
++                adcs    u13, u13, t
++                cset    u14, cs
++
++                umulh   t, a5, b0
++                adds    u6, u6, t
++                umulh   t, a5, b1
++                adcs    u7, u7, t
++                umulh   t, a5, b2
++                adcs    u8, u8, t
++                umulh   t, a5, b3
++                adcs    u9, u9, t
++                umulh   t, a5, b4
++                adcs    u10, u10, t
++                umulh   t, a5, b5
++                adcs    u11, u11, t
++                umulh   t, a5, b6
++                adcs    u12, u12, t
++                umulh   t, a5, b7
++                adcs    u13, u13, t
++                umulh   t, a5, b8
++                adc     u14, u14, t
++
++                stp     u4, u5, [z, #32]
++
++// Row 6 = [u15;...;u0] = [a6;a5;a4;a3;a2;a1;a0] * [b8;...;b0]
++
++                ldp     a6, a7, [x, #48]
++
++                mul     t, a6, b0
++                adds    u6, u6, t
++                mul     t, a6, b1
++                adcs    u7, u7, t
++                mul     t, a6, b2
++                adcs    u8, u8, t
++                mul     t, a6, b3
++                adcs    u9, u9, t
++                mul     t, a6, b4
++                adcs    u10, u10, t
++                mul     t, a6, b5
++                adcs    u11, u11, t
++                mul     t, a6, b6
++                adcs    u12, u12, t
++                mul     t, a6, b7
++                adcs    u13, u13, t
++                mul     t, a6, b8
++                adcs    u14, u14, t
++                cset    u15, cs
++
++                umulh   t, a6, b0
++                adds    u7, u7, t
++                umulh   t, a6, b1
++                adcs    u8, u8, t
++                umulh   t, a6, b2
++                adcs    u9, u9, t
++                umulh   t, a6, b3
++                adcs    u10, u10, t
++                umulh   t, a6, b4
++                adcs    u11, u11, t
++                umulh   t, a6, b5
++                adcs    u12, u12, t
++                umulh   t, a6, b6
++                adcs    u13, u13, t
++                umulh   t, a6, b7
++                adcs    u14, u14, t
++                umulh   t, a6, b8
++                adc     u15, u15, t
++
++// Row 7 = [u16;...;u0] = [a7;a6;a5;a4;a3;a2;a1;a0] * [b8;...;b0]
++
++                mul     t, a7, b0
++                adds    u7, u7, t
++                mul     t, a7, b1
++                adcs    u8, u8, t
++                mul     t, a7, b2
++                adcs    u9, u9, t
++                mul     t, a7, b3
++                adcs    u10, u10, t
++                mul     t, a7, b4
++                adcs    u11, u11, t
++                mul     t, a7, b5
++                adcs    u12, u12, t
++                mul     t, a7, b6
++                adcs    u13, u13, t
++                mul     t, a7, b7
++                adcs    u14, u14, t
++                mul     t, a7, b8
++                adcs    u15, u15, t
++                cset    u16, cs
++
++                umulh   t, a7, b0
++                adds    u8, u8, t
++                umulh   t, a7, b1
++                adcs    u9, u9, t
++                umulh   t, a7, b2
++                adcs    u10, u10, t
++                umulh   t, a7, b3
++                adcs    u11, u11, t
++                umulh   t, a7, b4
++                adcs    u12, u12, t
++                umulh   t, a7, b5
++                adcs    u13, u13, t
++                umulh   t, a7, b6
++                adcs    u14, u14, t
++                umulh   t, a7, b7
++                adcs    u15, u15, t
++                umulh   t, a7, b8
++                adc     u16, u16, t
++
++                stp     u6, u7, [z, #48]
++
++// Row 8 = [u16;...;u0] = [a8;a7;a6;a5;a4;a3;a2;a1;a0] * [b8;...;b0]
++
++                ldr     a8, [x, #64]
++
++                mul     t, a8, b0
++                adds    u8, u8, t
++                mul     t, a8, b1
++                adcs    u9, u9, t
++                mul     t, a8, b2
++                adcs    u10, u10, t
++                mul     t, a8, b3
++                adcs    u11, u11, t
++                mul     t, a8, b4
++                adcs    u12, u12, t
++                mul     t, a8, b5
++                adcs    u13, u13, t
++                mul     t, a8, b6
++                adcs    u14, u14, t
++                mul     t, a8, b7
++                adcs    u15, u15, t
++                mul     t, a8, b8
++                adc     u16, u16, t
++
++                umulh   t, a8, b0
++                adds    u9, u9, t
++                umulh   t, a8, b1
++                adcs    u10, u10, t
++                umulh   t, a8, b2
++                adcs    u11, u11, t
++                umulh   t, a8, b3
++                adcs    u12, u12, t
++                umulh   t, a8, b4
++                adcs    u13, u13, t
++                umulh   t, a8, b5
++                adcs    u14, u14, t
++                umulh   t, a8, b6
++                adcs    u15, u15, t
++                umulh   t, a8, b7
++                adc     u16, u16, t
++
++// Now we have the full product, which we consider as
++// 2^521 * h + l. Form h + l + 1
++
++                subs    xzr, xzr, xzr
++                ldp     b0, b1, [z]
++                extr    t, u9, u8, #9
++                adcs    b0, b0, t
++                extr    t, u10, u9, #9
++                adcs    b1, b1, t
++                ldp     b2, b3, [z, #16]
++                extr    t, u11, u10, #9
++                adcs    b2, b2, t
++                extr    t, u12, u11, #9
++                adcs    b3, b3, t
++                ldp     b4, b5, [z, #32]
++                extr    t, u13, u12, #9
++                adcs    b4, b4, t
++                extr    t, u14, u13, #9
++                adcs    b5, b5, t
++                ldp     b6, b7, [z, #48]
++                extr    t, u15, u14, #9
++                adcs    b6, b6, t
++                extr    t, u16, u15, #9
++                adcs    b7, b7, t
++                orr     b8, u8, #~0x1FF
++                lsr     t, u16, #9
++                adcs    b8, b8, t
++
++// Now CF is set if h + l + 1 >= 2^521, which means it's already
++// the answer, while if ~CF the answer is h + l so we should subtract
++// 1 (all considered in 521 bits). Hence subtract ~CF and mask.
++
++                sbcs    b0, b0, xzr
++                sbcs    b1, b1, xzr
++                sbcs    b2, b2, xzr
++                sbcs    b3, b3, xzr
++                sbcs    b4, b4, xzr
++                sbcs    b5, b5, xzr
++                sbcs    b6, b6, xzr
++                sbcs    b7, b7, xzr
++                sbc     b8, b8, xzr
++                and     b8, b8, #0x1FF
++
++// Store back digits of final result
++
++                stp     b0, b1, [z]
++                stp     b2, b3, [z, #16]
++                stp     b4, b5, [z, #32]
++                stp     b6, b7, [z, #48]
++                str     b8, [z, #64]
++
++// Restore registers
++
++                ldp     x25, x26, [sp], #16
++                ldp     x23, x24, [sp], #16
++                ldp     x21, x22, [sp], #16
++                ldp     x19, x20, [sp], #16
++
++                ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/arm/p521/bignum_sqr_p521_alt.S b/arm/p521/bignum_sqr_p521_alt.S
+new file mode 100644
+index 000000000..d88c3da5a
+--- /dev/null
++++ b/arm/p521/bignum_sqr_p521_alt.S
+@@ -0,0 +1,372 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Square modulo p_521, z := (x^2) mod p_521, assuming x reduced
++// Input x[9]; output z[9]
++//
++//    extern void bignum_sqr_p521_alt (uint64_t z[static 9], uint64_t x[static 9]);
++//
++// Standard ARM ABI: X0 = z, X1 = x
++// ----------------------------------------------------------------------------
++
++        .globl  bignum_sqr_p521_alt
++        .text
++        .balign 4
++
++#define z x0
++#define x x1
++
++#define a0 x2
++#define a1 x3
++#define a2 x4
++#define a3 x5
++#define a4 x6
++#define a5 x7
++#define a6 x8
++#define a7 x9
++#define a8 x1 // Overwrites input argument at last load
++
++#define l x10
++
++#define u0 x11
++#define u1 x12
++#define u2 x13
++#define u3 x14
++#define u4 x15
++#define u5 x16
++#define u6 x17
++#define u7 x19
++#define u8 x20
++#define u9 x21
++#define u10 x22
++#define u11 x23
++#define u12 x24
++#define u13 x25
++#define u14 x26
++#define u15 x27
++#define u16 x29
++
++bignum_sqr_p521_alt:
++
++// It's convenient to have more registers to play with
++
++                stp     x19, x20, [sp, #-16]!
++                stp     x21, x22, [sp, #-16]!
++                stp     x23, x24, [sp, #-16]!
++                stp     x25, x26, [sp, #-16]!
++                stp     x27, x29, [sp, #-16]!
++
++// Load low 8 elements as [a7;a6;a5;a4;a3;a2;a1;a0], set up an initial
++// window [u8;u7;u6;u5;u4;u3;u2;u1] =  10 + 20 + 30 + 40 + 50 + 60 + 70
++
++                ldp     a0, a1, [x]
++
++                mul     u1, a0, a1
++                umulh   u2, a0, a1
++
++                ldp     a2, a3, [x, #16]
++
++                mul     l, a0, a2
++                umulh   u3, a0, a2
++                adds    u2, u2, l
++
++                ldp     a4, a5, [x, #32]
++
++                mul     l, a0, a3
++                umulh   u4, a0, a3
++                adcs    u3, u3, l
++
++                ldp     a6, a7, [x, #48]
++
++                mul     l, a0, a4
++                umulh   u5, a0, a4
++                adcs    u4, u4, l
++
++                mul     l, a0, a5
++                umulh   u6, a0, a5
++                adcs    u5, u5, l
++
++                mul     l, a0, a6
++                umulh   u7, a0, a6
++                adcs    u6, u6, l
++
++                mul     l, a0, a7
++                umulh   u8, a0, a7
++                adcs    u7, u7, l
++
++                adc     u8, u8, xzr
++
++// Add in the next diagonal = 21 + 31 + 41 + 51 + 61 + 71 + 54
++
++                mul     l, a1, a2
++                adds    u3, u3, l
++                mul     l, a1, a3
++                adcs    u4, u4, l
++                mul     l, a1, a4
++                adcs    u5, u5, l
++                mul     l, a1, a5
++                adcs    u6, u6, l
++                mul     l, a1, a6
++                adcs    u7, u7, l
++                mul     l, a1, a7
++                adcs    u8, u8, l
++                cset    u9, cs
++
++                umulh   l, a1, a2
++                adds    u4, u4, l
++                umulh   l, a1, a3
++                adcs    u5, u5, l
++                umulh   l, a1, a4
++                adcs    u6, u6, l
++                umulh   l, a1, a5
++                adcs    u7, u7, l
++                umulh   l, a1, a6
++                adcs    u8, u8, l
++                umulh   l, a1, a7
++                adc     u9, u9, l
++                mul     l, a4, a5
++                umulh   u10, a4, a5
++                adds    u9, u9, l
++                adc     u10, u10, xzr
++
++// And the next one = 32 + 42 + 52 + 62 + 72 + 64 + 65
++
++                mul     l, a2, a3
++                adds    u5, u5, l
++                mul     l, a2, a4
++                adcs    u6, u6, l
++                mul     l, a2, a5
++                adcs    u7, u7, l
++                mul     l, a2, a6
++                adcs    u8, u8, l
++                mul     l, a2, a7
++                adcs    u9, u9, l
++                mul     l, a4, a6
++                adcs    u10, u10, l
++                cset    u11, cs
++
++                umulh   l, a2, a3
++                adds    u6, u6, l
++                umulh   l, a2, a4
++                adcs    u7, u7, l
++                umulh   l, a2, a5
++                adcs    u8, u8, l
++                umulh   l, a2, a6
++                adcs    u9, u9, l
++                umulh   l, a2, a7
++                adcs    u10, u10, l
++                umulh   l, a4, a6
++                adc     u11, u11, l
++                mul     l, a5, a6
++                umulh   u12, a5, a6
++                adds    u11, u11, l
++                adc     u12, u12, xzr
++
++// And the final one = 43 + 53 + 63 + 73 + 74 + 75 + 76
++
++                mul     l, a3, a4
++                adds    u7, u7, l
++                mul     l, a3, a5
++                adcs    u8, u8, l
++                mul     l, a3, a6
++                adcs    u9, u9, l
++                mul     l, a3, a7
++                adcs    u10, u10, l
++                mul     l, a4, a7
++                adcs    u11, u11, l
++                mul     l, a5, a7
++                adcs    u12, u12, l
++                cset    u13, cs
++
++                umulh   l, a3, a4
++                adds    u8, u8, l
++                umulh   l, a3, a5
++                adcs    u9, u9, l
++                umulh   l, a3, a6
++                adcs    u10, u10, l
++                umulh   l, a3, a7
++                adcs    u11, u11, l
++                umulh   l, a4, a7
++                adcs    u12, u12, l
++                umulh   l, a5, a7
++                adc     u13, u13, l
++                mul     l, a6, a7
++                umulh   u14, a6, a7
++                adds    u13, u13, l
++                adc     u14, u14, xzr
++
++// Double that, with u15 holding the top carry
++
++                adds    u1, u1, u1
++                adcs    u2, u2, u2
++                adcs    u3, u3, u3
++                adcs    u4, u4, u4
++                adcs    u5, u5, u5
++                adcs    u6, u6, u6
++                adcs    u7, u7, u7
++                adcs    u8, u8, u8
++                adcs    u9, u9, u9
++                adcs    u10, u10, u10
++                adcs    u11, u11, u11
++                adcs    u12, u12, u12
++                adcs    u13, u13, u13
++                adcs    u14, u14, u14
++                cset    u15, cs
++
++// Add the homogeneous terms 00 + 11 + 22 + 33 + 44 + 55 + 66 + 77
++
++                umulh   l, a0, a0
++                mul     u0, a0, a0
++                adds    u1, u1, l
++
++                mul     l, a1, a1
++                adcs    u2, u2, l
++                umulh   l, a1, a1
++                adcs    u3, u3, l
++
++                mul     l, a2, a2
++                adcs    u4, u4, l
++                umulh   l, a2, a2
++                adcs    u5, u5, l
++
++                mul     l, a3, a3
++                adcs    u6, u6, l
++                umulh   l, a3, a3
++                adcs    u7, u7, l
++
++                mul     l, a4, a4
++                adcs    u8, u8, l
++                umulh   l, a4, a4
++                adcs    u9, u9, l
++
++                mul     l, a5, a5
++                adcs    u10, u10, l
++                umulh   l, a5, a5
++                adcs    u11, u11, l
++
++                mul     l, a6, a6
++                adcs    u12, u12, l
++                umulh   l, a6, a6
++                adcs    u13, u13, l
++
++                mul     l, a7, a7
++                adcs    u14, u14, l
++                umulh   l, a7, a7
++                adc     u15, u15, l
++
++// Now load in the top digit a8, and also set up its double and square
++
++                ldr     a8, [x, #64]
++                mul     u16, a8, a8
++                add     a8, a8, a8
++
++// Add a8 * [a7;...;a0] into the top of the buffer
++
++                mul     l, a8, a0
++                adds    u8, u8, l
++                mul     l, a8, a1
++                adcs    u9, u9, l
++                mul     l, a8, a2
++                adcs    u10, u10, l
++                mul     l, a8, a3
++                adcs    u11, u11, l
++                mul     l, a8, a4
++                adcs    u12, u12, l
++                mul     l, a8, a5
++                adcs    u13, u13, l
++                mul     l, a8, a6
++                adcs    u14, u14, l
++                mul     l, a8, a7
++                adcs    u15, u15, l
++                adc     u16, u16, xzr
++
++                umulh   l, a8, a0
++                adds    u9, u9, l
++                umulh   l, a8, a1
++                adcs    u10, u10, l
++                umulh   l, a8, a2
++                adcs    u11, u11, l
++                umulh   l, a8, a3
++                adcs    u12, u12, l
++                umulh   l, a8, a4
++                adcs    u13, u13, l
++                umulh   l, a8, a5
++                adcs    u14, u14, l
++                umulh   l, a8, a6
++                adcs    u15, u15, l
++                umulh   l, a8, a7
++                adc     u16, u16, l
++
++// Now we have the full product, which we consider as
++// 2^521 * h + l. Form h + l + 1
++
++                subs    xzr, xzr, xzr
++                extr    l, u9, u8, #9
++                adcs    u0, u0, l
++                extr    l, u10, u9, #9
++                adcs    u1, u1, l
++                extr    l, u11, u10, #9
++                adcs    u2, u2, l
++                extr    l, u12, u11, #9
++                adcs    u3, u3, l
++                extr    l, u13, u12, #9
++                adcs    u4, u4, l
++                extr    l, u14, u13, #9
++                adcs    u5, u5, l
++                extr    l, u15, u14, #9
++                adcs    u6, u6, l
++                extr    l, u16, u15, #9
++                adcs    u7, u7, l
++                orr     u8, u8, #~0x1FF
++                lsr     l, u16, #9
++                adcs    u8, u8, l
++
++// Now CF is set if h + l + 1 >= 2^521, which means it's already
++// the answer, while if ~CF the answer is h + l so we should subtract
++// 1 (all considered in 521 bits). Hence subtract ~CF and mask.
++
++                sbcs    u0, u0, xzr
++                sbcs    u1, u1, xzr
++                sbcs    u2, u2, xzr
++                sbcs    u3, u3, xzr
++                sbcs    u4, u4, xzr
++                sbcs    u5, u5, xzr
++                sbcs    u6, u6, xzr
++                sbcs    u7, u7, xzr
++                sbc     u8, u8, xzr
++                and     u8, u8, #0x1FF
++
++// Store back digits of final result
++
++                stp     u0, u1, [z]
++                stp     u2, u3, [z, #16]
++                stp     u4, u5, [z, #32]
++                stp     u6, u7, [z, #48]
++                str     u8, [z, #64]
++
++// Restore registers and return
++
++                ldp     x27, x29, [sp], #16
++                ldp     x25, x26, [sp], #16
++                ldp     x23, x24, [sp], #16
++                ldp     x21, x22, [sp], #16
++                ldp     x19, x20, [sp], #16
++
++                ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/x86_att/p521/bignum_montmul_p521_alt.S b/x86_att/p521/bignum_montmul_p521_alt.S
+new file mode 100644
+index 000000000..c1cd4253f
+--- /dev/null
++++ b/x86_att/p521/bignum_montmul_p521_alt.S
+@@ -0,0 +1,336 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Montgomery multiply, z := (x * y / 2^576) mod p_521
++// Inputs x[9], y[9]; output z[9]
++//
++//    extern void bignum_montmul_p521_alt
++//     (uint64_t z[static 9], uint64_t x[static 9], uint64_t y[static 9]);
++//
++// Does z := (x * y / 2^576) mod p_521, assuming x < p_521, y < p_521. This
++// means the Montgomery base is the "native size" 2^{9*64} = 2^576; since
++// p_521 is a Mersenne prime the basic modular multiplication bignum_mul_p521
++// can be considered a Montgomery operation to base 2^521.
++//
++// Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
++// ----------------------------------------------------------------------------
++
++
++        .globl  bignum_montmul_p521_alt
++        .text
++
++#define z %rdi
++#define x %rsi
++
++// This is moved from %rdx to free it for muls
++
++#define y %rcx
++
++// Macro for the key "multiply and add to (c,h,l)" step
++
++#define combadd(c,h,l,numa,numb)                \
++        movq    numa, %rax ;                      \
++        mulq     numb;                 \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h ;                         \
++        adcq    $0, c
++
++// A minutely shorter form for when c = 0 initially
++
++#define combadz(c,h,l,numa,numb)                \
++        movq    numa, %rax ;                      \
++        mulq     numb;                 \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h ;                         \
++        adcq    c, c
++
++// A short form where we don't expect a top carry
++
++#define combads(h,l,numa,numb)                  \
++        movq    numa, %rax ;                      \
++        mulq     numb;                 \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h
++
++bignum_montmul_p521_alt:
++
++// Make more registers available
++
++        pushq   %r12
++        pushq   %r13
++        pushq   %r14
++        pushq   %r15
++
++// Copy y into a safe register to start with
++
++        movq    %rdx, y
++
++// Copy y into a safe register to start with
++
++        mov %rdx, y
++
++// Start doing a conventional columnwise multiplication,
++// temporarily storing the lower 9 digits to the output buffer.
++// Start with result term 0
++
++        movq    (x), %rax
++        mulq     (y)
++
++        movq    %rax, (z)
++        movq    %rdx, %r9
++        xorq    %r10, %r10
++
++// Result term 1
++
++        xorq    %r11, %r11
++        combads(%r10,%r9,(x),8(y))
++        combadz(%r11,%r10,%r9,8(x),(y))
++        movq    %r9, 8(z)
++
++// Result term 2
++
++        xorq    %r12, %r12
++        combadz(%r12,%r11,%r10,(x),16(y))
++        combadd(%r12,%r11,%r10,8(x),8(y))
++        combadd(%r12,%r11,%r10,16(x),(y))
++        movq    %r10, 16(z)
++
++// Result term 3
++
++        xorq    %r13, %r13
++        combadz(%r13,%r12,%r11,(x),24(y))
++        combadd(%r13,%r12,%r11,8(x),16(y))
++        combadd(%r13,%r12,%r11,16(x),8(y))
++        combadd(%r13,%r12,%r11,24(x),(y))
++        movq    %r11, 24(z)
++
++// Result term 4
++
++        xorq    %r14, %r14
++        combadz(%r14,%r13,%r12,(x),32(y))
++        combadd(%r14,%r13,%r12,8(x),24(y))
++        combadd(%r14,%r13,%r12,16(x),16(y))
++        combadd(%r14,%r13,%r12,24(x),8(y))
++        combadd(%r14,%r13,%r12,32(x),(y))
++        movq    %r12, 32(z)
++
++// Result term 5
++
++        xorq    %r15, %r15
++        combadz(%r15,%r14,%r13,(x),40(y))
++        combadd(%r15,%r14,%r13,8(x),32(y))
++        combadd(%r15,%r14,%r13,16(x),24(y))
++        combadd(%r15,%r14,%r13,24(x),16(y))
++        combadd(%r15,%r14,%r13,32(x),8(y))
++        combadd(%r15,%r14,%r13,40(x),(y))
++        movq    %r13, 40(z)
++
++// Result term 6
++
++        xorq    %r8, %r8
++        combadz(%r8,%r15,%r14,(x),48(y))
++        combadd(%r8,%r15,%r14,8(x),40(y))
++        combadd(%r8,%r15,%r14,16(x),32(y))
++        combadd(%r8,%r15,%r14,24(x),24(y))
++        combadd(%r8,%r15,%r14,32(x),16(y))
++        combadd(%r8,%r15,%r14,40(x),8(y))
++        combadd(%r8,%r15,%r14,48(x),(y))
++        movq    %r14, 48(z)
++
++// Result term 7
++
++        xorq    %r9, %r9
++        combadz(%r9,%r8,%r15,(x),56(y))
++        combadd(%r9,%r8,%r15,8(x),48(y))
++        combadd(%r9,%r8,%r15,16(x),40(y))
++        combadd(%r9,%r8,%r15,24(x),32(y))
++        combadd(%r9,%r8,%r15,32(x),24(y))
++        combadd(%r9,%r8,%r15,40(x),16(y))
++        combadd(%r9,%r8,%r15,48(x),8(y))
++        combadd(%r9,%r8,%r15,56(x),(y))
++        movq    %r15, 56(z)
++
++// Result term 8
++
++        xorq    %r10, %r10
++        combadz(%r10,%r9,%r8,(x),64(y))
++        combadd(%r10,%r9,%r8,8(x),56(y))
++        combadd(%r10,%r9,%r8,16(x),48(y))
++        combadd(%r10,%r9,%r8,24(x),40(y))
++        combadd(%r10,%r9,%r8,32(x),32(y))
++        combadd(%r10,%r9,%r8,40(x),24(y))
++        combadd(%r10,%r9,%r8,48(x),16(y))
++        combadd(%r10,%r9,%r8,56(x),8(y))
++        combadd(%r10,%r9,%r8,64(x),(y))
++        movq    %r8, 64(z)
++
++// At this point we suspend writing back results and collect them
++// in a register window. Next is result term 9
++
++        xorq    %r11, %r11
++        combadz(%r11,%r10,%r9,8(x),64(y))
++        combadd(%r11,%r10,%r9,16(x),56(y))
++        combadd(%r11,%r10,%r9,24(x),48(y))
++        combadd(%r11,%r10,%r9,32(x),40(y))
++        combadd(%r11,%r10,%r9,40(x),32(y))
++        combadd(%r11,%r10,%r9,48(x),24(y))
++        combadd(%r11,%r10,%r9,56(x),16(y))
++        combadd(%r11,%r10,%r9,64(x),8(y))
++
++// Result term 10
++
++        xorq    %r12, %r12
++        combadz(%r12,%r11,%r10,16(x),64(y))
++        combadd(%r12,%r11,%r10,24(x),56(y))
++        combadd(%r12,%r11,%r10,32(x),48(y))
++        combadd(%r12,%r11,%r10,40(x),40(y))
++        combadd(%r12,%r11,%r10,48(x),32(y))
++        combadd(%r12,%r11,%r10,56(x),24(y))
++        combadd(%r12,%r11,%r10,64(x),16(y))
++
++// Result term 11
++
++        xorq    %r13, %r13
++        combadz(%r13,%r12,%r11,24(x),64(y))
++        combadd(%r13,%r12,%r11,32(x),56(y))
++        combadd(%r13,%r12,%r11,40(x),48(y))
++        combadd(%r13,%r12,%r11,48(x),40(y))
++        combadd(%r13,%r12,%r11,56(x),32(y))
++        combadd(%r13,%r12,%r11,64(x),24(y))
++
++// Result term 12
++
++        xorq    %r14, %r14
++        combadz(%r14,%r13,%r12,32(x),64(y))
++        combadd(%r14,%r13,%r12,40(x),56(y))
++        combadd(%r14,%r13,%r12,48(x),48(y))
++        combadd(%r14,%r13,%r12,56(x),40(y))
++        combadd(%r14,%r13,%r12,64(x),32(y))
++
++// Result term 13
++
++        xorq    %r15, %r15
++        combadz(%r15,%r14,%r13,40(x),64(y))
++        combadd(%r15,%r14,%r13,48(x),56(y))
++        combadd(%r15,%r14,%r13,56(x),48(y))
++        combadd(%r15,%r14,%r13,64(x),40(y))
++
++// Result term 14
++
++        xorq    %r8, %r8
++        combadz(%r8,%r15,%r14,48(x),64(y))
++        combadd(%r8,%r15,%r14,56(x),56(y))
++        combadd(%r8,%r15,%r14,64(x),48(y))
++
++// Result term 15
++
++        combads(%r8,%r15,56(x),64(y))
++        combads(%r8,%r15,64(x),56(y))
++
++// Result term 16
++
++        movq    64(x), %rax
++        imulq   64(y), %rax
++        addq    %r8, %rax
++
++// Now the upper portion is [%rax;%r15;%r14;%r13;%r12;%r11;%r10;%r9;[z+64]].
++// Rotate the upper portion right 9 bits since 2^512 == 2^-9 (mod p_521)
++// Let rotated result %rdx,%r15,%r14,...,%r8 be h (high) and z[0..7] be l (low)
++
++        movq    64(z), %r8
++        movq    %r8, %rdx
++        andq    $0x1FF, %rdx
++        shrdq   $9, %r9, %r8
++        shrdq   $9, %r10, %r9
++        shrdq   $9, %r11, %r10
++        shrdq   $9, %r12, %r11
++        shrdq   $9, %r13, %r12
++        shrdq   $9, %r14, %r13
++        shrdq   $9, %r15, %r14
++        shrdq   $9, %rax, %r15
++        shrq    $9, %rax
++        addq    %rax, %rdx
++
++// Force carry-in then add to get s = h + l + 1
++// but actually add all 1s in the top 53 bits to get simple carry out
++
++        stc
++        adcq    (z), %r8
++        adcq    8(z), %r9
++        adcq    16(z), %r10
++        adcq    24(z), %r11
++        adcq    32(z), %r12
++        adcq    40(z), %r13
++        adcq    48(z), %r14
++        adcq    56(z), %r15
++        adcq    $~0x1FF, %rdx
++
++// Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
++// in which case the lower 521 bits are already right. Otherwise if
++// CF is clear, we want to subtract 1. Hence subtract the complement
++// of the carry flag then mask the top word, which scrubs the
++// padding in either case.
++
++        cmc
++        sbbq    $0, %r8
++        sbbq    $0, %r9
++        sbbq    $0, %r10
++        sbbq    $0, %r11
++        sbbq    $0, %r12
++        sbbq    $0, %r13
++        sbbq    $0, %r14
++        sbbq    $0, %r15
++        sbbq    $0, %rdx
++        andq    $0x1FF, %rdx
++
++// So far, this has been the same as a pure modular multiply.
++// Now finally the Montgomery ingredient, which is just a 521-bit
++// rotation by 9*64 - 521 = 55 bits right. Write digits back as
++// they are created.
++
++        movq    %r8, %rax
++        shrdq   $55, %r9, %r8
++        movq    %r8, (z)
++        shrdq   $55, %r10, %r9
++        movq    %r9, 8(z)
++        shrdq   $55, %r11, %r10
++        shlq    $9, %rax
++        movq    %r10, 16(z)
++        shrdq   $55, %r12, %r11
++        movq    %r11, 24(z)
++        shrdq   $55, %r13, %r12
++        movq    %r12, 32(z)
++        orq     %rax, %rdx
++        shrdq   $55, %r14, %r13
++        movq    %r13, 40(z)
++        shrdq   $55, %r15, %r14
++        movq    %r14, 48(z)
++        shrdq   $55, %rdx, %r15
++        movq    %r15, 56(z)
++        shrq    $55, %rdx
++        movq    %rdx, 64(z)
++
++// Restore registers and return
++
++        popq    %r15
++        popq    %r14
++        popq    %r13
++        popq    %r12
++        ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/x86_att/p521/bignum_montsqr_p521_alt.S b/x86_att/p521/bignum_montsqr_p521_alt.S
+new file mode 100644
+index 000000000..a8e1b6923
+--- /dev/null
++++ b/x86_att/p521/bignum_montsqr_p521_alt.S
+@@ -0,0 +1,329 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Montgomery square, z := (x^2 / 2^576) mod p_521
++// Input x[9]; output z[9]
++//
++//    extern void bignum_montsqr_p521_alt
++//     (uint64_t z[static 9], uint64_t x[static 9]);
++//
++// Does z := (x^2 / 2^576) mod p_521, assuming x < p_521. This means the
++// Montgomery base is the "native size" 2^{9*64} = 2^576; since p_521 is
++// a Mersenne prime the basic modular squaring bignum_sqr_p521 can be
++// considered a Montgomery operation to base 2^521.
++//
++// Standard x86-64 ABI: RDI = z, RSI = x
++// ----------------------------------------------------------------------------
++
++
++        .globl  bignum_montsqr_p521_alt
++        .text
++
++// Input arguments
++
++#define z %rdi
++#define x %rsi
++
++// Macro for the key "multiply and add to (c,h,l)" step
++
++#define combadd(c,h,l,numa,numb)                \
++        movq    numa, %rax ;                      \
++        mulq     numb;                 \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h ;                         \
++        adcq    $0, c
++
++// Set up initial window (c,h,l) = numa * numb
++
++#define combaddz(c,h,l,numa,numb)               \
++        movq    numa, %rax ;                      \
++        mulq     numb;                 \
++        xorq    c, c ;                           \
++        movq    %rax, l ;                         \
++        movq    %rdx, h
++
++// Doubling step (c,h,l) = 2 * (c,hh,ll) + (0,h,l)
++
++#define doubladd(c,h,l,hh,ll)                   \
++        addq    ll, ll ;                         \
++        adcq    hh, hh ;                         \
++        adcq    c, c ;                           \
++        addq    ll, l ;                          \
++        adcq    hh, h ;                          \
++        adcq    $0, c
++
++// Square term incorporation (c,h,l) += numba^2
++
++#define combadd1(c,h,l,numa)                    \
++        movq    numa, %rax ;                      \
++        mulq    %rax;                            \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h ;                         \
++        adcq    $0, c
++
++// A short form where we don't expect a top carry
++
++#define combads(h,l,numa)                       \
++        movq    numa, %rax ;                      \
++        mulq    %rax;                            \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h
++
++// A version doubling directly before adding, for single non-square terms
++
++#define combadd2(c,h,l,numa,numb)               \
++        movq    numa, %rax ;                      \
++        mulq     numb;                 \
++        addq    %rax, %rax ;                       \
++        adcq    %rdx, %rdx ;                       \
++        adcq    $0, c ;                           \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h ;                         \
++        adcq    $0, c
++
++bignum_montsqr_p521_alt:
++
++// Make more registers available
++
++        pushq   %rbx
++        pushq   %r12
++        pushq   %r13
++        pushq   %r14
++        pushq   %r15
++
++// Start doing a conventional columnwise squaring,
++// temporarily storing the lower 9 digits to the output buffer.
++// Start with result term 0
++
++        movq    (x), %rax
++        mulq    %rax
++
++        movq    %rax, (z)
++        movq    %rdx, %r9
++        xorq    %r10, %r10
++
++// Result term 1
++
++        xorq    %r11, %r11
++        combadd2(%r11,%r10,%r9,(x),8(x))
++        movq    %r9, 8(z)
++
++// Result term 2
++
++        xorq    %r12, %r12
++        combadd1(%r12,%r11,%r10,8(x))
++        combadd2(%r12,%r11,%r10,(x),16(x))
++        movq    %r10, 16(z)
++
++// Result term 3
++
++        combaddz(%r13,%rcx,%rbx,(x),24(x))
++        combadd(%r13,%rcx,%rbx,8(x),16(x))
++        doubladd(%r13,%r12,%r11,%rcx,%rbx)
++        movq    %r11, 24(z)
++
++// Result term 4
++
++        combaddz(%r14,%rcx,%rbx,(x),32(x))
++        combadd(%r14,%rcx,%rbx,8(x),24(x))
++        doubladd(%r14,%r13,%r12,%rcx,%rbx)
++        combadd1(%r14,%r13,%r12,16(x))
++        movq    %r12, 32(z)
++
++// Result term 5
++
++        combaddz(%r15,%rcx,%rbx,(x),40(x))
++        combadd(%r15,%rcx,%rbx,8(x),32(x))
++        combadd(%r15,%rcx,%rbx,16(x),24(x))
++        doubladd(%r15,%r14,%r13,%rcx,%rbx)
++        movq    %r13, 40(z)
++
++// Result term 6
++
++        combaddz(%r8,%rcx,%rbx,(x),48(x))
++        combadd(%r8,%rcx,%rbx,8(x),40(x))
++        combadd(%r8,%rcx,%rbx,16(x),32(x))
++        doubladd(%r8,%r15,%r14,%rcx,%rbx)
++        combadd1(%r8,%r15,%r14,24(x))
++        movq    %r14, 48(z)
++
++// Result term 7
++
++        combaddz(%r9,%rcx,%rbx,(x),56(x))
++        combadd(%r9,%rcx,%rbx,8(x),48(x))
++        combadd(%r9,%rcx,%rbx,16(x),40(x))
++        combadd(%r9,%rcx,%rbx,24(x),32(x))
++        doubladd(%r9,%r8,%r15,%rcx,%rbx)
++        movq    %r15, 56(z)
++
++// Result term 8
++
++        combaddz(%r10,%rcx,%rbx,(x),64(x))
++        combadd(%r10,%rcx,%rbx,8(x),56(x))
++        combadd(%r10,%rcx,%rbx,16(x),48(x))
++        combadd(%r10,%rcx,%rbx,24(x),40(x))
++        doubladd(%r10,%r9,%r8,%rcx,%rbx)
++        combadd1(%r10,%r9,%r8,32(x))
++        movq    %r8, 64(z)
++
++// We now stop writing back and keep remaining results in a register window.
++// Continue with result term 9
++
++        combaddz(%r11,%rcx,%rbx,8(x),64(x))
++        combadd(%r11,%rcx,%rbx,16(x),56(x))
++        combadd(%r11,%rcx,%rbx,24(x),48(x))
++        combadd(%r11,%rcx,%rbx,32(x),40(x))
++        doubladd(%r11,%r10,%r9,%rcx,%rbx)
++
++// Result term 10
++
++        combaddz(%r12,%rcx,%rbx,16(x),64(x))
++        combadd(%r12,%rcx,%rbx,24(x),56(x))
++        combadd(%r12,%rcx,%rbx,32(x),48(x))
++        doubladd(%r12,%r11,%r10,%rcx,%rbx)
++        combadd1(%r12,%r11,%r10,40(x))
++
++// Result term 11
++
++        combaddz(%r13,%rcx,%rbx,24(x),64(x))
++        combadd(%r13,%rcx,%rbx,32(x),56(x))
++        combadd(%r13,%rcx,%rbx,40(x),48(x))
++        doubladd(%r13,%r12,%r11,%rcx,%rbx)
++
++// Result term 12
++
++        combaddz(%r14,%rcx,%rbx,32(x),64(x))
++        combadd(%r14,%rcx,%rbx,40(x),56(x))
++        doubladd(%r14,%r13,%r12,%rcx,%rbx)
++        combadd1(%r14,%r13,%r12,48(x))
++
++// Result term 13
++
++        combaddz(%r15,%rcx,%rbx,40(x),64(x))
++        combadd(%r15,%rcx,%rbx,48(x),56(x))
++        doubladd(%r15,%r14,%r13,%rcx,%rbx);
++
++// Result term 14
++
++        xorq    %r8, %r8
++        combadd1(%r8,%r15,%r14,56(x))
++        combadd2(%r8,%r15,%r14,48(x),64(x))
++
++// Result term 15
++
++        movq    56(x), %rax
++        mulq     64(x)
++        addq    %rax, %rax
++        adcq    %rdx, %rdx
++        addq    %rax, %r15
++        adcq    %rdx, %r8
++
++// Result term 16
++
++        movq    64(x), %rax
++        imulq   %rax, %rax
++        addq    %r8, %rax
++
++// Now the upper portion is [%rax;%r15;%r14;%r13;%r12;%r11;%r10;%r9;[z+64]].
++// Rotate the upper portion right 9 bits since 2^512 == 2^-9 (mod p_521)
++// Let rotated result %rdx,%r15,%r14,...,%r8 be h (high) and z[0..7] be l (low)
++
++        movq    64(z), %r8
++        movq    %r8, %rdx
++        andq    $0x1FF, %rdx
++        shrdq   $9, %r9, %r8
++        shrdq   $9, %r10, %r9
++        shrdq   $9, %r11, %r10
++        shrdq   $9, %r12, %r11
++        shrdq   $9, %r13, %r12
++        shrdq   $9, %r14, %r13
++        shrdq   $9, %r15, %r14
++        shrdq   $9, %rax, %r15
++        shrq    $9, %rax
++        addq    %rax, %rdx
++
++// Force carry-in then add to get s = h + l + 1
++// but actually add all 1s in the top 53 bits to get simple carry out
++
++        stc
++        adcq    (z), %r8
++        adcq    8(z), %r9
++        adcq    16(z), %r10
++        adcq    24(z), %r11
++        adcq    32(z), %r12
++        adcq    40(z), %r13
++        adcq    48(z), %r14
++        adcq    56(z), %r15
++        adcq    $~0x1FF, %rdx
++
++// Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
++// in which case the lower 521 bits are already right. Otherwise if
++// CF is clear, we want to subtract 1. Hence subtract the complement
++// of the carry flag then mask the top word, which scrubs the
++// padding in either case.
++
++        cmc
++        sbbq    $0, %r8
++        sbbq    $0, %r9
++        sbbq    $0, %r10
++        sbbq    $0, %r11
++        sbbq    $0, %r12
++        sbbq    $0, %r13
++        sbbq    $0, %r14
++        sbbq    $0, %r15
++        sbbq    $0, %rdx
++        andq    $0x1FF, %rdx
++
++// So far, this has been the same as a pure modular squaring.
++// Now finally the Montgomery ingredient, which is just a 521-bit
++// rotation by 9*64 - 521 = 55 bits right. Write digits back as
++// they are created.
++
++        movq    %r8, %rax
++        shrdq   $55, %r9, %r8
++        movq    %r8, (z)
++        shrdq   $55, %r10, %r9
++        movq    %r9, 8(z)
++        shrdq   $55, %r11, %r10
++        shlq    $9, %rax
++        movq    %r10, 16(z)
++        shrdq   $55, %r12, %r11
++        movq    %r11, 24(z)
++        shrdq   $55, %r13, %r12
++        movq    %r12, 32(z)
++        orq     %rax, %rdx
++        shrdq   $55, %r14, %r13
++        movq    %r13, 40(z)
++        shrdq   $55, %r15, %r14
++        movq    %r14, 48(z)
++        shrdq   $55, %rdx, %r15
++        movq    %r15, 56(z)
++        shrq    $55, %rdx
++        movq    %rdx, 64(z)
++
++// Restore registers and return
++
++        popq    %r15
++        popq    %r14
++        popq    %r13
++        popq    %r12
++        popq    %rbx
++
++        ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/x86_att/p521/bignum_mul_p521_alt.S b/x86_att/p521/bignum_mul_p521_alt.S
+new file mode 100644
+index 000000000..37bce1c7a
+--- /dev/null
++++ b/x86_att/p521/bignum_mul_p521_alt.S
+@@ -0,0 +1,313 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Multiply modulo p_521, z := (x * y) mod p_521, assuming x and y reduced
++// Inputs x[9], y[9]; output z[9]
++//
++//    extern void bignum_mul_p521_alt
++//     (uint64_t z[static 9], uint64_t x[static 9], uint64_t y[static 9]);
++//
++// Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
++// ----------------------------------------------------------------------------
++
++
++        .globl  bignum_mul_p521_alt
++        .text
++
++#define z %rdi
++#define x %rsi
++
++// This is moved from %rdx to free it for muls
++
++#define y %rcx
++
++// Macro for the key "multiply and add to (c,h,l)" step
++
++#define combadd(c,h,l,numa,numb)                \
++        movq    numa, %rax ;                      \
++        mulq     numb;                 \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h ;                         \
++        adcq    $0, c
++
++// A minutely shorter form for when c = 0 initially
++
++#define combadz(c,h,l,numa,numb)                \
++        movq    numa, %rax ;                      \
++        mulq     numb;                 \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h ;                         \
++        adcq    c, c
++
++// A short form where we don't expect a top carry
++
++#define combads(h,l,numa,numb)                  \
++        movq    numa, %rax ;                      \
++        mulq     numb;                 \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h
++
++bignum_mul_p521_alt:
++
++// Make more registers available
++
++        pushq   %r12
++        pushq   %r13
++        pushq   %r14
++        pushq   %r15
++
++// Copy y into a safe register to start with
++
++        movq    %rdx, y
++
++// Copy y into a safe register to start with
++
++        mov %rdx, y
++
++// Start doing a conventional columnwise multiplication,
++// temporarily storing the lower 9 digits to the output buffer.
++// Start with result term 0
++
++        movq    (x), %rax
++        mulq     (y)
++
++        movq    %rax, (z)
++        movq    %rdx, %r9
++        xorq    %r10, %r10
++
++// Result term 1
++
++        xorq    %r11, %r11
++        combads(%r10,%r9,(x),8(y))
++        combadz(%r11,%r10,%r9,8(x),(y))
++        movq    %r9, 8(z)
++
++// Result term 2
++
++        xorq    %r12, %r12
++        combadz(%r12,%r11,%r10,(x),16(y))
++        combadd(%r12,%r11,%r10,8(x),8(y))
++        combadd(%r12,%r11,%r10,16(x),(y))
++        movq    %r10, 16(z)
++
++// Result term 3
++
++        xorq    %r13, %r13
++        combadz(%r13,%r12,%r11,(x),24(y))
++        combadd(%r13,%r12,%r11,8(x),16(y))
++        combadd(%r13,%r12,%r11,16(x),8(y))
++        combadd(%r13,%r12,%r11,24(x),(y))
++        movq    %r11, 24(z)
++
++// Result term 4
++
++        xorq    %r14, %r14
++        combadz(%r14,%r13,%r12,(x),32(y))
++        combadd(%r14,%r13,%r12,8(x),24(y))
++        combadd(%r14,%r13,%r12,16(x),16(y))
++        combadd(%r14,%r13,%r12,24(x),8(y))
++        combadd(%r14,%r13,%r12,32(x),(y))
++        movq    %r12, 32(z)
++
++// Result term 5
++
++        xorq    %r15, %r15
++        combadz(%r15,%r14,%r13,(x),40(y))
++        combadd(%r15,%r14,%r13,8(x),32(y))
++        combadd(%r15,%r14,%r13,16(x),24(y))
++        combadd(%r15,%r14,%r13,24(x),16(y))
++        combadd(%r15,%r14,%r13,32(x),8(y))
++        combadd(%r15,%r14,%r13,40(x),(y))
++        movq    %r13, 40(z)
++
++// Result term 6
++
++        xorq    %r8, %r8
++        combadz(%r8,%r15,%r14,(x),48(y))
++        combadd(%r8,%r15,%r14,8(x),40(y))
++        combadd(%r8,%r15,%r14,16(x),32(y))
++        combadd(%r8,%r15,%r14,24(x),24(y))
++        combadd(%r8,%r15,%r14,32(x),16(y))
++        combadd(%r8,%r15,%r14,40(x),8(y))
++        combadd(%r8,%r15,%r14,48(x),(y))
++        movq    %r14, 48(z)
++
++// Result term 7
++
++        xorq    %r9, %r9
++        combadz(%r9,%r8,%r15,(x),56(y))
++        combadd(%r9,%r8,%r15,8(x),48(y))
++        combadd(%r9,%r8,%r15,16(x),40(y))
++        combadd(%r9,%r8,%r15,24(x),32(y))
++        combadd(%r9,%r8,%r15,32(x),24(y))
++        combadd(%r9,%r8,%r15,40(x),16(y))
++        combadd(%r9,%r8,%r15,48(x),8(y))
++        combadd(%r9,%r8,%r15,56(x),(y))
++        movq    %r15, 56(z)
++
++// Result term 8
++
++        xorq    %r10, %r10
++        combadz(%r10,%r9,%r8,(x),64(y))
++        combadd(%r10,%r9,%r8,8(x),56(y))
++        combadd(%r10,%r9,%r8,16(x),48(y))
++        combadd(%r10,%r9,%r8,24(x),40(y))
++        combadd(%r10,%r9,%r8,32(x),32(y))
++        combadd(%r10,%r9,%r8,40(x),24(y))
++        combadd(%r10,%r9,%r8,48(x),16(y))
++        combadd(%r10,%r9,%r8,56(x),8(y))
++        combadd(%r10,%r9,%r8,64(x),(y))
++        movq    %r8, 64(z)
++
++// At this point we suspend writing back results and collect them
++// in a register window. Next is result term 9
++
++        xorq    %r11, %r11
++        combadz(%r11,%r10,%r9,8(x),64(y))
++        combadd(%r11,%r10,%r9,16(x),56(y))
++        combadd(%r11,%r10,%r9,24(x),48(y))
++        combadd(%r11,%r10,%r9,32(x),40(y))
++        combadd(%r11,%r10,%r9,40(x),32(y))
++        combadd(%r11,%r10,%r9,48(x),24(y))
++        combadd(%r11,%r10,%r9,56(x),16(y))
++        combadd(%r11,%r10,%r9,64(x),8(y))
++
++// Result term 10
++
++        xorq    %r12, %r12
++        combadz(%r12,%r11,%r10,16(x),64(y))
++        combadd(%r12,%r11,%r10,24(x),56(y))
++        combadd(%r12,%r11,%r10,32(x),48(y))
++        combadd(%r12,%r11,%r10,40(x),40(y))
++        combadd(%r12,%r11,%r10,48(x),32(y))
++        combadd(%r12,%r11,%r10,56(x),24(y))
++        combadd(%r12,%r11,%r10,64(x),16(y))
++
++// Result term 11
++
++        xorq    %r13, %r13
++        combadz(%r13,%r12,%r11,24(x),64(y))
++        combadd(%r13,%r12,%r11,32(x),56(y))
++        combadd(%r13,%r12,%r11,40(x),48(y))
++        combadd(%r13,%r12,%r11,48(x),40(y))
++        combadd(%r13,%r12,%r11,56(x),32(y))
++        combadd(%r13,%r12,%r11,64(x),24(y))
++
++// Result term 12
++
++        xorq    %r14, %r14
++        combadz(%r14,%r13,%r12,32(x),64(y))
++        combadd(%r14,%r13,%r12,40(x),56(y))
++        combadd(%r14,%r13,%r12,48(x),48(y))
++        combadd(%r14,%r13,%r12,56(x),40(y))
++        combadd(%r14,%r13,%r12,64(x),32(y))
++
++// Result term 13
++
++        xorq    %r15, %r15
++        combadz(%r15,%r14,%r13,40(x),64(y))
++        combadd(%r15,%r14,%r13,48(x),56(y))
++        combadd(%r15,%r14,%r13,56(x),48(y))
++        combadd(%r15,%r14,%r13,64(x),40(y))
++
++// Result term 14
++
++        xorq    %r8, %r8
++        combadz(%r8,%r15,%r14,48(x),64(y))
++        combadd(%r8,%r15,%r14,56(x),56(y))
++        combadd(%r8,%r15,%r14,64(x),48(y))
++
++// Result term 15
++
++        combads(%r8,%r15,56(x),64(y))
++        combads(%r8,%r15,64(x),56(y))
++
++// Result term 16
++
++        movq    64(x), %rax
++        imulq   64(y), %rax
++        addq    %r8, %rax
++
++// Now the upper portion is [%rax;%r15;%r14;%r13;%r12;%r11;%r10;%r9;[z+64]].
++// Rotate the upper portion right 9 bits since 2^512 == 2^-9 (mod p_521)
++// Let rotated result %rdx,%r15,%r14,...,%r8 be h (high) and z[0..7] be l (low)
++
++        movq    64(z), %r8
++        movq    %r8, %rdx
++        andq    $0x1FF, %rdx
++        shrdq   $9, %r9, %r8
++        shrdq   $9, %r10, %r9
++        shrdq   $9, %r11, %r10
++        shrdq   $9, %r12, %r11
++        shrdq   $9, %r13, %r12
++        shrdq   $9, %r14, %r13
++        shrdq   $9, %r15, %r14
++        shrdq   $9, %rax, %r15
++        shrq    $9, %rax
++        addq    %rax, %rdx
++
++// Force carry-in then add to get s = h + l + 1
++// but actually add all 1s in the top 53 bits to get simple carry out
++
++        stc
++        adcq    (z), %r8
++        adcq    8(z), %r9
++        adcq    16(z), %r10
++        adcq    24(z), %r11
++        adcq    32(z), %r12
++        adcq    40(z), %r13
++        adcq    48(z), %r14
++        adcq    56(z), %r15
++        adcq    $~0x1FF, %rdx
++
++// Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
++// in which case the lower 521 bits are already right. Otherwise if
++// CF is clear, we want to subtract 1. Hence subtract the complement
++// of the carry flag then mask the top word, which scrubs the
++// padding in either case. Write digits back as they are created.
++
++        cmc
++        sbbq    $0, %r8
++        movq    %r8, (z)
++        sbbq    $0, %r9
++        movq    %r9, 8(z)
++        sbbq    $0, %r10
++        movq    %r10, 16(z)
++        sbbq    $0, %r11
++        movq    %r11, 24(z)
++        sbbq    $0, %r12
++        movq    %r12, 32(z)
++        sbbq    $0, %r13
++        movq    %r13, 40(z)
++        sbbq    $0, %r14
++        movq    %r14, 48(z)
++        sbbq    $0, %r15
++        movq    %r15, 56(z)
++        sbbq    $0, %rdx
++        andq    $0x1FF, %rdx
++        movq    %rdx, 64(z)
++
++// Restore registers and return
++
++        popq    %r15
++        popq    %r14
++        popq    %r13
++        popq    %r12
++        ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/x86_att/p521/bignum_sqr_p521_alt.S b/x86_att/p521/bignum_sqr_p521_alt.S
+new file mode 100644
+index 000000000..0082d83f5
+--- /dev/null
++++ b/x86_att/p521/bignum_sqr_p521_alt.S
+@@ -0,0 +1,304 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Square modulo p_521, z := (x^2) mod p_521, assuming x reduced
++// Input x[9]; output z[9]
++//
++//    extern void bignum_sqr_p521_alt (uint64_t z[static 9], uint64_t x[static 9]);
++//
++// Standard x86-64 ABI: RDI = z, RSI = x
++// ----------------------------------------------------------------------------
++
++
++        .globl  bignum_sqr_p521_alt
++        .text
++
++// Input arguments
++
++#define z %rdi
++#define x %rsi
++
++// Macro for the key "multiply and add to (c,h,l)" step
++
++#define combadd(c,h,l,numa,numb)                \
++        movq    numa, %rax ;                      \
++        mulq     numb;                 \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h ;                         \
++        adcq    $0, c
++
++// Set up initial window (c,h,l) = numa * numb
++
++#define combaddz(c,h,l,numa,numb)               \
++        movq    numa, %rax ;                      \
++        mulq     numb;                 \
++        xorq    c, c ;                           \
++        movq    %rax, l ;                         \
++        movq    %rdx, h
++
++// Doubling step (c,h,l) = 2 * (c,hh,ll) + (0,h,l)
++
++#define doubladd(c,h,l,hh,ll)                   \
++        addq    ll, ll ;                         \
++        adcq    hh, hh ;                         \
++        adcq    c, c ;                           \
++        addq    ll, l ;                          \
++        adcq    hh, h ;                          \
++        adcq    $0, c
++
++// Square term incorporation (c,h,l) += numba^2
++
++#define combadd1(c,h,l,numa)                    \
++        movq    numa, %rax ;                      \
++        mulq    %rax;                            \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h ;                         \
++        adcq    $0, c
++
++// A short form where we don't expect a top carry
++
++#define combads(h,l,numa)                       \
++        movq    numa, %rax ;                      \
++        mulq    %rax;                            \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h
++
++// A version doubling directly before adding, for single non-square terms
++
++#define combadd2(c,h,l,numa,numb)               \
++        movq    numa, %rax ;                      \
++        mulq     numb;                 \
++        addq    %rax, %rax ;                       \
++        adcq    %rdx, %rdx ;                       \
++        adcq    $0, c ;                           \
++        addq    %rax, l ;                         \
++        adcq    %rdx, h ;                         \
++        adcq    $0, c
++
++bignum_sqr_p521_alt:
++
++// Make more registers available
++
++        pushq   %rbx
++        pushq   %r12
++        pushq   %r13
++        pushq   %r14
++        pushq   %r15
++
++// Start doing a conventional columnwise squaring,
++// temporarily storing the lower 9 digits to the output buffer.
++// Start with result term 0
++
++        movq    (x), %rax
++        mulq    %rax
++
++        movq    %rax, (z)
++        movq    %rdx, %r9
++        xorq    %r10, %r10
++
++// Result term 1
++
++        xorq    %r11, %r11
++        combadd2(%r11,%r10,%r9,(x),8(x))
++        movq    %r9, 8(z)
++
++// Result term 2
++
++        xorq    %r12, %r12
++        combadd1(%r12,%r11,%r10,8(x))
++        combadd2(%r12,%r11,%r10,(x),16(x))
++        movq    %r10, 16(z)
++
++// Result term 3
++
++        combaddz(%r13,%rcx,%rbx,(x),24(x))
++        combadd(%r13,%rcx,%rbx,8(x),16(x))
++        doubladd(%r13,%r12,%r11,%rcx,%rbx)
++        movq    %r11, 24(z)
++
++// Result term 4
++
++        combaddz(%r14,%rcx,%rbx,(x),32(x))
++        combadd(%r14,%rcx,%rbx,8(x),24(x))
++        doubladd(%r14,%r13,%r12,%rcx,%rbx)
++        combadd1(%r14,%r13,%r12,16(x))
++        movq    %r12, 32(z)
++
++// Result term 5
++
++        combaddz(%r15,%rcx,%rbx,(x),40(x))
++        combadd(%r15,%rcx,%rbx,8(x),32(x))
++        combadd(%r15,%rcx,%rbx,16(x),24(x))
++        doubladd(%r15,%r14,%r13,%rcx,%rbx)
++        movq    %r13, 40(z)
++
++// Result term 6
++
++        combaddz(%r8,%rcx,%rbx,(x),48(x))
++        combadd(%r8,%rcx,%rbx,8(x),40(x))
++        combadd(%r8,%rcx,%rbx,16(x),32(x))
++        doubladd(%r8,%r15,%r14,%rcx,%rbx)
++        combadd1(%r8,%r15,%r14,24(x))
++        movq    %r14, 48(z)
++
++// Result term 7
++
++        combaddz(%r9,%rcx,%rbx,(x),56(x))
++        combadd(%r9,%rcx,%rbx,8(x),48(x))
++        combadd(%r9,%rcx,%rbx,16(x),40(x))
++        combadd(%r9,%rcx,%rbx,24(x),32(x))
++        doubladd(%r9,%r8,%r15,%rcx,%rbx)
++        movq    %r15, 56(z)
++
++// Result term 8
++
++        combaddz(%r10,%rcx,%rbx,(x),64(x))
++        combadd(%r10,%rcx,%rbx,8(x),56(x))
++        combadd(%r10,%rcx,%rbx,16(x),48(x))
++        combadd(%r10,%rcx,%rbx,24(x),40(x))
++        doubladd(%r10,%r9,%r8,%rcx,%rbx)
++        combadd1(%r10,%r9,%r8,32(x))
++        movq    %r8, 64(z)
++
++// We now stop writing back and keep remaining results in a register window.
++// Continue with result term 9
++
++        combaddz(%r11,%rcx,%rbx,8(x),64(x))
++        combadd(%r11,%rcx,%rbx,16(x),56(x))
++        combadd(%r11,%rcx,%rbx,24(x),48(x))
++        combadd(%r11,%rcx,%rbx,32(x),40(x))
++        doubladd(%r11,%r10,%r9,%rcx,%rbx)
++
++// Result term 10
++
++        combaddz(%r12,%rcx,%rbx,16(x),64(x))
++        combadd(%r12,%rcx,%rbx,24(x),56(x))
++        combadd(%r12,%rcx,%rbx,32(x),48(x))
++        doubladd(%r12,%r11,%r10,%rcx,%rbx)
++        combadd1(%r12,%r11,%r10,40(x))
++
++// Result term 11
++
++        combaddz(%r13,%rcx,%rbx,24(x),64(x))
++        combadd(%r13,%rcx,%rbx,32(x),56(x))
++        combadd(%r13,%rcx,%rbx,40(x),48(x))
++        doubladd(%r13,%r12,%r11,%rcx,%rbx)
++
++// Result term 12
++
++        combaddz(%r14,%rcx,%rbx,32(x),64(x))
++        combadd(%r14,%rcx,%rbx,40(x),56(x))
++        doubladd(%r14,%r13,%r12,%rcx,%rbx)
++        combadd1(%r14,%r13,%r12,48(x))
++
++// Result term 13
++
++        combaddz(%r15,%rcx,%rbx,40(x),64(x))
++        combadd(%r15,%rcx,%rbx,48(x),56(x))
++        doubladd(%r15,%r14,%r13,%rcx,%rbx);
++
++// Result term 14
++
++        xorq    %r8, %r8
++        combadd1(%r8,%r15,%r14,56(x))
++        combadd2(%r8,%r15,%r14,48(x),64(x))
++
++// Result term 15
++
++        movq    56(x), %rax
++        mulq     64(x)
++        addq    %rax, %rax
++        adcq    %rdx, %rdx
++        addq    %rax, %r15
++        adcq    %rdx, %r8
++
++// Result term 16
++
++        movq    64(x), %rax
++        imulq   %rax, %rax
++        addq    %r8, %rax
++
++// Now the upper portion is [%rax;%r15;%r14;%r13;%r12;%r11;%r10;%r9;[z+64]].
++// Rotate the upper portion right 9 bits since 2^512 == 2^-9 (mod p_521)
++// Let rotated result %rdx,%r15,%r14,...,%r8 be h (high) and z[0..7] be l (low)
++
++        movq    64(z), %r8
++        movq    %r8, %rdx
++        andq    $0x1FF, %rdx
++        shrdq   $9, %r9, %r8
++        shrdq   $9, %r10, %r9
++        shrdq   $9, %r11, %r10
++        shrdq   $9, %r12, %r11
++        shrdq   $9, %r13, %r12
++        shrdq   $9, %r14, %r13
++        shrdq   $9, %r15, %r14
++        shrdq   $9, %rax, %r15
++        shrq    $9, %rax
++        addq    %rax, %rdx
++
++// Force carry-in then add to get s = h + l + 1
++// but actually add all 1s in the top 53 bits to get simple carry out
++
++        stc
++        adcq    (z), %r8
++        adcq    8(z), %r9
++        adcq    16(z), %r10
++        adcq    24(z), %r11
++        adcq    32(z), %r12
++        adcq    40(z), %r13
++        adcq    48(z), %r14
++        adcq    56(z), %r15
++        adcq    $~0x1FF, %rdx
++
++// Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
++// in which case the lower 521 bits are already right. Otherwise if
++// CF is clear, we want to subtract 1. Hence subtract the complement
++// of the carry flag then mask the top word, which scrubs the
++// padding in either case. Write digits back as they are created.
++
++        cmc
++        sbbq    $0, %r8
++        movq    %r8, (z)
++        sbbq    $0, %r9
++        movq    %r9, 8(z)
++        sbbq    $0, %r10
++        movq    %r10, 16(z)
++        sbbq    $0, %r11
++        movq    %r11, 24(z)
++        sbbq    $0, %r12
++        movq    %r12, 32(z)
++        sbbq    $0, %r13
++        movq    %r13, 40(z)
++        sbbq    $0, %r14
++        movq    %r14, 48(z)
++        sbbq    $0, %r15
++        movq    %r15, 56(z)
++        sbbq    $0, %rdx
++        andq    $0x1FF, %rdx
++        movq    %rdx, 64(z)
++
++// Restore registers and return
++
++        popq    %r15
++        popq    %r14
++        popq    %r13
++        popq    %r12
++        popq    %rbx
++        ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif

@@ -1,0 +1,26 @@
+From 6136d887bfc21ed2209a20cb6c016684c1f600e7 Mon Sep 17 00:00:00 2001
+From: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+Date: Fri, 25 Aug 2023 16:34:00 -0400
+Subject: [PATCH] Fix build for ppc64le (#1167)
+
+---
+ crypto/fipsmodule/modes/internal.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/crypto/fipsmodule/modes/internal.h b/crypto/fipsmodule/modes/internal.h
+index 4c5c0a60d..d2d2f12b1 100644
+--- a/crypto/fipsmodule/modes/internal.h
++++ b/crypto/fipsmodule/modes/internal.h
+@@ -385,9 +385,9 @@ size_t aesv8_gcm_8x_dec_256(const uint8_t *in, size_t bit_len, uint8_t *out,
+ #define GHASH_ASM_PPC64LE
+ #define GCM_FUNCREF
+ void gcm_init_p8(u128 Htable[16], const uint64_t Xi[2]);
+-void gcm_gmult_p8(uint64_t Xi[2], const u128 Htable[16]);
+-void gcm_ghash_p8(uint64_t Xi[2], const u128 Htable[16], const uint8_t *inp,
+-                  size_t len);
++void gcm_gmult_p8(uint8_t Xi[16], const u128 Htable[16]);
++void gcm_ghash_p8(uint8_t Xi[16], const u128 Htable[16],
++                  const uint8_t *inp, size_t len);
+ #endif
+ #endif  // OPENSSL_NO_ASM
+ 

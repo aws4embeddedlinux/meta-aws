@@ -1,0 +1,79 @@
+From cc3e7ce6c02ec0b0536af9fe82cff3422e207018 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 1 Feb 2023 15:35:56 -0500
+Subject: [PATCH] Avoid branches in GCC in bn/generic.c.
+
+bn/generic.c is used for functions like bn_add_words, when there is no
+assembly implementation available. They're meant to be constant-time,
+but are particularly dependent on the compiler in this. I ran our
+valgrind-based tooling and found a couple issues in GCC:
+
+First, the various mul_add and sqr_add macros end up branching in GCC.
+Replacing the conditionals with expressions like c += (a < b) seems to
+mitigate this.
+
+Second, bn_sub_words produces branches in GCC. Replacing the expressions
+with bit expressions involving the boolean comparisons seems to work for
+now. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=79173 discusses
+problems with GCC here, which seem to be as yet unresolved.
+
+Clang already reliably avoided branches in all of these. (Though it
+still spills the carry flag far more than would be ideal.)
+
+I also checked in godbolt that the new versions didn't generate branches
+in MSVC, but we don't have tooling to validate this as rigorously.
+
+Change-Id: I739758a396fb5ee27fb88bee71bd13ae9cb92bd0
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56967
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit d4396e387c820198f509a6927facea84592cddd8)
+---
+ crypto/fipsmodule/bn/generic.c | 16 ++++------------
+ 1 file changed, 4 insertions(+), 12 deletions(-)
+
+diff --git a/crypto/fipsmodule/bn/generic.c b/crypto/fipsmodule/bn/generic.c
+index ee80a3ce7..473bd3efd 100644
+--- a/crypto/fipsmodule/bn/generic.c
++++ b/crypto/fipsmodule/bn/generic.c
+@@ -369,9 +369,7 @@ BN_ULONG bn_sub_words(BN_ULONG *r, const BN_ULONG *a, const BN_ULONG *b,
+     (c0) = (BN_ULONG)Lw(t);             \
+     hi = (BN_ULONG)Hw(t);               \
+     (c1) += (hi);                       \
+-    if ((c1) < hi) {                    \
+-      (c2)++;                           \
+-    }                                   \
++    (c2) += (c1) < hi;                  \
+   } while (0)
+ 
+ #define mul_add_c2(a, b, c0, c1, c2)        \
+@@ -382,16 +380,12 @@ BN_ULONG bn_sub_words(BN_ULONG *r, const BN_ULONG *a, const BN_ULONG *b,
+     (c0) = (BN_ULONG)Lw(tt);                \
+     hi = (BN_ULONG)Hw(tt);                  \
+     (c1) += hi;                             \
+-    if ((c1) < hi) {                        \
+-      (c2)++;                               \
+-    }                                       \
++    (c2) += (c1) < hi;                      \
+     t += (c0); /* no carry */               \
+     (c0) = (BN_ULONG)Lw(t);                 \
+     hi = (BN_ULONG)Hw(t);                   \
+     (c1) += hi;                             \
+-    if ((c1) < hi) {                        \
+-      (c2)++;                               \
+-    }                                       \
++    (c2) += (c1) < hi;                      \
+   } while (0)
+ 
+ #define sqr_add_c(a, i, c0, c1, c2)           \
+@@ -402,9 +396,7 @@ BN_ULONG bn_sub_words(BN_ULONG *r, const BN_ULONG *a, const BN_ULONG *b,
+     (c0) = (BN_ULONG)Lw(t);                   \
+     hi = (BN_ULONG)Hw(t);                     \
+     (c1) += hi;                               \
+-    if ((c1) < hi) {                          \
+-      (c2)++;                                 \
+-    }                                         \
++    (c2) += (c1) < hi;                        \
+   } while (0)
+ 
+ #define sqr_add_c2(a, i, j, c0, c1, c2) mul_add_c2((a)[i], (a)[j], c0, c1, c2)

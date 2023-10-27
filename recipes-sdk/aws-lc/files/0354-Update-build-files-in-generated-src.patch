@@ -1,0 +1,224 @@
+From 7c2b740c2b6ae4cdee26d33fe8c89250f34c3081 Mon Sep 17 00:00:00 2001
+From: samuel40791765 <sachiang@amazon.com>
+Date: Fri, 5 May 2023 22:07:36 +0000
+Subject: [PATCH] Update build files in generated-src
+
+---
+ generated-src/linux-x86_64/crypto/fipsmodule/sha1-x86_64.S     | 1 +
+ generated-src/mac-x86_64/crypto/fipsmodule/sha1-x86_64.S       | 1 +
+ generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm       | 2 +-
+ .../crypto/cipher_extra/chacha20_poly1305_x86_64.asm           | 2 +-
+ .../win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm          | 2 +-
+ generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm    | 2 +-
+ .../win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm        | 2 +-
+ generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm    | 2 +-
+ generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm | 2 +-
+ generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm       | 2 +-
+ generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm     | 3 ++-
+ generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm   | 2 +-
+ generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm   | 2 +-
+ generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm    | 2 +-
+ generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm    | 2 +-
+ 15 files changed, 16 insertions(+), 13 deletions(-)
+
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/sha1-x86_64.S b/generated-src/linux-x86_64/crypto/fipsmodule/sha1-x86_64.S
+index a8674bc70..f9c7250de 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/sha1-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/sha1-x86_64.S
+@@ -1299,6 +1299,7 @@ _shaext_shortcut:
+ 	leaq	64(%rsi),%r8
+ 	paddd	%xmm4,%xmm1
+ 	cmovneq	%r8,%rsi
++	prefetcht0	512(%rsi)
+ 	movdqa	%xmm0,%xmm8
+ .byte	15,56,201,229
+ 	movdqa	%xmm0,%xmm2
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/sha1-x86_64.S b/generated-src/mac-x86_64/crypto/fipsmodule/sha1-x86_64.S
+index 872d87973..2a6a69287 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/sha1-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/sha1-x86_64.S
+@@ -1298,6 +1298,7 @@ L$oop_shaext:
+ 	leaq	64(%rsi),%r8
+ 	paddd	%xmm4,%xmm1
+ 	cmovneq	%r8,%rsi
++	prefetcht0	512(%rsi)
+ 	movdqa	%xmm0,%xmm8
+ .byte	15,56,201,229
+ 	movdqa	%xmm0,%xmm2
+diff --git a/generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm b/generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm
+index 62d82f60c..994b787fb 100644
+--- a/generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/chacha/chacha-x86_64.asm
+@@ -49,7 +49,7 @@ $L$sixteen:
+ 	DB	95,54,52,44,32,67,82,89,80,84,79,71,65,77,83,32
+ 	DB	98,121,32,60,97,112,112,114,111,64,111,112,101,110,115,115
+ 	DB	108,46,111,114,103,62,0
+-section	.text code align=64
++section	.text
+ 
+ global	ChaCha20_ctr32
+ 
+diff --git a/generated-src/win-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.asm b/generated-src/win-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.asm
+index b97b03b85..527762a5b 100644
+--- a/generated-src/win-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.asm
++++ b/generated-src/win-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.asm
+@@ -54,7 +54,7 @@ $L$and_masks:
+ 	DB	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00
+ 	DB	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00
+ 	DB	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff
+-section	.text code align=64
++section	.text
+ 
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm
+index bdbdd7f9e..67c43c940 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.asm
+@@ -953,7 +953,7 @@ $L$one_lsb:
+ 	DB	89,80,84,79,71,65,77,83,32,98,121,32,60,97,112,112
+ 	DB	114,111,64,111,112,101,110,115,115,108,46,111,114,103,62,0
+ ALIGN	64
+-section	.text code align=64
++section	.text
+ 
+ section	.pdata rdata align=4
+ ALIGN	4
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm
+index 891101019..2f410fea0 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/aesni-x86_64.asm
+@@ -3648,7 +3648,7 @@ $L$key_rcon1b:
+ 	DB	32,98,121,32,60,97,112,112,114,111,64,111,112,101,110,115
+ 	DB	115,108,46,111,114,103,62,0
+ ALIGN	64
+-section	.text code align=64
++section	.text
+ 
+ EXTERN	__imp_RtlVirtualUnwind
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm
+index dc9be6d01..b3d54e6ae 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm
+@@ -443,7 +443,7 @@ $L$reverse_bytes:
+ 
+ $L$low4_mask:
+ 	DQ	0x0f0f0f0f0f0f0f0f,0x0f0f0f0f0f0f0f0f
+-section	.text code align=64
++section	.text
+ 
+ section	.pdata rdata align=4
+ ALIGN	4
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm
+index 511ab2411..b2323ee62 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/ghash-x86_64.asm
+@@ -1208,7 +1208,7 @@ ALIGN	64
+ 	DB	60,97,112,112,114,111,64,111,112,101,110,115,115,108,46,111
+ 	DB	114,103,62,0
+ ALIGN	64
+-section	.text code align=64
++section	.text
+ 
+ section	.pdata rdata align=4
+ ALIGN	4
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm b/generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm
+index b8e84bd53..73f536ea3 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/p256-x86_64-asm.asm
+@@ -34,7 +34,7 @@ $L$ord:
+ 	DQ	0xf3b9cac2fc632551,0xbce6faada7179e84,0xffffffffffffffff,0xffffffff00000000
+ $L$ordK:
+ 	DQ	0xccd1c8aaee00bc4f
+-section	.text code align=64
++section	.text
+ 
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm b/generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm
+index f012cb0ab..fd41206e6 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/rsaz-avx2.asm
+@@ -1837,7 +1837,7 @@ $L$inc:
+ 	DD	2,2,2,2,3,3,3,3
+ 	DD	4,4,4,4,4,4,4,4
+ ALIGN	64
+-section	.text code align=64
++section	.text
+ 
+ EXTERN	__imp_RtlVirtualUnwind
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm
+index d94e83eca..c842eee83 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/sha1-x86_64.asm
+@@ -1323,6 +1323,7 @@ $L$oop_shaext:
+ 	lea	r8,[64+rsi]
+ 	paddd	xmm1,xmm4
+ 	cmovne	rsi,r8
++	prefetcht0	[512+rsi]
+ 	movdqa	xmm8,xmm0
+ 	DB	15,56,201,229
+ 	movdqa	xmm2,xmm0
+@@ -5574,7 +5575,7 @@ K_XX_XX:
+ 	DB	97,112,112,114,111,64,111,112,101,110,115,115,108,46,111,114
+ 	DB	103,62,0
+ ALIGN	64
+-section	.text code align=64
++section	.text
+ 
+ EXTERN	__imp_RtlVirtualUnwind
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm
+index 78436934a..fc7c3ff99 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/sha256-x86_64.asm
+@@ -1797,7 +1797,7 @@ K256:
+ 	DB	52,44,32,67,82,89,80,84,79,71,65,77,83,32,98,121
+ 	DB	32,60,97,112,112,114,111,64,111,112,101,110,115,115,108,46
+ 	DB	111,114,103,62,0
+-section	.text code align=64
++section	.text
+ 
+ 
+ ALIGN	64
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm
+index 6e6b24ccd..a85813c0c 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/sha512-x86_64.asm
+@@ -1837,7 +1837,7 @@ K512:
+ 	DB	52,44,32,67,82,89,80,84,79,71,65,77,83,32,98,121
+ 	DB	32,60,97,112,112,114,111,64,111,112,101,110,115,115,108,46
+ 	DB	111,114,103,62,0
+-section	.text code align=64
++section	.text
+ 
+ 
+ ALIGN	64
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm
+index 06f408cad..593ab402d 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/vpaes-x86_64.asm
+@@ -1341,7 +1341,7 @@ $L$ctr_add_two:
+ 	DB	85,110,105,118,101,114,115,105,116,121,41,0
+ ALIGN	64
+ 
+-section	.text code align=64
++section	.text
+ 
+ EXTERN	__imp_RtlVirtualUnwind
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm b/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm
+index 83a4701f8..8583bda11 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/x86_64-mont5.asm
+@@ -3690,7 +3690,7 @@ $L$inc:
+ 	DB	114,32,120,56,54,95,54,52,44,32,67,82,89,80,84,79
+ 	DB	71,65,77,83,32,98,121,32,60,97,112,112,114,111,64,111
+ 	DB	112,101,110,115,115,108,46,111,114,103,62,0
+-section	.text code align=64
++section	.text
+ 
+ EXTERN	__imp_RtlVirtualUnwind
+ 

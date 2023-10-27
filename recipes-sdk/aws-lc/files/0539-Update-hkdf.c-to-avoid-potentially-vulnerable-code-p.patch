@@ -1,0 +1,26 @@
+From 681e84d0e6752ec248cdf8809f14c31fbd97af67 Mon Sep 17 00:00:00 2001
+From: Nicky Mouha <nmouha@gmail.com>
+Date: Wed, 17 May 2023 18:07:00 -0400
+Subject: [PATCH] Update hkdf.c to avoid potentially vulnerable code pattern.
+
+Change-Id: I190fcdb0b9667b0ac6f490b36edc63237af7fffb
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59905
+Reviewed-by: David Benjamin <davidben@google.com>
+(cherry picked from commit 47b2fefb03122e49375a252698c857e477c8cf35)
+---
+ crypto/fipsmodule/hkdf/hkdf.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/crypto/fipsmodule/hkdf/hkdf.c b/crypto/fipsmodule/hkdf/hkdf.c
+index f9821d45c..f2af32274 100644
+--- a/crypto/fipsmodule/hkdf/hkdf.c
++++ b/crypto/fipsmodule/hkdf/hkdf.c
+@@ -123,7 +123,7 @@ int HKDF_expand(uint8_t *out_key, size_t out_len, const EVP_MD *digest,
+     }
+ 
+     todo = digest_len;
+-    if (done + todo > out_len) {
++    if (todo > out_len - done) {
+       todo = out_len - done;
+     }
+     OPENSSL_memcpy(out_key + done, previous, todo);

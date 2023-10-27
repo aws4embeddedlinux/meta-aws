@@ -1,0 +1,152 @@
+From c46696646cecb85f3f030749cf45dad7432a25f2 Mon Sep 17 00:00:00 2001
+From: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+Date: Wed, 8 Feb 2023 12:41:17 -0500
+Subject: [PATCH] Update Rust crate bindgen (#794)
+
+---
+ bindings/rust/aws-lc-fips-sys-template/Cargo.toml     |  2 +-
+ .../rust/aws-lc-fips-sys-template/build/bindgen.rs    |  6 +++---
+ bindings/rust/aws-lc-sys-template/Cargo.toml          |  2 +-
+ bindings/rust/aws-lc-sys-template/build/bindgen.rs    |  6 +++---
+ bindings/rust/generate/generate-fips.sh               | 11 ++++++++---
+ bindings/rust/generate/generate.sh                    | 11 ++++++++---
+ 6 files changed, 24 insertions(+), 14 deletions(-)
+
+diff --git a/bindings/rust/aws-lc-fips-sys-template/Cargo.toml b/bindings/rust/aws-lc-fips-sys-template/Cargo.toml
+index 018e81f8f..4d3465fd8 100644
+--- a/bindings/rust/aws-lc-fips-sys-template/Cargo.toml
++++ b/bindings/rust/aws-lc-fips-sys-template/Cargo.toml
+@@ -33,7 +33,7 @@ ssl = []
+ 
+ [build-dependencies]
+ cmake = "0.1.48"
+-bindgen = { version = "0.61", optional = true }
++bindgen = { version = "0.64.0", optional = true }
+ regex = "1"
+ dunce = "1.0"
+ cfg_aliases = "0.1.1"
+diff --git a/bindings/rust/aws-lc-fips-sys-template/build/bindgen.rs b/bindings/rust/aws-lc-fips-sys-template/build/bindgen.rs
+index 35499fba8..c9d47cbb4 100644
+--- a/bindings/rust/aws-lc-fips-sys-template/build/bindgen.rs
++++ b/bindings/rust/aws-lc-fips-sys-template/build/bindgen.rs
+@@ -2,7 +2,7 @@
+ // Modifications Copyright Amazon.com, Inc. or its affiliates. See GitHub history for details.
+ 
+ use crate::get_include_path;
+-use bindgen::callbacks::ParseCallbacks;
++use bindgen::callbacks::{ParseCallbacks, ItemInfo};
+ use std::fmt::Debug;
+ use std::path::Path;
+ 
+@@ -21,10 +21,10 @@ impl StripPrefixCallback {
+ 
+ #[cfg(feature = "bindgen")]
+ impl ParseCallbacks for StripPrefixCallback {
+-    fn generated_name_override(&self, name: &str) -> Option<String> {
++    fn generated_name_override(&self, item_info: ItemInfo<'_>) -> Option<String> {
+         self.remove_prefix.as_ref().and_then(|s| {
+             let prefix = format!("{}_", s);
+-            name.strip_prefix(prefix.as_str()).map(String::from)
++            item_info.name.strip_prefix(prefix.as_str()).map(String::from)
+         })
+     }
+ }
+diff --git a/bindings/rust/aws-lc-sys-template/Cargo.toml b/bindings/rust/aws-lc-sys-template/Cargo.toml
+index bea6fa898..63b4836fd 100644
+--- a/bindings/rust/aws-lc-sys-template/Cargo.toml
++++ b/bindings/rust/aws-lc-sys-template/Cargo.toml
+@@ -32,7 +32,7 @@ ssl = []
+ 
+ [build-dependencies]
+ cmake = "0.1.48"
+-bindgen = { version = "0.61", optional = true }
++bindgen = { version = "0.64.0", optional = true }
+ regex = "1"
+ dunce = "1.0"
+ cfg_aliases = "0.1.1"
+diff --git a/bindings/rust/aws-lc-sys-template/build/bindgen.rs b/bindings/rust/aws-lc-sys-template/build/bindgen.rs
+index 35499fba8..c9d47cbb4 100644
+--- a/bindings/rust/aws-lc-sys-template/build/bindgen.rs
++++ b/bindings/rust/aws-lc-sys-template/build/bindgen.rs
+@@ -2,7 +2,7 @@
+ // Modifications Copyright Amazon.com, Inc. or its affiliates. See GitHub history for details.
+ 
+ use crate::get_include_path;
+-use bindgen::callbacks::ParseCallbacks;
++use bindgen::callbacks::{ParseCallbacks, ItemInfo};
+ use std::fmt::Debug;
+ use std::path::Path;
+ 
+@@ -21,10 +21,10 @@ impl StripPrefixCallback {
+ 
+ #[cfg(feature = "bindgen")]
+ impl ParseCallbacks for StripPrefixCallback {
+-    fn generated_name_override(&self, name: &str) -> Option<String> {
++    fn generated_name_override(&self, item_info: ItemInfo<'_>) -> Option<String> {
+         self.remove_prefix.as_ref().and_then(|s| {
+             let prefix = format!("{}_", s);
+-            name.strip_prefix(prefix.as_str()).map(String::from)
++            item_info.name.strip_prefix(prefix.as_str()).map(String::from)
+         })
+     }
+ }
+diff --git a/bindings/rust/generate/generate-fips.sh b/bindings/rust/generate/generate-fips.sh
+index b615d090c..6b6a11ec7 100755
+--- a/bindings/rust/generate/generate-fips.sh
++++ b/bindings/rust/generate/generate-fips.sh
+@@ -30,9 +30,7 @@ source "${SCRIPT_DIR}"/_generation_tools.sh
+ # Clone the FIPS branch in local.
+ function clone_fips_branch {
+   pushd "${TMP_DIR}"
+-  rm -rf aws-lc
+   git clone -b ${AWS_LC_FIPS_BRANCH} --depth 1 --single-branch https://github.com/awslabs/aws-lc.git
+-  AWS_LC_COMMIT_HASH=$(git -C ${AWS_LC_FIPS_DIR} log -n 1 --pretty=format:"%H" HEAD)
+   popd
+ }
+ 
+@@ -96,7 +94,14 @@ mkdir -p "${TMP_DIR}"
+ determine_generate_version
+ 
+ # Crate preparation.
+-clone_fips_branch
++if [[ ! -r "${SYMBOLS_FILE}" ]] || [[! -d "${AWS_LC_FIPS_DIR}" ]]; then
++  # Symbols file must be consistent with AWS-LC source directory
++  rm -f "${SYMBOLS_FILE}"
++  rm -rf "${AWS_LC_FIPS_DIR}"
++  clone_fips_branch
++fi
++AWS_LC_COMMIT_HASH=$(git -C ${AWS_LC_FIPS_DIR} log -n 1 --pretty=format:"%H" HEAD)
++
+ prepare_crate_dir
+ create_prefix_headers
+ 
+diff --git a/bindings/rust/generate/generate.sh b/bindings/rust/generate/generate.sh
+index e9621077f..53e50febb 100755
+--- a/bindings/rust/generate/generate.sh
++++ b/bindings/rust/generate/generate.sh
+@@ -29,9 +29,7 @@ source "${SCRIPT_DIR}"/_generation_tools.sh
+ # Clone the main branch in local.
+ function clone_main_branch {
+   pushd "${TMP_DIR}"
+-  rm -rf aws-lc
+   git clone -b main --depth 1 --single-branch https://github.com/awslabs/aws-lc.git
+-  AWS_LC_COMMIT_HASH=$(git -C ${AWS_LC_SRC_DIR} log -n 1 --pretty=format:"%H" HEAD)
+   popd
+ }
+ 
+@@ -89,7 +87,14 @@ mkdir -p "${TMP_DIR}"
+ determine_generate_version
+ 
+ # Crate preparation.
+-clone_main_branch
++if [[ ! -r "${SYMBOLS_FILE}" ]] || [[! -d "${AWS_LC_SRC_DIR}" ]]; then
++  # Symbols file must be consistent with AWS-LC source directory
++  rm -f "${SYMBOLS_FILE}"
++  rm -rf "${AWS_LC_SRC_DIR}"
++  clone_main_branch
++fi
++AWS_LC_COMMIT_HASH=$(git -C ${AWS_LC_SRC_DIR} log -n 1 --pretty=format:"%H" HEAD)
++
+ prepare_crate_dir
+ create_prefix_headers
+ 

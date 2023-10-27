@@ -1,0 +1,41 @@
+From fd686fac4581a2c70a277907876c7c40a345d569 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Wed, 2 Aug 2023 06:58:02 -0700
+Subject: [PATCH] fix formal verification CI (#1130)
+
+---
+ .../create_image.sh                                        | 2 +-
+ tests/ci/run_formal_verification.sh                        | 7 ++++++-
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-20.04_clang-10x_formal-verification/create_image.sh b/tests/ci/docker_images/linux-x86/ubuntu-20.04_clang-10x_formal-verification/create_image.sh
+index c093bb7d6..fe5ccd2d6 100755
+--- a/tests/ci/docker_images/linux-x86/ubuntu-20.04_clang-10x_formal-verification/create_image.sh
++++ b/tests/ci/docker_images/linux-x86/ubuntu-20.04_clang-10x_formal-verification/create_image.sh
+@@ -10,6 +10,6 @@ fi
+ rm -rf aws-lc-verification
+ git clone https://github.com/awslabs/aws-lc-verification.git
+ cd aws-lc-verification
+-docker build -t ${docker_tag} .
++docker build --pull --no-cache -t ${docker_tag} .
+ cd ..
+ rm -rf aws-lc-verification
+diff --git a/tests/ci/run_formal_verification.sh b/tests/ci/run_formal_verification.sh
+index c73aff7cc..6b7af8f7a 100755
+--- a/tests/ci/run_formal_verification.sh
++++ b/tests/ci/run_formal_verification.sh
+@@ -7,8 +7,13 @@ cd ../
+ ROOT=$(pwd)
+ 
+ rm -rf aws-lc-verification-build
+-git clone --recurse-submodules https://github.com/awslabs/aws-lc-verification.git aws-lc-verification-build
++git clone https://github.com/awslabs/aws-lc-verification.git aws-lc-verification-build
++
+ cd aws-lc-verification-build
++# We avoid pulling the saw-script submodule since the repo will take forever to clone.
++git submodule update --init
++pushd Coq/fiat-crypto; git submodule update --init --recursive; popd
++
+ # aws-lc-verification has aws-lc as one submodule under 'src' dir.
+ # Below is to copy code of **target** aws-lc to 'src' dir.
+ rm -rf ./src/* && cp -r "${ROOT}/${AWS_LC_DIR}/"* ./src

@@ -1,0 +1,59 @@
+From ed9e7b24221d1d9b329a5c25215cc52ce9c203c7 Mon Sep 17 00:00:00 2001
+From: torben-hansen <50673096+torben-hansen@users.noreply.github.com>
+Date: Tue, 7 Feb 2023 09:28:04 -0800
+Subject: [PATCH] Improve X.509 GeneralName parsing. (#789)
+
+Fixes a type confusion related to CVE-2023-0286.
+---
+ crypto/x509/x509_test.cc | 2 ++
+ crypto/x509v3/v3_genn.c  | 2 +-
+ include/openssl/x509v3.h | 3 +--
+ 3 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index b3ede4c68..1528a938d 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -3548,6 +3548,8 @@ TEST(X509Test, GeneralName)  {
+       {0x82, 0x01, 0x61},
+       // [2 PRIMITIVE] { "b" }
+       {0x82, 0x01, 0x62},
++      // [3] {}. Regression test for CVE-2023-0286.
++      {0xa3, 0x00},
+       // [4] {
+       //   SEQUENCE {
+       //     SET {
+diff --git a/crypto/x509v3/v3_genn.c b/crypto/x509v3/v3_genn.c
+index fef020445..2153a1d09 100644
+--- a/crypto/x509v3/v3_genn.c
++++ b/crypto/x509v3/v3_genn.c
+@@ -130,7 +130,7 @@ int GENERAL_NAME_cmp(const GENERAL_NAME *a, const GENERAL_NAME *b) {
+ 
+   switch (a->type) {
+     case GEN_X400:
+-      return ASN1_TYPE_cmp(a->d.x400Address, b->d.x400Address);
++      return ASN1_STRING_cmp(a->d.x400Address, b->d.x400Address);
+ 
+     case GEN_EDIPARTY:
+       return edipartyname_cmp(a->d.ediPartyName, b->d.ediPartyName);
+diff --git a/include/openssl/x509v3.h b/include/openssl/x509v3.h
+index f973682ca..d32a5b628 100644
+--- a/include/openssl/x509v3.h
++++ b/include/openssl/x509v3.h
+@@ -177,7 +177,7 @@ typedef struct GENERAL_NAME_st {
+     OTHERNAME *otherName;  // otherName
+     ASN1_IA5STRING *rfc822Name;
+     ASN1_IA5STRING *dNSName;
+-    ASN1_TYPE *x400Address;
++    ASN1_STRING *x400Address;
+     X509_NAME *directoryName;
+     EDIPARTYNAME *ediPartyName;
+     ASN1_IA5STRING *uniformResourceIdentifier;
+@@ -189,7 +189,6 @@ typedef struct GENERAL_NAME_st {
+     X509_NAME *dirn;        // dirn
+     ASN1_IA5STRING *ia5;    // rfc822Name, dNSName, uniformResourceIdentifier
+     ASN1_OBJECT *rid;       // registeredID
+-    ASN1_TYPE *other;       // x400Address
+   } d;
+ } GENERAL_NAME;
+ 

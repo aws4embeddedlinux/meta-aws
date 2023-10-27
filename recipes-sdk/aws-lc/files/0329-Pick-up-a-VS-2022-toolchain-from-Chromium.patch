@@ -1,0 +1,32 @@
+From abd038d6ee14d6243910367087752649f71c31ec Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 24 Feb 2023 13:21:54 -0500
+Subject: [PATCH] Pick up a VS 2022 toolchain from Chromium
+
+Nothing uses it yet, but this makes it available for any CI builders
+that set vs_version to 2022.
+
+Bug: 569
+Change-Id: I7058157182f3e7762a35f8138977f37d56d65094
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57648
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit b3c2c756aeec1c4309447f5247f61d435274da4a)
+---
+ util/bot/vs_toolchain.py | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/util/bot/vs_toolchain.py b/util/bot/vs_toolchain.py
+index 5081a2af5..fc14f6b96 100644
+--- a/util/bot/vs_toolchain.py
++++ b/util/bot/vs_toolchain.py
+@@ -74,6 +74,9 @@ def _GetDesiredVsToolchainHashes(version):
+     # VS 2019 16.61 with 10.0.20348.0 SDK, 10.0.22621.755 version of Debuggers,
+     # with ARM64 libraries and UWP support.
+     return ['0b5ee4d2b1']
++  if version == '2022':
++    # VS 2022 17.4 with 10.0.22621.0 SDK with ARM64 libraries and UWP support.
++    return ['27370823e7']
+   raise Exception('Unsupported VS version %s' % version)
+ 
+ 

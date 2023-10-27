@@ -1,0 +1,26 @@
+From 75fbf7b4960bb65b1186eda6300f780b6a7f6311 Mon Sep 17 00:00:00 2001
+From: dkostic <25055813+dkostic@users.noreply.github.com>
+Date: Fri, 7 Apr 2023 14:13:05 -0700
+Subject: [PATCH] Add back ASN1_STRING_clear_free that was accidentally removed
+ (#936)
+
+Co-authored-by: dkostic <dkostic@amazon.com>
+---
+ crypto/asn1/asn1_lib.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/crypto/asn1/asn1_lib.c b/crypto/asn1/asn1_lib.c
+index 3b97b38e0..901c7a7e3 100644
+--- a/crypto/asn1/asn1_lib.c
++++ b/crypto/asn1/asn1_lib.c
+@@ -347,6 +347,10 @@ void ASN1_STRING_free(ASN1_STRING *str) {
+   OPENSSL_free(str);
+ }
+ 
++void ASN1_STRING_clear_free(ASN1_STRING *str) {
++  ASN1_STRING_free(str);
++}
++
+ int ASN1_STRING_cmp(const ASN1_STRING *a, const ASN1_STRING *b) {
+   // Capture padding bits and implicit truncation in BIT STRINGs.
+   int a_length = a->length, b_length = b->length;

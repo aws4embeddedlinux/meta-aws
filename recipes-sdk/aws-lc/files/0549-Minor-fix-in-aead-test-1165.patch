@@ -1,0 +1,30 @@
+From 3cf948b864e4e3308a3bdafd2859cb94dd279af4 Mon Sep 17 00:00:00 2001
+From: dkostic <25055813+dkostic@users.noreply.github.com>
+Date: Fri, 18 Aug 2023 08:14:54 -0700
+Subject: [PATCH] Minor fix in aead test (#1165)
+
+Co-authored-by: dkostic <dkostic@amazon.com>
+---
+ crypto/cipher_extra/aead_test.cc | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/crypto/cipher_extra/aead_test.cc b/crypto/cipher_extra/aead_test.cc
+index abbccbde9..8fedcde9e 100644
+--- a/crypto/cipher_extra/aead_test.cc
++++ b/crypto/cipher_extra/aead_test.cc
+@@ -1304,6 +1304,7 @@ TEST(AEADTest, TestGCMSIV128Change16Alignment) {
+   uint8_t pt[16] = {0};
+   uint8_t ct[32] = {0};
+   EVP_AEAD_CTX* encrypt_ctx_128 = (EVP_AEAD_CTX*)malloc(sizeof(EVP_AEAD_CTX) + 8);
++  ASSERT_TRUE(encrypt_ctx_128);
+ 
+   const EVP_AEAD *cipher_128 = EVP_aead_aes_128_gcm_siv();
+ 
+@@ -1343,6 +1344,7 @@ TEST(AEADTest, TestGCMSIV256Change16Alignment) {
+   uint8_t pt[16] = {0};
+   uint8_t ct[32] = {0};
+   EVP_AEAD_CTX* encrypt_ctx_256 = (EVP_AEAD_CTX*)malloc(sizeof(EVP_AEAD_CTX) + 8);
++  ASSERT_TRUE(encrypt_ctx_256);
+ 
+   const EVP_AEAD *cipher_256 = EVP_aead_aes_256_gcm_siv();
+ 

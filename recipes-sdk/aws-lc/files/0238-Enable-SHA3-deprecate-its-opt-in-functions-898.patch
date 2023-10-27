@@ -1,0 +1,389 @@
+From 500ffbeb678f2cacbfeee0d62b632915091a87f3 Mon Sep 17 00:00:00 2001
+From: Will Childs-Klein <childw@amazon.com>
+Date: Fri, 31 Mar 2023 11:30:36 -0400
+Subject: [PATCH] Enable SHA3, deprecate its opt-in functions (#898)
+
+For the deprecated opt-in functions, we modify the getter to always
+retrun true and modify the setter to be a no-op as SHA3 is now always
+enabled.
+---
+ crypto/digest_extra/digest_test.cc            |  9 ---
+ crypto/fipsmodule/digest/digest.c             | 51 +--------------
+ crypto/fipsmodule/sha/sha3.c                  | 12 ----
+ crypto/fipsmodule/sha/sha3_test.cc            | 62 +++----------------
+ include/openssl/digest.h                      | 19 +++---
+ tool/speed.cc                                 | 11 ----
+ .../acvp/modulewrapper/modulewrapper.cc       |  4 --
+ 7 files changed, 16 insertions(+), 152 deletions(-)
+
+diff --git a/crypto/digest_extra/digest_test.cc b/crypto/digest_extra/digest_test.cc
+index 6e7836701..7eb95c072 100644
+--- a/crypto/digest_extra/digest_test.cc
++++ b/crypto/digest_extra/digest_test.cc
+@@ -234,13 +234,6 @@ static void CompareDigest(const DigestTestVector *test,
+ }
+ 
+ static void TestDigest(const DigestTestVector *test) {
+-    // Test SHA3 by enabling |unstable_sha3_enabled_flag|, then disable it
+-    // |unstable_sha3_enabled_flag| is desabled by default
+-    // SHA3 negative tests are implemented in /fipsmodule/sha/sha3_test.cc
+-    if (strstr(test->md.name, "SHA3") != NULL) {
+-      EVP_MD_unstable_sha3_enable(true);
+-    }
+-
+     bssl::ScopedEVP_MD_CTX ctx;
+     // Test the input provided.
+     ASSERT_TRUE(EVP_DigestInit_ex(ctx.get(), test->md.func(), nullptr));
+@@ -328,8 +321,6 @@ static void TestDigest(const DigestTestVector *test) {
+     // One-shot functions return their supplied buffers.
+     EXPECT_EQ(digest.get(), out);
+     CompareDigest(test, digest.get(), EVP_MD_size(test->md.func()));
+-
+-    EVP_MD_unstable_sha3_enable(false);
+   }
+ }
+ 
+diff --git a/crypto/fipsmodule/digest/digest.c b/crypto/fipsmodule/digest/digest.c
+index 34e5a0793..6c6bba270 100644
+--- a/crypto/fipsmodule/digest/digest.c
++++ b/crypto/fipsmodule/digest/digest.c
+@@ -67,44 +67,9 @@
+ #include "../evp/internal.h"
+ 
+ 
+-// Create and initialize a static variable |unstable_sha3_enabled_flag| to enable/disable the use of SHA3.
+-// |unstable_sha3_enabled_flag| is configured globally.
+-DEFINE_BSS_GET(bool, unstable_sha3_enabled_flag)
++void EVP_MD_unstable_sha3_enable(bool enable) { /* no-op */ }
+ 
+-// Create and initialize a static mutex to lock/unlock the update of the |unstable_sha3_enabled_flag|.
+-DEFINE_STATIC_MUTEX(unstable_sha3_flag_lock)
+-
+-
+-void EVP_MD_unstable_sha3_enable(bool enable) {
+-      // Lock |unstable_sha3_enabled_flag| for rest of threads
+-      CRYPTO_STATIC_MUTEX_lock_write( unstable_sha3_flag_lock_bss_get());
+-
+-      bool *unstable_enabled_sha3 = unstable_sha3_enabled_flag_bss_get(); 
+-      *unstable_enabled_sha3 = enable;
+-
+-      CRYPTO_STATIC_MUTEX_unlock_write( unstable_sha3_flag_lock_bss_get());
+-}
+-
+-bool EVP_MD_unstable_sha3_is_enabled(void) {
+-      // Lock the |unstable_sha3_enabled_flag| while reading so that it is not overwritten meanwhile.
+-      // Allow concurrent reads, do not allow write access to the |unstable_sha3_enabled_flag|.
+-      CRYPTO_STATIC_MUTEX_lock_read( unstable_sha3_flag_lock_bss_get());
+-
+-      bool *unstable_enabled_sha3 = unstable_sha3_enabled_flag_bss_get(); 
+-
+-      CRYPTO_STATIC_MUTEX_unlock_read( unstable_sha3_flag_lock_bss_get());
+-      return *unstable_enabled_sha3;
+-}
+-
+-static bool SHA3_requested_and_enabled(const EVP_MD *digest) {
+-  if ((digest->type == NID_sha3_224 || digest->type == NID_sha3_256 || 
+-       digest->type == NID_sha3_384 ||  digest->type == NID_sha3_512) && 
+-      !EVP_MD_unstable_sha3_is_enabled()) {
+-    return false;
+-  }
+-
+-  return true;
+-}
++bool EVP_MD_unstable_sha3_is_enabled(void) { return true; }
+ 
+ int EVP_MD_type(const EVP_MD *md) { return md->type; }
+ 
+@@ -246,10 +211,6 @@ int EVP_MD_CTX_reset(EVP_MD_CTX *ctx) {
+ }
+ 
+ int EVP_DigestInit_ex(EVP_MD_CTX *ctx, const EVP_MD *type, ENGINE *engine) {
+-  if (!SHA3_requested_and_enabled(type)) {
+-    return 0;
+-  }
+-
+   if (ctx->digest != type) {
+     assert(type->ctx_size != 0);
+     uint8_t *md_data = OPENSSL_malloc(type->ctx_size);
+@@ -279,10 +240,6 @@ int EVP_DigestUpdate(EVP_MD_CTX *ctx, const void *data, size_t len) {
+     return 0;
+   }
+ 
+-  if (!SHA3_requested_and_enabled(ctx->digest)) {
+-    return 0;
+-  }
+-
+   ctx->digest->update(ctx, data, len);
+   return 1;
+ }
+@@ -292,10 +249,6 @@ int EVP_DigestFinal_ex(EVP_MD_CTX *ctx, uint8_t *md_out, unsigned int *size) {
+     return 0;
+   }
+ 
+-  if (!SHA3_requested_and_enabled(ctx->digest)) {
+-    return 0;
+-  }
+-  
+   assert(ctx->digest->md_size <= EVP_MAX_MD_SIZE);
+   ctx->digest->final(ctx, md_out);
+   if (size != NULL) {
+diff --git a/crypto/fipsmodule/sha/sha3.c b/crypto/fipsmodule/sha/sha3.c
+index 3dee3cf1e..7bab5ebd3 100644
+--- a/crypto/fipsmodule/sha/sha3.c
++++ b/crypto/fipsmodule/sha/sha3.c
+@@ -109,10 +109,6 @@ void SHA3_Reset(KECCAK1600_CTX *ctx) {
+ }
+ 
+ int SHA3_Init(KECCAK1600_CTX *ctx, uint8_t pad, size_t bit_len) {
+-  if (EVP_MD_unstable_sha3_is_enabled() == false) {
+-    return 0;
+-  }
+-
+   size_t block_size;
+ 
+   // The block size is computed differently depending on which algorithm
+@@ -140,10 +136,6 @@ int SHA3_Init(KECCAK1600_CTX *ctx, uint8_t pad, size_t bit_len) {
+ }
+ 
+ int SHA3_Update(KECCAK1600_CTX *ctx, const void *data, size_t len) {
+-  if (EVP_MD_unstable_sha3_is_enabled() == false) {
+-    return 0;
+-  }
+-
+   uint8_t *data_ptr_copy = (uint8_t *) data;
+   size_t block_size = ctx->block_size;
+   size_t num, rem;
+@@ -190,10 +182,6 @@ int SHA3_Update(KECCAK1600_CTX *ctx, const void *data, size_t len) {
+ }
+ 
+ int SHA3_Final(uint8_t *md, KECCAK1600_CTX *ctx) {
+-  if (EVP_MD_unstable_sha3_is_enabled() == false) {
+-    return 0;
+-  }
+-
+   size_t block_size = ctx->block_size;
+   size_t num = ctx->buf_load;
+ 
+diff --git a/crypto/fipsmodule/sha/sha3_test.cc b/crypto/fipsmodule/sha/sha3_test.cc
+index e6ddd9bf7..0d1be686a 100644
+--- a/crypto/fipsmodule/sha/sha3_test.cc
++++ b/crypto/fipsmodule/sha/sha3_test.cc
+@@ -21,35 +21,19 @@ class SHA3TestVector {
+   ~SHA3TestVector() = default;
+ 
+   bool ReadFromFileTest(FileTest *t);
+-  
++
+   void NISTTestVectors(const EVP_MD *algorithm) const {
+     uint32_t digest_length;
+     std::unique_ptr<uint8_t[]> digest(new uint8_t[EVP_MD_size(algorithm)]);
+     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+ 
+-    // SHA3 is disabled by default. First test this assumption and then enable SHA3 and test it.
+-    ASSERT_FALSE(EVP_DigestInit(ctx, algorithm));
+-    ASSERT_FALSE(EVP_DigestUpdate(ctx, msg_.data(), len_ / 8));
+-    ASSERT_FALSE(EVP_DigestFinal(ctx, digest.get(), &digest_length));
+-
+-    // Enable SHA3
+-    EVP_MD_unstable_sha3_enable(true);
+-
+     // Test the correctness via the Init, Update and Final Digest APIs.
+     ASSERT_TRUE(EVP_DigestInit(ctx, algorithm));
+     ASSERT_TRUE(EVP_DigestUpdate(ctx, msg_.data(), len_ / 8));
+     ASSERT_TRUE(EVP_DigestFinal(ctx, digest.get(), &digest_length));
+-    
++
+     ASSERT_EQ(Bytes(digest.get(), EVP_MD_size(algorithm)),
+               Bytes(digest_.data(), EVP_MD_size(algorithm)));
+- 
+-    // Disable SHA3
+-    EVP_MD_unstable_sha3_enable(false);
+-
+-    // Test again SHA3 when |unstable_sha3_enabled_flag| is disabled.
+-    ASSERT_FALSE(EVP_DigestInit(ctx, algorithm));
+-    ASSERT_FALSE(EVP_DigestUpdate(ctx, msg_.data(), len_ / 8));
+-    ASSERT_FALSE(EVP_DigestFinal(ctx, digest.get(), &digest_length));
+ 
+     OPENSSL_free(ctx);
+   }
+@@ -58,25 +42,13 @@ class SHA3TestVector {
+     uint32_t digest_length;
+     std::unique_ptr<uint8_t[]> digest(new uint8_t[EVP_MD_size(algorithm)]);
+     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+-    
+-    // SHA3 is disabled by default. First test this assumption and then enable SHA3 and test it.
+-    ASSERT_FALSE(EVP_Digest(msg_.data(), len_ / 8, digest.get(), &digest_length, algorithm, NULL));
+-
+-    // Enable SHA3
+-    EVP_MD_unstable_sha3_enable(true);
+ 
+     // Test the correctness via the Single-Shot EVP_Digest APIs.
+     ASSERT_TRUE(EVP_Digest(msg_.data(), len_ / 8, digest.get(), &digest_length, algorithm, NULL));
+-   
++
+     ASSERT_EQ(Bytes(digest.get(), EVP_MD_size(algorithm)),
+               Bytes(digest_.data(), EVP_MD_size(algorithm)));
+ 
+-    // Disable SHA3
+-    EVP_MD_unstable_sha3_enable(false);
+-
+-    // Test again SHA3 when |unstable_sha3_enabled_flag| is disabled.
+-    ASSERT_FALSE(EVP_Digest(msg_.data(), len_ / 8, digest.get(), &digest_length, algorithm, NULL));
+-
+     OPENSSL_free(ctx);
+   }
+ 
+@@ -84,40 +56,20 @@ class SHA3TestVector {
+     uint32_t digest_length = out_len_ / 8;
+     std::unique_ptr<uint8_t[]> digest(new uint8_t[digest_length]);
+ 
+-    ASSERT_FALSE(SHAKE128(msg_.data(), msg_.size() , digest.get(), out_len_));
+-
+-    // Enable SHA3
+-    EVP_MD_unstable_sha3_enable(true);
+-    
+     ASSERT_TRUE(SHAKE128(msg_.data(), msg_.size() , digest.get(), out_len_));
+-    
++
+     ASSERT_EQ(Bytes(digest.get(), out_len_ / 8),
+             Bytes(digest_.data(), out_len_ / 8));
+-
+-    // Disable SHA3
+-    EVP_MD_unstable_sha3_enable(false);
+-
+-    ASSERT_FALSE(SHAKE128(msg_.data(), msg_.size() , digest.get(), out_len_));
+   }
+ 
+   void NISTTestVectors_SHAKE256() const {
+     uint32_t digest_length = out_len_ / 8;
+     std::unique_ptr<uint8_t[]> digest(new uint8_t[digest_length]);
+ 
+-    ASSERT_FALSE(SHAKE256(msg_.data(), msg_.size() , digest.get(), out_len_));
+-
+-    // Enable SHA3
+-    EVP_MD_unstable_sha3_enable(true);
+-    
+     ASSERT_TRUE(SHAKE256(msg_.data(), msg_.size() , digest.get(), out_len_));
+-    
++
+     ASSERT_EQ(Bytes(digest.get(), out_len_ / 8),
+             Bytes(digest_.data(), out_len_ / 8));
+-
+-    // Disable SHA3
+-    EVP_MD_unstable_sha3_enable(false);
+-
+-    ASSERT_FALSE(SHAKE256(msg_.data(), msg_.size() , digest.get(), out_len_));
+   }
+ 
+  private:
+@@ -131,7 +83,7 @@ class SHA3TestVector {
+ template <typename T>
+ bool FileTestReadInt(FileTest *file_test, T *out, const std::string &key) {
+   std::string s;
+-  return file_test->GetAttribute(&s, key) && 
++  return file_test->GetAttribute(&s, key) &&
+   testing::internal::ParseInt32(testing::Message() << "The value " << s.data() << \
+   " is not convertable to an integer.", s.data(), (int *) out);
+ }
+@@ -148,7 +100,7 @@ bool SHA3TestVector::ReadFromFileTest(FileTest *t) {
+       return false;
+     }
+   }
+-  
++
+   if (!t->GetBytes(&msg_, "Msg") ||
+       !t->GetBytes(&digest_, "MD")) {
+     return false;
+diff --git a/include/openssl/digest.h b/include/openssl/digest.h
+index 7da91f6de..d028309ba 100644
+--- a/include/openssl/digest.h
++++ b/include/openssl/digest.h
+@@ -65,18 +65,6 @@
+ extern "C" {
+ #endif
+ 
+-// EVP_MD_unstable_sha3_enable manges runtime access to the SHA3 implementation.
+-// If |enable| is true the SHA3 implementation will be enabled. If |enable| is
+-// false, the SHA3 implementation will be disabled. If the SHA3 implementation
+-// is disabled, using the implementation in any way will cause AWS-LC to exit
+-// the process.
+-// |unstable_sha3_enabled_flag| is configured globally.
+-OPENSSL_EXPORT void EVP_MD_unstable_sha3_enable(bool enable);
+-
+-// EVP_MD_unstable_sha3_is_enabled returns whether SHA3 is enabled.
+-// |unstable_sha3_enabled_flag| is configured globally.
+-OPENSSL_EXPORT bool EVP_MD_unstable_sha3_is_enabled(void);
+-
+ // Digest functions.
+ //
+ // An EVP_MD abstracts the details of a specific hash function allowing code to
+@@ -276,6 +264,13 @@ OPENSSL_EXPORT int EVP_marshal_digest_algorithm(CBB *cbb, const EVP_MD *md);
+ 
+ // Deprecated functions.
+ 
++
++// EVP_MD_unstable_sha3_enable is a no-op as SHA3 is always enabled.
++OPENSSL_EXPORT void EVP_MD_unstable_sha3_enable(bool enable);
++
++// EVP_MD_unstable_sha3_is_enabled always returns true as SHA3 is always enabled.
++OPENSSL_EXPORT bool EVP_MD_unstable_sha3_is_enabled(void);
++
+ // EVP_MD_CTX_copy sets |out|, which must /not/ be initialised, to be a copy of
+ // |in|. It returns one on success and zero on error.
+ OPENSSL_EXPORT int EVP_MD_CTX_copy(EVP_MD_CTX *out, const EVP_MD_CTX *in);
+diff --git a/tool/speed.cc b/tool/speed.cc
+index 1d1ae32c1..75f5ccb1d 100644
+--- a/tool/speed.cc
++++ b/tool/speed.cc
+@@ -862,13 +862,6 @@ static bool SpeedHashChunk(const EVP_MD *md, std::string name,
+ 
+ static bool SpeedHash(const EVP_MD *md, const std::string &name,
+                       const std::string &selected) {
+-  // This SHA3 API is AWS-LC specific.
+-#if defined(OPENSSL_IS_AWSLC)
+-  if (name.find("SHA3") != std::string::npos) {
+-    EVP_MD_unstable_sha3_enable(true);
+-  }
+-#endif
+-
+   if (!selected.empty() && name.find(selected) == std::string::npos) {
+     return true;
+   }
+@@ -879,10 +872,6 @@ static bool SpeedHash(const EVP_MD *md, const std::string &name,
+     }
+   }
+ 
+-  // This SHA3 API is AWS-LC specific.
+-#if defined(OPENSSL_IS_AWSLC)
+-  EVP_MD_unstable_sha3_enable(false);
+-#endif
+   return true;
+ }
+ 
+diff --git a/util/fipstools/acvp/modulewrapper/modulewrapper.cc b/util/fipstools/acvp/modulewrapper/modulewrapper.cc
+index bd8f7befb..c4076da2d 100644
+--- a/util/fipstools/acvp/modulewrapper/modulewrapper.cc
++++ b/util/fipstools/acvp/modulewrapper/modulewrapper.cc
+@@ -1031,9 +1031,7 @@ static bool HashSha3(const Span<const uint8_t> args[], ReplyCallback write_reply
+   const EVP_MD *md = MDFunc();
+   unsigned int md_out_size = DigestLength;
+ 
+-  EVP_MD_unstable_sha3_enable(true);
+   EVP_Digest(args[0].data(), args[0].size(), digest, &md_out_size, md, NULL);
+-  EVP_MD_unstable_sha3_enable(false);
+ 
+   return write_reply({Span<const uint8_t>(digest)});
+ }
+@@ -1079,12 +1077,10 @@ static bool HashMCTSha3(const Span<const uint8_t> args[],
+ 
+   memcpy(md[0], args[0].data(), DigestLength);
+ 
+-  EVP_MD_unstable_sha3_enable(true);
+   for (size_t i = 1; i <= 1000; i++) {
+     memcpy(msg[i], md[i-1], DigestLength);
+     EVP_Digest(msg[i], sizeof(msg[i]), md[i], &md_out_size, evp_md, NULL);
+   }
+-  EVP_MD_unstable_sha3_enable(false);
+ 
+   return write_reply(
+       {Span<const uint8_t>(md[1000])});

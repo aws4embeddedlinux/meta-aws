@@ -1,0 +1,1125 @@
+From 46b0b410a8a3d71d3da94c33dfac56faa156cae1 Mon Sep 17 00:00:00 2001
+From: Steven Valdez <svaldez@google.com>
+Date: Tue, 6 Dec 2022 13:42:57 -0500
+Subject: [PATCH] Add over_message issuance and redemption to Trust Tokens.
+
+This adds function to allow for issuing and redeeming tokens derived
+from a particular message rather than a completely random nonce.
+
+Change-Id: Ia29ae06ca419405ffff79ab6defadbed4f184b29
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/55565
+Reviewed-by: David Benjamin <davidben@google.com>
+Commit-Queue: Steven Valdez <svaldez@google.com>
+(cherry picked from commit fa4555a8b665b222e5d73d4cda3d4bbfa8518457)
+---
+ crypto/trust_token/internal.h          |  88 ++++++----
+ crypto/trust_token/pmbtoken.c          |  90 +++++++----
+ crypto/trust_token/trust_token.c       |  65 ++++++--
+ crypto/trust_token/trust_token_test.cc | 213 +++++++++++++++++++------
+ crypto/trust_token/voprf.c             |  74 ++++++---
+ include/openssl/trust_token.h          |  29 ++++
+ 6 files changed, 410 insertions(+), 149 deletions(-)
+
+diff --git a/crypto/trust_token/internal.h b/crypto/trust_token/internal.h
+index 31ecc49b5..093b4acd7 100644
+--- a/crypto/trust_token/internal.h
++++ b/crypto/trust_token/internal.h
+@@ -71,6 +71,7 @@ typedef struct {
+ // TRUST_TOKEN_PRETOKEN represents the intermediate state a client keeps during
+ // a Trust_Token issuance operation.
+ typedef struct pmb_pretoken_st {
++  uint8_t salt[TRUST_TOKEN_NONCE_SIZE];
+   uint8_t t[TRUST_TOKEN_NONCE_SIZE];
+   EC_SCALAR r;
+   EC_AFFINE Tp;
+@@ -100,18 +101,22 @@ int pmbtoken_exp1_client_key_from_bytes(TRUST_TOKEN_CLIENT_KEY *key,
+                                         const uint8_t *in, size_t len);
+ int pmbtoken_exp1_issuer_key_from_bytes(TRUST_TOKEN_ISSUER_KEY *key,
+                                         const uint8_t *in, size_t len);
+-STACK_OF(TRUST_TOKEN_PRETOKEN) * pmbtoken_exp1_blind(CBB *cbb, size_t count);
++STACK_OF(TRUST_TOKEN_PRETOKEN) *pmbtoken_exp1_blind(CBB *cbb, size_t count,
++                                                    int include_message,
++                                                    const uint8_t *msg,
++                                                    size_t msg_len);
+ int pmbtoken_exp1_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
+                        size_t num_requested, size_t num_to_issue,
+                        uint8_t private_metadata);
+-STACK_OF(TRUST_TOKEN) *
+-    pmbtoken_exp1_unblind(const TRUST_TOKEN_CLIENT_KEY *key,
+-                          const STACK_OF(TRUST_TOKEN_PRETOKEN) * pretokens,
+-                          CBS *cbs, size_t count, uint32_t key_id);
++STACK_OF(TRUST_TOKEN) *pmbtoken_exp1_unblind(
++    const TRUST_TOKEN_CLIENT_KEY *key,
++    const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++    uint32_t key_id);
+ int pmbtoken_exp1_read(const TRUST_TOKEN_ISSUER_KEY *key,
+                        uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
+                        uint8_t *out_private_metadata, const uint8_t *token,
+-                       size_t token_len);
++                       size_t token_len, int include_message,
++                       const uint8_t *msg, size_t msg_len);
+ 
+ // pmbtoken_exp1_get_h_for_testing returns H in uncompressed coordinates. This
+ // function is used to confirm H was computed as expected.
+@@ -128,18 +133,22 @@ int pmbtoken_exp2_client_key_from_bytes(TRUST_TOKEN_CLIENT_KEY *key,
+                                         const uint8_t *in, size_t len);
+ int pmbtoken_exp2_issuer_key_from_bytes(TRUST_TOKEN_ISSUER_KEY *key,
+                                         const uint8_t *in, size_t len);
+-STACK_OF(TRUST_TOKEN_PRETOKEN) * pmbtoken_exp2_blind(CBB *cbb, size_t count);
++STACK_OF(TRUST_TOKEN_PRETOKEN) *pmbtoken_exp2_blind(CBB *cbb, size_t count,
++                                                    int include_message,
++                                                    const uint8_t *msg,
++                                                    size_t msg_len);
+ int pmbtoken_exp2_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
+                        size_t num_requested, size_t num_to_issue,
+                        uint8_t private_metadata);
+-STACK_OF(TRUST_TOKEN) *
+-    pmbtoken_exp2_unblind(const TRUST_TOKEN_CLIENT_KEY *key,
+-                          const STACK_OF(TRUST_TOKEN_PRETOKEN) * pretokens,
+-                          CBS *cbs, size_t count, uint32_t key_id);
++STACK_OF(TRUST_TOKEN) *pmbtoken_exp2_unblind(
++    const TRUST_TOKEN_CLIENT_KEY *key,
++    const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++    uint32_t key_id);
+ int pmbtoken_exp2_read(const TRUST_TOKEN_ISSUER_KEY *key,
+                        uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
+                        uint8_t *out_private_metadata, const uint8_t *token,
+-                       size_t token_len);
++                       size_t token_len, int include_message,
++                       const uint8_t *msg, size_t msg_len);
+ 
+ // pmbtoken_exp2_get_h_for_testing returns H in uncompressed coordinates. This
+ // function is used to confirm H was computed as expected.
+@@ -165,18 +174,22 @@ int voprf_exp2_client_key_from_bytes(TRUST_TOKEN_CLIENT_KEY *key,
+                                      const uint8_t *in, size_t len);
+ int voprf_exp2_issuer_key_from_bytes(TRUST_TOKEN_ISSUER_KEY *key,
+                                      const uint8_t *in, size_t len);
+-STACK_OF(TRUST_TOKEN_PRETOKEN) * voprf_exp2_blind(CBB *cbb, size_t count);
++STACK_OF(TRUST_TOKEN_PRETOKEN) *voprf_exp2_blind(CBB *cbb, size_t count,
++                                                 int include_message,
++                                                 const uint8_t *msg,
++                                                 size_t msg_len);
+ int voprf_exp2_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
+                     size_t num_requested, size_t num_to_issue,
+                     uint8_t private_metadata);
+-STACK_OF(TRUST_TOKEN) *
+-    voprf_exp2_unblind(const TRUST_TOKEN_CLIENT_KEY *key,
+-                       const STACK_OF(TRUST_TOKEN_PRETOKEN) * pretokens,
+-                       CBS *cbs, size_t count, uint32_t key_id);
++STACK_OF(TRUST_TOKEN) *voprf_exp2_unblind(
++    const TRUST_TOKEN_CLIENT_KEY *key,
++    const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++    uint32_t key_id);
+ int voprf_exp2_read(const TRUST_TOKEN_ISSUER_KEY *key,
+                     uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
+                     uint8_t *out_private_metadata, const uint8_t *token,
+-                    size_t token_len);
++                    size_t token_len, int include_message, const uint8_t *msg,
++                    size_t msg_len);
+ 
+ 
+ // Trust Tokens internals.
+@@ -191,7 +204,7 @@ struct trust_token_method_st {
+   // |secret| and writes their serialized forms into |out_private| and
+   // |out_public|. It returns one on success and zero on failure.
+   int (*derive_key_from_secret)(CBB *out_private, CBB *out_public,
+-                                  const uint8_t *secret, size_t secret_len);
++                                const uint8_t *secret, size_t secret_len);
+ 
+   // client_key_from_bytes decodes a client key from |in| and sets |key|
+   // to the resulting key. It returns one on success and zero
+@@ -205,14 +218,17 @@ struct trust_token_method_st {
+   int (*issuer_key_from_bytes)(TRUST_TOKEN_ISSUER_KEY *key, const uint8_t *in,
+                                size_t len);
+ 
+-  // blind generates a new issuance request for |count| tokens. On
++  // blind generates a new issuance request for |count| tokens. If
++  // |include_message| is set, then |msg| is used to derive the token nonces. On
+   // success, it returns a newly-allocated |STACK_OF(TRUST_TOKEN_PRETOKEN)| and
+   // writes a request to the issuer to |cbb|. On failure, it returns NULL. The
+-  // |STACK_OF(TRUST_TOKEN_PRETOKEN)|s should be passed to |pmbtoken_unblind| when
+-  // the server responds.
++  // |STACK_OF(TRUST_TOKEN_PRETOKEN)|s should be passed to |pmbtoken_unblind|
++  // when the server responds.
+   //
+   // This function implements the AT.Usr0 operation.
+-  STACK_OF(TRUST_TOKEN_PRETOKEN) * (*blind)(CBB *cbb, size_t count);
++  STACK_OF(TRUST_TOKEN_PRETOKEN) *(*blind)(CBB *cbb, size_t count,
++                                           int include_message,
++                                           const uint8_t *msg, size_t msg_len);
+ 
+   // sign parses a request for |num_requested| tokens from |cbs| and
+   // issues |num_to_issue| tokens with |key| and a private metadata value of
+@@ -232,20 +248,22 @@ struct trust_token_method_st {
+   // returns NULL.
+   //
+   // This function implements the AT.Usr1 operation.
+-  STACK_OF(TRUST_TOKEN) *
+-      (*unblind)(const TRUST_TOKEN_CLIENT_KEY *key,
+-                 const STACK_OF(TRUST_TOKEN_PRETOKEN) * pretokens, CBS *cbs,
+-                 size_t count, uint32_t key_id);
+-
+-  // read parses a PMBToken from |token| and verifies it using |key|. On
+-  // success, it returns one and stores the nonce and private metadata bit in
+-  // |out_nonce| and |*out_private_metadata|. Otherwise, it returns zero. Note
+-  // that, unlike the output of |unblind|, |token| does not have a
+-  // four-byte key ID prepended.
++  STACK_OF(TRUST_TOKEN) *(*unblind)(
++      const TRUST_TOKEN_CLIENT_KEY *key,
++      const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++      uint32_t key_id);
++
++  // read parses a token from |token| and verifies it using |key|. If
++  // |include_message| is set, then the nonce is derived from |msg| and the salt
++  // in the token. On success, it returns one and stores the nonce and private
++  // metadata bit in |out_nonce| and |*out_private_metadata|. Otherwise, it
++  // returns zero. Note that, unlike the output of |unblind|, |token| does not
++  // have a four-byte key ID prepended.
+   int (*read)(const TRUST_TOKEN_ISSUER_KEY *key,
+               uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
+               uint8_t *out_private_metadata, const uint8_t *token,
+-              size_t token_len);
++              size_t token_len, int include_message, const uint8_t *msg,
++              size_t msg_len);
+ 
+   // whether the construction supports private metadata.
+   int has_private_metadata;
+@@ -284,7 +302,7 @@ struct trust_token_client_st {
+   size_t num_keys;
+ 
+   // pretokens is the intermediate state during an active issuance.
+-  STACK_OF(TRUST_TOKEN_PRETOKEN)* pretokens;
++  STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens;
+ 
+   // srr_key is the public key used to verify the signature of the SRR.
+   EVP_PKEY *srr_key;
+diff --git a/crypto/trust_token/pmbtoken.c b/crypto/trust_token/pmbtoken.c
+index ab09f0199..7a95a7d14 100644
+--- a/crypto/trust_token/pmbtoken.c
++++ b/crypto/trust_token/pmbtoken.c
+@@ -324,8 +324,11 @@ static int pmbtoken_issuer_key_from_bytes(const PMBTOKEN_METHOD *method,
+   return 1;
+ }
+ 
+-static STACK_OF(TRUST_TOKEN_PRETOKEN) *
+-    pmbtoken_blind(const PMBTOKEN_METHOD *method, CBB *cbb, size_t count) {
++static STACK_OF(TRUST_TOKEN_PRETOKEN) *pmbtoken_blind(
++    const PMBTOKEN_METHOD *method, CBB *cbb, size_t count, int include_message,
++    const uint8_t *msg, size_t msg_len) {
++  SHA512_CTX hash_ctx;
++
+   const EC_GROUP *group = method->group;
+   STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens = sk_TRUST_TOKEN_PRETOKEN_new_null();
+   if (pretokens == NULL) {
+@@ -343,7 +346,16 @@ static STACK_OF(TRUST_TOKEN_PRETOKEN) *
+       goto err;
+     }
+ 
+-    RAND_bytes(pretoken->t, sizeof(pretoken->t));
++    RAND_bytes(pretoken->salt, sizeof(pretoken->salt));
++    if (include_message) {
++      assert(SHA512_DIGEST_LENGTH == TRUST_TOKEN_NONCE_SIZE);
++      SHA512_Init(&hash_ctx);
++      SHA512_Update(&hash_ctx, pretoken->salt, sizeof(pretoken->salt));
++      SHA512_Update(&hash_ctx, msg, msg_len);
++      SHA512_Final(pretoken->t, &hash_ctx);
++    } else {
++      OPENSSL_memcpy(pretoken->t, pretoken->salt, TRUST_TOKEN_NONCE_SIZE);
++    }
+ 
+     // We sample |pretoken->r| in Montgomery form to simplify inverting.
+     if (!ec_random_nonzero_scalar(group, &pretoken->r,
+@@ -933,11 +945,10 @@ err:
+   return ret;
+ }
+ 
+-static STACK_OF(TRUST_TOKEN) *
+-    pmbtoken_unblind(const PMBTOKEN_METHOD *method,
+-                     const TRUST_TOKEN_CLIENT_KEY *key,
+-                     const STACK_OF(TRUST_TOKEN_PRETOKEN) * pretokens, CBS *cbs,
+-                     size_t count, uint32_t key_id) {
++static STACK_OF(TRUST_TOKEN) *pmbtoken_unblind(
++    const PMBTOKEN_METHOD *method, const TRUST_TOKEN_CLIENT_KEY *key,
++    const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++    uint32_t key_id) {
+   const EC_GROUP *group = method->group;
+   if (count > sk_TRUST_TOKEN_PRETOKEN_num(pretokens)) {
+     OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_DECODE_FAILURE);
+@@ -1024,7 +1035,7 @@ static STACK_OF(TRUST_TOKEN) *
+     if (!CBB_init(&token_cbb,
+                   4 + TRUST_TOKEN_NONCE_SIZE + 3 * (2 + point_len)) ||
+         !CBB_add_u32(&token_cbb, key_id) ||
+-        !CBB_add_bytes(&token_cbb, pretoken->t, TRUST_TOKEN_NONCE_SIZE) ||
++        !CBB_add_bytes(&token_cbb, pretoken->salt, TRUST_TOKEN_NONCE_SIZE) ||
+         !cbb_add_prefixed_point(&token_cbb, group, &affines[0],
+                                 method->prefix_point) ||
+         !cbb_add_prefixed_point(&token_cbb, group, &affines[1],
+@@ -1096,12 +1107,13 @@ static int pmbtoken_read(const PMBTOKEN_METHOD *method,
+                          const TRUST_TOKEN_ISSUER_KEY *key,
+                          uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
+                          uint8_t *out_private_metadata, const uint8_t *token,
+-                         size_t token_len) {
++                         size_t token_len, int include_message,
++                         const uint8_t *msg, size_t msg_len) {
+   const EC_GROUP *group = method->group;
+-  CBS cbs;
++  CBS cbs, salt;
+   CBS_init(&cbs, token, token_len);
+   EC_AFFINE S, W, Ws;
+-  if (!CBS_copy_bytes(&cbs, out_nonce, TRUST_TOKEN_NONCE_SIZE) ||
++  if (!CBS_get_bytes(&cbs, &salt, TRUST_TOKEN_NONCE_SIZE) ||
+       !cbs_get_prefixed_point(&cbs, group, &S, method->prefix_point) ||
+       !cbs_get_prefixed_point(&cbs, group, &W, method->prefix_point) ||
+       !cbs_get_prefixed_point(&cbs, group, &Ws, method->prefix_point) ||
+@@ -1110,6 +1122,16 @@ static int pmbtoken_read(const PMBTOKEN_METHOD *method,
+     return 0;
+   }
+ 
++  if (include_message) {
++    SHA512_CTX hash_ctx;
++    assert(SHA512_DIGEST_LENGTH == TRUST_TOKEN_NONCE_SIZE);
++    SHA512_Init(&hash_ctx);
++    SHA512_Update(&hash_ctx, CBS_data(&salt), CBS_len(&salt));
++    SHA512_Update(&hash_ctx, msg, msg_len);
++    SHA512_Final(out_nonce, &hash_ctx);
++  } else {
++    OPENSSL_memcpy(out_nonce, CBS_data(&salt), CBS_len(&salt));
++  }
+ 
+   EC_RAW_POINT T;
+   if (!method->hash_t(group, &T, out_nonce)) {
+@@ -1275,11 +1297,15 @@ int pmbtoken_exp1_issuer_key_from_bytes(TRUST_TOKEN_ISSUER_KEY *key,
+   return pmbtoken_issuer_key_from_bytes(&pmbtoken_exp1_method, key, in, len);
+ }
+ 
+-STACK_OF(TRUST_TOKEN_PRETOKEN) * pmbtoken_exp1_blind(CBB *cbb, size_t count) {
++STACK_OF(TRUST_TOKEN_PRETOKEN) *pmbtoken_exp1_blind(CBB *cbb, size_t count,
++                                                    int include_message,
++                                                    const uint8_t *msg,
++                                                    size_t msg_len) {
+   if (!pmbtoken_exp1_init_method()) {
+     return NULL;
+   }
+-  return pmbtoken_blind(&pmbtoken_exp1_method, cbb, count);
++  return pmbtoken_blind(&pmbtoken_exp1_method, cbb, count, include_message, msg,
++                        msg_len);
+ }
+ 
+ int pmbtoken_exp1_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
+@@ -1292,10 +1318,10 @@ int pmbtoken_exp1_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
+                        num_to_issue, private_metadata);
+ }
+ 
+-STACK_OF(TRUST_TOKEN) *
+-    pmbtoken_exp1_unblind(const TRUST_TOKEN_CLIENT_KEY *key,
+-                          const STACK_OF(TRUST_TOKEN_PRETOKEN) * pretokens,
+-                          CBS *cbs, size_t count, uint32_t key_id) {
++STACK_OF(TRUST_TOKEN) *pmbtoken_exp1_unblind(
++    const TRUST_TOKEN_CLIENT_KEY *key,
++    const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++    uint32_t key_id) {
+   if (!pmbtoken_exp1_init_method()) {
+     return NULL;
+   }
+@@ -1306,12 +1332,14 @@ STACK_OF(TRUST_TOKEN) *
+ int pmbtoken_exp1_read(const TRUST_TOKEN_ISSUER_KEY *key,
+                        uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
+                        uint8_t *out_private_metadata, const uint8_t *token,
+-                       size_t token_len) {
++                       size_t token_len, int include_message,
++                       const uint8_t *msg, size_t msg_len) {
+   if (!pmbtoken_exp1_init_method()) {
+     return 0;
+   }
+   return pmbtoken_read(&pmbtoken_exp1_method, key, out_nonce,
+-                       out_private_metadata, token, token_len);
++                       out_private_metadata, token, token_len, include_message,
++                       msg, msg_len);
+ }
+ 
+ int pmbtoken_exp1_get_h_for_testing(uint8_t out[97]) {
+@@ -1444,11 +1472,15 @@ int pmbtoken_exp2_issuer_key_from_bytes(TRUST_TOKEN_ISSUER_KEY *key,
+   return pmbtoken_issuer_key_from_bytes(&pmbtoken_exp2_method, key, in, len);
+ }
+ 
+-STACK_OF(TRUST_TOKEN_PRETOKEN) * pmbtoken_exp2_blind(CBB *cbb, size_t count) {
++STACK_OF(TRUST_TOKEN_PRETOKEN) *pmbtoken_exp2_blind(CBB *cbb, size_t count,
++                                                    int include_message,
++                                                    const uint8_t *msg,
++                                                    size_t msg_len) {
+   if (!pmbtoken_exp2_init_method()) {
+     return NULL;
+   }
+-  return pmbtoken_blind(&pmbtoken_exp2_method, cbb, count);
++  return pmbtoken_blind(&pmbtoken_exp2_method, cbb, count, include_message, msg,
++                        msg_len);
+ }
+ 
+ int pmbtoken_exp2_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
+@@ -1461,10 +1493,10 @@ int pmbtoken_exp2_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
+                        num_to_issue, private_metadata);
+ }
+ 
+-STACK_OF(TRUST_TOKEN) *
+-    pmbtoken_exp2_unblind(const TRUST_TOKEN_CLIENT_KEY *key,
+-                          const STACK_OF(TRUST_TOKEN_PRETOKEN) * pretokens,
+-                          CBS *cbs, size_t count, uint32_t key_id) {
++STACK_OF(TRUST_TOKEN) *pmbtoken_exp2_unblind(
++    const TRUST_TOKEN_CLIENT_KEY *key,
++    const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++    uint32_t key_id) {
+   if (!pmbtoken_exp2_init_method()) {
+     return NULL;
+   }
+@@ -1475,12 +1507,14 @@ STACK_OF(TRUST_TOKEN) *
+ int pmbtoken_exp2_read(const TRUST_TOKEN_ISSUER_KEY *key,
+                        uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
+                        uint8_t *out_private_metadata, const uint8_t *token,
+-                       size_t token_len) {
++                       size_t token_len, int include_message,
++                       const uint8_t *msg, size_t msg_len) {
+   if (!pmbtoken_exp2_init_method()) {
+     return 0;
+   }
+   return pmbtoken_read(&pmbtoken_exp2_method, key, out_nonce,
+-                       out_private_metadata, token, token_len);
++                       out_private_metadata, token, token_len, include_message,
++                       msg, msg_len);
+ }
+ 
+ int pmbtoken_exp2_get_h_for_testing(uint8_t out[97]) {
+diff --git a/crypto/trust_token/trust_token.c b/crypto/trust_token/trust_token.c
+index 55785d5d3..2a0bacb2d 100644
+--- a/crypto/trust_token/trust_token.c
++++ b/crypto/trust_token/trust_token.c
+@@ -226,8 +226,9 @@ int TRUST_TOKEN_CLIENT_set_srr_key(TRUST_TOKEN_CLIENT *ctx, EVP_PKEY *key) {
+   return 1;
+ }
+ 
+-int TRUST_TOKEN_CLIENT_begin_issuance(TRUST_TOKEN_CLIENT *ctx, uint8_t **out,
+-                                      size_t *out_len, size_t count) {
++static int trust_token_client_begin_issuance_impl(
++    TRUST_TOKEN_CLIENT *ctx, uint8_t **out, size_t *out_len, size_t count,
++    int include_message, const uint8_t *msg, size_t msg_len) {
+   if (count > ctx->max_batchsize) {
+     count = ctx->max_batchsize;
+   }
+@@ -241,7 +242,8 @@ int TRUST_TOKEN_CLIENT_begin_issuance(TRUST_TOKEN_CLIENT *ctx, uint8_t **out,
+     goto err;
+   }
+ 
+-  pretokens = ctx->method->blind(&request, count);
++  pretokens =
++      ctx->method->blind(&request, count, include_message, msg, msg_len);
+   if (pretokens == NULL) {
+     goto err;
+   }
+@@ -262,6 +264,20 @@ err:
+   return ret;
+ }
+ 
++int TRUST_TOKEN_CLIENT_begin_issuance(TRUST_TOKEN_CLIENT *ctx, uint8_t **out,
++                                      size_t *out_len, size_t count) {
++  return trust_token_client_begin_issuance_impl(ctx, out, out_len, count,
++                                                /*include_message=*/0, NULL, 0);
++}
++
++int TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++    TRUST_TOKEN_CLIENT *ctx, uint8_t **out, size_t *out_len, size_t count,
++    const uint8_t *msg, size_t msg_len) {
++  return trust_token_client_begin_issuance_impl(
++      ctx, out, out_len, count, /*include_message=*/1, msg, msg_len);
++}
++
++
+ STACK_OF(TRUST_TOKEN) *
+     TRUST_TOKEN_CLIENT_finish_issuance(TRUST_TOKEN_CLIENT *ctx,
+                                        size_t *out_key_index,
+@@ -542,13 +558,11 @@ err:
+   return ret;
+ }
+ 
+-
+-int TRUST_TOKEN_ISSUER_redeem_raw(const TRUST_TOKEN_ISSUER *ctx,
+-                                  uint32_t *out_public, uint8_t *out_private,
+-                                  TRUST_TOKEN **out_token,
+-                                  uint8_t **out_client_data,
+-                                  size_t *out_client_data_len,
+-                                  const uint8_t *request, size_t request_len) {
++static int trust_token_issuer_redeem_impl(
++    const TRUST_TOKEN_ISSUER *ctx, uint32_t *out_public, uint8_t *out_private,
++    TRUST_TOKEN **out_token, uint8_t **out_client_data,
++    size_t *out_client_data_len, const uint8_t *request, size_t request_len,
++    int include_message, const uint8_t *msg, size_t msg_len) {
+   CBS request_cbs, token_cbs;
+   CBS_init(&request_cbs, request, request_len);
+   if (!CBS_get_u16_length_prefixed(&request_cbs, &token_cbs)) {
+@@ -570,7 +584,8 @@ int TRUST_TOKEN_ISSUER_redeem_raw(const TRUST_TOKEN_ISSUER *ctx,
+   uint8_t nonce[TRUST_TOKEN_NONCE_SIZE];
+   if (key == NULL ||
+       !ctx->method->read(&key->key, nonce, &private_metadata,
+-                         CBS_data(&token_cbs), CBS_len(&token_cbs))) {
++                         CBS_data(&token_cbs), CBS_len(&token_cbs),
++                         include_message, msg, msg_len)) {
+     OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_INVALID_TOKEN);
+     return 0;
+   }
+@@ -608,6 +623,28 @@ err:
+   return 0;
+ }
+ 
++
++int TRUST_TOKEN_ISSUER_redeem_raw(const TRUST_TOKEN_ISSUER *ctx,
++                                  uint32_t *out_public, uint8_t *out_private,
++                                  TRUST_TOKEN **out_token,
++                                  uint8_t **out_client_data,
++                                  size_t *out_client_data_len,
++                                  const uint8_t *request, size_t request_len) {
++  return trust_token_issuer_redeem_impl(ctx, out_public, out_private, out_token,
++                                        out_client_data, out_client_data_len,
++                                        request, request_len, 0, NULL, 0);
++}
++
++int TRUST_TOKEN_ISSUER_redeem_over_message(
++    const TRUST_TOKEN_ISSUER *ctx, uint32_t *out_public, uint8_t *out_private,
++    TRUST_TOKEN **out_token, uint8_t **out_client_data,
++    size_t *out_client_data_len, const uint8_t *request, size_t request_len,
++    const uint8_t *msg, size_t msg_len) {
++  return trust_token_issuer_redeem_impl(ctx, out_public, out_private, out_token,
++                                        out_client_data, out_client_data_len,
++                                        request, request_len, 1, msg, msg_len);
++}
++
+ // https://tools.ietf.org/html/rfc7049#section-2.1
+ static int add_cbor_int_with_type(CBB *cbb, uint8_t major_type,
+                                   uint64_t value) {
+@@ -691,9 +728,9 @@ int TRUST_TOKEN_ISSUER_redeem(const TRUST_TOKEN_ISSUER *ctx, uint8_t **out,
+   const struct trust_token_issuer_key_st *key =
+       trust_token_issuer_get_key(ctx, public_metadata);
+   uint8_t nonce[TRUST_TOKEN_NONCE_SIZE];
+-  if (key == NULL ||
+-      !ctx->method->read(&key->key, nonce, &private_metadata,
+-                         CBS_data(&token_cbs), CBS_len(&token_cbs))) {
++  if (key == NULL || !ctx->method->read(&key->key, nonce, &private_metadata,
++                                        CBS_data(&token_cbs),
++                                        CBS_len(&token_cbs), 0, NULL, 0)) {
+     OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_INVALID_TOKEN);
+     return 0;
+   }
+diff --git a/crypto/trust_token/trust_token_test.cc b/crypto/trust_token/trust_token_test.cc
+index 7b34d5bf1..d0ad26a78 100644
+--- a/crypto/trust_token/trust_token_test.cc
++++ b/crypto/trust_token/trust_token_test.cc
+@@ -45,6 +45,8 @@ BSSL_NAMESPACE_BEGIN
+ 
+ namespace {
+ 
++const uint8_t kMessage[] = "MSG";
++
+ TEST(TrustTokenTest, KeyGenExp1) {
+   uint8_t priv_key[TRUST_TOKEN_MAX_PRIVATE_KEY_SIZE];
+   uint8_t pub_key[TRUST_TOKEN_MAX_PUBLIC_KEY_SIZE];
+@@ -300,8 +302,9 @@ static std::vector<const TRUST_TOKEN_METHOD *> AllMethods() {
+ 
+ class TrustTokenProtocolTestBase : public ::testing::Test {
+  public:
+-  explicit TrustTokenProtocolTestBase(const TRUST_TOKEN_METHOD *method_arg)
+-      : method_(method_arg) {}
++  explicit TrustTokenProtocolTestBase(const TRUST_TOKEN_METHOD *method_arg,
++                                      bool use_msg)
++      : method_(method_arg), use_msg_(use_msg) {}
+ 
+   // KeyID returns the key ID associated with key index |i|.
+   static uint32_t KeyID(size_t i) {
+@@ -312,6 +315,8 @@ class TrustTokenProtocolTestBase : public ::testing::Test {
+ 
+   const TRUST_TOKEN_METHOD *method() { return method_; }
+ 
++  const bool use_message() { return use_msg_; }
++
+  protected:
+   void SetupContexts() {
+     client.reset(TRUST_TOKEN_CLIENT_new(method(), client_max_batchsize));
+@@ -350,6 +355,7 @@ class TrustTokenProtocolTestBase : public ::testing::Test {
+   }
+ 
+   const TRUST_TOKEN_METHOD *method_;
++  bool use_msg_;
+   uint16_t client_max_batchsize = 10;
+   uint16_t issuer_max_batchsize = 10;
+   bssl::UniquePtr<TRUST_TOKEN_CLIENT> client;
+@@ -359,13 +365,17 @@ class TrustTokenProtocolTestBase : public ::testing::Test {
+ 
+ class TrustTokenProtocolTest
+     : public TrustTokenProtocolTestBase,
+-      public testing::WithParamInterface<const TRUST_TOKEN_METHOD *> {
++      public testing::WithParamInterface<
++          std::tuple<const TRUST_TOKEN_METHOD *, bool>> {
+  public:
+-  TrustTokenProtocolTest() : TrustTokenProtocolTestBase(GetParam()) {}
++  TrustTokenProtocolTest()
++      : TrustTokenProtocolTestBase(std::get<0>(GetParam()),
++                                   std::get<1>(GetParam())) {}
+ };
+ 
+ INSTANTIATE_TEST_SUITE_P(TrustTokenAllProtocolTest, TrustTokenProtocolTest,
+-                         testing::ValuesIn(AllMethods()));
++                         testing::Combine(testing::ValuesIn(AllMethods()),
++                                          testing::Bool()));
+ 
+ TEST_P(TrustTokenProtocolTest, InvalidToken) {
+   ASSERT_NO_FATAL_FAILURE(SetupContexts());
+@@ -375,8 +385,13 @@ TEST_P(TrustTokenProtocolTest, InvalidToken) {
+ 
+   size_t key_index;
+   size_t tokens_issued;
+-  ASSERT_TRUE(
+-      TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg, &msg_len, 1));
++  if (use_message()) {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++        client.get(), &issue_msg, &msg_len, 1, kMessage, sizeof(kMessage)));
++  } else {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
++                                                  &msg_len, 1));
++  }
+   bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+   ASSERT_TRUE(TRUST_TOKEN_ISSUER_issue(
+       issuer.get(), &issue_resp, &resp_len, &tokens_issued, issue_msg, msg_len,
+@@ -396,13 +411,20 @@ TEST_P(TrustTokenProtocolTest, InvalidToken) {
+     ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_redemption(
+         client.get(), &redeem_msg, &msg_len, token, NULL, 0, 0));
+     bssl::UniquePtr<uint8_t> free_redeem_msg(redeem_msg);
++    uint32_t public_value;
++    uint8_t private_value;
+     TRUST_TOKEN *rtoken;
+     uint8_t *client_data;
+     size_t client_data_len;
+-    uint64_t redemption_time;
+-    ASSERT_FALSE(TRUST_TOKEN_ISSUER_redeem(
+-        issuer.get(), &redeem_resp, &resp_len, &rtoken, &client_data,
+-        &client_data_len, &redemption_time, redeem_msg, msg_len, 600));
++    if (use_message()) {
++      ASSERT_FALSE(TRUST_TOKEN_ISSUER_redeem_over_message(
++          issuer.get(), &public_value, &private_value, &rtoken, &client_data,
++          &client_data_len, redeem_msg, msg_len, kMessage, sizeof(kMessage)));
++    } else {
++      ASSERT_FALSE(TRUST_TOKEN_ISSUER_redeem_raw(
++          issuer.get(), &public_value, &private_value, &rtoken,
++          &client_data, &client_data_len, redeem_msg, msg_len));
++    }
+     bssl::UniquePtr<uint8_t> free_redeem_resp(redeem_resp);
+   }
+ }
+@@ -412,8 +434,13 @@ TEST_P(TrustTokenProtocolTest, TruncatedIssuanceRequest) {
+ 
+   uint8_t *issue_msg = NULL, *issue_resp = NULL;
+   size_t msg_len, resp_len;
+-  ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
+-                                                &msg_len, 10));
++  if (use_message()) {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++        client.get(), &issue_msg, &msg_len, 10, kMessage, sizeof(kMessage)));
++  } else {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
++                                                  &msg_len, 10));
++  }
+   bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+   msg_len = 10;
+   size_t tokens_issued;
+@@ -429,8 +456,13 @@ TEST_P(TrustTokenProtocolTest, TruncatedIssuanceResponse) {
+ 
+   uint8_t *issue_msg = NULL, *issue_resp = NULL;
+   size_t msg_len, resp_len;
+-  ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
+-                                                &msg_len, 10));
++  if (use_message()) {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++        client.get(), &issue_msg, &msg_len, 10, kMessage, sizeof(kMessage)));
++  } else {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
++                                                  &msg_len, 10));
++  }
+   bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+   size_t tokens_issued;
+   ASSERT_TRUE(TRUST_TOKEN_ISSUER_issue(
+@@ -451,8 +483,13 @@ TEST_P(TrustTokenProtocolTest, ExtraDataIssuanceResponse) {
+ 
+   uint8_t *request = NULL, *response = NULL;
+   size_t request_len, response_len;
+-  ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &request,
+-                                                &request_len, 10));
++  if (use_message()) {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++        client.get(), &request, &request_len, 10, kMessage, sizeof(kMessage)));
++  } else {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &request,
++                                                  &request_len, 10));
++  }
+   bssl::UniquePtr<uint8_t> free_request(request);
+   size_t tokens_issued;
+   ASSERT_TRUE(TRUST_TOKEN_ISSUER_issue(issuer.get(), &response, &response_len,
+@@ -475,8 +512,13 @@ TEST_P(TrustTokenProtocolTest, TruncatedRedemptionRequest) {
+ 
+   uint8_t *issue_msg = NULL, *issue_resp = NULL;
+   size_t msg_len, resp_len;
+-  ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
+-                                                &msg_len, 10));
++  if (use_message()) {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++        client.get(), &issue_msg, &msg_len, 10, kMessage, sizeof(kMessage)));
++  } else {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
++                                                  &msg_len, 10));
++  }
+   bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+   size_t tokens_issued;
+   ASSERT_TRUE(TRUST_TOKEN_ISSUER_issue(
+@@ -494,30 +536,48 @@ TEST_P(TrustTokenProtocolTest, TruncatedRedemptionRequest) {
+     const uint8_t kClientData[] = "\x70TEST CLIENT DATA";
+     uint64_t kRedemptionTime = (method()->has_srr ? 13374242 : 0);
+ 
+-    uint8_t *redeem_msg = NULL, *redeem_resp = NULL;
++    uint8_t *redeem_msg = NULL;
+     ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_redemption(
+         client.get(), &redeem_msg, &msg_len, token, kClientData,
+         sizeof(kClientData) - 1, kRedemptionTime));
+     bssl::UniquePtr<uint8_t> free_redeem_msg(redeem_msg);
+     msg_len = 10;
+ 
++    uint32_t public_value;
++    uint8_t private_value;
+     TRUST_TOKEN *rtoken;
+     uint8_t *client_data;
+     size_t client_data_len;
+-    uint64_t redemption_time;
+-    ASSERT_FALSE(TRUST_TOKEN_ISSUER_redeem(
+-        issuer.get(), &redeem_resp, &resp_len, &rtoken, &client_data,
+-        &client_data_len, &redemption_time, redeem_msg, msg_len, 600));
++    if (use_message()) {
++      ASSERT_FALSE(TRUST_TOKEN_ISSUER_redeem_over_message(
++          issuer.get(), &public_value, &private_value, &rtoken, &client_data,
++          &client_data_len, redeem_msg, msg_len, kMessage, sizeof(kMessage)));
++    } else {
++      ASSERT_FALSE(TRUST_TOKEN_ISSUER_redeem_raw(
++          issuer.get(), &public_value, &private_value, &rtoken,
++          &client_data, &client_data_len, redeem_msg, msg_len));
++    }
+   }
+ }
+ 
+ TEST_P(TrustTokenProtocolTest, TruncatedRedemptionResponse) {
+   ASSERT_NO_FATAL_FAILURE(SetupContexts());
+ 
++  // Token issuances derived from messages aren't supported by the old-style
++  // redemption record response.
++  if (use_message()) {
++    return;
++  }
++
+   uint8_t *issue_msg = NULL, *issue_resp = NULL;
+   size_t msg_len, resp_len;
+-  ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
+-                                                &msg_len, 10));
++  if (use_message()) {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++        client.get(), &issue_msg, &msg_len, 10, kMessage, sizeof(kMessage)));
++  } else {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
++                                                  &msg_len, 10));
++  }
+   bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+   size_t tokens_issued;
+   ASSERT_TRUE(TRUST_TOKEN_ISSUER_issue(
+@@ -614,8 +674,13 @@ TEST_P(TrustTokenProtocolTest, IssuedWithBadKeyID) {
+ 
+   uint8_t *issue_msg = NULL, *issue_resp = NULL;
+   size_t msg_len, resp_len;
+-  ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
+-                                                &msg_len, 10));
++  if (use_message()) {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++        client.get(), &issue_msg, &msg_len, 10, kMessage, sizeof(kMessage)));
++  } else {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
++                                                  &msg_len, 10));
++  }
+   bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+   size_t tokens_issued;
+   ASSERT_TRUE(TRUST_TOKEN_ISSUER_issue(
+@@ -631,22 +696,34 @@ TEST_P(TrustTokenProtocolTest, IssuedWithBadKeyID) {
+ class TrustTokenMetadataTest
+     : public TrustTokenProtocolTestBase,
+       public testing::WithParamInterface<
+-          std::tuple<const TRUST_TOKEN_METHOD *, int, bool>> {
++    std::tuple<const TRUST_TOKEN_METHOD *, bool, int, bool>> {
+  public:
+   TrustTokenMetadataTest()
+-      : TrustTokenProtocolTestBase(std::get<0>(GetParam())) {}
++      : TrustTokenProtocolTestBase(std::get<0>(GetParam()),
++                                   std::get<1>(GetParam())) {}
+ 
+-  int public_metadata() { return std::get<1>(GetParam()); }
+-  bool private_metadata() { return std::get<2>(GetParam()); }
++  int public_metadata() { return std::get<2>(GetParam()); }
++  bool private_metadata() { return std::get<3>(GetParam()); }
+ };
+ 
+ TEST_P(TrustTokenMetadataTest, SetAndGetMetadata) {
+   ASSERT_NO_FATAL_FAILURE(SetupContexts());
+ 
++  // Token issuances derived from messages aren't supported by the old-style
++  // redemption record response.
++  if (use_message()) {
++    return;
++  }
++
+   uint8_t *issue_msg = NULL, *issue_resp = NULL;
+   size_t msg_len, resp_len;
+-  ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
+-                                                &msg_len, 10));
++  if (use_message()) {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++        client.get(), &issue_msg, &msg_len, 10, kMessage, sizeof(kMessage)));
++  } else {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
++                                                  &msg_len, 10));
++  }
+   bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+   size_t tokens_issued;
+   bool result = TRUST_TOKEN_ISSUER_issue(
+@@ -777,8 +854,13 @@ TEST_P(TrustTokenMetadataTest, RawSetAndGetMetadata) {
+ 
+   uint8_t *issue_msg = NULL, *issue_resp = NULL;
+   size_t msg_len, resp_len;
+-  ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
+-                                                &msg_len, 10));
++  if (use_message()) {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++        client.get(), &issue_msg, &msg_len, 10, kMessage, sizeof(kMessage)));
++  } else {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
++                                                  &msg_len, 10));
++  }
+   bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+   size_t tokens_issued;
+   bool result = TRUST_TOKEN_ISSUER_issue(
+@@ -811,9 +893,15 @@ TEST_P(TrustTokenMetadataTest, RawSetAndGetMetadata) {
+     TRUST_TOKEN *rtoken;
+     uint8_t *client_data;
+     size_t client_data_len;
+-    ASSERT_TRUE(TRUST_TOKEN_ISSUER_redeem_raw(
+-        issuer.get(), &public_value, &private_value, &rtoken,
+-        &client_data, &client_data_len, redeem_msg, msg_len));
++    if (use_message()) {
++      ASSERT_TRUE(TRUST_TOKEN_ISSUER_redeem_over_message(
++          issuer.get(), &public_value, &private_value, &rtoken, &client_data,
++          &client_data_len, redeem_msg, msg_len, kMessage, sizeof(kMessage)));
++    } else {
++      ASSERT_TRUE(TRUST_TOKEN_ISSUER_redeem_raw(
++          issuer.get(), &public_value, &private_value, &rtoken,
++          &client_data, &client_data_len, redeem_msg, msg_len));
++    }
+     bssl::UniquePtr<uint8_t> free_client_data(client_data);
+     bssl::UniquePtr<TRUST_TOKEN> free_rtoken(rtoken);
+ 
+@@ -834,8 +922,13 @@ TEST_P(TrustTokenMetadataTest, TooManyRequests) {
+ 
+   uint8_t *issue_msg = NULL, *issue_resp = NULL;
+   size_t msg_len, resp_len;
+-  ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
+-                                                &msg_len, 10));
++  if (use_message()) {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++        client.get(), &issue_msg, &msg_len, 10, kMessage, sizeof(kMessage)));
++  } else {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
++                                                  &msg_len, 10));
++  }
+   bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+   size_t tokens_issued;
+   ASSERT_TRUE(TRUST_TOKEN_ISSUER_issue(
+@@ -861,8 +954,13 @@ TEST_P(TrustTokenMetadataTest, TruncatedProof) {
+ 
+   uint8_t *issue_msg = NULL, *issue_resp = NULL;
+   size_t msg_len, resp_len;
+-  ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
+-                                                &msg_len, 10));
++  if (use_message()) {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++        client.get(), &issue_msg, &msg_len, 10, kMessage, sizeof(kMessage)));
++  } else {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
++                                                  &msg_len, 10));
++  }
+   bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+   size_t tokens_issued;
+   ASSERT_TRUE(TRUST_TOKEN_ISSUER_issue(
+@@ -924,8 +1022,13 @@ TEST_P(TrustTokenMetadataTest, ExcessDataProof) {
+ 
+   uint8_t *issue_msg = NULL, *issue_resp = NULL;
+   size_t msg_len, resp_len;
+-  ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
+-                                                &msg_len, 10));
++  if (use_message()) {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++        client.get(), &issue_msg, &msg_len, 10, kMessage, sizeof(kMessage)));
++  } else {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
++                                                  &msg_len, 10));
++  }
+   bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+   size_t tokens_issued;
+   ASSERT_TRUE(TRUST_TOKEN_ISSUER_issue(
+@@ -982,6 +1085,7 @@ TEST_P(TrustTokenMetadataTest, ExcessDataProof) {
+ INSTANTIATE_TEST_SUITE_P(
+     TrustTokenAllMetadataTest, TrustTokenMetadataTest,
+     testing::Combine(testing::ValuesIn(AllMethods()),
++                     testing::Bool(),
+                      testing::Values(TrustTokenProtocolTest::KeyID(0),
+                                      TrustTokenProtocolTest::KeyID(1),
+                                      TrustTokenProtocolTest::KeyID(2)),
+@@ -990,13 +1094,14 @@ INSTANTIATE_TEST_SUITE_P(
+ class TrustTokenBadKeyTest
+     : public TrustTokenProtocolTestBase,
+       public testing::WithParamInterface<
+-          std::tuple<const TRUST_TOKEN_METHOD *, bool, int>> {
++          std::tuple<const TRUST_TOKEN_METHOD *, bool, bool, int>> {
+  public:
+   TrustTokenBadKeyTest()
+-      : TrustTokenProtocolTestBase(std::get<0>(GetParam())) {}
++      : TrustTokenProtocolTestBase(std::get<0>(GetParam()),
++                                   std::get<1>(GetParam())) {}
+ 
+-  bool private_metadata() { return std::get<1>(GetParam()); }
+-  int corrupted_key() { return std::get<2>(GetParam()); }
++  bool private_metadata() { return std::get<2>(GetParam()); }
++  int corrupted_key() { return std::get<3>(GetParam()); }
+ };
+ 
+ TEST_P(TrustTokenBadKeyTest, BadKey) {
+@@ -1012,8 +1117,13 @@ TEST_P(TrustTokenBadKeyTest, BadKey) {
+ 
+   uint8_t *issue_msg = NULL, *issue_resp = NULL;
+   size_t msg_len, resp_len;
+-  ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
+-                                                &msg_len, 10));
++  if (use_message()) {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++        client.get(), &issue_msg, &msg_len, 10, kMessage, sizeof(kMessage)));
++  } else {
++    ASSERT_TRUE(TRUST_TOKEN_CLIENT_begin_issuance(client.get(), &issue_msg,
++                                                  &msg_len, 10));
++  }
+   bssl::UniquePtr<uint8_t> free_issue_msg(issue_msg);
+ 
+   struct trust_token_issuer_key_st *key = &issuer->keys[0];
+@@ -1044,6 +1154,7 @@ TEST_P(TrustTokenBadKeyTest, BadKey) {
+ 
+ INSTANTIATE_TEST_SUITE_P(TrustTokenAllBadKeyTest, TrustTokenBadKeyTest,
+                          testing::Combine(testing::ValuesIn(AllMethods()),
++                                          testing::Bool(),
+                                           testing::Bool(),
+                                           testing::Values(0, 1, 2, 3, 4, 5)));
+ 
+diff --git a/crypto/trust_token/voprf.c b/crypto/trust_token/voprf.c
+index f8e1c4cfd..da29c8564 100644
+--- a/crypto/trust_token/voprf.c
++++ b/crypto/trust_token/voprf.c
+@@ -21,6 +21,7 @@
+ #include <openssl/mem.h>
+ #include <openssl/nid.h>
+ #include <openssl/rand.h>
++#include <openssl/sha.h>
+ 
+ #include "../ec_extra/internal.h"
+ #include "../fipsmodule/ec/internal.h"
+@@ -200,8 +201,13 @@ static int voprf_issuer_key_from_bytes(const VOPRF_METHOD *method,
+   return 1;
+ }
+ 
+-static STACK_OF(TRUST_TOKEN_PRETOKEN) *
+-    voprf_blind(const VOPRF_METHOD *method, CBB *cbb, size_t count) {
++static STACK_OF(TRUST_TOKEN_PRETOKEN) *voprf_blind(const VOPRF_METHOD *method,
++                                                   CBB *cbb, size_t count,
++                                                   int include_message,
++                                                   const uint8_t *msg,
++                                                   size_t msg_len) {
++  SHA512_CTX hash_ctx;
++
+   const EC_GROUP *group = method->group;
+   STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens =
+       sk_TRUST_TOKEN_PRETOKEN_new_null();
+@@ -221,7 +227,16 @@ static STACK_OF(TRUST_TOKEN_PRETOKEN) *
+       goto err;
+     }
+ 
+-    RAND_bytes(pretoken->t, sizeof(pretoken->t));
++    RAND_bytes(pretoken->salt, sizeof(pretoken->salt));
++    if (include_message) {
++      assert(SHA512_DIGEST_LENGTH == TRUST_TOKEN_NONCE_SIZE);
++      SHA512_Init(&hash_ctx);
++      SHA512_Update(&hash_ctx, pretoken->salt, sizeof(pretoken->salt));
++      SHA512_Update(&hash_ctx, msg, msg_len);
++      SHA512_Final(pretoken->t, &hash_ctx);
++    } else {
++      OPENSSL_memcpy(pretoken->t, pretoken->salt, TRUST_TOKEN_NONCE_SIZE);
++    }
+ 
+     // We sample r in Montgomery form to simplify inverting.
+     EC_SCALAR r;
+@@ -547,10 +562,10 @@ err:
+   return ret;
+ }
+ 
+-static STACK_OF(TRUST_TOKEN) *
+-    voprf_unblind(const VOPRF_METHOD *method, const TRUST_TOKEN_CLIENT_KEY *key,
+-                  const STACK_OF(TRUST_TOKEN_PRETOKEN) * pretokens, CBS *cbs,
+-                  size_t count, uint32_t key_id) {
++static STACK_OF(TRUST_TOKEN) *voprf_unblind(
++    const VOPRF_METHOD *method, const TRUST_TOKEN_CLIENT_KEY *key,
++    const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++    uint32_t key_id) {
+   const EC_GROUP *group = method->group;
+   if (count > sk_TRUST_TOKEN_PRETOKEN_num(pretokens)) {
+     OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_DECODE_FAILURE);
+@@ -617,7 +632,7 @@ static STACK_OF(TRUST_TOKEN) *
+     size_t point_len = 1 + 2 * BN_num_bytes(&group->field);
+     if (!CBB_init(&token_cbb, 4 + TRUST_TOKEN_NONCE_SIZE + (2 + point_len)) ||
+         !CBB_add_u32(&token_cbb, key_id) ||
+-        !CBB_add_bytes(&token_cbb, pretoken->t, TRUST_TOKEN_NONCE_SIZE) ||
++        !CBB_add_bytes(&token_cbb, pretoken->salt, TRUST_TOKEN_NONCE_SIZE) ||
+         !cbb_add_point(&token_cbb, group, &N_affine) ||
+         !CBB_flush(&token_cbb)) {
+       CBB_cleanup(&token_cbb);
+@@ -676,18 +691,30 @@ err:
+ static int voprf_read(const VOPRF_METHOD *method,
+                       const TRUST_TOKEN_ISSUER_KEY *key,
+                       uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
+-                      const uint8_t *token, size_t token_len) {
++                      const uint8_t *token, size_t token_len,
++                      int include_message, const uint8_t *msg, size_t msg_len) {
+   const EC_GROUP *group = method->group;
+-  CBS cbs;
++  CBS cbs, salt;
+   CBS_init(&cbs, token, token_len);
+   EC_AFFINE Ws;
+-  if (!CBS_copy_bytes(&cbs, out_nonce, TRUST_TOKEN_NONCE_SIZE) ||
++  if (!CBS_get_bytes(&cbs, &salt, TRUST_TOKEN_NONCE_SIZE) ||
+       !cbs_get_point(&cbs, group, &Ws) ||
+       CBS_len(&cbs) != 0) {
+     OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_INVALID_TOKEN);
+     return 0;
+   }
+ 
++  if (include_message) {
++    SHA512_CTX hash_ctx;
++    assert(SHA512_DIGEST_LENGTH == TRUST_TOKEN_NONCE_SIZE);
++    SHA512_Init(&hash_ctx);
++    SHA512_Update(&hash_ctx, CBS_data(&salt), CBS_len(&salt));
++    SHA512_Update(&hash_ctx, msg, msg_len);
++    SHA512_Final(out_nonce, &hash_ctx);
++  } else {
++    OPENSSL_memcpy(out_nonce, CBS_data(&salt), CBS_len(&salt));
++  }
++
+ 
+   EC_RAW_POINT T;
+   if (!method->hash_to_group(group, &T, out_nonce)) {
+@@ -775,11 +802,15 @@ int voprf_exp2_issuer_key_from_bytes(TRUST_TOKEN_ISSUER_KEY *key,
+   return voprf_issuer_key_from_bytes(&voprf_exp2_method, key, in, len);
+ }
+ 
+-STACK_OF(TRUST_TOKEN_PRETOKEN) * voprf_exp2_blind(CBB *cbb, size_t count) {
++STACK_OF(TRUST_TOKEN_PRETOKEN) *voprf_exp2_blind(CBB *cbb, size_t count,
++                                                 int include_message,
++                                                 const uint8_t *msg,
++                                                 size_t msg_len) {
+   if (!voprf_exp2_init_method()) {
+     return NULL;
+   }
+-  return voprf_blind(&voprf_exp2_method, cbb, count);
++  return voprf_blind(&voprf_exp2_method, cbb, count, include_message, msg,
++                     msg_len);
+ }
+ 
+ int voprf_exp2_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
+@@ -792,23 +823,24 @@ int voprf_exp2_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
+                     num_to_issue);
+ }
+ 
+-STACK_OF(TRUST_TOKEN) *
+-    voprf_exp2_unblind(const TRUST_TOKEN_CLIENT_KEY *key,
+-                       const STACK_OF(TRUST_TOKEN_PRETOKEN) * pretokens,
+-                       CBS *cbs, size_t count, uint32_t key_id) {
++STACK_OF(TRUST_TOKEN) *voprf_exp2_unblind(
++    const TRUST_TOKEN_CLIENT_KEY *key,
++    const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++    uint32_t key_id) {
+   if (!voprf_exp2_init_method()) {
+     return NULL;
+   }
+-  return voprf_unblind(&voprf_exp2_method, key, pretokens, cbs, count,
+-                          key_id);
++  return voprf_unblind(&voprf_exp2_method, key, pretokens, cbs, count, key_id);
+ }
+ 
+ int voprf_exp2_read(const TRUST_TOKEN_ISSUER_KEY *key,
+                     uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
+                     uint8_t *out_private_metadata, const uint8_t *token,
+-                    size_t token_len) {
++                    size_t token_len, int include_message, const uint8_t *msg,
++                    size_t msg_len) {
+   if (!voprf_exp2_init_method()) {
+     return 0;
+   }
+-  return voprf_read(&voprf_exp2_method, key, out_nonce, token, token_len);
++  return voprf_read(&voprf_exp2_method, key, out_nonce, token, token_len,
++                    include_message, msg, msg_len);
+ }
+diff --git a/include/openssl/trust_token.h b/include/openssl/trust_token.h
+index 745a860b0..aef4e500b 100644
+--- a/include/openssl/trust_token.h
++++ b/include/openssl/trust_token.h
+@@ -143,6 +143,15 @@ OPENSSL_EXPORT int TRUST_TOKEN_CLIENT_begin_issuance(TRUST_TOKEN_CLIENT *ctx,
+                                                      size_t *out_len,
+                                                      size_t count);
+ 
++// TRUST_TOKEN_CLIENT_begin_issuance_over_message produces a request for a trust
++// token derived from |msg| and serializes the request into a newly-allocated
++// buffer, setting |*out| to that buffer and |*out_len| to its length. The
++// caller takes ownership of the buffer and must call |OPENSSL_free| when done.
++// It returns one on success and zero on error.
++OPENSSL_EXPORT int TRUST_TOKEN_CLIENT_begin_issuance_over_message(
++    TRUST_TOKEN_CLIENT *ctx, uint8_t **out, size_t *out_len, size_t count,
++    const uint8_t *msg, size_t msg_len);
++
+ // TRUST_TOKEN_CLIENT_finish_issuance consumes |response| from the issuer and
+ // extracts the tokens, returning a list of tokens and the index of the key used
+ // to sign the tokens in |*out_key_index|. The caller can use this to determine
+@@ -278,6 +287,26 @@ OPENSSL_EXPORT int TRUST_TOKEN_ISSUER_redeem_raw(
+     TRUST_TOKEN **out_token, uint8_t **out_client_data,
+     size_t *out_client_data_len, const uint8_t *request, size_t request_len);
+ 
++// TRUST_TOKEN_ISSUER_redeem_over_message ingests a |request| for token
++// redemption and a message and verifies the token and that it is derived from
++// the provided |msg|. The public metadata is stored in
++// |*out_public|. The private metadata (if any) is stored in |*out_private|. The
++// extracted |TRUST_TOKEN| is stored into a newly-allocated buffer and stored in
++// |*out_token|. The extracted client data is stored into a newly-allocated
++// buffer and stored in |*out_client_data|. The caller takes ownership of each
++// output buffer and must call |OPENSSL_free| when done. It returns one on
++// success or zero on error.
++//
++// The caller must keep track of all values of |*out_token| seen globally before
++// returning a response to the client. If the value has been reused, the caller
++// must report an error to the client. Returning a response with replayed values
++// allows an attacker to double-spend tokens.
++OPENSSL_EXPORT int TRUST_TOKEN_ISSUER_redeem_over_message(
++    const TRUST_TOKEN_ISSUER *ctx, uint32_t *out_public, uint8_t *out_private,
++    TRUST_TOKEN **out_token, uint8_t **out_client_data,
++    size_t *out_client_data_len, const uint8_t *request, size_t request_len,
++    const uint8_t *msg, size_t msg_len);
++
+ // TRUST_TOKEN_decode_private_metadata decodes |encrypted_bit| using the
+ // private metadata key specified by a |key| buffer of length |key_len| and the
+ // nonce by a |nonce| buffer of length |nonce_len|. The nonce in

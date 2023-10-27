@@ -1,0 +1,3341 @@
+From 7c560f19e1e349cc9f9cb73d93866ee644e1c6c9 Mon Sep 17 00:00:00 2001
+From: Justin Smith <justsmth@amazon.com>
+Date: Thu, 19 May 2022 15:25:14 -0400
+Subject: [PATCH] Platform-aware symbol macros
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/e864876633b206f73c949f74b42098e466827545
+---
+ arm/fastmul/bignum_emontredc_8n.S      | 10 +++++-----
+ arm/fastmul/bignum_kmul_16_32.S        |  8 ++++----
+ arm/fastmul/bignum_kmul_32_64.S        |  8 ++++----
+ arm/fastmul/bignum_ksqr_16_32.S        |  8 ++++----
+ arm/fastmul/bignum_ksqr_32_64.S        |  8 ++++----
+ arm/generic/bignum_ge.S                |  8 ++++----
+ arm/generic/bignum_mul.S               |  8 ++++----
+ arm/generic/bignum_optsub.S            |  8 ++++----
+ arm/generic/bignum_sqr.S               |  8 ++++----
+ arm/p384/bignum_add_p384.S             |  8 ++++----
+ arm/p384/bignum_bigendian_6.S          | 24 ++++++++++++------------
+ arm/p384/bignum_cmul_p384.S            | 16 ++++++++--------
+ arm/p384/bignum_deamont_p384.S         | 16 ++++++++--------
+ arm/p384/bignum_demont_p384.S          | 16 ++++++++--------
+ arm/p384/bignum_double_p384.S          |  8 ++++----
+ arm/p384/bignum_half_p384.S            |  8 ++++----
+ arm/p384/bignum_littleendian_6.S       | 24 ++++++++++++------------
+ arm/p384/bignum_mod_n384.S             | 16 ++++++++--------
+ arm/p384/bignum_mod_n384_6.S           |  8 ++++----
+ arm/p384/bignum_mod_p384.S             | 16 ++++++++--------
+ arm/p384/bignum_mod_p384_6.S           |  8 ++++----
+ arm/p384/bignum_montmul_p384.S         |  8 ++++----
+ arm/p384/bignum_montmul_p384_alt.S     |  8 ++++----
+ arm/p384/bignum_montsqr_p384.S         |  8 ++++----
+ arm/p384/bignum_montsqr_p384_alt.S     |  8 ++++----
+ arm/p384/bignum_mux_6.S                | 10 +++++-----
+ arm/p384/bignum_neg_p384.S             |  8 ++++----
+ arm/p384/bignum_nonzero_6.S            |  8 ++++----
+ arm/p384/bignum_optneg_p384.S          |  8 ++++----
+ arm/p384/bignum_sub_p384.S             |  8 ++++----
+ arm/p384/bignum_tomont_p384.S          | 16 ++++++++--------
+ arm/p384/bignum_triple_p384.S          | 16 ++++++++--------
+ arm/p521/bignum_add_p521.S             |  8 ++++----
+ arm/p521/bignum_cmul_p521.S            | 16 ++++++++--------
+ arm/p521/bignum_deamont_p521.S         |  8 ++++----
+ arm/p521/bignum_demont_p521.S          |  8 ++++----
+ arm/p521/bignum_double_p521.S          |  8 ++++----
+ arm/p521/bignum_fromlebytes_p521.S     |  8 ++++----
+ arm/p521/bignum_half_p521.S            |  8 ++++----
+ arm/p521/bignum_mod_n521_9.S           | 16 ++++++++--------
+ arm/p521/bignum_mod_p521_9.S           |  8 ++++----
+ arm/p521/bignum_montmul_p521.S         |  8 ++++----
+ arm/p521/bignum_montmul_p521_alt.S     |  8 ++++----
+ arm/p521/bignum_montsqr_p521.S         |  8 ++++----
+ arm/p521/bignum_montsqr_p521_alt.S     |  8 ++++----
+ arm/p521/bignum_mul_p521.S             |  8 ++++----
+ arm/p521/bignum_mul_p521_alt.S         |  8 ++++----
+ arm/p521/bignum_neg_p521.S             |  8 ++++----
+ arm/p521/bignum_optneg_p521.S          |  8 ++++----
+ arm/p521/bignum_sqr_p521.S             |  8 ++++----
+ arm/p521/bignum_sqr_p521_alt.S         |  8 ++++----
+ arm/p521/bignum_sub_p521.S             |  8 ++++----
+ arm/p521/bignum_tolebytes_p521.S       |  8 ++++----
+ arm/p521/bignum_tomont_p521.S          |  8 ++++----
+ arm/p521/bignum_triple_p521.S          | 16 ++++++++--------
+ include/_internal_s2n_bignum.h         | 18 ++++++++++++++++++
+ x86_att/p384/bignum_add_p384.S         |  9 ++++-----
+ x86_att/p384/bignum_bigendian_6.S      | 23 +++++++++++------------
+ x86_att/p384/bignum_cmul_p384.S        |  8 ++++----
+ x86_att/p384/bignum_cmul_p384_alt.S    |  9 ++++-----
+ x86_att/p384/bignum_deamont_p384.S     | 10 ++++------
+ x86_att/p384/bignum_deamont_p384_alt.S |  9 ++++-----
+ x86_att/p384/bignum_demont_p384.S      |  9 ++++-----
+ x86_att/p384/bignum_demont_p384_alt.S  |  9 ++++-----
+ x86_att/p384/bignum_double_p384.S      |  8 ++++----
+ x86_att/p384/bignum_half_p384.S        |  8 ++++----
+ x86_att/p384/bignum_littleendian_6.S   | 23 +++++++++++------------
+ x86_att/p384/bignum_mod_n384.S         |  9 +++++----
+ x86_att/p384/bignum_mod_n384_6.S       |  9 +++++----
+ x86_att/p384/bignum_mod_n384_alt.S     |  9 +++++----
+ x86_att/p384/bignum_mod_p384.S         |  9 +++++----
+ x86_att/p384/bignum_mod_p384_6.S       |  9 +++++----
+ x86_att/p384/bignum_mod_p384_alt.S     |  9 +++++----
+ x86_att/p384/bignum_montmul_p384.S     |  9 +++++----
+ x86_att/p384/bignum_montmul_p384_alt.S |  9 +++++----
+ x86_att/p384/bignum_montsqr_p384.S     |  9 +++++----
+ x86_att/p384/bignum_montsqr_p384_alt.S |  9 +++++----
+ x86_att/p384/bignum_mux_6.S            |  9 +++++----
+ x86_att/p384/bignum_neg_p384.S         |  9 +++++----
+ x86_att/p384/bignum_nonzero_6.S        |  9 +++++----
+ x86_att/p384/bignum_optneg_p384.S      |  9 +++++----
+ x86_att/p384/bignum_sub_p384.S         |  9 +++++----
+ x86_att/p384/bignum_tomont_p384.S      |  9 +++++----
+ x86_att/p384/bignum_tomont_p384_alt.S  |  9 +++++----
+ x86_att/p384/bignum_triple_p384.S      |  9 +++++----
+ x86_att/p384/bignum_triple_p384_alt.S  |  9 +++++----
+ x86_att/p521/bignum_add_p521.S         |  9 +++++----
+ x86_att/p521/bignum_cmul_p521.S        |  9 +++++----
+ x86_att/p521/bignum_cmul_p521_alt.S    |  9 +++++----
+ x86_att/p521/bignum_deamont_p521.S     |  9 +++++----
+ x86_att/p521/bignum_demont_p521.S      |  9 +++++----
+ x86_att/p521/bignum_double_p521.S      |  9 +++++----
+ x86_att/p521/bignum_fromlebytes_p521.S |  9 +++++----
+ x86_att/p521/bignum_half_p521.S        |  9 +++++----
+ x86_att/p521/bignum_mod_n521_9.S       |  9 +++++----
+ x86_att/p521/bignum_mod_n521_9_alt.S   |  9 +++++----
+ x86_att/p521/bignum_mod_p521_9.S       |  9 +++++----
+ x86_att/p521/bignum_montmul_p521.S     |  9 +++++----
+ x86_att/p521/bignum_montmul_p521_alt.S |  9 +++++----
+ x86_att/p521/bignum_montsqr_p521.S     |  9 +++++----
+ x86_att/p521/bignum_montsqr_p521_alt.S |  9 +++++----
+ x86_att/p521/bignum_mul_p521.S         |  9 +++++----
+ x86_att/p521/bignum_mul_p521_alt.S     |  9 +++++----
+ x86_att/p521/bignum_neg_p521.S         |  9 +++++----
+ x86_att/p521/bignum_optneg_p521.S      |  9 +++++----
+ x86_att/p521/bignum_sqr_p521.S         |  9 +++++----
+ x86_att/p521/bignum_sqr_p521_alt.S     |  9 +++++----
+ x86_att/p521/bignum_sub_p521.S         |  9 +++++----
+ x86_att/p521/bignum_tolebytes_p521.S   |  9 +++++----
+ x86_att/p521/bignum_tomont_p521.S      |  9 +++++----
+ x86_att/p521/bignum_triple_p521.S      |  9 +++++----
+ x86_att/p521/bignum_triple_p521_alt.S  |  9 +++++----
+ 112 files changed, 579 insertions(+), 525 deletions(-)
+ create mode 100644 include/_internal_s2n_bignum.h
+
+diff --git a/arm/fastmul/bignum_emontredc_8n.S b/arm/fastmul/bignum_emontredc_8n.S
+index a2b2360c2..104a0eb92 100644
+--- a/arm/fastmul/bignum_emontredc_8n.S
++++ b/arm/fastmul/bignum_emontredc_8n.S
+@@ -25,9 +25,10 @@
+ //
+ // Standard ARM ABI: X0 = k, X1 = z, X2 = m, X3 = w, returns X0
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_emontredc_8n
+-        .globl  _bignum_emontredc_8n
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_emontredc_8n)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_emontredc_8n)
+         .text
+         .balign 4
+ 
+@@ -208,10 +209,9 @@
+ // Main code
+ // *****************************************************
+ 
+-bignum_emontredc_8n:
+-_bignum_emontredc_8n:
++S2N_BN_SYMBOL(bignum_emontredc_8n):
+ 
+-        stp     x19, x20, [sp, #-16]!
++stp     x19, x20, [sp, #-16]!
+         stp     x21, x22, [sp, #-16]!
+         stp     x23, x24, [sp, #-16]!
+         stp     x25, x26, [sp, #-16]!
+diff --git a/arm/fastmul/bignum_kmul_16_32.S b/arm/fastmul/bignum_kmul_16_32.S
+index ecd6b6daf..9a29b2630 100644
+--- a/arm/fastmul/bignum_kmul_16_32.S
++++ b/arm/fastmul/bignum_kmul_16_32.S
+@@ -26,9 +26,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y, X3 = t
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_kmul_16_32
+-        .globl  _bignum_kmul_16_32
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_kmul_16_32)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_kmul_16_32)
+         .text
+         .balign 4
+ 
+@@ -44,8 +45,7 @@
+ #define s x29
+ #define m x19
+ 
+-bignum_kmul_16_32:
+-_bignum_kmul_16_32:
++S2N_BN_SYMBOL(bignum_kmul_16_32):
+ 
+ // Save registers, including return address
+ 
+diff --git a/arm/fastmul/bignum_kmul_32_64.S b/arm/fastmul/bignum_kmul_32_64.S
+index c657d50da..8706ac6f2 100644
+--- a/arm/fastmul/bignum_kmul_32_64.S
++++ b/arm/fastmul/bignum_kmul_32_64.S
+@@ -26,9 +26,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y, X3 = t
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_kmul_32_64
+-        .globl  _bignum_kmul_32_64
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_kmul_32_64)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_kmul_32_64)
+         .text
+         .balign 4
+ 
+@@ -42,8 +43,7 @@
+ 
+ #define c x16
+ 
+-bignum_kmul_32_64:
+-_bignum_kmul_32_64:
++S2N_BN_SYMBOL(bignum_kmul_32_64):
+ 
+ // Save extra registers and return address, store parameters safely
+ 
+diff --git a/arm/fastmul/bignum_ksqr_16_32.S b/arm/fastmul/bignum_ksqr_16_32.S
+index 25bf314ad..36cf26d9c 100644
+--- a/arm/fastmul/bignum_ksqr_16_32.S
++++ b/arm/fastmul/bignum_ksqr_16_32.S
+@@ -25,9 +25,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = t
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_ksqr_16_32
+-        .globl  _bignum_ksqr_16_32
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_ksqr_16_32)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_ksqr_16_32)
+         .text
+         .balign 4
+ 
+@@ -42,8 +43,7 @@
+ #define s x19
+ 
+ 
+-bignum_ksqr_16_32:
+-_bignum_ksqr_16_32:
++S2N_BN_SYMBOL(bignum_ksqr_16_32):
+ 
+ // Save registers, including return address
+ 
+diff --git a/arm/fastmul/bignum_ksqr_32_64.S b/arm/fastmul/bignum_ksqr_32_64.S
+index eeb94be1c..37d259e97 100644
+--- a/arm/fastmul/bignum_ksqr_32_64.S
++++ b/arm/fastmul/bignum_ksqr_32_64.S
+@@ -25,9 +25,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = t
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_ksqr_32_64
+-        .globl  _bignum_ksqr_32_64
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_ksqr_32_64)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_ksqr_32_64)
+         .text
+         .balign 4
+ 
+@@ -41,8 +42,7 @@
+ #define c x16
+ 
+ 
+-bignum_ksqr_32_64:
+-_bignum_ksqr_32_64:
++S2N_BN_SYMBOL(bignum_ksqr_32_64):
+ 
+ // Save extra registers and return address, store parameters safely
+ 
+diff --git a/arm/generic/bignum_ge.S b/arm/generic/bignum_ge.S
+index 19db76936..badd521b5 100644
+--- a/arm/generic/bignum_ge.S
++++ b/arm/generic/bignum_ge.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = m, X1 = x, X2 = n, X3 = y, returns X0
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_ge
+-        .globl  _bignum_ge
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_ge)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_ge)
+         .text
+         .balign 4
+ 
+@@ -37,8 +38,7 @@
+ #define d x6
+ 
+ 
+-bignum_ge:
+-_bignum_ge:
++S2N_BN_SYMBOL(bignum_ge):
+ 
+ // Zero the main index counter for both branches
+ 
+diff --git a/arm/generic/bignum_mul.S b/arm/generic/bignum_mul.S
+index 055ae3bf7..fc7227aa6 100644
+--- a/arm/generic/bignum_mul.S
++++ b/arm/generic/bignum_mul.S
+@@ -26,9 +26,10 @@
+ //
+ // Standard ARM ABI: X0 = k, X1 = z, X2 = m, X3 = x, X4 = n, X5 = y
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_mul
+-        .globl  _bignum_mul
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mul)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mul)
+         .text
+         .balign 4
+ 
+@@ -50,8 +51,7 @@
+ #define yy x15
+ 
+ 
+-bignum_mul:
+-_bignum_mul:
++S2N_BN_SYMBOL(bignum_mul):
+ 
+ // If p = 0 the result is trivial and nothing needs doing
+ 
+diff --git a/arm/generic/bignum_optsub.S b/arm/generic/bignum_optsub.S
+index fd952d136..b2c0653df 100644
+--- a/arm/generic/bignum_optsub.S
++++ b/arm/generic/bignum_optsub.S
+@@ -25,9 +25,10 @@
+ //
+ // Standard ARM ABI: X0 = k, X1 = z, X2 = x, X3 = p, X4 = y, returns X0
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_optsub
+-        .globl  _bignum_optsub
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_optsub)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_optsub)
+         .text
+         .balign 4
+ 
+@@ -42,8 +43,7 @@
+ #define i x7
+ 
+ 
+-bignum_optsub:
+-_bignum_optsub:
++S2N_BN_SYMBOL(bignum_optsub):
+ 
+ // if k = 0 do nothing. This is also the right top carry in X0
+ 
+diff --git a/arm/generic/bignum_sqr.S b/arm/generic/bignum_sqr.S
+index f6e5a7439..cff9f6c29 100644
+--- a/arm/generic/bignum_sqr.S
++++ b/arm/generic/bignum_sqr.S
+@@ -25,9 +25,10 @@
+ //
+ // Standard ARM ABI: X0 = k, X1 = z, X2 = n, X3 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_sqr
+-        .globl  _bignum_sqr
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sqr)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sqr)
+         .text
+         .balign 4
+ 
+@@ -49,8 +50,7 @@
+ #define hh x14
+ #define ll x15
+ 
+-bignum_sqr:
+-_bignum_sqr:
++S2N_BN_SYMBOL(bignum_sqr):
+ 
+ // If p = 0 the result is trivial and nothing needs doing
+ 
+diff --git a/arm/p384/bignum_add_p384.S b/arm/p384/bignum_add_p384.S
+index a2558da13..257a5f6a5 100644
+--- a/arm/p384/bignum_add_p384.S
++++ b/arm/p384/bignum_add_p384.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_add_p384
+-        .globl  _bignum_add_p384
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_p384)
+         .text
+         .balign 4
+ 
+@@ -41,8 +42,7 @@
+ #define d5 x10
+ 
+ 
+-bignum_add_p384:
+-_bignum_add_p384:
++S2N_BN_SYMBOL(bignum_add_p384):
+ 
+ // First just add the numbers as c + [d5; d4; d3; d2; d1; d0]
+ 
+diff --git a/arm/p384/bignum_bigendian_6.S b/arm/p384/bignum_bigendian_6.S
+index 84bbf0142..d7f463aee 100644
+--- a/arm/p384/bignum_bigendian_6.S
++++ b/arm/p384/bignum_bigendian_6.S
+@@ -35,13 +35,15 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_bigendian_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_bigendian_6)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_frombebytes_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_frombebytes_6)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tobebytes_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tobebytes_6)
+ 
+-        .globl  bignum_bigendian_6
+-        .globl  _bignum_bigendian_6
+-        .globl  bignum_frombebytes_6
+-        .globl  _bignum_frombebytes_6
+-        .globl  bignum_tobebytes_6
+-        .globl  _bignum_tobebytes_6
+         .text
+         .balign 4
+ 
+@@ -57,12 +59,10 @@
+ // to allow x and z to point to the same buffer without using more
+ // intermediate registers.
+ 
+-bignum_bigendian_6:
+-_bignum_bigendian_6:
+-bignum_frombebytes_6:
+-_bignum_frombebytes_6:
+-bignum_tobebytes_6:
+-_bignum_tobebytes_6:
++S2N_BN_SYMBOL(bignum_bignum_bigendian_6):
++
++S2N_BN_SYMBOL(bignum_bignum_frombebytes_6):
++S2N_BN_SYMBOL(bignum_bignum_tobebytes_6):
+ 
+ // 0 and 5 words
+ 
+diff --git a/arm/p384/bignum_cmul_p384.S b/arm/p384/bignum_cmul_p384.S
+index 2c87e82fd..6b10ad254 100644
+--- a/arm/p384/bignum_cmul_p384.S
++++ b/arm/p384/bignum_cmul_p384.S
+@@ -23,11 +23,12 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = c, X2 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_cmul_p384
+-        .globl  _bignum_cmul_p384
+-        .globl  bignum_cmul_p384_alt
+-        .globl  _bignum_cmul_p384_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_cmul_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_cmul_p384)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_cmul_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_cmul_p384_alt)
+         .text
+         .balign 4
+ 
+@@ -57,10 +58,9 @@
+ #define l x9
+ 
+ 
+-bignum_cmul_p384:
+-_bignum_cmul_p384:
+-bignum_cmul_p384_alt:
+-_bignum_cmul_p384_alt:
++S2N_BN_SYMBOL(bignum_cmul_p384):
++
++S2N_BN_SYMBOL(bignum_cmul_p384_alt):
+ 
+ // First do the multiply, straightforwardly, getting [h; d5; ...; d0]
+ 
+diff --git a/arm/p384/bignum_deamont_p384.S b/arm/p384/bignum_deamont_p384.S
+index a322a8c4a..673cd97d5 100644
+--- a/arm/p384/bignum_deamont_p384.S
++++ b/arm/p384/bignum_deamont_p384.S
+@@ -25,11 +25,12 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_deamont_p384
+-        .globl  _bignum_deamont_p384
+-        .globl  bignum_deamont_p384_alt
+-        .globl  _bignum_deamont_p384_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_deamont_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_deamont_p384)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_deamont_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_deamont_p384_alt)
+         .text
+         .balign 4
+ 
+@@ -90,10 +91,9 @@
+ #define v x9
+ #define w x10
+ 
+-bignum_deamont_p384:
+-_bignum_deamont_p384:
+-bignum_deamont_p384_alt:
+-_bignum_deamont_p384_alt:
++S2N_BN_SYMBOL(bignum_deamont_p384):
++
++S2N_BN_SYMBOL(bignum_deamont_p384_alt):
+ 
+ // Set up an initial window with the input x and an extra leading zero
+ 
+diff --git a/arm/p384/bignum_demont_p384.S b/arm/p384/bignum_demont_p384.S
+index 00a0ffcac..4debf61fd 100644
+--- a/arm/p384/bignum_demont_p384.S
++++ b/arm/p384/bignum_demont_p384.S
+@@ -25,11 +25,12 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_demont_p384
+-        .globl  _bignum_demont_p384
+-        .globl  bignum_demont_p384_alt
+-        .globl  _bignum_demont_p384_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_demont_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_demont_p384)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_demont_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_demont_p384_alt)
+         .text
+         .balign 4
+ 
+@@ -90,10 +91,9 @@
+ #define v x9
+ #define w x10
+ 
+-bignum_demont_p384:
+-_bignum_demont_p384:
+-bignum_demont_p384_alt:
+-_bignum_demont_p384_alt:
++S2N_BN_SYMBOL(bignum_demont_p384):
++
++S2N_BN_SYMBOL(bignum_demont_p384_alt):
+ 
+ // Set up an initial window with the input x and an extra leading zero
+ 
+diff --git a/arm/p384/bignum_double_p384.S b/arm/p384/bignum_double_p384.S
+index 4d1189147..32088b55a 100644
+--- a/arm/p384/bignum_double_p384.S
++++ b/arm/p384/bignum_double_p384.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_double_p384
+-        .globl  _bignum_double_p384
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_double_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_double_p384)
+         .text
+         .balign 4
+ 
+@@ -45,8 +46,7 @@
+ #define n5 x14
+ 
+ 
+-bignum_double_p384:
+-_bignum_double_p384:
++S2N_BN_SYMBOL(bignum_double_p384):
+ 
+ // Double the input number as 2 * x = c + [d5; d4; d3; d2; d1; d0]
+ // It's worth considering doing this with extr...63 instead
+diff --git a/arm/p384/bignum_half_p384.S b/arm/p384/bignum_half_p384.S
+index f0ce12864..f4f6be189 100644
+--- a/arm/p384/bignum_half_p384.S
++++ b/arm/p384/bignum_half_p384.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_half_p384
+-        .globl  _bignum_half_p384
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_half_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_half_p384)
+         .text
+         .balign 4
+ 
+@@ -43,8 +44,7 @@
+ #define n x11
+ 
+ 
+-bignum_half_p384:
+-_bignum_half_p384:
++S2N_BN_SYMBOL(bignum_half_p384):
+ 
+ // Load the 4 digits of x
+ 
+diff --git a/arm/p384/bignum_littleendian_6.S b/arm/p384/bignum_littleendian_6.S
+index 30d36a53b..3c35b397f 100644
+--- a/arm/p384/bignum_littleendian_6.S
++++ b/arm/p384/bignum_littleendian_6.S
+@@ -35,13 +35,15 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_littleendian_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_littleendian_6)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_fromlebytes_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_fromlebytes_6)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tolebytes_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tolebytes_6)
+ 
+-        .globl  bignum_littleendian_6
+-        .globl  _bignum_littleendian_6
+-        .globl  bignum_fromlebytes_6
+-        .globl  _bignum_fromlebytes_6
+-        .globl  bignum_tolebytes_6
+-        .globl  _bignum_tolebytes_6
+         .text
+         .balign 4
+ 
+@@ -52,12 +54,10 @@
+ #define dshort w2
+ #define a x3
+ 
+-bignum_littleendian_6:
+-_bignum_littleendian_6:
+-bignum_fromlebytes_6:
+-_bignum_fromlebytes_6:
+-bignum_tolebytes_6:
+-_bignum_tolebytes_6:
++S2N_BN_SYMBOL(bignum_bignum_littleendian_6):
++
++S2N_BN_SYMBOL(bignum_bignum_fromlebytes_6):
++S2N_BN_SYMBOL(bignum_bignum_tolebytes_6):
+ 
+ // word 0
+ 
+diff --git a/arm/p384/bignum_mod_n384.S b/arm/p384/bignum_mod_n384.S
+index b821c6923..8cb4bf656 100644
+--- a/arm/p384/bignum_mod_n384.S
++++ b/arm/p384/bignum_mod_n384.S
+@@ -24,11 +24,12 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = k, X2 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_mod_n384
+-        .globl  _bignum_mod_n384
+-        .globl  bignum_mod_n384_alt
+-        .globl  _bignum_mod_n384_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n384)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n384_alt)
+         .text
+         .balign 4
+ 
+@@ -75,10 +76,9 @@
+         movk    nn, n2, lsl #32;                                    \
+         movk    nn, n3, lsl #48
+ 
+-bignum_mod_n384:
+-_bignum_mod_n384:
+-bignum_mod_n384_alt:
+-_bignum_mod_n384_alt:
++S2N_BN_SYMBOL(bignum_mod_n384):
++
++S2N_BN_SYMBOL(bignum_mod_n384_alt):
+ 
+ // If the input is already <= 5 words long, go to a trivial "copy" path
+ 
+diff --git a/arm/p384/bignum_mod_n384_6.S b/arm/p384/bignum_mod_n384_6.S
+index 4f3756619..b906b30cc 100644
+--- a/arm/p384/bignum_mod_n384_6.S
++++ b/arm/p384/bignum_mod_n384_6.S
+@@ -24,9 +24,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_mod_n384_6
+-        .globl  _bignum_mod_n384_6
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n384_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n384_6)
+         .text
+         .balign 4
+ 
+@@ -53,8 +54,7 @@
+         movk    nn, n2, lsl #32;                                    \
+         movk    nn, n3, lsl #48
+ 
+-bignum_mod_n384_6:
+-_bignum_mod_n384_6:
++S2N_BN_SYMBOL(bignum_mod_n384_6):
+ 
+ // Load the complicated lower three words of n_384
+ 
+diff --git a/arm/p384/bignum_mod_p384.S b/arm/p384/bignum_mod_p384.S
+index 54c7ffcfa..48d103a37 100644
+--- a/arm/p384/bignum_mod_p384.S
++++ b/arm/p384/bignum_mod_p384.S
+@@ -22,11 +22,12 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = k, X2 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_mod_p384
+-        .globl  _bignum_mod_p384
+-        .globl  bignum_mod_p384_alt
+-        .globl  _bignum_mod_p384_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_p384)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_p384_alt)
+         .text
+         .balign 4
+ 
+@@ -53,10 +54,9 @@
+ #define n2 x17
+ 
+ 
+-bignum_mod_p384:
+-_bignum_mod_p384:
+-bignum_mod_p384_alt:
+-_bignum_mod_p384_alt:
++S2N_BN_SYMBOL(bignum_mod_p384):
++
++S2N_BN_SYMBOL(bignum_mod_p384_alt):
+ 
+ // If the input is already <= 5 words long, go to a trivial "copy" path
+ 
+diff --git a/arm/p384/bignum_mod_p384_6.S b/arm/p384/bignum_mod_p384_6.S
+index f02b401f7..fdad1cc84 100644
+--- a/arm/p384/bignum_mod_p384_6.S
++++ b/arm/p384/bignum_mod_p384_6.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_mod_p384_6
+-        .globl  _bignum_mod_p384_6
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_p384_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_p384_6)
+         .text
+         .balign 4
+ 
+@@ -46,8 +47,7 @@
+ #define d5 x13
+ 
+ 
+-bignum_mod_p384_6:
+-_bignum_mod_p384_6:
++S2N_BN_SYMBOL(bignum_mod_p384_6):
+ 
+ // Load the complicated lower three words of p_384 = [-1;-1;-1;n2;n1;n0]
+ 
+diff --git a/arm/p384/bignum_montmul_p384.S b/arm/p384/bignum_montmul_p384.S
+index 3ffc1cd3d..fce8dfe71 100644
+--- a/arm/p384/bignum_montmul_p384.S
++++ b/arm/p384/bignum_montmul_p384.S
+@@ -26,9 +26,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_montmul_p384
+-        .globl  _bignum_montmul_p384
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montmul_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montmul_p384)
+         .text
+         .balign 4
+ 
+@@ -113,8 +114,7 @@
+ #define t3 x23
+ #define t4 x24
+ 
+-bignum_montmul_p384:
+-_bignum_montmul_p384:
++S2N_BN_SYMBOL(bignum_montmul_p384):
+ 
+ // Save some registers
+ 
+diff --git a/arm/p384/bignum_montmul_p384_alt.S b/arm/p384/bignum_montmul_p384_alt.S
+index ec03123d0..c3a326273 100644
+--- a/arm/p384/bignum_montmul_p384_alt.S
++++ b/arm/p384/bignum_montmul_p384_alt.S
+@@ -26,9 +26,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_montmul_p384_alt
+-        .globl  _bignum_montmul_p384_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montmul_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montmul_p384_alt)
+         .text
+         .balign 4
+ 
+@@ -102,8 +103,7 @@
+ #define u11 x1 // same as x
+ #define h b5 // same as b5
+ 
+-bignum_montmul_p384_alt:
+-_bignum_montmul_p384_alt:
++S2N_BN_SYMBOL(bignum_montmul_p384_alt):
+ 
+ // Save more registers
+ 
+diff --git a/arm/p384/bignum_montsqr_p384.S b/arm/p384/bignum_montsqr_p384.S
+index 01b52cc00..0ad3906e3 100644
+--- a/arm/p384/bignum_montsqr_p384.S
++++ b/arm/p384/bignum_montsqr_p384.S
+@@ -25,9 +25,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_montsqr_p384
+-        .globl  _bignum_montsqr_p384
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montsqr_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montsqr_p384)
+         .text
+         .balign 4
+ 
+@@ -104,8 +105,7 @@
+ #define d3 x16
+ #define d4 x17
+ 
+-bignum_montsqr_p384:
+-_bignum_montsqr_p384:
++S2N_BN_SYMBOL(bignum_montsqr_p384):
+ 
+ // Load in all words of the input
+ 
+diff --git a/arm/p384/bignum_montsqr_p384_alt.S b/arm/p384/bignum_montsqr_p384_alt.S
+index 7a0ed8de8..8600c0489 100644
+--- a/arm/p384/bignum_montsqr_p384_alt.S
++++ b/arm/p384/bignum_montsqr_p384_alt.S
+@@ -25,9 +25,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_montsqr_p384_alt
+-        .globl  _bignum_montsqr_p384_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montsqr_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montsqr_p384_alt)
+         .text
+         .balign 4
+ 
+@@ -90,8 +91,7 @@
+ #define u11 x20
+ #define h x6 // same as a4
+ 
+-bignum_montsqr_p384_alt:
+-_bignum_montsqr_p384_alt:
++S2N_BN_SYMBOL(bignum_montsqr_p384_alt):
+ 
+ // It's convenient to have two more registers to play with
+ 
+diff --git a/arm/p384/bignum_mux_6.S b/arm/p384/bignum_mux_6.S
+index e8f13bc2a..d8ea1756a 100644
+--- a/arm/p384/bignum_mux_6.S
++++ b/arm/p384/bignum_mux_6.S
+@@ -25,9 +25,10 @@
+ //
+ // Standard ARM ABI: X0 = p, X1 = z, X2 = x, X3 = y
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_mux_6
+-        .globl  _bignum_mux_6
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mux_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mux_6)
+         .text
+         .balign 4
+ 
+@@ -38,10 +39,9 @@
+ #define a x4
+ 
+ 
+-bignum_mux_6:
+-_bignum_mux_6:
++S2N_BN_SYMBOL(bignum_mux_6):
+ 
+-        cmp     p, #0                    // Set condition codes p = 0
++cmp     p, #0                    // Set condition codes p = 0
+ 
+         ldr     a, [x]
+         ldr     p, [y]
+diff --git a/arm/p384/bignum_neg_p384.S b/arm/p384/bignum_neg_p384.S
+index 94a23c3f1..67f725db6 100644
+--- a/arm/p384/bignum_neg_p384.S
++++ b/arm/p384/bignum_neg_p384.S
+@@ -21,9 +21,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_neg_p384
+-        .globl  _bignum_neg_p384
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_neg_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_neg_p384)
+         .text
+         .balign 4
+ 
+@@ -41,8 +42,7 @@
+ #define d5 x9
+ 
+ 
+-bignum_neg_p384:
+-_bignum_neg_p384:
++S2N_BN_SYMBOL(bignum_neg_p384):
+ 
+ // Load the 6 digits of x
+ 
+diff --git a/arm/p384/bignum_nonzero_6.S b/arm/p384/bignum_nonzero_6.S
+index 29e3ca6b3..79e0ba3f3 100644
+--- a/arm/p384/bignum_nonzero_6.S
++++ b/arm/p384/bignum_nonzero_6.S
+@@ -21,9 +21,10 @@
+ //
+ // Standard ARM ABI: X0 = x, returns X0
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_nonzero_6
+-        .globl  _bignum_nonzero_6
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_nonzero_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_nonzero_6)
+         .text
+         .balign 4
+ 
+@@ -33,8 +34,7 @@
+ #define c x3
+ 
+ 
+-bignum_nonzero_6:
+-_bignum_nonzero_6:
++S2N_BN_SYMBOL(bignum_nonzero_6):
+ 
+ // Generate a = an OR of all the words in the bignum
+ 
+diff --git a/arm/p384/bignum_optneg_p384.S b/arm/p384/bignum_optneg_p384.S
+index cc269d28d..096e58394 100644
+--- a/arm/p384/bignum_optneg_p384.S
++++ b/arm/p384/bignum_optneg_p384.S
+@@ -23,9 +23,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = p, X2 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_optneg_p384
+-        .globl  _bignum_optneg_p384
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_optneg_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_optneg_p384)
+         .text
+         .balign 4
+ 
+@@ -47,8 +48,7 @@
+ #define n5 x14
+ 
+ 
+-bignum_optneg_p384:
+-_bignum_optneg_p384:
++S2N_BN_SYMBOL(bignum_optneg_p384):
+ 
+ // Load the 6 digits of x
+ 
+diff --git a/arm/p384/bignum_sub_p384.S b/arm/p384/bignum_sub_p384.S
+index 5e83fc26a..14d84dcc0 100644
+--- a/arm/p384/bignum_sub_p384.S
++++ b/arm/p384/bignum_sub_p384.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_sub_p384
+-        .globl  _bignum_sub_p384
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sub_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sub_p384)
+         .text
+         .balign 4
+ 
+@@ -42,8 +43,7 @@
+ #define d5 x10
+ 
+ 
+-bignum_sub_p384:
+-_bignum_sub_p384:
++S2N_BN_SYMBOL(bignum_sub_p384):
+ 
+ // First just subtract the numbers as [d5; d4; d3; d2; d1; d0]
+ // Set a mask based on (inverted) carry indicating x < y = correction is needed
+diff --git a/arm/p384/bignum_tomont_p384.S b/arm/p384/bignum_tomont_p384.S
+index a3ca9c341..0aab01513 100644
+--- a/arm/p384/bignum_tomont_p384.S
++++ b/arm/p384/bignum_tomont_p384.S
+@@ -22,11 +22,12 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_tomont_p384
+-        .globl  _bignum_tomont_p384
+-        .globl  bignum_tomont_p384_alt
+-        .globl  _bignum_tomont_p384_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tomont_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tomont_p384)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tomont_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tomont_p384_alt)
+         .text
+         .balign 4
+ 
+@@ -72,10 +73,9 @@
+         adcs    d4, d4, t3;                                         \
+         adc     d5, d5, t3
+ 
+-bignum_tomont_p384:
+-_bignum_tomont_p384:
+-bignum_tomont_p384_alt:
+-_bignum_tomont_p384_alt:
++S2N_BN_SYMBOL(bignum_tomont_p384):
++
++S2N_BN_SYMBOL(bignum_tomont_p384_alt):
+ 
+ #define d0 x2
+ #define d1 x3
+diff --git a/arm/p384/bignum_triple_p384.S b/arm/p384/bignum_triple_p384.S
+index 83ebcefbc..00f4bdc05 100644
+--- a/arm/p384/bignum_triple_p384.S
++++ b/arm/p384/bignum_triple_p384.S
+@@ -25,11 +25,12 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_triple_p384
+-        .globl  _bignum_triple_p384
+-        .globl  bignum_triple_p384_alt
+-        .globl  _bignum_triple_p384_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_triple_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_triple_p384)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_triple_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_triple_p384_alt)
+         .text
+         .balign 4
+ 
+@@ -64,10 +65,9 @@
+ #define t1 x10
+ 
+ 
+-bignum_triple_p384:
+-_bignum_triple_p384:
+-bignum_triple_p384_alt:
+-_bignum_triple_p384_alt:
++S2N_BN_SYMBOL(bignum_triple_p384):
++
++S2N_BN_SYMBOL(bignum_triple_p384_alt):
+ 
+ // Load the inputs
+ 
+diff --git a/arm/p521/bignum_add_p521.S b/arm/p521/bignum_add_p521.S
+index 0c47f9387..d39c60b92 100644
+--- a/arm/p521/bignum_add_p521.S
++++ b/arm/p521/bignum_add_p521.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_add_p521
+-        .globl  _bignum_add_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_p521)
+         .text
+         .balign 4
+ 
+@@ -44,8 +45,7 @@
+ #define d8 x13
+ 
+ 
+-bignum_add_p521:
+-_bignum_add_p521:
++S2N_BN_SYMBOL(bignum_add_p521):
+ 
+ // Force carry-in to get s = [d8;d7;d6;d5;d4;d3;d2;d1;d0] = x + y + 1.
+ // We ignore the carry-out, assuming inputs are reduced so there is none.
+diff --git a/arm/p521/bignum_cmul_p521.S b/arm/p521/bignum_cmul_p521.S
+index 0491551b4..ef2d75644 100644
+--- a/arm/p521/bignum_cmul_p521.S
++++ b/arm/p521/bignum_cmul_p521.S
+@@ -23,11 +23,12 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = c, X2 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_cmul_p521
+-        .globl  _bignum_cmul_p521
+-        .globl  bignum_cmul_p521_alt
+-        .globl  _bignum_cmul_p521_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_cmul_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_cmul_p521)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_cmul_p521_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_cmul_p521_alt)
+         .text
+         .balign 4
+ 
+@@ -63,10 +64,9 @@
+ #define a8 x14
+ #define dd x15
+ 
+-bignum_cmul_p521:
+-_bignum_cmul_p521:
+-bignum_cmul_p521_alt:
+-_bignum_cmul_p521_alt:
++S2N_BN_SYMBOL(bignum_cmul_p521):
++
++S2N_BN_SYMBOL(bignum_cmul_p521_alt):
+ 
+ // First do the multiply, getting [d9; ...; d0], and as this is done
+ // accumulate an AND "dd" of digits d7,...,d1 for later use
+diff --git a/arm/p521/bignum_deamont_p521.S b/arm/p521/bignum_deamont_p521.S
+index f4c83d922..2e1e95882 100644
+--- a/arm/p521/bignum_deamont_p521.S
++++ b/arm/p521/bignum_deamont_p521.S
+@@ -25,9 +25,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_deamont_p521
+-        .globl  _bignum_deamont_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_deamont_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_deamont_p521)
+         .text
+         .balign 4
+ 
+@@ -55,8 +56,7 @@
+ #define l x12
+ #define u x12
+ 
+-bignum_deamont_p521:
+-_bignum_deamont_p521:
++S2N_BN_SYMBOL(bignum_deamont_p521):
+ 
+ // Load all the inputs
+ 
+diff --git a/arm/p521/bignum_demont_p521.S b/arm/p521/bignum_demont_p521.S
+index bebd89715..0cd1afbb8 100644
+--- a/arm/p521/bignum_demont_p521.S
++++ b/arm/p521/bignum_demont_p521.S
+@@ -25,9 +25,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_demont_p521
+-        .globl  _bignum_demont_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_demont_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_demont_p521)
+         .text
+         .balign 4
+ 
+@@ -49,8 +50,7 @@
+ #define d8 x2
+ #define c x6
+ 
+-bignum_demont_p521:
+-_bignum_demont_p521:
++S2N_BN_SYMBOL(bignum_demont_p521):
+ 
+ // Rotate, as a 521-bit quantity, by 9*64 - 521 = 55 bits right.
+ 
+diff --git a/arm/p521/bignum_double_p521.S b/arm/p521/bignum_double_p521.S
+index 75baf8b54..6331d4fc5 100644
+--- a/arm/p521/bignum_double_p521.S
++++ b/arm/p521/bignum_double_p521.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_double_p521
+-        .globl  _bignum_double_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_double_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_double_p521)
+         .text
+         .balign 4
+ 
+@@ -35,8 +36,7 @@
+ #define h x3
+ #define l x4
+ 
+-bignum_double_p521:
+-_bignum_double_p521:
++S2N_BN_SYMBOL(bignum_double_p521):
+ 
+ // We can decide whether 2 * x >= p_521 just by 2 * x >= 2^521, which
+ // amounts to whether the top word is >= 256
+diff --git a/arm/p521/bignum_fromlebytes_p521.S b/arm/p521/bignum_fromlebytes_p521.S
+index c7a7a013e..abba7a8b2 100644
+--- a/arm/p521/bignum_fromlebytes_p521.S
++++ b/arm/p521/bignum_fromlebytes_p521.S
+@@ -24,9 +24,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_fromlebytes_p521
+-        .globl  _bignum_fromlebytes_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_fromlebytes_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_fromlebytes_p521)
+         .text
+         .balign 4
+ 
+@@ -37,8 +38,7 @@
+ #define dshort w2
+ #define a x3
+ 
+-bignum_fromlebytes_p521:
+-_bignum_fromlebytes_p521:
++S2N_BN_SYMBOL(bignum_fromlebytes_p521):
+ 
+ // word 0
+ 
+diff --git a/arm/p521/bignum_half_p521.S b/arm/p521/bignum_half_p521.S
+index e7c13c1c5..957abcbbc 100644
+--- a/arm/p521/bignum_half_p521.S
++++ b/arm/p521/bignum_half_p521.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_half_p521
+-        .globl  _bignum_half_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_half_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_half_p521)
+         .text
+         .balign 4
+ 
+@@ -45,8 +46,7 @@
+ #define a x6
+ 
+ 
+-bignum_half_p521:
+-_bignum_half_p521:
++S2N_BN_SYMBOL(bignum_half_p521):
+ 
+ // We do a 521-bit rotation one bit right, since 2^521 == 1 (mod p_521)
+ 
+diff --git a/arm/p521/bignum_mod_n521_9.S b/arm/p521/bignum_mod_n521_9.S
+index 958f09d1e..a3b733bcd 100644
+--- a/arm/p521/bignum_mod_n521_9.S
++++ b/arm/p521/bignum_mod_n521_9.S
+@@ -24,11 +24,12 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_mod_n521_9
+-        .globl  _bignum_mod_n521_9
+-        .globl  bignum_mod_n521_9_alt
+-        .globl  _bignum_mod_n521_9_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n521_9)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n521_9)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n521_9_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n521_9_alt)
+         .text
+         .balign 4
+ 
+@@ -63,10 +64,9 @@
+         movk    nn, n2, lsl #32;                                    \
+         movk    nn, n3, lsl #48
+ 
+-bignum_mod_n521_9:
+-_bignum_mod_n521_9:
+-bignum_mod_n521_9_alt:
+-_bignum_mod_n521_9_alt:
++S2N_BN_SYMBOL(bignum_mod_n521_9):
++
++S2N_BN_SYMBOL(bignum_mod_n521_9_alt):
+ 
+ // Load the top digit first into d8.
+ // The initial quotient estimate is q = h + 1 where x = 2^521 * h + t
+diff --git a/arm/p521/bignum_mod_p521_9.S b/arm/p521/bignum_mod_p521_9.S
+index 2a7d99010..ae0bfdc70 100644
+--- a/arm/p521/bignum_mod_p521_9.S
++++ b/arm/p521/bignum_mod_p521_9.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_mod_p521_9
+-        .globl  _bignum_mod_p521_9
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_p521_9)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_p521_9)
+         .text
+         .balign 4
+ 
+@@ -43,8 +44,7 @@
+ #define d7 x11
+ #define d8 x12
+ 
+-bignum_mod_p521_9:
+-_bignum_mod_p521_9:
++S2N_BN_SYMBOL(bignum_mod_p521_9):
+ 
+ // Load top digit first and get its upper bits in h so that we
+ // separate out x = 2^521 * H + L with h = H. Now x mod p_521 =
+diff --git a/arm/p521/bignum_montmul_p521.S b/arm/p521/bignum_montmul_p521.S
+index 6543afa73..809cedac3 100644
+--- a/arm/p521/bignum_montmul_p521.S
++++ b/arm/p521/bignum_montmul_p521.S
+@@ -27,9 +27,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_montmul_p521
+-        .globl  _bignum_montmul_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montmul_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montmul_p521)
+         .text
+         .balign 4
+ 
+@@ -158,8 +159,7 @@
+         adcs    s6, s6, c;                                      \
+         adc     s7, s7, c                                       \
+ 
+-bignum_montmul_p521:
+-_bignum_montmul_p521:
++S2N_BN_SYMBOL(bignum_montmul_p521):
+ 
+ // Save registers and make space for the temporary buffer
+ 
+diff --git a/arm/p521/bignum_montmul_p521_alt.S b/arm/p521/bignum_montmul_p521_alt.S
+index d31e280e2..ed84567a7 100644
+--- a/arm/p521/bignum_montmul_p521_alt.S
++++ b/arm/p521/bignum_montmul_p521_alt.S
+@@ -27,9 +27,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_montmul_p521_alt
+-        .globl  _bignum_montmul_p521_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montmul_p521_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montmul_p521_alt)
+         .text
+         .balign 4
+ 
+@@ -82,8 +83,7 @@
+ #define u15 x20
+ #define u16 x21
+ 
+-bignum_montmul_p521_alt:
+-_bignum_montmul_p521_alt:
++S2N_BN_SYMBOL(bignum_montmul_p521_alt):
+ 
+ // Save more registers and make space for the temporary buffer
+ 
+diff --git a/arm/p521/bignum_montsqr_p521.S b/arm/p521/bignum_montsqr_p521.S
+index fb112ccb3..6ec333273 100644
+--- a/arm/p521/bignum_montsqr_p521.S
++++ b/arm/p521/bignum_montsqr_p521.S
+@@ -27,9 +27,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_montsqr_p521
+-        .globl  _bignum_montsqr_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montsqr_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montsqr_p521)
+         .text
+         .balign 4
+ 
+@@ -73,8 +74,7 @@
+ #define d7 x9
+ #define d8 x10
+ 
+-bignum_montsqr_p521:
+-_bignum_montsqr_p521:
++S2N_BN_SYMBOL(bignum_montsqr_p521):
+ 
+ // Save registers
+ 
+diff --git a/arm/p521/bignum_montsqr_p521_alt.S b/arm/p521/bignum_montsqr_p521_alt.S
+index 20e65296e..fd30cd81b 100644
+--- a/arm/p521/bignum_montsqr_p521_alt.S
++++ b/arm/p521/bignum_montsqr_p521_alt.S
+@@ -27,9 +27,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_montsqr_p521_alt
+-        .globl  _bignum_montsqr_p521_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montsqr_p521_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montsqr_p521_alt)
+         .text
+         .balign 4
+ 
+@@ -66,8 +67,7 @@
+ #define u15 x27
+ #define u16 x29
+ 
+-bignum_montsqr_p521_alt:
+-_bignum_montsqr_p521_alt:
++S2N_BN_SYMBOL(bignum_montsqr_p521_alt):
+ 
+ // It's convenient to have more registers to play with
+ 
+diff --git a/arm/p521/bignum_mul_p521.S b/arm/p521/bignum_mul_p521.S
+index 832077690..d4ed4b7e0 100644
+--- a/arm/p521/bignum_mul_p521.S
++++ b/arm/p521/bignum_mul_p521.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_mul_p521
+-        .globl  _bignum_mul_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mul_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mul_p521)
+         .text
+         .balign 4
+ 
+@@ -153,8 +154,7 @@
+         adcs    s6, s6, c;                                      \
+         adc     s7, s7, c                                       \
+ 
+-bignum_mul_p521:
+-_bignum_mul_p521:
++S2N_BN_SYMBOL(bignum_mul_p521):
+ 
+ // Save registers and make space for the temporary buffer
+ 
+diff --git a/arm/p521/bignum_mul_p521_alt.S b/arm/p521/bignum_mul_p521_alt.S
+index aac74488e..f0b6ee47a 100644
+--- a/arm/p521/bignum_mul_p521_alt.S
++++ b/arm/p521/bignum_mul_p521_alt.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_mul_p521_alt
+-        .globl  _bignum_mul_p521_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mul_p521_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mul_p521_alt)
+         .text
+         .balign 4
+ 
+@@ -77,8 +78,7 @@
+ #define u15 x20
+ #define u16 x21
+ 
+-bignum_mul_p521_alt:
+-_bignum_mul_p521_alt:
++S2N_BN_SYMBOL(bignum_mul_p521_alt):
+ 
+ // Save more registers and make temporary space on stack
+ 
+diff --git a/arm/p521/bignum_neg_p521.S b/arm/p521/bignum_neg_p521.S
+index e13bac25c..90292e39e 100644
+--- a/arm/p521/bignum_neg_p521.S
++++ b/arm/p521/bignum_neg_p521.S
+@@ -21,9 +21,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_neg_p521
+-        .globl  _bignum_neg_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_neg_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_neg_p521)
+         .text
+         .balign 4
+ 
+@@ -42,8 +43,7 @@
+ #define d7 x10
+ #define d8 x11
+ 
+-bignum_neg_p521:
+-_bignum_neg_p521:
++S2N_BN_SYMBOL(bignum_neg_p521):
+ 
+ // Load the 9 digits of x and generate p = the OR of them all
+ 
+diff --git a/arm/p521/bignum_optneg_p521.S b/arm/p521/bignum_optneg_p521.S
+index 3834f9abd..2822ab4c6 100644
+--- a/arm/p521/bignum_optneg_p521.S
++++ b/arm/p521/bignum_optneg_p521.S
+@@ -23,9 +23,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = p, X2 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_optneg_p521
+-        .globl  _bignum_optneg_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_optneg_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_optneg_p521)
+         .text
+         .balign 4
+ 
+@@ -44,8 +45,7 @@
+ #define d7 x11
+ #define d8 x12
+ 
+-bignum_optneg_p521:
+-_bignum_optneg_p521:
++S2N_BN_SYMBOL(bignum_optneg_p521):
+ 
+ // Load the 9 digits of x and generate q = the OR of them all
+ 
+diff --git a/arm/p521/bignum_sqr_p521.S b/arm/p521/bignum_sqr_p521.S
+index a3c618b5b..bb68c3396 100644
+--- a/arm/p521/bignum_sqr_p521.S
++++ b/arm/p521/bignum_sqr_p521.S
+@@ -21,9 +21,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_sqr_p521
+-        .globl  _bignum_sqr_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sqr_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sqr_p521)
+         .text
+         .balign 4
+ 
+@@ -67,8 +68,7 @@
+ #define d7 x9
+ #define d8 x10
+ 
+-bignum_sqr_p521:
+-_bignum_sqr_p521:
++S2N_BN_SYMBOL(bignum_sqr_p521):
+ 
+ // Save registers
+ 
+diff --git a/arm/p521/bignum_sqr_p521_alt.S b/arm/p521/bignum_sqr_p521_alt.S
+index c2d7bc996..10417d12e 100644
+--- a/arm/p521/bignum_sqr_p521_alt.S
++++ b/arm/p521/bignum_sqr_p521_alt.S
+@@ -21,9 +21,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_sqr_p521_alt
+-        .globl  _bignum_sqr_p521_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sqr_p521_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sqr_p521_alt)
+         .text
+         .balign 4
+ 
+@@ -60,8 +61,7 @@
+ #define u15 x27
+ #define u16 x29
+ 
+-bignum_sqr_p521_alt:
+-_bignum_sqr_p521_alt:
++S2N_BN_SYMBOL(bignum_sqr_p521_alt):
+ 
+ // It's convenient to have more registers to play with
+ 
+diff --git a/arm/p521/bignum_sub_p521.S b/arm/p521/bignum_sub_p521.S
+index f1cd34ed4..1a074aed1 100644
+--- a/arm/p521/bignum_sub_p521.S
++++ b/arm/p521/bignum_sub_p521.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x, X2 = y
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_sub_p521
+-        .globl  _bignum_sub_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sub_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sub_p521)
+         .text
+         .balign 4
+ 
+@@ -44,8 +45,7 @@
+ #define d8 x13
+ 
+ 
+-bignum_sub_p521:
+-_bignum_sub_p521:
++S2N_BN_SYMBOL(bignum_sub_p521):
+ 
+ // First just subtract the numbers as [d8;d7;d6;d5;d4;d3;d2;d1;d0] = x - y
+ 
+diff --git a/arm/p521/bignum_tolebytes_p521.S b/arm/p521/bignum_tolebytes_p521.S
+index 16f87ec27..397d2a73b 100644
+--- a/arm/p521/bignum_tolebytes_p521.S
++++ b/arm/p521/bignum_tolebytes_p521.S
+@@ -24,9 +24,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_tolebytes_p521
+-        .globl  _bignum_tolebytes_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tolebytes_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tolebytes_p521)
+         .text
+         .balign 4
+ 
+@@ -36,8 +37,7 @@
+ #define d x2
+ #define dshort w2
+ 
+-bignum_tolebytes_p521:
+-_bignum_tolebytes_p521:
++S2N_BN_SYMBOL(bignum_tolebytes_p521):
+ 
+ // word 0
+ 
+diff --git a/arm/p521/bignum_tomont_p521.S b/arm/p521/bignum_tomont_p521.S
+index 0aac27f3b..1ca5089f9 100644
+--- a/arm/p521/bignum_tomont_p521.S
++++ b/arm/p521/bignum_tomont_p521.S
+@@ -22,9 +22,10 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_tomont_p521
+-        .globl  _bignum_tomont_p521
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tomont_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tomont_p521)
+         .text
+         .balign 4
+ 
+@@ -43,8 +44,7 @@
+ #define d7 x11
+ #define d8 x12
+ 
+-bignum_tomont_p521:
+-_bignum_tomont_p521:
++S2N_BN_SYMBOL(bignum_tomont_p521):
+ 
+ // Load top digit first and get its upper bits in h so that we
+ // separate out x = 2^521 * H + L with h = H. Now x mod p_521 =
+diff --git a/arm/p521/bignum_triple_p521.S b/arm/p521/bignum_triple_p521.S
+index 0a51a5322..7b0caca30 100644
+--- a/arm/p521/bignum_triple_p521.S
++++ b/arm/p521/bignum_triple_p521.S
+@@ -22,11 +22,12 @@
+ //
+ // Standard ARM ABI: X0 = z, X1 = x
+ // ----------------------------------------------------------------------------
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_triple_p521
+-        .globl  _bignum_triple_p521
+-        .globl  bignum_triple_p521_alt
+-        .globl  _bignum_triple_p521_alt
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_triple_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_triple_p521)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_triple_p521_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_triple_p521_alt)
+         .text
+         .balign 4
+ 
+@@ -47,10 +48,9 @@
+ #define d8 x12
+ 
+ 
+-bignum_triple_p521:
+-_bignum_triple_p521:
+-bignum_triple_p521_alt:
+-_bignum_triple_p521_alt:
++S2N_BN_SYMBOL(bignum_triple_p521):
++
++S2N_BN_SYMBOL(bignum_triple_p521_alt):
+ 
+ // Pick out top bit to wrap to the zero position in the doubling step
+ 
+diff --git a/include/_internal_s2n_bignum.h b/include/_internal_s2n_bignum.h
+new file mode 100644
+index 000000000..490fe3dc0
+--- /dev/null
++++ b/include/_internal_s2n_bignum.h
+@@ -0,0 +1,18 @@
++
++#ifdef __APPLE__
++#define S2N_BN_SYM_VISIBILITY_DIRECTIVE(name) .globl _##name
++#ifdef S2N_BN_HIDE_SYMBOLS
++#define S2N_BN_SYM_PRIVACY_DIRECTIVE(name) .private_extern _##name
++#else
++#define S2N_BN_SYM_PRIVACY_DIRECTIVE(name)  /* NO-OP: S2N_BN_SYM_PRIVACY_DIRECTIVE */
++#endif
++#define S2N_BN_SYMBOL(name) _##name
++#else
++#define S2N_BN_SYM_VISIBILITY_DIRECTIVE(name) .globl name
++#ifdef S2N_BN_HIDE_SYMBOLS
++#define S2N_BN_SYM_PRIVACY_DIRECTIVE(name) .hidden name
++#else
++#define S2N_BN_SYM_PRIVACY_DIRECTIVE(name)  /* NO-OP: S2N_BN_SYM_PRIVACY_DIRECTIVE */
++#endif
++#define S2N_BN_SYMBOL(name) name
++#endif
+\ No newline at end of file
+diff --git a/x86_att/p384/bignum_add_p384.S b/x86_att/p384/bignum_add_p384.S
+index 82f513c70..5467fb94a 100644
+--- a/x86_att/p384/bignum_add_p384.S
++++ b/x86_att/p384/bignum_add_p384.S
+@@ -24,10 +24,10 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_add_p384
+-        .globl  _bignum_add_p384
+-        .text
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_p384)
+ 
+ #define z %rdi
+ #define x %rsi
+@@ -50,8 +50,7 @@
+ 
+ 
+ 
+-bignum_add_p384:
+-_bignum_add_p384:
++S2N_BN_SYMBOL(bignum_add_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_bigendian_6.S b/x86_att/p384/bignum_bigendian_6.S
+index 7286fec58..8ac48bc39 100644
+--- a/x86_att/p384/bignum_bigendian_6.S
++++ b/x86_att/p384/bignum_bigendian_6.S
+@@ -36,13 +36,15 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_bigendian_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_bigendian_6)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_frombebytes_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_frombebytes_6)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tobebytes_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tobebytes_6)
+ 
+-        .globl  bignum_bigendian_6
+-        .globl  _bignum_bigendian_6
+-        .globl  bignum_frombebytes_6
+-        .globl  _bignum_frombebytes_6
+-        .globl  bignum_tobebytes_6
+-        .globl  _bignum_tobebytes_6
+         .text
+ 
+ #define z %rdi
+@@ -56,12 +58,9 @@
+ // pairs (0-5, 1-4, 2-3) to allow x and z to point to the same buffer
+ // without using more intermediate registers.
+ 
+-bignum_bigendian_6:
+-_bignum_bigendian_6:
+-bignum_frombebytes_6:
+-_bignum_frombebytes_6:
+-bignum_tobebytes_6:
+-_bignum_tobebytes_6:
++S2N_BN_SYMBOL(bignum_bigendian_6):
++S2N_BN_SYMBOL(bignum_frombebytes_6):
++S2N_BN_SYMBOL(bignum_tobebytes_6):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_cmul_p384.S b/x86_att/p384/bignum_cmul_p384.S
+index 97618b19b..a186cc556 100644
+--- a/x86_att/p384/bignum_cmul_p384.S
++++ b/x86_att/p384/bignum_cmul_p384.S
+@@ -25,9 +25,10 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = c, R8 = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_cmul_p384
+-        .globl  _bignum_cmul_p384
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_cmul_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_cmul_p384)
+         .text
+ 
+ #define z %rdi
+@@ -54,8 +55,7 @@
+ #define qshort %edx
+ 
+ 
+-bignum_cmul_p384:
+-_bignum_cmul_p384:
++S2N_BN_SYMBOL(bignum_cmul_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_cmul_p384_alt.S b/x86_att/p384/bignum_cmul_p384_alt.S
+index 93a54b5d6..1af6b54f0 100644
+--- a/x86_att/p384/bignum_cmul_p384_alt.S
++++ b/x86_att/p384/bignum_cmul_p384_alt.S
+@@ -25,10 +25,10 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = c, R8 = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_cmul_p384_alt
+-        .globl  _bignum_cmul_p384_alt
+-        .text
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_cmul_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_cmul_p384_alt)
+ 
+ #define z %rdi
+ 
+@@ -58,8 +58,7 @@
+ #define cshort %ecx
+ #define qshort %ecx
+ 
+-bignum_cmul_p384_alt:
+-_bignum_cmul_p384_alt:
++S2N_BN_SYMBOL(bignum_cmul_p384_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_deamont_p384.S b/x86_att/p384/bignum_deamont_p384.S
+index 18a29f321..a0fbde1a9 100644
+--- a/x86_att/p384/bignum_deamont_p384.S
++++ b/x86_att/p384/bignum_deamont_p384.S
+@@ -27,11 +27,10 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_deamont_p384
+-        .globl  _bignum_deamont_p384
+-        .text
+-
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_deamont_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_deamont_p384)
+ #define z %rdi
+ #define x %rsi
+ 
+@@ -80,8 +79,7 @@
+         movq    %rdx, d6 ;                                        \
+         sbbq    $0, d6
+ 
+-bignum_deamont_p384:
+-_bignum_deamont_p384:
++S2N_BN_SYMBOL(bignum_deamont_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_deamont_p384_alt.S b/x86_att/p384/bignum_deamont_p384_alt.S
+index ca2d56e10..b916b9118 100644
+--- a/x86_att/p384/bignum_deamont_p384_alt.S
++++ b/x86_att/p384/bignum_deamont_p384_alt.S
+@@ -27,10 +27,10 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_deamont_p384_alt
+-        .globl  _bignum_deamont_p384_alt
+-        .text
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_deamont_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_deamont_p384_alt)
+ 
+ #define z %rdi
+ #define x %rsi
+@@ -80,8 +80,7 @@
+         movq    %rcx, d6 ;                                        \
+         sbbq    $0, d6
+ 
+-bignum_deamont_p384_alt:
+-_bignum_deamont_p384_alt:
++S2N_BN_SYMBOL(bignum_deamont_p384_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_demont_p384.S b/x86_att/p384/bignum_demont_p384.S
+index 004041fe1..20dd03a54 100644
+--- a/x86_att/p384/bignum_demont_p384.S
++++ b/x86_att/p384/bignum_demont_p384.S
+@@ -27,10 +27,10 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_demont_p384
+-        .globl  _bignum_demont_p384
+-        .text
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_demont_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_demont_p384)
+ 
+ #define z %rdi
+ #define x %rsi
+@@ -72,8 +72,7 @@
+         movq    %rdx, d6 ;                                        \
+         sbbq    $0, d6
+ 
+-bignum_demont_p384:
+-_bignum_demont_p384:
++S2N_BN_SYMBOL(bignum_demont_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_demont_p384_alt.S b/x86_att/p384/bignum_demont_p384_alt.S
+index 49997c920..652273498 100644
+--- a/x86_att/p384/bignum_demont_p384_alt.S
++++ b/x86_att/p384/bignum_demont_p384_alt.S
+@@ -27,10 +27,10 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_demont_p384_alt
+-        .globl  _bignum_demont_p384_alt
+-        .text
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_demont_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_demont_p384_alt)
+ 
+ #define z %rdi
+ #define x %rsi
+@@ -72,8 +72,7 @@
+         movq    %rcx, d6 ;                                        \
+         sbbq    $0, d6
+ 
+-bignum_demont_p384_alt:
+-_bignum_demont_p384_alt:
++S2N_BN_SYMBOL(bignum_demont_p384_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_double_p384.S b/x86_att/p384/bignum_double_p384.S
+index 20b47c5c0..f046ea06e 100644
+--- a/x86_att/p384/bignum_double_p384.S
++++ b/x86_att/p384/bignum_double_p384.S
+@@ -24,9 +24,10 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_double_p384
+-        .globl  _bignum_double_p384
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_double_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_double_p384)
+         .text
+ 
+ #define z %rdi
+@@ -48,8 +49,7 @@
+ 
+ 
+ 
+-bignum_double_p384:
+-_bignum_double_p384:
++S2N_BN_SYMBOL(bignum_double_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_half_p384.S b/x86_att/p384/bignum_half_p384.S
+index d7020baf0..75a18cafb 100644
+--- a/x86_att/p384/bignum_half_p384.S
++++ b/x86_att/p384/bignum_half_p384.S
+@@ -24,9 +24,10 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
+ 
+-        .globl  bignum_half_p384
+-        .globl  _bignum_half_p384
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_half_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_half_p384)
+         .text
+ 
+ #define z %rdi
+@@ -45,8 +46,7 @@
+ 
+ 
+ 
+-bignum_half_p384:
+-_bignum_half_p384:
++S2N_BN_SYMBOL(bignum_half_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_littleendian_6.S b/x86_att/p384/bignum_littleendian_6.S
+index a62797d10..7acfa9830 100644
+--- a/x86_att/p384/bignum_littleendian_6.S
++++ b/x86_att/p384/bignum_littleendian_6.S
+@@ -35,25 +35,24 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_littleendian_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_littleendian_6)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_fromlebytes_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_fromlebytes_6)
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tolebytes_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tolebytes_6)
+ 
+-        .globl  bignum_littleendian_6
+-        .globl  _bignum_littleendian_6
+-        .globl  bignum_fromlebytes_6
+-        .globl  _bignum_fromlebytes_6
+-        .globl  bignum_tolebytes_6
+-        .globl  _bignum_tolebytes_6
+         .text
+ 
+ #define z %rdi
+ #define x %rsi
+ #define a %rax
+ 
+-bignum_littleendian_6:
+-_bignum_littleendian_6:
+-bignum_fromlebytes_6:
+-_bignum_fromlebytes_6:
+-bignum_tolebytes_6:
+-_bignum_tolebytes_6:
++S2N_BN_SYMBOL(bignum_littleendian_6):
++S2N_BN_SYMBOL(bignum_fromlebytes_6):
++S2N_BN_SYMBOL(bignum_tolebytes_6):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_mod_n384.S b/x86_att/p384/bignum_mod_n384.S
+index 50675e9d2..18fa90399 100644
+--- a/x86_att/p384/bignum_mod_n384.S
++++ b/x86_att/p384/bignum_mod_n384.S
+@@ -26,9 +26,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = k, R8 = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n384)
+ 
+-        .globl  bignum_mod_n384
+-        .globl  _bignum_mod_n384
+         .text
+ 
+ #define z %rdi
+@@ -52,8 +54,7 @@
+ #define qshort %edx
+ 
+ 
+-bignum_mod_n384:
+-_bignum_mod_n384:
++S2N_BN_SYMBOL(bignum_mod_n384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_mod_n384_6.S b/x86_att/p384/bignum_mod_n384_6.S
+index 4a0a4ac56..b84c68a6e 100644
+--- a/x86_att/p384/bignum_mod_n384_6.S
++++ b/x86_att/p384/bignum_mod_n384_6.S
+@@ -26,9 +26,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n384_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n384_6)
+ 
+-        .globl  bignum_mod_n384_6
+-        .globl  _bignum_mod_n384_6
+         .text
+ 
+ #define z %rdi
+@@ -49,8 +51,7 @@
+ 
+ 
+ 
+-bignum_mod_n384_6:
+-_bignum_mod_n384_6:
++S2N_BN_SYMBOL(bignum_mod_n384_6):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_mod_n384_alt.S b/x86_att/p384/bignum_mod_n384_alt.S
+index 6d2dc2b7f..3e13a4bd5 100644
+--- a/x86_att/p384/bignum_mod_n384_alt.S
++++ b/x86_att/p384/bignum_mod_n384_alt.S
+@@ -26,9 +26,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = k, R8 = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n384_alt)
+ 
+-        .globl  bignum_mod_n384_alt
+-        .globl  _bignum_mod_n384_alt
+         .text
+ 
+ #define z %rdi
+@@ -53,8 +55,7 @@
+ #define n0short %eax
+ #define qshort %ebp
+ 
+-bignum_mod_n384_alt:
+-_bignum_mod_n384_alt:
++S2N_BN_SYMBOL(bignum_mod_n384_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_mod_p384.S b/x86_att/p384/bignum_mod_p384.S
+index c82561d6a..b55805481 100644
+--- a/x86_att/p384/bignum_mod_p384.S
++++ b/x86_att/p384/bignum_mod_p384.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = k, R8 = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_p384)
+ 
+-        .globl  bignum_mod_p384
+-        .globl  _bignum_mod_p384
+         .text
+ 
+ #define z %rdi
+@@ -51,8 +53,7 @@
+ #define qshort %edx
+ 
+ 
+-bignum_mod_p384:
+-_bignum_mod_p384:
++S2N_BN_SYMBOL(bignum_mod_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_mod_p384_6.S b/x86_att/p384/bignum_mod_p384_6.S
+index bbd12524a..cca2ff0f7 100644
+--- a/x86_att/p384/bignum_mod_p384_6.S
++++ b/x86_att/p384/bignum_mod_p384_6.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_p384_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_p384_6)
+ 
+-        .globl  bignum_mod_p384_6
+-        .globl  _bignum_mod_p384_6
+         .text
+ 
+ #define z %rdi
+@@ -48,8 +50,7 @@
+ 
+ 
+ 
+-bignum_mod_p384_6:
+-_bignum_mod_p384_6:
++S2N_BN_SYMBOL(bignum_mod_p384_6):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_mod_p384_alt.S b/x86_att/p384/bignum_mod_p384_alt.S
+index 69ee47432..926a2bbd0 100644
+--- a/x86_att/p384/bignum_mod_p384_alt.S
++++ b/x86_att/p384/bignum_mod_p384_alt.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = k, R8 = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_p384_alt)
+ 
+-        .globl  bignum_mod_p384_alt
+-        .globl  _bignum_mod_p384_alt
+         .text
+ 
+ #define z %rdi
+@@ -55,8 +57,7 @@
+ #define qshort %ebx
+ 
+ 
+-bignum_mod_p384_alt:
+-_bignum_mod_p384_alt:
++S2N_BN_SYMBOL(bignum_mod_p384_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_montmul_p384.S b/x86_att/p384/bignum_montmul_p384.S
+index 160c29343..ec40ebafc 100644
+--- a/x86_att/p384/bignum_montmul_p384.S
++++ b/x86_att/p384/bignum_montmul_p384.S
+@@ -28,9 +28,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // -----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montmul_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montmul_p384)
+ 
+-        .globl  bignum_montmul_p384
+-        .globl  _bignum_montmul_p384
+         .text
+ 
+ #define z %rdi
+@@ -95,8 +97,7 @@
+         addq    %rdx, d6 ;                                        \
+         adcq    $0, d7
+ 
+-bignum_montmul_p384:
+-_bignum_montmul_p384:
++S2N_BN_SYMBOL(bignum_montmul_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_montmul_p384_alt.S b/x86_att/p384/bignum_montmul_p384_alt.S
+index 3d24dc4cc..8a15b4995 100644
+--- a/x86_att/p384/bignum_montmul_p384_alt.S
++++ b/x86_att/p384/bignum_montmul_p384_alt.S
+@@ -28,9 +28,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // -----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montmul_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montmul_p384_alt)
+ 
+-        .globl  bignum_montmul_p384_alt
+-        .globl  _bignum_montmul_p384_alt
+         .text
+ 
+ #define z %rdi
+@@ -117,8 +119,7 @@
+         addq    %rbx, d6 ;                                        \
+         adcq    $0, d7
+ 
+-bignum_montmul_p384_alt:
+-_bignum_montmul_p384_alt:
++S2N_BN_SYMBOL(bignum_montmul_p384_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_montsqr_p384.S b/x86_att/p384/bignum_montsqr_p384.S
+index bd0517b91..af245ed91 100644
+--- a/x86_att/p384/bignum_montsqr_p384.S
++++ b/x86_att/p384/bignum_montsqr_p384.S
+@@ -27,9 +27,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montsqr_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montsqr_p384)
+ 
+-        .globl  bignum_montsqr_p384
+-        .globl  _bignum_montsqr_p384
+         .text
+ 
+ #define z %rdi
+@@ -92,8 +94,7 @@
+         movq    %rdx, d6 ;                                        \
+         sbbq    $0, d6
+ 
+-bignum_montsqr_p384:
+-_bignum_montsqr_p384:
++S2N_BN_SYMBOL(bignum_montsqr_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_montsqr_p384_alt.S b/x86_att/p384/bignum_montsqr_p384_alt.S
+index 558883553..9b4c9374f 100644
+--- a/x86_att/p384/bignum_montsqr_p384_alt.S
++++ b/x86_att/p384/bignum_montsqr_p384_alt.S
+@@ -27,9 +27,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montsqr_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montsqr_p384_alt)
+ 
+-        .globl  bignum_montsqr_p384_alt
+-        .globl  _bignum_montsqr_p384_alt
+         .text
+ 
+ #define z %rdi
+@@ -114,8 +116,7 @@
+         movq    %rbx, d6 ;                                        \
+         sbbq    $0, d6
+ 
+-bignum_montsqr_p384_alt:
+-_bignum_montsqr_p384_alt:
++S2N_BN_SYMBOL(bignum_montsqr_p384_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_mux_6.S b/x86_att/p384/bignum_mux_6.S
+index 92f222c08..78e055f31 100644
+--- a/x86_att/p384/bignum_mux_6.S
++++ b/x86_att/p384/bignum_mux_6.S
+@@ -27,9 +27,11 @@
+ // Microsoft x64 ABI:   RCX = p, RDX = z, R8 = x, R9 = y
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mux_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mux_6)
+ 
+-        .globl  bignum_mux_6
+-        .globl  _bignum_mux_6
+         .text
+ 
+ #define p %rdi
+@@ -40,8 +42,7 @@
+ #define b %r8
+ 
+ 
+-bignum_mux_6:
+-_bignum_mux_6:
++S2N_BN_SYMBOL(bignum_mux_6):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_neg_p384.S b/x86_att/p384/bignum_neg_p384.S
+index 42094e3bc..5522bd22e 100644
+--- a/x86_att/p384/bignum_neg_p384.S
++++ b/x86_att/p384/bignum_neg_p384.S
+@@ -23,9 +23,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_neg_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_neg_p384)
+ 
+-        .globl  bignum_neg_p384
+-        .globl  _bignum_neg_p384
+         .text
+ 
+ #define z %rdi
+@@ -40,8 +42,7 @@
+ 
+ #define n0short %eax
+ 
+-bignum_neg_p384:
+-_bignum_neg_p384:
++S2N_BN_SYMBOL(bignum_neg_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_nonzero_6.S b/x86_att/p384/bignum_nonzero_6.S
+index f75b3ebec..9c906b34d 100644
+--- a/x86_att/p384/bignum_nonzero_6.S
++++ b/x86_att/p384/bignum_nonzero_6.S
+@@ -23,9 +23,11 @@
+ // Microsoft x64 ABI:   RCX = x, returns RAX
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_nonzero_6)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_nonzero_6)
+ 
+-        .globl  bignum_nonzero_6
+-        .globl  _bignum_nonzero_6
+         .text
+ 
+ #define x %rdi
+@@ -35,8 +37,7 @@
+ 
+ 
+ 
+-bignum_nonzero_6:
+-_bignum_nonzero_6:
++S2N_BN_SYMBOL(bignum_nonzero_6):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_optneg_p384.S b/x86_att/p384/bignum_optneg_p384.S
+index 1b20bb52e..ca72064e4 100644
+--- a/x86_att/p384/bignum_optneg_p384.S
++++ b/x86_att/p384/bignum_optneg_p384.S
+@@ -25,9 +25,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = p, R8 = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_optneg_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_optneg_p384)
+ 
+-        .globl  bignum_optneg_p384
+-        .globl  _bignum_optneg_p384
+         .text
+ 
+ #define z %rdi
+@@ -43,8 +45,7 @@
+ 
+ #define n0short %eax
+ 
+-bignum_optneg_p384:
+-_bignum_optneg_p384:
++S2N_BN_SYMBOL(bignum_optneg_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_sub_p384.S b/x86_att/p384/bignum_sub_p384.S
+index 2738c1b44..4a687111e 100644
+--- a/x86_att/p384/bignum_sub_p384.S
++++ b/x86_att/p384/bignum_sub_p384.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sub_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sub_p384)
+ 
+-        .globl  bignum_sub_p384
+-        .globl  _bignum_sub_p384
+         .text
+ 
+ #define z %rdi
+@@ -49,8 +51,7 @@
+ 
+ 
+ 
+-bignum_sub_p384:
+-_bignum_sub_p384:
++S2N_BN_SYMBOL(bignum_sub_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_tomont_p384.S b/x86_att/p384/bignum_tomont_p384.S
+index 03e2ca53e..e5c16a05b 100644
+--- a/x86_att/p384/bignum_tomont_p384.S
++++ b/x86_att/p384/bignum_tomont_p384.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tomont_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tomont_p384)
+ 
+-        .globl  bignum_tomont_p384
+-        .globl  _bignum_tomont_p384
+         .text
+ 
+ #define z %rdi
+@@ -94,8 +96,7 @@
+         addq    %rdx, d6 ;                                        \
+         adcq    $0, d7
+ 
+-bignum_tomont_p384:
+-_bignum_tomont_p384:
++S2N_BN_SYMBOL(bignum_tomont_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_tomont_p384_alt.S b/x86_att/p384/bignum_tomont_p384_alt.S
+index 5eab13d19..434d5b611 100644
+--- a/x86_att/p384/bignum_tomont_p384_alt.S
++++ b/x86_att/p384/bignum_tomont_p384_alt.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tomont_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tomont_p384_alt)
+ 
+-        .globl  bignum_tomont_p384_alt
+-        .globl  _bignum_tomont_p384_alt
+         .text
+ 
+ #define z %rdi
+@@ -112,8 +114,7 @@
+         addq    %rbx, d6 ;                                        \
+         adcq    $0, d7
+ 
+-bignum_tomont_p384_alt:
+-_bignum_tomont_p384_alt:
++S2N_BN_SYMBOL(bignum_tomont_p384_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_triple_p384.S b/x86_att/p384/bignum_triple_p384.S
+index 237f10b92..c0a20bc5b 100644
+--- a/x86_att/p384/bignum_triple_p384.S
++++ b/x86_att/p384/bignum_triple_p384.S
+@@ -27,9 +27,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_triple_p384)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_triple_p384)
+ 
+-        .globl  bignum_triple_p384
+-        .globl  _bignum_triple_p384
+         .text
+ 
+ #define z %rdi
+@@ -49,8 +51,7 @@
+ #define ashort %eax
+ #define qshort %edx
+ 
+-bignum_triple_p384:
+-_bignum_triple_p384:
++S2N_BN_SYMBOL(bignum_triple_p384):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p384/bignum_triple_p384_alt.S b/x86_att/p384/bignum_triple_p384_alt.S
+index 7ae907863..276fd8b2c 100644
+--- a/x86_att/p384/bignum_triple_p384_alt.S
++++ b/x86_att/p384/bignum_triple_p384_alt.S
+@@ -27,9 +27,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_triple_p384_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_triple_p384_alt)
+ 
+-        .globl  bignum_triple_p384_alt
+-        .globl  _bignum_triple_p384_alt
+         .text
+ 
+ #define z %rdi
+@@ -52,8 +54,7 @@
+ #define qshort %ecx
+ #define dshort %edx
+ 
+-bignum_triple_p384_alt:
+-_bignum_triple_p384_alt:
++S2N_BN_SYMBOL(bignum_triple_p384_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_add_p521.S b/x86_att/p521/bignum_add_p521.S
+index 34ad429c7..9b636f7bb 100644
+--- a/x86_att/p521/bignum_add_p521.S
++++ b/x86_att/p521/bignum_add_p521.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_p521)
+ 
+-        .globl  bignum_add_p521
+-        .globl  _bignum_add_p521
+         .text
+ 
+ #define z %rdi
+@@ -49,8 +51,7 @@
+ 
+ 
+ 
+-bignum_add_p521:
+-_bignum_add_p521:
++S2N_BN_SYMBOL(bignum_add_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_cmul_p521.S b/x86_att/p521/bignum_cmul_p521.S
+index d4381c99b..1811760ba 100644
+--- a/x86_att/p521/bignum_cmul_p521.S
++++ b/x86_att/p521/bignum_cmul_p521.S
+@@ -25,9 +25,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = c, R8 = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_cmul_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_cmul_p521)
+ 
+-        .globl  bignum_cmul_p521
+-        .globl  _bignum_cmul_p521
+         .text
+ 
+ #define z %rdi
+@@ -61,8 +63,7 @@
+ 
+ #define h d9
+ 
+-bignum_cmul_p521:
+-_bignum_cmul_p521:
++S2N_BN_SYMBOL(bignum_cmul_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_cmul_p521_alt.S b/x86_att/p521/bignum_cmul_p521_alt.S
+index 8dec8879a..4c0fc86a1 100644
+--- a/x86_att/p521/bignum_cmul_p521_alt.S
++++ b/x86_att/p521/bignum_cmul_p521_alt.S
+@@ -25,9 +25,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = c, R8 = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_cmul_p521_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_cmul_p521_alt)
+ 
+-        .globl  bignum_cmul_p521_alt
+-        .globl  _bignum_cmul_p521_alt
+         .text
+ 
+ #define z %rdi
+@@ -65,8 +67,7 @@
+ 
+ #define h d9
+ 
+-bignum_cmul_p521_alt:
+-_bignum_cmul_p521_alt:
++S2N_BN_SYMBOL(bignum_cmul_p521_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_deamont_p521.S b/x86_att/p521/bignum_deamont_p521.S
+index 2543c0ec8..a5b38a7b9 100644
+--- a/x86_att/p521/bignum_deamont_p521.S
++++ b/x86_att/p521/bignum_deamont_p521.S
+@@ -27,9 +27,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_deamont_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_deamont_p521)
+ 
+-        .globl  bignum_deamont_p521
+-        .globl  _bignum_deamont_p521
+         .text
+ 
+ #define z %rdi
+@@ -49,8 +51,7 @@
+ #define d7 %r13
+ #define d8 %rbp
+ 
+-bignum_deamont_p521:
+-_bignum_deamont_p521:
++S2N_BN_SYMBOL(bignum_deamont_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_demont_p521.S b/x86_att/p521/bignum_demont_p521.S
+index f38cea219..87d9fefc9 100644
+--- a/x86_att/p521/bignum_demont_p521.S
++++ b/x86_att/p521/bignum_demont_p521.S
+@@ -27,9 +27,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_demont_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_demont_p521)
+ 
+-        .globl  bignum_demont_p521
+-        .globl  _bignum_demont_p521
+         .text
+ 
+ #define z %rdi
+@@ -49,8 +51,7 @@
+ #define d7 %rcx
+ #define d8 %rdx
+ 
+-bignum_demont_p521:
+-_bignum_demont_p521:
++S2N_BN_SYMBOL(bignum_demont_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_double_p521.S b/x86_att/p521/bignum_double_p521.S
+index 33b29f8ec..eb7e3355e 100644
+--- a/x86_att/p521/bignum_double_p521.S
++++ b/x86_att/p521/bignum_double_p521.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_double_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_double_p521)
+ 
+-        .globl  bignum_double_p521
+-        .globl  _bignum_double_p521
+         .text
+ 
+ #define z %rdi
+@@ -37,8 +39,7 @@
+ 
+ 
+ 
+-bignum_double_p521:
+-_bignum_double_p521:
++S2N_BN_SYMBOL(bignum_double_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_fromlebytes_p521.S b/x86_att/p521/bignum_fromlebytes_p521.S
+index 0fdc34ae0..642982406 100644
+--- a/x86_att/p521/bignum_fromlebytes_p521.S
++++ b/x86_att/p521/bignum_fromlebytes_p521.S
+@@ -28,17 +28,18 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_fromlebytes_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_fromlebytes_p521)
+ 
+-        .globl  bignum_fromlebytes_p521
+-        .globl  _bignum_fromlebytes_p521
+         .text
+ 
+ #define z %rdi
+ #define x %rsi
+ #define a %rax
+ 
+-bignum_fromlebytes_p521:
+-_bignum_fromlebytes_p521:
++S2N_BN_SYMBOL(bignum_fromlebytes_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_half_p521.S b/x86_att/p521/bignum_half_p521.S
+index 5550ba54d..a637153ea 100644
+--- a/x86_att/p521/bignum_half_p521.S
++++ b/x86_att/p521/bignum_half_p521.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_half_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_half_p521)
+ 
+-        .globl  bignum_half_p521
+-        .globl  _bignum_half_p521
+         .text
+ 
+ #define z %rdi
+@@ -48,8 +50,7 @@
+ 
+ 
+ 
+-bignum_half_p521:
+-_bignum_half_p521:
++S2N_BN_SYMBOL(bignum_half_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_mod_n521_9.S b/x86_att/p521/bignum_mod_n521_9.S
+index eb21672ef..5d8bb8ea2 100644
+--- a/x86_att/p521/bignum_mod_n521_9.S
++++ b/x86_att/p521/bignum_mod_n521_9.S
+@@ -26,9 +26,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n521_9)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n521_9)
+ 
+-        .globl  bignum_mod_n521_9
+-        .globl  _bignum_mod_n521_9
+         .text
+ 
+ #define z %rdi
+@@ -49,8 +51,7 @@
+ #define cshort %ecx
+ #define qshort %edx
+ 
+-bignum_mod_n521_9:
+-_bignum_mod_n521_9:
++S2N_BN_SYMBOL(bignum_mod_n521_9):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_mod_n521_9_alt.S b/x86_att/p521/bignum_mod_n521_9_alt.S
+index 2251304d9..555930bf4 100644
+--- a/x86_att/p521/bignum_mod_n521_9_alt.S
++++ b/x86_att/p521/bignum_mod_n521_9_alt.S
+@@ -26,9 +26,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_n521_9_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_n521_9_alt)
+ 
+-        .globl  bignum_mod_n521_9_alt
+-        .globl  _bignum_mod_n521_9_alt
+         .text
+ 
+ #define z %rdi
+@@ -49,8 +51,7 @@
+ #define cshort %ecx
+ #define qshort %edx
+ 
+-bignum_mod_n521_9_alt:
+-_bignum_mod_n521_9_alt:
++S2N_BN_SYMBOL(bignum_mod_n521_9_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_mod_p521_9.S b/x86_att/p521/bignum_mod_p521_9.S
+index cb808d914..dfe3b2078 100644
+--- a/x86_att/p521/bignum_mod_p521_9.S
++++ b/x86_att/p521/bignum_mod_p521_9.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mod_p521_9)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mod_p521_9)
+ 
+-        .globl  bignum_mod_p521_9
+-        .globl  _bignum_mod_p521_9
+         .text
+ 
+ #define z %rdi
+@@ -48,8 +50,7 @@
+ 
+ #define d7 %rsi
+ 
+-bignum_mod_p521_9:
+-_bignum_mod_p521_9:
++S2N_BN_SYMBOL(bignum_mod_p521_9):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_montmul_p521.S b/x86_att/p521/bignum_montmul_p521.S
+index 377a6514e..498422eeb 100644
+--- a/x86_att/p521/bignum_montmul_p521.S
++++ b/x86_att/p521/bignum_montmul_p521.S
+@@ -29,9 +29,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montmul_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montmul_p521)
+ 
+-        .globl  bignum_montmul_p521
+-        .globl  _bignum_montmul_p521
+         .text
+ 
+ #define z %rdi
+@@ -50,8 +52,7 @@
+         adcxq   %rax, low ;               \
+         adoxq   %rbx, high
+ 
+-bignum_montmul_p521:
+-_bignum_montmul_p521:
++S2N_BN_SYMBOL(bignum_montmul_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_montmul_p521_alt.S b/x86_att/p521/bignum_montmul_p521_alt.S
+index 97dbf57d4..5fa8290e7 100644
+--- a/x86_att/p521/bignum_montmul_p521_alt.S
++++ b/x86_att/p521/bignum_montmul_p521_alt.S
+@@ -29,9 +29,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montmul_p521_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montmul_p521_alt)
+ 
+-        .globl  bignum_montmul_p521_alt
+-        .globl  _bignum_montmul_p521_alt
+         .text
+ 
+ #define z %rdi
+@@ -67,8 +69,7 @@
+         addq    %rax, l ;                         \
+         adcq    %rdx, h
+ 
+-bignum_montmul_p521_alt:
+-_bignum_montmul_p521_alt:
++S2N_BN_SYMBOL(bignum_montmul_p521_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_montsqr_p521.S b/x86_att/p521/bignum_montsqr_p521.S
+index 8b5cc46d0..b6fbcb806 100644
+--- a/x86_att/p521/bignum_montsqr_p521.S
++++ b/x86_att/p521/bignum_montsqr_p521.S
+@@ -29,9 +29,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montsqr_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montsqr_p521)
+ 
+-        .globl  bignum_montsqr_p521
+-        .globl  _bignum_montsqr_p521
+         .text
+ 
+ #define z %rdi
+@@ -61,8 +63,7 @@
+         adcxq   %rax, low ;               \
+         adoxq   zero, high
+ 
+-bignum_montsqr_p521:
+-_bignum_montsqr_p521:
++S2N_BN_SYMBOL(bignum_montsqr_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_montsqr_p521_alt.S b/x86_att/p521/bignum_montsqr_p521_alt.S
+index 62b63ea61..e710af80b 100644
+--- a/x86_att/p521/bignum_montsqr_p521_alt.S
++++ b/x86_att/p521/bignum_montsqr_p521_alt.S
+@@ -29,9 +29,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_montsqr_p521_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_montsqr_p521_alt)
+ 
+-        .globl  bignum_montsqr_p521_alt
+-        .globl  _bignum_montsqr_p521_alt
+         .text
+ 
+ // Input arguments
+@@ -96,8 +98,7 @@
+         adcq    %rdx, h ;                         \
+         adcq    $0, c
+ 
+-bignum_montsqr_p521_alt:
+-_bignum_montsqr_p521_alt:
++S2N_BN_SYMBOL(bignum_montsqr_p521_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_mul_p521.S b/x86_att/p521/bignum_mul_p521.S
+index d5656f8e4..c4ee6b8e8 100644
+--- a/x86_att/p521/bignum_mul_p521.S
++++ b/x86_att/p521/bignum_mul_p521.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mul_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mul_p521)
+ 
+-        .globl  bignum_mul_p521
+-        .globl  _bignum_mul_p521
+         .text
+ 
+ #define z %rdi
+@@ -45,8 +47,7 @@
+         adcxq   %rax, low ;               \
+         adoxq   %rbx, high
+ 
+-bignum_mul_p521:
+-_bignum_mul_p521:
++S2N_BN_SYMBOL(bignum_mul_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_mul_p521_alt.S b/x86_att/p521/bignum_mul_p521_alt.S
+index 2eee34b99..c24decbb6 100644
+--- a/x86_att/p521/bignum_mul_p521_alt.S
++++ b/x86_att/p521/bignum_mul_p521_alt.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_mul_p521_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_mul_p521_alt)
+ 
+-        .globl  bignum_mul_p521_alt
+-        .globl  _bignum_mul_p521_alt
+         .text
+ 
+ #define z %rdi
+@@ -62,8 +64,7 @@
+         addq    %rax, l ;                         \
+         adcq    %rdx, h
+ 
+-bignum_mul_p521_alt:
+-_bignum_mul_p521_alt:
++S2N_BN_SYMBOL(bignum_mul_p521_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_neg_p521.S b/x86_att/p521/bignum_neg_p521.S
+index 453ce2a2d..a69298bb0 100644
+--- a/x86_att/p521/bignum_neg_p521.S
++++ b/x86_att/p521/bignum_neg_p521.S
+@@ -23,9 +23,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_neg_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_neg_p521)
+ 
+-        .globl  bignum_neg_p521
+-        .globl  _bignum_neg_p521
+         .text
+ 
+ #define z %rdi
+@@ -39,8 +41,7 @@
+ #define d4 %r10
+ #define d5 %r11
+ 
+-bignum_neg_p521:
+-_bignum_neg_p521:
++S2N_BN_SYMBOL(bignum_neg_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_optneg_p521.S b/x86_att/p521/bignum_optneg_p521.S
+index 1203a8e73..1a3108195 100644
+--- a/x86_att/p521/bignum_optneg_p521.S
++++ b/x86_att/p521/bignum_optneg_p521.S
+@@ -25,9 +25,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = p, R8 = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_optneg_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_optneg_p521)
+ 
+-        .globl  bignum_optneg_p521
+-        .globl  _bignum_optneg_p521
+         .text
+ 
+ #define z %rdi
+@@ -41,8 +43,7 @@
+ #define d3 %r10
+ #define d4 %r11
+ 
+-bignum_optneg_p521:
+-_bignum_optneg_p521:
++S2N_BN_SYMBOL(bignum_optneg_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_sqr_p521.S b/x86_att/p521/bignum_sqr_p521.S
+index 7f6bb5822..423b9058c 100644
+--- a/x86_att/p521/bignum_sqr_p521.S
++++ b/x86_att/p521/bignum_sqr_p521.S
+@@ -23,9 +23,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sqr_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sqr_p521)
+ 
+-        .globl  bignum_sqr_p521
+-        .globl  _bignum_sqr_p521
+         .text
+ 
+ #define z %rdi
+@@ -55,8 +57,7 @@
+         adcxq   %rax, low ;               \
+         adoxq   zero, high
+ 
+-bignum_sqr_p521:
+-_bignum_sqr_p521:
++S2N_BN_SYMBOL(bignum_sqr_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_sqr_p521_alt.S b/x86_att/p521/bignum_sqr_p521_alt.S
+index 03317366d..8a1e56f76 100644
+--- a/x86_att/p521/bignum_sqr_p521_alt.S
++++ b/x86_att/p521/bignum_sqr_p521_alt.S
+@@ -23,9 +23,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sqr_p521_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sqr_p521_alt)
+ 
+-        .globl  bignum_sqr_p521_alt
+-        .globl  _bignum_sqr_p521_alt
+         .text
+ 
+ // Input arguments
+@@ -90,8 +92,7 @@
+         adcq    %rdx, h ;                         \
+         adcq    $0, c
+ 
+-bignum_sqr_p521_alt:
+-_bignum_sqr_p521_alt:
++S2N_BN_SYMBOL(bignum_sqr_p521_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_sub_p521.S b/x86_att/p521/bignum_sub_p521.S
+index fd68c9802..a41965e4a 100644
+--- a/x86_att/p521/bignum_sub_p521.S
++++ b/x86_att/p521/bignum_sub_p521.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sub_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sub_p521)
+ 
+-        .globl  bignum_sub_p521
+-        .globl  _bignum_sub_p521
+         .text
+ 
+ #define z %rdi
+@@ -48,8 +50,7 @@
+ 
+ 
+ 
+-bignum_sub_p521:
+-_bignum_sub_p521:
++S2N_BN_SYMBOL(bignum_sub_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_tolebytes_p521.S b/x86_att/p521/bignum_tolebytes_p521.S
+index e6f614840..72c13e2c9 100644
+--- a/x86_att/p521/bignum_tolebytes_p521.S
++++ b/x86_att/p521/bignum_tolebytes_p521.S
+@@ -28,17 +28,18 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tolebytes_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tolebytes_p521)
+ 
+-        .globl  bignum_tolebytes_p521
+-        .globl  _bignum_tolebytes_p521
+         .text
+ 
+ #define z %rdi
+ #define x %rsi
+ #define a %rax
+ 
+-bignum_tolebytes_p521:
+-_bignum_tolebytes_p521:
++S2N_BN_SYMBOL(bignum_tolebytes_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_tomont_p521.S b/x86_att/p521/bignum_tomont_p521.S
+index a289dcff1..4291c44cd 100644
+--- a/x86_att/p521/bignum_tomont_p521.S
++++ b/x86_att/p521/bignum_tomont_p521.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_tomont_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_tomont_p521)
+ 
+-        .globl  bignum_tomont_p521
+-        .globl  _bignum_tomont_p521
+         .text
+ 
+ #define z %rdi
+@@ -48,8 +50,7 @@
+ 
+ #define d7 %rsi
+ 
+-bignum_tomont_p521:
+-_bignum_tomont_p521:
++S2N_BN_SYMBOL(bignum_tomont_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_triple_p521.S b/x86_att/p521/bignum_triple_p521.S
+index 47c65c978..3c02c2c4f 100644
+--- a/x86_att/p521/bignum_triple_p521.S
++++ b/x86_att/p521/bignum_triple_p521.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_triple_p521)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_triple_p521)
+ 
+-        .globl  bignum_triple_p521
+-        .globl  _bignum_triple_p521
+         .text
+ 
+ #define z %rdi
+@@ -49,8 +51,7 @@
+ 
+ 
+ 
+-bignum_triple_p521:
+-_bignum_triple_p521:
++S2N_BN_SYMBOL(bignum_triple_p521):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi
+diff --git a/x86_att/p521/bignum_triple_p521_alt.S b/x86_att/p521/bignum_triple_p521_alt.S
+index 3dfdfb50a..4e2283e82 100644
+--- a/x86_att/p521/bignum_triple_p521_alt.S
++++ b/x86_att/p521/bignum_triple_p521_alt.S
+@@ -24,9 +24,11 @@
+ // Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
++#include "../../include/_internal_s2n_bignum.h"
++
++        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_triple_p521_alt)
++        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_triple_p521_alt)
+ 
+-        .globl  bignum_triple_p521_alt
+-        .globl  _bignum_triple_p521_alt
+         .text
+ 
+ #define z %rdi
+@@ -50,8 +52,7 @@
+ #define a %rax
+ #define d %rdx
+ 
+-bignum_triple_p521_alt:
+-_bignum_triple_p521_alt:
++S2N_BN_SYMBOL(bignum_triple_p521_alt):
+ 
+ #if WINDOWS_ABI
+         pushq   %rdi

@@ -1,0 +1,49 @@
+From 5552baa6a0cdcaf0259f6ef22d35d6df72fad966 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 18 May 2023 19:20:27 -0400
+Subject: [PATCH] Add a comment about the Chromium sandbox for macOS sysctls
+
+https://crrev.com/c/4415225 had to react to us querying these. Add a
+comment so we can fix this proactively in the future.
+
+Bug: chromium:1432323
+Change-Id: I2ffe4d90e32215b521815a25f3448502da2156bf
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59925
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit 74a75b39596757546c1070f3dc5184bbab44397b)
+---
+ SANDBOXING.md                                | 6 ++++--
+ crypto/fipsmodule/cpucap/cpu_aarch64_apple.c | 3 +++
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/SANDBOXING.md b/SANDBOXING.md
+index b1a32df51..cb17720be 100644
+--- a/SANDBOXING.md
++++ b/SANDBOXING.md
+@@ -90,8 +90,10 @@ addition to the operations above.
+ 
+ On Linux ARM platforms, BoringSSL depends on OS APIs to query CPU capabilities.
+ 32-bit and 64-bit ARM both depend on the `getauxval` function. 32-bit ARM, to
+-work around bugs in older Android devices, may additionally read `/proc/cpuinfo`
+-and `/proc/self/auxv`.
++work around bugs in older Android devices, may additionally read
++`/proc/cpuinfo`.
++
++On 64-bit Apple ARM platforms, BoringSSL needs to query `hw.optional.*` sysctls.
+ 
+ If querying CPU capabilities fails, BoringSSL will still function, but may not
+ perform as well.
+diff --git a/crypto/fipsmodule/cpucap/cpu_aarch64_apple.c b/crypto/fipsmodule/cpucap/cpu_aarch64_apple.c
+index c62a21ba8..7a93bdb3c 100644
+--- a/crypto/fipsmodule/cpucap/cpu_aarch64_apple.c
++++ b/crypto/fipsmodule/cpucap/cpu_aarch64_apple.c
+@@ -86,6 +86,9 @@ void OPENSSL_cpuid_setup(void) {
+   // available in macOS 12. For compatibility with macOS 11, we also support
+   // the old names. The old names don't have values for features like FEAT_AES,
+   // so instead we detect them statically above.
++  //
++  // If querying new sysctls, update the Chromium sandbox definition. See
++  // https://crrev.com/c/4415225.
+   if (has_hw_feature("hw.optional.arm.FEAT_SHA512") ||
+       has_hw_feature("hw.optional.armv8_2_sha512")) {
+     OPENSSL_armcap_P |= ARMV8_SHA512;

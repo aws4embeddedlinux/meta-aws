@@ -1,0 +1,349 @@
+From b706d7e7c1783ec879bf3f24fc1838f6f7623716 Mon Sep 17 00:00:00 2001
+From: Juneyoung Lee <136006969+aqjune-aws@users.noreply.github.com>
+Date: Thu, 17 Aug 2023 14:51:37 -0500
+Subject: [PATCH] Update montgomery multiplication to use s2n-bignum's verified
+ scalar bignum functions (#1135)
+
+This is only adopted for AArch64 that has narrow multiplication instruction bandwidths.
+To selectively apply s2n-bignum to Graviton 2, this patch invokes CRYPTO_is_ARMv8_wide_multiplier_capable() and runs the s2n-bignum functions only when wide multipliers are not capable.
+
+The performance numbers of RSA signing are as follows. Graviton 2 is used, and `tool/bssl speed -filter RSA` has been used. (Unit: ops/sec).
+
+Bits | Operation | baseline AWS-LC | s2n-bignum | speedup vs baseline
+-- | -- | -- | -- | --
+2048 | RSA sign           |   299.3 |   399   | 33.31%
+     | verify (fresh key) | 10736.3 | 15491   | 44.29%
+3072 | RSA sign           |    95.4 |   113.2 | 18.66%
+     | verify (fresh key) |  4917.7 |  6001.7 | 22.04%
+4096 | RSA sign           |    41.7 |    63.2 | 51.56%
+     | verify (fresh key) |  2781.6    3451   | 24.07%
+---
+ crypto/curve25519/curve25519.c                |  10 +-
+ crypto/fipsmodule/CMakeLists.txt              |  19 ++-
+ crypto/fipsmodule/bn/montgomery.c             | 120 +++++++++++++++++-
+ crypto/fipsmodule/ec/p384.c                   |  10 +-
+ crypto/fipsmodule/ec/p521.c                   |  10 +-
+ .../s2n-bignum/include/s2n-bignum_aws-lc.h    |  66 ++++++++++
+ 6 files changed, 217 insertions(+), 18 deletions(-)
+
+diff --git a/crypto/curve25519/curve25519.c b/crypto/curve25519/curve25519.c
+index 169fed01b..7dea771e1 100644
+--- a/crypto/curve25519/curve25519.c
++++ b/crypto/curve25519/curve25519.c
+@@ -31,9 +31,13 @@
+ #include "../internal.h"
+ #include "../fipsmodule/cpucap/internal.h"
+ 
+-#if (defined(OPENSSL_X86_64) || defined(OPENSSL_AARCH64)) && \
+-    (defined(OPENSSL_LINUX) || defined(OPENSSL_APPLE)) && \
+-    !defined(OPENSSL_NO_ASM) && !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX)
++// If (1) x86_64 or aarch64, (2) linux or apple, and (3) OPENSSL_NO_ASM is not
++// set, s2n-bignum path is capable.
++#if ((defined(OPENSSL_X86_64) &&                                               \
++          !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX)) ||                        \
++      defined(OPENSSL_AARCH64)) &&                                             \
++     (defined(OPENSSL_LINUX) || defined(OPENSSL_APPLE)) &&                     \
++     !defined(OPENSSL_NO_ASM)
+ #include "../../third_party/s2n-bignum/include/s2n-bignum_aws-lc.h"
+ #define CURVE25519_S2N_BIGNUM_CAPABLE
+ #endif
+diff --git a/crypto/fipsmodule/CMakeLists.txt b/crypto/fipsmodule/CMakeLists.txt
+index 84b3a3cc3..7bea12fb5 100644
+--- a/crypto/fipsmodule/CMakeLists.txt
++++ b/crypto/fipsmodule/CMakeLists.txt
+@@ -167,8 +167,9 @@ endif()
+ 
+ # s2n-bignum files can be compiled on Unix platforms only (except Apple),
+ # and on x86_64 and aarch64 systems only.
+-if((ARCH STREQUAL "x86_64" OR ARCH STREQUAL "aarch64") AND
+-    UNIX AND NOT MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX)
++if((((ARCH STREQUAL "x86_64") AND NOT MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX) OR
++      ARCH STREQUAL "aarch64") AND
++    UNIX)
+ 
+   # Set the source directory for s2n-bignum assembly files
+   if(ARCH STREQUAL "x86_64")
+@@ -229,6 +230,20 @@ if((ARCH STREQUAL "x86_64" OR ARCH STREQUAL "aarch64") AND
+                 curve25519/curve25519_x25519base_byte.S
+                 curve25519/curve25519_x25519base_byte_alt.S
+                 )
++
++    # Big integer arithmetics using s2n-bignum
++    list(APPEND S2N_BIGNUM_ASM_SOURCES
++                fastmul/bignum_kmul_16_32.S
++                fastmul/bignum_kmul_32_64.S
++                fastmul/bignum_ksqr_16_32.S
++                fastmul/bignum_ksqr_32_64.S
++                fastmul/bignum_emontredc_8n.S
++
++                generic/bignum_ge.S
++                generic/bignum_mul.S
++                generic/bignum_optsub.S
++                generic/bignum_sqr.S
++                )
+   endif()
+ endif()
+ 
+diff --git a/crypto/fipsmodule/bn/montgomery.c b/crypto/fipsmodule/bn/montgomery.c
+index 4c54360ef..b6afa5571 100644
+--- a/crypto/fipsmodule/bn/montgomery.c
++++ b/crypto/fipsmodule/bn/montgomery.c
+@@ -119,8 +119,37 @@
+ #include <openssl/type_check.h>
+ 
+ #include "internal.h"
++#include "../cpucap/internal.h"
+ #include "../../internal.h"
+ 
++#if !defined(OPENSSL_NO_ASM) &&                                                \
++    (defined(OPENSSL_LINUX) || defined(OPENSSL_APPLE)) &&                      \
++    defined(OPENSSL_AARCH64) && defined(OPENSSL_BN_ASM_MONT)
++
++#include "../../../third_party/s2n-bignum/include/s2n-bignum_aws-lc.h"
++
++#define BN_MONTGOMERY_S2N_BIGNUM_CAPABLE 1
++
++OPENSSL_INLINE int montgomery_use_s2n_bignum(unsigned int num) {
++  // Use s2n-bignum's functions only if
++  // (1) The ARM architecture has slow multipliers, and
++  // (2) num (which is the number of words) is multiplie of 8, because
++  //     s2n-bignum's bignum_emontredc_8n requires it, and
++  // (3) The word size is 64 bits.
++  assert(S2NBIGNUM_KSQR_16_32_TEMP_NWORDS <= S2NBIGNUM_KMUL_32_64_TEMP_NWORDS &&
++         S2NBIGNUM_KSQR_32_64_TEMP_NWORDS <= S2NBIGNUM_KMUL_32_64_TEMP_NWORDS &&
++         S2NBIGNUM_KMUL_16_32_TEMP_NWORDS <= S2NBIGNUM_KMUL_32_64_TEMP_NWORDS);
++  assert(BN_BITS2 == 64);
++  return !CRYPTO_is_ARMv8_wide_multiplier_capable() && (num % 8 == 0);
++}
++
++#else
++
++OPENSSL_INLINE int montgomery_use_s2n_bignum(unsigned int num) {
++  return 0;
++}
++
++#endif
+ 
+ BN_MONT_CTX *BN_MONT_CTX_new(void) {
+   BN_MONT_CTX *ret = OPENSSL_malloc(sizeof(BN_MONT_CTX));
+@@ -418,6 +447,80 @@ err:
+   return ret;
+ }
+ 
++
++#if defined(OPENSSL_BN_ASM_MONT)
++
++// Perform montgomery multiplication using s2n-bignum functions. The arguments
++// are equivalent to the arguments of bn_mul_mont.
++// montgomery_s2n_bignum_mul_mont works only if num is a multiple of 8.
++// montgomery_use_s2n_bignum(num) must be called in advance to check this
++// condition.
++// For num = 32 or num = 16, this uses faster primitives in s2n-bignum.
++// montgomery_s2n_bignum_mul_mont allocates S2NBIGNUM_KMUL_32_64_TEMP_NWORDS +
++// 2 * BN_MONTGOMERY_MAX_WORDS uint64_t words at the stack.
++static void montgomery_s2n_bignum_mul_mont(BN_ULONG *rp, const BN_ULONG *ap,
++                                           const BN_ULONG *bp,
++                                           const BN_ULONG *np,
++                                           const BN_ULONG *n0, size_t num) {
++
++#if defined(BN_MONTGOMERY_S2N_BIGNUM_CAPABLE)
++
++  // t is a temporary buffer used by Karatsuba multiplication.
++  // bignum_kmul_32_64 requires S2NBIGNUM_KMUL_32_64_TEMP_NWORDS words.
++  uint64_t t[S2NBIGNUM_KMUL_32_64_TEMP_NWORDS];
++  // mulres is the output buffer of big-int multiplication which uses
++  // 2 * num elements of mulres. Note that num <= BN_MONTGOMERY_MAX_WORDS
++  // is guaranteed by the caller (BN_mod_mul_montgomery).
++  uint64_t mulres[2 * BN_MONTGOMERY_MAX_WORDS];
++
++  // Given m the prime number stored at np, m * w = -1 mod 2^64.
++  uint64_t w = n0[0];
++
++  if (num == 32) {
++    if (ap == bp)
++      bignum_ksqr_32_64(mulres, ap, t);
++    else
++      bignum_kmul_32_64(mulres, ap, bp, t);
++  } else if (num == 16) {
++    if (ap == bp)
++      bignum_ksqr_16_32(mulres, ap, t);
++    else
++      bignum_kmul_16_32(mulres, ap, bp, t);
++  } else {
++    if (ap == bp)
++      bignum_sqr(num * 2, mulres, num, ap);
++    else
++      bignum_mul(num * 2, mulres, num, ap, num, bp);
++  }
++
++  // Do montgomery reduction. We follow the definition of montgomery reduction
++  // which is:
++  // 1. Calculate (mulres + ((mulres mod R) * (-m^-1 mod R) mod R) * m) / R
++  //    using bignum_emontredc_8n, where R is 2^(64*num).
++  //    The calculated result is stored in [mulres+num ... mulres+2*num-1]. If
++  //    the result >= 2^(64*num), bignum_emontredc_8n returns 1.
++  // 2. Optionally subtract the result if the (result of step 1) >= m.
++  //    The comparison is true if either A or B holds:
++  //    A. The result of step 1 >= 2^(64*num), meaning that bignum_emontredc_8n
++  //       returned 1. Since m is less than 2^(64*num), (result of step 1) >= m holds.
++  //    B. The result of step 1 fits in 2^(64*num), and the result >= m.
++  uint64_t c;
++  c = bignum_emontredc_8n(num, mulres, np, w); // c: case A
++  c |= bignum_ge(num, mulres + num, num, np);  // c: case B
++  // Optionally subtract and store the result at rp
++  bignum_optsub(num, rp, mulres + num, c, np);
++
++#else
++
++  // Should not call this function unless s2n-bignum is supported.
++  abort();
++
++#endif
++}
++
++#endif
++
++
+ int BN_mod_mul_montgomery(BIGNUM *r, const BIGNUM *a, const BIGNUM *b,
+                           const BN_MONT_CTX *mont, BN_CTX *ctx) {
+   if (a->neg || b->neg) {
+@@ -437,11 +540,18 @@ int BN_mod_mul_montgomery(BIGNUM *r, const BIGNUM *a, const BIGNUM *b,
+     // This bound is implied by |bn_mont_ctx_set_N_and_n0|. |bn_mul_mont|
+     // allocates |num| words on the stack, so |num| cannot be too large.
+     assert((size_t)num <= BN_MONTGOMERY_MAX_WORDS);
+-    if (!bn_mul_mont(r->d, a->d, b->d, mont->N.d, mont->n0, num)) {
+-      // The check above ensures this won't happen.
+-      assert(0);
+-      OPENSSL_PUT_ERROR(BN, ERR_R_INTERNAL_ERROR);
+-      return 0;
++
++    if (montgomery_use_s2n_bignum(num)) {
++      // Do montgomery multiplication using s2n-bignum.
++      montgomery_s2n_bignum_mul_mont(r->d, a->d, b->d, mont->N.d, mont->n0,
++                                     num);
++    } else {
++      if (!bn_mul_mont(r->d, a->d, b->d, mont->N.d, mont->n0, num)) {
++        // The check above ensures this won't happen.
++        assert(0);
++        OPENSSL_PUT_ERROR(BN, ERR_R_INTERNAL_ERROR);
++        return 0;
++      }
+     }
+     r->neg = 0;
+     r->width = num;
+diff --git a/crypto/fipsmodule/ec/p384.c b/crypto/fipsmodule/ec/p384.c
+index 6941f2626..716e9b409 100644
+--- a/crypto/fipsmodule/ec/p384.c
++++ b/crypto/fipsmodule/ec/p384.c
+@@ -32,10 +32,12 @@
+ //   #define p384_felem_add(out, in0, in1) bignum_add_p384(out, in0, in1)
+ // when s2n-bignum is used.
+ //
+-#if !defined(OPENSSL_NO_ASM) && \
+-    (defined(OPENSSL_LINUX) || defined(OPENSSL_APPLE)) && \
+-    (defined(OPENSSL_X86_64) || defined(OPENSSL_AARCH64)) && \
+-    !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX)
++// If (1) x86_64 or aarch64, (2) linux or apple, and (3) OPENSSL_NO_ASM is not
++// set, s2n-bignum path is capable.
++#if !defined(OPENSSL_NO_ASM) &&                                                \
++    (defined(OPENSSL_LINUX) || defined(OPENSSL_APPLE)) &&                      \
++    ((defined(OPENSSL_X86_64) && !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX)) || \
++     defined(OPENSSL_AARCH64))
+ 
+ #  include "../../../third_party/s2n-bignum/include/s2n-bignum_aws-lc.h"
+ 
+diff --git a/crypto/fipsmodule/ec/p521.c b/crypto/fipsmodule/ec/p521.c
+index efbec42a3..cfb2f65da 100644
+--- a/crypto/fipsmodule/ec/p521.c
++++ b/crypto/fipsmodule/ec/p521.c
+@@ -33,10 +33,12 @@
+ // when Fiat-crypto is used, or as:
+ //   #define p521_felem_add(out, in0, in1) bignum_add_p521(out, in0, in1)
+ // when s2n-bignum is used.
+-#if !defined(OPENSSL_NO_ASM) && \
+-    (defined(OPENSSL_LINUX) ||  defined(OPENSSL_APPLE)) && \
+-    (defined(OPENSSL_X86_64) || defined(OPENSSL_AARCH64)) && \
+-    !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX)
++// If (1) x86_64 or aarch64, (2) linux or apple, and (3) OPENSSL_NO_ASM is not
++// set, s2n-bignum path is capable.
++#if !defined(OPENSSL_NO_ASM) &&                                                \
++    (defined(OPENSSL_LINUX) || defined(OPENSSL_APPLE)) &&                      \
++    ((defined(OPENSSL_X86_64) && !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX)) || \
++     defined(OPENSSL_AARCH64))
+ 
+ #  include "../../../third_party/s2n-bignum/include/s2n-bignum_aws-lc.h"
+ #  define P521_USE_S2N_BIGNUM_FIELD_ARITH 1
+diff --git a/third_party/s2n-bignum/include/s2n-bignum_aws-lc.h b/third_party/s2n-bignum/include/s2n-bignum_aws-lc.h
+index cd1687b90..290fdb66f 100644
+--- a/third_party/s2n-bignum/include/s2n-bignum_aws-lc.h
++++ b/third_party/s2n-bignum/include/s2n-bignum_aws-lc.h
+@@ -130,3 +130,69 @@ extern void curve25519_x25519_byte_alt(uint8_t res[static 32], const uint8_t sca
+ // another u-coordinate, is saved in |res|.
+ extern void curve25519_x25519base_byte(uint8_t res[static 32], const uint8_t scalar[static 32]);
+ extern void curve25519_x25519base_byte_alt(uint8_t res[static 32], const uint8_t scalar[static 32]);
++
++// Evaluate z := x^2 where x is a 2048-bit integer.
++// Input: x[32]; output: z[64]; temporary buffer: t[>=72]
++#define S2NBIGNUM_KSQR_32_64_TEMP_NWORDS 72
++extern void
++bignum_ksqr_32_64(uint64_t z[static 64], const uint64_t x[static 32],
++                  uint64_t t[static S2NBIGNUM_KSQR_32_64_TEMP_NWORDS]);
++
++// Evaluate z := x^2 where x is a 1024-bit integer.
++// Input: x[16]; output: z[32]; temporary buffer: t[>=24]
++#define S2NBIGNUM_KSQR_16_32_TEMP_NWORDS 24
++extern void
++bignum_ksqr_16_32(uint64_t z[static 32], const uint64_t x[static 16],
++                  uint64_t t[static S2NBIGNUM_KSQR_16_32_TEMP_NWORDS]);
++
++// Evaluate z := x * y where x and y are 2048-bit integers.
++// Inputs: x[32], y[32]; output: z[64]; temporary buffer t[>=96]
++#define S2NBIGNUM_KMUL_32_64_TEMP_NWORDS 96
++extern void
++bignum_kmul_32_64(uint64_t z[static 64], const uint64_t x[static 32],
++                  const uint64_t y[static 32],
++                  uint64_t t[static S2NBIGNUM_KMUL_32_64_TEMP_NWORDS]);
++
++// Evaluate z := x * y where x and y are 1024-bit integers.
++// Inputs: x[16], y[16]; output: z[32]; temporary buffer t[>=32]
++#define S2NBIGNUM_KMUL_16_32_TEMP_NWORDS 32
++extern void
++bignum_kmul_16_32(uint64_t z[static 32], const uint64_t x[static 16],
++                  const uint64_t y[static 16],
++                  uint64_t t[static S2NBIGNUM_KMUL_16_32_TEMP_NWORDS]);
++
++// Extended Montgomery reduce in 8-digit blocks.
++// Assumes that z initially holds a 2k-digit bignum z_0, m is a k-digit odd
++// bignum and m * w == -1 (mod 2^64). This function also uses z for the output
++// as well as returning a carry c of 0 or 1. This encodes two numbers: in the
++// lower half of the z buffer we have q = z[0..k-1], while the upper half
++// together with the carry gives r = 2^{64k}*c + z[k..2k-1]. These values
++// satisfy z_0 + q * m = 2^{64k} * r, i.e. r gives a raw (unreduced) Montgomery
++// reduction while q gives the multiplier that was used.
++// Note that q = (z_0 mod 2^{64k}) * (-m^-1 mod 2^{64k}) mod 2^{64k}.
++//    z_0 + q * m = 0           mod 2^{64k}
++//          q * m = -z_0        mod 2^{64k}
++//          q     = -z_0 * m^-1 mod 2^{64k}
++//                = (z_0 mod 2^{64k}) * (-m^-1 mod 2^{64k}) mod 2^{64k}
++// q is uniquely determined because q must be in the range of [0, 2^{64k}-1].
++// Inputs: z[2*k], m[k], w; outputs: function return (extra result bit) and z[2*k]
++extern uint64_t bignum_emontredc_8n(uint64_t k, uint64_t *z, const uint64_t *m,
++                                    uint64_t w);
++
++// Optionally subtract, z := x - y (if p nonzero) or z := x (if p zero)
++// Inputs: x[k], p, y[k]; outputs: function return (carry-out) and z[k]
++extern uint64_t bignum_optsub(uint64_t k, uint64_t *z, const uint64_t *x, uint64_t p,
++                              const uint64_t *y);
++
++// Compare bignums, x >= y.
++// Inputs: x[m], y[n]; output: function return (1 if x >= y)
++extern uint64_t bignum_ge(uint64_t m, const uint64_t *x, uint64_t n, const uint64_t *y);
++
++// General big-integer multiplication (z := x * y).
++// Inputs: x[m], y[n]; output: z[k]. If k < m+n, the result is truncated.
++extern void bignum_mul(uint64_t k, uint64_t *z, uint64_t m, const uint64_t *x,
++                       uint64_t n, const uint64_t *y);
++
++// General big-integer squaring (z := x^2).
++// Inputs: x[m]; output: z[k]. If k < 2m, the result is truncated.
++extern void bignum_sqr(uint64_t k, uint64_t *z, uint64_t m, const uint64_t *x);

@@ -1,0 +1,45 @@
+From 0772cefc16a5a4338eb88d6eead226cdcc816412 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 29 Mar 2023 02:15:18 +0900
+Subject: [PATCH] Add a warning about OBJ_create and global state
+
+This function is probably not what you want. I think the
+X509V3_EXT_METHOD and ASN1_STRING_TABLE_add stuff are the only cases
+where you actually need an OID. Those, themselves, have problems with
+conflicting registrations and aren't really necessary.
+
+ASN1_STRING_TABLE_add has a similar warning on it. X509V3_EXT_METHOD is
+not yet documented, but should get a similar warning when we document
+it.
+
+Change-Id: I173918a3f7db25059ed078b2f67b23acfb43033d
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58365
+Auto-Submit: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+(cherry picked from commit 0e8e3c682fd5459cca3d12466dc35bdf9b483ffa)
+---
+ include/openssl/obj.h | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/include/openssl/obj.h b/include/openssl/obj.h
+index 1789afd7b..b98760414 100644
+--- a/include/openssl/obj.h
++++ b/include/openssl/obj.h
+@@ -183,8 +183,15 @@ OPENSSL_EXPORT int OBJ_obj2txt(char *out, int out_len, const ASN1_OBJECT *obj,
+ 
+ // Adding objects at runtime.
+ 
+-// OBJ_create adds a known object and returns the nid of the new object, or
++// OBJ_create adds a known object and returns the NID of the new object, or
+ // NID_undef on error.
++//
++// WARNING: This function modifies global state. The table cannot contain
++// duplicate OIDs, short names, or long names. If two callers in the same
++// address space add conflicting values, only one registration will take effect.
++// Avoid this function if possible. Instead, callers can process OIDs unknown to
++// BoringSSL by acting on the byte representation directly. See |OBJ_get0_data|
++// and |OBJ_length|.
+ OPENSSL_EXPORT int OBJ_create(const char *oid, const char *short_name,
+                               const char *long_name);
+ 

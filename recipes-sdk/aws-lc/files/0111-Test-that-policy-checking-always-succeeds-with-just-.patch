@@ -1,0 +1,43 @@
+From 28c80ba0d355f5dabcee0c6a3ccdbbfdc775b9b7 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 4 Jan 2023 15:34:46 -0800
+Subject: [PATCH] Test that policy checking always succeeds with just a trust
+ anchor
+
+Change-Id: I88354719ccefbe8750bf02e069afbe8ab68b48fb
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56033
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit 1f2529d99d2dd7d569352ff4ef9b3ae295a47b4e)
+---
+ crypto/x509/x509_test.cc | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index d0054aa3d..270d891c9 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -1152,8 +1152,7 @@ static int Verify(
+     X509 *leaf, const std::vector<X509 *> &roots,
+     const std::vector<X509 *> &intermediates,
+     const std::vector<X509_CRL *> &crls, unsigned long flags = 0,
+-    std::function<void(X509_VERIFY_PARAM *)> configure_callback = nullptr,
+-    int (*verify_callback)(int, X509_STORE_CTX *) = nullptr) {
++    std::function<void(X509_VERIFY_PARAM *)> configure_callback = nullptr) {
+   bssl::UniquePtr<STACK_OF(X509)> roots_stack(CertsToStack(roots));
+   bssl::UniquePtr<STACK_OF(X509)> intermediates_stack(
+       CertsToStack(intermediates));
+@@ -5230,6 +5229,13 @@ TEST(X509Test, Policy) {
+                    [&](X509_VERIFY_PARAM *param) {
+                      set_policies(param, {oid1.get()});
+                    }));
++
++  // With just a trust anchor, policy checking silently succeeds.
++  EXPECT_EQ(X509_V_OK, Verify(root.get(), {root.get()}, {},
++                              /*crls=*/{}, X509_V_FLAG_EXPLICIT_POLICY,
++                              [&](X509_VERIFY_PARAM *param) {
++                                set_policies(param, {oid1.get()});
++                              }));
+ }
+ 
+ TEST(X509Test, ExtensionFromConf) {

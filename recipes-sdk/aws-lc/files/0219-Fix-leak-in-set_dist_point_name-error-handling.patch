@@ -1,0 +1,151 @@
+From 78b47936527bd65de3f06b918ebfa66267be8f91 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 6 Feb 2023 12:22:07 -0500
+Subject: [PATCH] Fix leak in set_dist_point_name error handling.
+
+The temporary X509_NAME wasn't destroyed if the section didn't exist.
+Also document the weird 0 vs -1 convention (see callers), and revise the
+NULL check added in
+https://boringssl-review.googlesource.com/c/boringssl/+/56705. It
+doesn't make a difference, but we should only apply the NULL check after
+we've looked at the name, and return -1 because, after the name is
+checked, it's a known syntax error.
+
+Also fix a couple of comments that were wrong. It's that the RDNSequence
+we take from X509_NAME must have one RDN, not that there's one
+RDNSequence. (This is a consequence of X509_NAME's somewhat odd
+in-memory representation.)
+
+Bug: oss-fuzz:55700
+Change-Id: I5745752bfa82802d361803868f962b2b0fa4bd32
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56929
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit a028a5e01f2cd627e31f3d3dbdd8fe1f707734b4)
+---
+ crypto/x509/x509_test.cc | 29 +++++++++++++++++++++++++++++
+ crypto/x509v3/v3_crld.c  | 33 ++++++++++++++++++++-------------
+ include/openssl/x509.h   |  2 +-
+ 3 files changed, 50 insertions(+), 14 deletions(-)
+
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index cc12fe4bd..024ac9b5a 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -5427,6 +5427,35 @@ TEST(X509Test, ExtensionFromConf) {
+       // value is not allowed.
+       {"issuingDistributionPoint", "fullname", nullptr, {}},
+ 
++      {"issuingDistributionPoint",
++       "relativename:name",
++       "[name]\nCN=Hello\n",
++       {0x30, 0x1b, 0x06, 0x03, 0x55, 0x1d, 0x1c, 0x04, 0x14, 0x30,
++        0x12, 0xa0, 0x10, 0xa1, 0x0e, 0x30, 0x0c, 0x06, 0x03, 0x55,
++        0x04, 0x03, 0x0c, 0x05, 0x48, 0x65, 0x6c, 0x6c, 0x6f}},
++
++      // relativename referencing a section which doesn't exist.
++      {"issuingDistributionPoint",
++       "relativename:wrong_section_name",
++       "[name]\nCN=Hello\n",
++       {}},
++
++      // relativename must be a single RDN. By default, the section-based name
++      // syntax puts each attribute into its own RDN.
++      {"issuingDistributionPoint",
++       "relativename:name",
++       "[name]\nCN=Hello\nC=US\n",
++       {}},
++
++      // A single RDN with multiple attributes is allowed.
++      {"issuingDistributionPoint",
++       "relativename:name",
++       "[name]\nCN=Hello\n+C=US\n",
++       {0x30, 0x26, 0x06, 0x03, 0x55, 0x1d, 0x1c, 0x04, 0x1f, 0x30,
++        0x1d, 0xa0, 0x1b, 0xa1, 0x19, 0x30, 0x09, 0x06, 0x03, 0x55,
++        0x04, 0x06, 0x13, 0x02, 0x55, 0x53, 0x30, 0x0c, 0x06, 0x03,
++        0x55, 0x04, 0x03, 0x0c, 0x05, 0x48, 0x65, 0x6c, 0x6c, 0x6f}},
++
+       // Duplicate reason keys are an error. Reaching this case is interesting.
+       // The value can a string like "key:value,key:value", or it can be
+       // "@section" and reference a config section. If using a string, duplicate
+diff --git a/crypto/x509v3/v3_crld.c b/crypto/x509v3/v3_crld.c
+index 0206c7acf..a3cae4269 100644
+--- a/crypto/x509v3/v3_crld.c
++++ b/crypto/x509v3/v3_crld.c
+@@ -127,27 +127,30 @@ static STACK_OF(GENERAL_NAME) *gnames_from_sectname(const X509V3_CTX *ctx,
+   return gens;
+ }
+ 
++// set_dist_point_name decodes a DistributionPointName from |cnf| and writes the
++// result in |*pdp|. It returns 1 on success, -1 on error, and 0 if |cnf| used
++// an unrecognized input type. The zero return can be used by callers to support
++// additional syntax.
+ static int set_dist_point_name(DIST_POINT_NAME **pdp, const X509V3_CTX *ctx,
+                                const CONF_VALUE *cnf) {
+-  // If |cnf| comes from |X509V3_parse_list|, which is possible for a v2i
+-  // function, |cnf->value| may be NULL.
+-  if (cnf->value == NULL) {
+-    OPENSSL_PUT_ERROR(X509V3, X509V3_R_MISSING_VALUE);
+-    return 0;
+-  }
+-
+   STACK_OF(GENERAL_NAME) *fnm = NULL;
+   STACK_OF(X509_NAME_ENTRY) *rnm = NULL;
+   if (!strncmp(cnf->name, "fullname", 9)) {
++    // If |cnf| comes from |X509V3_parse_list|, which is possible for a v2i
++    // function, |cnf->value| may be NULL.
++    if (cnf->value == NULL) {
++      OPENSSL_PUT_ERROR(X509V3, X509V3_R_MISSING_VALUE);
++      return -1;
++    }
+     fnm = gnames_from_sectname(ctx, cnf->value);
+     if (!fnm) {
+       goto err;
+     }
+   } else if (!strcmp(cnf->name, "relativename")) {
+-    int ret;
+-    X509_NAME *nm;
+-    nm = X509_NAME_new();
+-    if (!nm) {
++    // If |cnf| comes from |X509V3_parse_list|, which is possible for a v2i
++    // function, |cnf->value| may be NULL.
++    if (cnf->value == NULL) {
++      OPENSSL_PUT_ERROR(X509V3, X509V3_R_MISSING_VALUE);
+       return -1;
+     }
+     const STACK_OF(CONF_VALUE) *dnsect = X509V3_get_section(ctx, cnf->value);
+@@ -155,14 +158,18 @@ static int set_dist_point_name(DIST_POINT_NAME **pdp, const X509V3_CTX *ctx,
+       OPENSSL_PUT_ERROR(X509V3, X509V3_R_SECTION_NOT_FOUND);
+       return -1;
+     }
+-    ret = X509V3_NAME_from_section(nm, dnsect, MBSTRING_ASC);
++    X509_NAME *nm = X509_NAME_new();
++    if (!nm) {
++      return -1;
++    }
++    int ret = X509V3_NAME_from_section(nm, dnsect, MBSTRING_ASC);
+     rnm = nm->entries;
+     nm->entries = NULL;
+     X509_NAME_free(nm);
+     if (!ret || sk_X509_NAME_ENTRY_num(rnm) <= 0) {
+       goto err;
+     }
+-    // Since its a name fragment can't have more than one RDNSequence
++    // There can only be one RDN in nameRelativeToCRLIssuer.
+     if (sk_X509_NAME_ENTRY_value(rnm, sk_X509_NAME_ENTRY_num(rnm) - 1)->set) {
+       OPENSSL_PUT_ERROR(X509V3, X509V3_R_INVALID_MULTIPLE_RDNS);
+       goto err;
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index 316aa6b65..5f97ffa33 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -938,7 +938,7 @@ OPENSSL_EXPORT int X509_NAME_add_entry(X509_NAME *name,
+ // success or zero on error. The entry's attribute type is |obj|. The entry's
+ // attribute value is determined by |type|, |bytes|, and |len|, as in
+ // |X509_NAME_ENTRY_set_data|. The entry's position is determined by |loc| and
+-// |set| as in |X509_NAME_entry|.
++// |set| as in |X509_NAME_add_entry|.
+ OPENSSL_EXPORT int X509_NAME_add_entry_by_OBJ(X509_NAME *name,
+                                               const ASN1_OBJECT *obj, int type,
+                                               const uint8_t *bytes, int len,

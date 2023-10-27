@@ -1,0 +1,81 @@
+From 553c03e332d67be8e0a8059b16465d7ccf17d94b Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 31 Jan 2023 13:14:54 -0500
+Subject: [PATCH] Check for null value in set_dist_point_name.
+
+CONF_VALUEs are a mess. They show up in three forms:
+
+- When parsed from a config file (in a CONF), I believe name and value
+  are never NULL.
+
+- Internally, CONF represents sections as funny CONF_VALUEs where name
+  is NULL, and value is a STACK_OF(CONF_VALUE) of the wrong type. This
+  is ridiculous and should be a separate type, though I don't believe it
+  ever leaks outside the public API.
+
+- When created by X509V3_parse_list, it is possible for them to be
+  value-less, with a NULL value.
+
+v2i functions can see the last case, and set_dist_point_name comes from
+a v2i function. Add a missing NULL check. This only impacts the unsafe,
+stringly-typed extensions-building APIs that no one should be using
+anyway.
+
+Also fix the name of the test I added in the previous CL. I didn't quite
+follow the existing convention.
+
+Fixed: oss-fuzz:55558
+Change-Id: I1a2403312f3ce59007d23fe7e226f2e602653019
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56705
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit 8a69c0d4f8f412432f80dd36ee5987fb1675bfbc)
+---
+ crypto/x509/x509_test.cc | 6 +++++-
+ crypto/x509v3/v3_crld.c  | 7 +++++++
+ 2 files changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index e85f2afd2..94b1ff8c9 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -5410,6 +5410,10 @@ TEST(X509Test, ExtensionFromConf) {
+       // If no config is provided, this should fail.
+       {"basicConstraints", "critical,@section", nullptr, {}},
+ 
++      // issuingDistributionPoint takes a list of name:value pairs. Omitting the
++      // value is not allowed.
++      {"issuingDistributionPoint", "fullname", nullptr, {}},
++
+       // The "DER:" prefix just specifies an arbitrary byte string. Colons
+       // separators are ignored.
+       {kTestOID, "DER:0001020304", nullptr, {0x30, 0x15, 0x06, 0x0c, 0x2a, 0x86,
+@@ -5900,7 +5904,7 @@ key = FORMAT:HEX,OCTWRAP,OCT:9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703
+   }
+ }
+ 
+-TEST(X509, AddUnserializableExtension) {
++TEST(X509Test, AddUnserializableExtension) {
+   bssl::UniquePtr<EVP_PKEY> key = PrivateKeyFromPEM(kP256Key);
+   ASSERT_TRUE(key);
+   bssl::UniquePtr<X509> x509 =
+diff --git a/crypto/x509v3/v3_crld.c b/crypto/x509v3/v3_crld.c
+index 4b5a36df8..0b6899a6f 100644
+--- a/crypto/x509v3/v3_crld.c
++++ b/crypto/x509v3/v3_crld.c
+@@ -129,6 +129,13 @@ static STACK_OF(GENERAL_NAME) *gnames_from_sectname(const X509V3_CTX *ctx,
+ 
+ static int set_dist_point_name(DIST_POINT_NAME **pdp, const X509V3_CTX *ctx,
+                                const CONF_VALUE *cnf) {
++  // If |cnf| comes from |X509V3_parse_list|, which is possible for a v2i
++  // function, |cnf->value| may be NULL.
++  if (cnf->value == NULL) {
++    OPENSSL_PUT_ERROR(X509V3, X509V3_R_MISSING_VALUE);
++    return 0;
++  }
++
+   STACK_OF(GENERAL_NAME) *fnm = NULL;
+   STACK_OF(X509_NAME_ENTRY) *rnm = NULL;
+   if (!strncmp(cnf->name, "fullname", 9)) {

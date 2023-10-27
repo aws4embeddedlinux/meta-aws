@@ -1,0 +1,84 @@
+From 52c3aa2cb3245405906127edb0eabbc30520470f Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 26 Jan 2023 13:17:18 -0500
+Subject: [PATCH] Create the SSLKeyShare object in TLS 1.2 client ECDHE
+ slightly later
+
+We call Accept as a TLS 1.2 client and a TLS 1.3 server. In the latter,
+we create an SSLKeyShare object, Accept, and immediately destroy it. In
+the former, we create the SSLKeyShare object a couple steps before
+actually using it.
+
+It's equivalent to create the object just before Accept, so switch to
+that. This change means that hs->key_shares now only ever contains
+objects in between Offer and Finish. Or, in KEM terms, it only ever
+contains KEM private keys. (SSLKeyShare objects are currently a little
+confused about what kind of state they contain.)
+
+Change-Id: Idec62ac298785f784485bc9065f7647034d2a607
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57605
+Auto-Submit: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+(cherry picked from commit 7fa0910a6511895119a4aa3f474920594e734564)
+---
+ ssl/handshake_client.cc | 19 ++++++++-----------
+ 1 file changed, 8 insertions(+), 11 deletions(-)
+
+diff --git a/ssl/handshake_client.cc b/ssl/handshake_client.cc
+index de940b62a..c1b6e63c3 100644
+--- a/ssl/handshake_client.cc
++++ b/ssl/handshake_client.cc
+@@ -1142,7 +1142,6 @@ static enum ssl_hs_wait_t do_read_server_key_exchange(SSL_HANDSHAKE *hs) {
+       ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_DECODE_ERROR);
+       return ssl_hs_error;
+     }
+-    hs->new_session->group_id = group_id;
+ 
+     // Ensure the group is consistent with preferences.
+     if (!tls1_check_group_id(hs, group_id)) {
+@@ -1151,10 +1150,9 @@ static enum ssl_hs_wait_t do_read_server_key_exchange(SSL_HANDSHAKE *hs) {
+       return ssl_hs_error;
+     }
+ 
+-    // Initialize ECDH and save the peer public key for later.
+-    hs->key_shares[0] = SSLKeyShare::Create(group_id);
+-    if (!hs->key_shares[0] ||
+-        !hs->peer_key.CopyFrom(point)) {
++    // Save the group and peer public key for later.
++    hs->new_session->group_id = group_id;
++    if (!hs->peer_key.CopyFrom(point)) {
+       return ssl_hs_error;
+     }
+   } else if (!(alg_k & SSL_kPSK)) {
+@@ -1490,15 +1488,16 @@ static enum ssl_hs_wait_t do_send_client_key_exchange(SSL_HANDSHAKE *hs) {
+       return ssl_hs_error;
+     }
+   } else if (alg_k & SSL_kECDHE) {
+-    // Generate a keypair and serialize the public half.
+     CBB child;
+     if (!CBB_add_u8_length_prefixed(&body, &child)) {
+       return ssl_hs_error;
+     }
+ 
+-    // Compute the premaster.
++    // Generate the premaster secret.
++    bssl::UniquePtr<SSLKeyShare> key_share =
++        SSLKeyShare::Create(hs->new_session->group_id);
+     uint8_t alert = SSL_AD_DECODE_ERROR;
+-    if (!hs->key_shares[0]->Accept(&child, &pms, &alert, hs->peer_key)) {
++    if (!key_share || !key_share->Accept(&child, &pms, &alert, hs->peer_key)) {
+       ssl_send_alert(ssl, SSL3_AL_FATAL, alert);
+       return ssl_hs_error;
+     }
+@@ -1506,9 +1505,7 @@ static enum ssl_hs_wait_t do_send_client_key_exchange(SSL_HANDSHAKE *hs) {
+       return ssl_hs_error;
+     }
+ 
+-    // The key exchange state may now be discarded.
+-    hs->key_shares[0].reset();
+-    hs->key_shares[1].reset();
++    // The peer key can now be discarded.
+     hs->peer_key.Reset();
+   } else if (alg_k & SSL_kPSK) {
+     // For plain PSK, other_secret is a block of 0s with the same length as

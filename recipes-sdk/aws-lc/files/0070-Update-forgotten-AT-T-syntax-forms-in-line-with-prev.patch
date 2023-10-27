@@ -1,0 +1,82 @@
+From 56abd8577e5053791bbff1fdcc200031ad8c0033 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Wed, 26 Oct 2022 14:09:24 -0700
+Subject: [PATCH] Update forgotten AT&T syntax forms in line with previous
+ changes
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/b96beae0d76006634a53e4d126a6bb04924f5310
+---
+ x86_att/curve25519/curve25519_x25519.S     |  6 ++----
+ x86_att/curve25519/curve25519_x25519_alt.S | 12 ++++--------
+ 2 files changed, 6 insertions(+), 12 deletions(-)
+
+diff --git a/x86_att/curve25519/curve25519_x25519.S b/x86_att/curve25519/curve25519_x25519.S
+index 09d62751b..e7fee5e71 100644
+--- a/x86_att/curve25519/curve25519_x25519.S
++++ b/x86_att/curve25519/curve25519_x25519.S
+@@ -167,10 +167,9 @@
+         adoxq  %rdi, %r12 ;                        \
+         adcxq  %rdi, %r12 ;                        \
+         shldq  $0x1, %r11, %r12 ;                   \
+-        movabs $0x8000000000000000, %rcx ;         \
+         movl   $0x13, %edx ;                       \
+         incq   %r12;                             \
+-        orq    %rcx, %r11 ;                        \
++        bts    $63, %r11 ;                         \
+         mulxq  %r12, %rax, %rbx ;                   \
+         addq   %rax, %r8 ;                         \
+         adcq   %rbx, %r9 ;                         \
+@@ -183,8 +182,7 @@
+         sbbq   %rdi, %r9 ;                         \
+         sbbq   %rdi, %r10 ;                        \
+         sbbq   %rdi, %r11 ;                        \
+-        notq   %rcx;                             \
+-        andq   %rcx, %r11 ;                        \
++        btr    $63, %r11 ;                         \
+         movq   %r8, P0 ;                        \
+         movq   %r9, 0x8+P0 ;                    \
+         movq   %r10, 0x10+P0 ;                  \
+diff --git a/x86_att/curve25519/curve25519_x25519_alt.S b/x86_att/curve25519/curve25519_x25519_alt.S
+index 52600bede..d3700e4b1 100644
+--- a/x86_att/curve25519/curve25519_x25519_alt.S
++++ b/x86_att/curve25519/curve25519_x25519_alt.S
+@@ -207,8 +207,7 @@
+         shldq   $0x1, %r11, %r12 ;                    \
+         leaq    0x1(%r12), %rax ;                  \
+         movl    $0x13, %esi ;                       \
+-        movabsq $0x8000000000000000, %r12 ;         \
+-        orq     %r12, %r11 ;                        \
++        bts     $63, %r11 ;                         \
+         imulq   %rsi, %rax ;                        \
+         addq    %rax, %r8 ;                         \
+         adcq    %rcx, %r9 ;                         \
+@@ -221,8 +220,7 @@
+         sbbq    %rcx, %r9 ;                         \
+         sbbq    %rcx, %r10 ;                        \
+         sbbq    %rcx, %r11 ;                        \
+-        notq    %r12;                            \
+-        andq    %r12, %r11 ;                        \
++        btr     $63, %r11 ;                         \
+         movq    %r8, P0 ;                        \
+         movq    %r9, 0x8+P0 ;                    \
+         movq    %r10, 0x10+P0 ;                  \
+@@ -329,8 +327,7 @@
+         shldq   $0x1, %r11, %r12 ;                    \
+         leaq    0x1(%r12), %rax ;                  \
+         movl    $0x13, %esi ;                       \
+-        movabsq $0x8000000000000000, %r12 ;         \
+-        orq     %r12, %r11 ;                        \
++        bts     $63, %r11 ;                         \
+         imulq   %rsi, %rax ;                        \
+         addq    %rax, %r8 ;                         \
+         adcq    %rcx, %r9 ;                         \
+@@ -343,8 +340,7 @@
+         sbbq    %rcx, %r9 ;                         \
+         sbbq    %rcx, %r10 ;                        \
+         sbbq    %rcx, %r11 ;                        \
+-        notq    %r12;                            \
+-        andq    %r12, %r11 ;                        \
++        btr     $63, %r11 ;                         \
+         movq    %r8, P0 ;                        \
+         movq    %r9, 0x8+P0 ;                    \
+         movq    %r10, 0x10+P0 ;                  \

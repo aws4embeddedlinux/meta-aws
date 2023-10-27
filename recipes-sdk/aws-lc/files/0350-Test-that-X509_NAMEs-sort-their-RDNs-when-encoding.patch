@@ -1,0 +1,108 @@
+From 1acfe0d28c7d9ab1235c6c279de80bbed4c6bff0 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 14 Mar 2023 17:42:04 -0400
+Subject: [PATCH] Test that X509_NAMEs sort their RDNs when encoding.
+
+RDNs are a SET OF attributes which means they should be sorted by
+DER encoding length, then lexicographically. We didn't have any test
+coverage for this.
+
+Bug: 548
+Change-Id: I542196aae26984aeee4f1c6774878b121675b0dc
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58025
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit d0cff637a25b8323578729a01575b62001967bc8)
+---
+ crypto/x509/x509_test.cc | 80 ++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 80 insertions(+)
+
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 609dde539..91499b7ac 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -6093,3 +6093,83 @@ TEST(X509Test, AddUnserializableExtension) {
+   ASSERT_TRUE(X509_EXTENSION_set_object(ext.get(), OBJ_nid2obj(NID_undef)));
+   EXPECT_FALSE(X509_add_ext(x509.get(), ext.get(), /*loc=*/-1));
+ }
++
++// Test that, when constructing an |X509_NAME|, names are sorted by DER order.
++TEST(X509Test, SortRDN) {
++  bssl::UniquePtr<X509_NAME> name(X509_NAME_new());
++  ASSERT_TRUE(name);
++
++  auto append_entry_new_rdn = [&](const char *str) {
++    return X509_NAME_add_entry_by_NID(name.get(), NID_commonName, MBSTRING_ASC,
++                                      reinterpret_cast<const uint8_t *>(str),
++                                      strlen(str), /*loc=*/-1, /*set=*/0);
++  };
++  auto append_entry_prev_rdn = [&](const char *str) {
++    return X509_NAME_add_entry_by_NID(name.get(), NID_commonName, MBSTRING_ASC,
++                                      reinterpret_cast<const uint8_t *>(str),
++                                      strlen(str), /*loc=*/-1, /*set=*/-1);
++  };
++
++  // This is the sort order to expect.
++  ASSERT_TRUE(append_entry_new_rdn("A"));
++  ASSERT_TRUE(append_entry_prev_rdn("B"));
++  ASSERT_TRUE(append_entry_prev_rdn("AA"));
++  ASSERT_TRUE(append_entry_prev_rdn("AB"));
++
++  // The same RDN, with entries added in a different order.
++  ASSERT_TRUE(append_entry_new_rdn("AB"));
++  ASSERT_TRUE(append_entry_prev_rdn("AA"));
++  ASSERT_TRUE(append_entry_prev_rdn("B"));
++  ASSERT_TRUE(append_entry_prev_rdn("A"));
++
++  // The same RDN, with entries added in a different order.
++  ASSERT_TRUE(append_entry_new_rdn("A"));
++  ASSERT_TRUE(append_entry_prev_rdn("AA"));
++  ASSERT_TRUE(append_entry_prev_rdn("B"));
++  ASSERT_TRUE(append_entry_prev_rdn("AB"));
++
++  uint8_t *der = nullptr;
++  int der_len = i2d_X509_NAME(name.get(), &der);
++  ASSERT_GT(der_len, 0);
++  bssl::UniquePtr<uint8_t> free_der(der);
++
++  // SEQUENCE {
++  //   SET {
++  //     SEQUENCE {
++  //       # commonName
++  //       OBJECT_IDENTIFIER { 2.5.4.3 }
++  //       UTF8String { "A" }
++  //     }
++  //     SEQUENCE {
++  //       # commonName
++  //       OBJECT_IDENTIFIER { 2.5.4.3 }
++  //       UTF8String { "B" }
++  //     }
++  //     SEQUENCE {
++  //       # commonName
++  //       OBJECT_IDENTIFIER { 2.5.4.3 }
++  //       UTF8String { "AA" }
++  //     }
++  //     SEQUENCE {
++  //       # commonName
++  //       OBJECT_IDENTIFIER { 2.5.4.3 }
++  //       UTF8String { "AB" }
++  //     }
++  //   }
++  //   ...two more copies of the above SET...
++  // }
++  static uint8_t kExpected[] = {
++      0x30, 0x81, 0x84, 0x31, 0x2a, 0x30, 0x08, 0x06, 0x03, 0x55, 0x04, 0x03,
++      0x0c, 0x01, 0x41, 0x30, 0x08, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0c, 0x01,
++      0x42, 0x30, 0x09, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0c, 0x02, 0x41, 0x41,
++      0x30, 0x09, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0c, 0x02, 0x41, 0x42, 0x31,
++      0x2a, 0x30, 0x08, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0c, 0x01, 0x41, 0x30,
++      0x08, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0c, 0x01, 0x42, 0x30, 0x09, 0x06,
++      0x03, 0x55, 0x04, 0x03, 0x0c, 0x02, 0x41, 0x41, 0x30, 0x09, 0x06, 0x03,
++      0x55, 0x04, 0x03, 0x0c, 0x02, 0x41, 0x42, 0x31, 0x2a, 0x30, 0x08, 0x06,
++      0x03, 0x55, 0x04, 0x03, 0x0c, 0x01, 0x41, 0x30, 0x08, 0x06, 0x03, 0x55,
++      0x04, 0x03, 0x0c, 0x01, 0x42, 0x30, 0x09, 0x06, 0x03, 0x55, 0x04, 0x03,
++      0x0c, 0x02, 0x41, 0x41, 0x30, 0x09, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0c,
++      0x02, 0x41, 0x42};
++  EXPECT_EQ(Bytes(kExpected), Bytes(der, der_len));
++}

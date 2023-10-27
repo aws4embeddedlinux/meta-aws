@@ -1,0 +1,31 @@
+From 28cba2f9eb241f30db31861eae0b8ef24740164a Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Wed, 22 Feb 2023 11:35:01 -0800
+Subject: [PATCH] Fix BORINGSSL_PREFIX_HEADERS_PATH not included in cpreprocess
+ for FIPS (#829)
+
+---
+ crypto/fipsmodule/CMakeLists.txt | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/crypto/fipsmodule/CMakeLists.txt b/crypto/fipsmodule/CMakeLists.txt
+index 91d6d22b7..8a1d0543d 100644
+--- a/crypto/fipsmodule/CMakeLists.txt
++++ b/crypto/fipsmodule/CMakeLists.txt
+@@ -207,10 +207,15 @@ function(cpreprocess dest src)
+     set(TARGET "--target=${CMAKE_ASM_COMPILER_TARGET}")
+   endif()
+ 
++  set(PREFIX_INCLUDE "")
++  if(BORINGSSL_PREFIX)
++    set(PREFIX_INCLUDE "-I${BORINGSSL_PREFIX_HEADERS_PATH}")
++  endif()
++
+   string(REGEX REPLACE "[ ]+" ";" CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS}")
+   add_custom_command(
+     OUTPUT ${dest}
+-    COMMAND ${CMAKE_ASM_COMPILER} ${TARGET} ${CMAKE_ASM_FLAGS} -E ${src} -I${PROJECT_SOURCE_DIR}/include > ${dest}
++    COMMAND ${CMAKE_ASM_COMPILER} ${TARGET} ${CMAKE_ASM_FLAGS} -E ${src} -I${PROJECT_SOURCE_DIR}/include ${PREFIX_INCLUDE} > ${dest}
+     DEPENDS
+     ${src}
+     ${PROJECT_SOURCE_DIR}/include/openssl/arm_arch.h

@@ -1,0 +1,124 @@
+From 1f337b8a1b46eb636947c4fff9e48dc00e27e155 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Fri, 3 Feb 2023 16:06:14 -0800
+Subject: [PATCH] Turn on static FIPS build for Android (#752)
+
+---
+ .../AWSLCAndroidTestRunner/app/build.gradle     |  6 +++++-
+ .../codebuild/github_ci_android_omnibus.yaml    | 11 +++++++++--
+ ...oid_fips.yml => run_android_fips_shared.yml} |  1 +
+ .../android/run_android_fips_static.yml         | 14 ++++++++++++++
+ tests/ci/kickoff_devicefarm_job.sh              | 17 +++++++++++++----
+ 5 files changed, 42 insertions(+), 7 deletions(-)
+ rename tests/ci/codebuild/android/{run_android_fips.yml => run_android_fips_shared.yml} (95%)
+ create mode 100644 tests/ci/codebuild/android/run_android_fips_static.yml
+
+diff --git a/tests/ci/android/AWSLCAndroidTestRunner/app/build.gradle b/tests/ci/android/AWSLCAndroidTestRunner/app/build.gradle
+index 52ef10119..d63536551 100644
+--- a/tests/ci/android/AWSLCAndroidTestRunner/app/build.gradle
++++ b/tests/ci/android/AWSLCAndroidTestRunner/app/build.gradle
+@@ -13,7 +13,11 @@ android {
+     def test_apk_tag = ''
+     // FIPS only works with arm64 for Android.
+     if (project.hasProperty('FIPS')) {
+-        cmake_args += '-DFIPS=1,-DBUILD_SHARED_LIBS=1,-DCMAKE_BUILD_TYPE=Release'
++        cmake_args += '-DFIPS=1,-DCMAKE_BUILD_TYPE=Release'
++        // Shared build. If not set, the build is static.
++        if(project.hasProperty('Shared')) {
++            cmake_args += ',-DBUILD_SHARED_LIBS=1'
++        }
+         specific_abis = 'arm64-v8a'
+         main_apk_tag += '_fips'
+         test_apk_tag += '_fips'
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_android_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_android_omnibus.yaml
+index 4e3ea6b7f..b535ba901 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_android_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_android_omnibus.yaml
+@@ -35,8 +35,15 @@ batch:
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_MEDIUM
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_android_latest
+-    - identifier: ubuntu2004_android_fips
+-      buildspec: ./tests/ci/codebuild/android/run_android_fips.yml
++    - identifier: ubuntu2004_android_fips_shared_release
++      buildspec: ./tests/ci/codebuild/android/run_android_fips_shared.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: true
++        compute-type: BUILD_GENERAL1_MEDIUM
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_android_latest
++    - identifier: ubuntu2004_android_fips_static_release
++      buildspec: ./tests/ci/codebuild/android/run_android_fips_static.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+diff --git a/tests/ci/codebuild/android/run_android_fips.yml b/tests/ci/codebuild/android/run_android_fips_shared.yml
+similarity index 95%
+rename from tests/ci/codebuild/android/run_android_fips.yml
+rename to tests/ci/codebuild/android/run_android_fips_shared.yml
+index b18cedf89..b8b9b0fdd 100644
+--- a/tests/ci/codebuild/android/run_android_fips.yml
++++ b/tests/ci/codebuild/android/run_android_fips_shared.yml
+@@ -10,4 +10,5 @@ phases:
+         ./kickoff_devicefarm_job.sh
+         --test-name "AWS-LC Android FIPS ${CODEBUILD_WEBHOOK_TRIGGER} ${CODEBUILD_RESOLVED_SOURCE_VERSION}"
+         --fips true
++        --shared true
+         --action start-job
+diff --git a/tests/ci/codebuild/android/run_android_fips_static.yml b/tests/ci/codebuild/android/run_android_fips_static.yml
+new file mode 100644
+index 000000000..2b822125b
+--- /dev/null
++++ b/tests/ci/codebuild/android/run_android_fips_static.yml
+@@ -0,0 +1,14 @@
++version: 0.2
++
++phases:
++  build:
++    commands:
++      - chmod +x ./tests/ci/android/AWSLCAndroidTestRunner/gradlew
++      - cd tests/ci/
++      - python3 -m venv .env && . .env/bin/activate && pip install -r requirements.txt
++      - >
++        ./kickoff_devicefarm_job.sh
++        --test-name "AWS-LC Android FIPS ${CODEBUILD_WEBHOOK_TRIGGER} ${CODEBUILD_RESOLVED_SOURCE_VERSION}"
++        --fips true
++        --shared false
++        --action start-job
+diff --git a/tests/ci/kickoff_devicefarm_job.sh b/tests/ci/kickoff_devicefarm_job.sh
+index f2cd83cec..57aa5eda1 100755
+--- a/tests/ci/kickoff_devicefarm_job.sh
++++ b/tests/ci/kickoff_devicefarm_job.sh
+@@ -74,11 +74,20 @@ function compile_for_android() {
+   # |ANDROID_APK| and |ANDROID_TEST_APK| are apk names corresponding to the settings in the test runner gradle file.
+   # The working directory of this script should under `tests/ci`. 
+   # AWSLCAndroidTestRunner should be at `tests/ci/android/AWSLCAndroidTestRunner`.
+-  cd android/AWSLCAndroidTestRunner
++  pushd android/AWSLCAndroidTestRunner
+   export ANDROID_APK_LOCATION='android/AWSLCAndroidTestRunner/app/build/outputs/apk'
+   if [[ "${FIPS}" = true ]]; then
+-    # FIPS (Release Shared)
+-    ./gradlew assembleDebug assembleAndroidTest -PFIPS --offline
++    if [[ "${SHARED}" = true ]]; then
++      # FIPS (Release Shared)
++      ./gradlew assembleDebug assembleAndroidTest -PFIPS -PShared --offline
++    else
++      # FIPS (Release Static), go dependencies need to be copied from AWS-LC.
++      mkdir app/src/main/cpp/util
++      cp -r ../../../../util/godeps.go app/src/main/cpp/util/godeps.go
++      cp -r ../../../../go.mod app/src/main/cpp/go.mod
++      cp -r ../../../../go.sum app/src/main/cpp/go.sum
++      ./gradlew assembleDebug assembleAndroidTest -PFIPS --offline
++    fi
+     export ANDROID_APK="${ANDROID_APK_LOCATION}/debug/awslc_fips.apk"
+     export ANDROID_TEST_APK="${ANDROID_APK_LOCATION}/androidTest/debug/awslc_fips-androidTest.apk"
+   else
+@@ -108,7 +117,7 @@ function compile_for_android() {
+       fi
+     fi
+   fi
+-  cd ../../
++  popd
+ }
+ 
+ function main() {

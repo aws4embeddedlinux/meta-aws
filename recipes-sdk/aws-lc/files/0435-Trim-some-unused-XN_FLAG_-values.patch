@@ -1,0 +1,236 @@
+From b6082af174881079096aad9661e505be6ba0c5e7 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 19 Apr 2023 12:45:08 -0400
+Subject: [PATCH] Trim some unused XN_FLAG_* values
+
+These appear to be unused. Some ones of note:
+
+- XN_FLAG_FN_ALIGN breaks with multi-attribute RDNs anyway
+- XN_FLAG_FN_NONE is completely pointless
+
+Update-Note: Some seemingly unused XN_FLAG_* values were removed. If
+some project fails to build, we can put them back but one shouldn't be
+using this function in the first place.
+
+Change-Id: I4d8472e1e31aeec623b4d4e2aea48da7b1ef6798
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58930
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 26ead95e4667a3c49a04150d5ebae84050e8a5d3)
+---
+ crypto/x509/name_print.c | 56 +++++++++++------------------------
+ crypto/x509/x509_test.cc | 63 +++++++++++++++-------------------------
+ include/openssl/x509.h   | 18 ------------
+ 3 files changed, 41 insertions(+), 96 deletions(-)
+
+diff --git a/crypto/x509/name_print.c b/crypto/x509/name_print.c
+index 29207ccb6..5dc34dae5 100644
+--- a/crypto/x509/name_print.c
++++ b/crypto/x509/name_print.c
+@@ -56,6 +56,7 @@
+ 
+ #include <openssl/x509.h>
+ 
++#include <assert.h>
+ #include <inttypes.h>
+ #include <string.h>
+ 
+@@ -84,8 +85,7 @@ static int do_indent(BIO *out, int indent) {
+ 
+ static int do_name_ex(BIO *out, const X509_NAME *n, int indent,
+                       unsigned long flags) {
+-  int i, prev = -1, orflags, cnt;
+-  int fn_opt, fn_nid;
++  int prev = -1, orflags;
+   char objtmp[80];
+   const char *objbuf;
+   int outlen, len;
+@@ -142,10 +142,8 @@ static int do_name_ex(BIO *out, const X509_NAME *n, int indent,
+     sep_eq_len = 1;
+   }
+ 
+-  fn_opt = flags & XN_FLAG_FN_MASK;
+-
+-  cnt = X509_NAME_entry_count(n);
+-  for (i = 0; i < cnt; i++) {
++  int cnt = X509_NAME_entry_count(n);
++  for (int i = 0; i < cnt; i++) {
+     const X509_NAME_ENTRY *ent;
+     if (flags & XN_FLAG_DN_REV) {
+       ent = X509_NAME_get_entry(n, cnt - i - 1);
+@@ -172,40 +170,20 @@ static int do_name_ex(BIO *out, const X509_NAME *n, int indent,
+     prev = X509_NAME_ENTRY_set(ent);
+     const ASN1_OBJECT *fn = X509_NAME_ENTRY_get_object(ent);
+     const ASN1_STRING *val = X509_NAME_ENTRY_get_data(ent);
+-    fn_nid = OBJ_obj2nid(fn);
+-    if (fn_opt != XN_FLAG_FN_NONE) {
+-      int objlen, fld_len;
+-      if ((fn_opt == XN_FLAG_FN_OID) || (fn_nid == NID_undef)) {
+-        OBJ_obj2txt(objtmp, sizeof objtmp, fn, 1);
+-        fld_len = 0;  // XXX: what should this be?
+-        objbuf = objtmp;
+-      } else {
+-        if (fn_opt == XN_FLAG_FN_SN) {
+-          fld_len = FN_WIDTH_SN;
+-          objbuf = OBJ_nid2sn(fn_nid);
+-        } else if (fn_opt == XN_FLAG_FN_LN) {
+-          fld_len = FN_WIDTH_LN;
+-          objbuf = OBJ_nid2ln(fn_nid);
+-        } else {
+-          fld_len = 0;  // XXX: what should this be?
+-          objbuf = "";
+-        }
+-      }
+-      objlen = strlen(objbuf);
+-      if (!maybe_write(out, objbuf, objlen)) {
+-        return -1;
+-      }
+-      if ((objlen < fld_len) && (flags & XN_FLAG_FN_ALIGN)) {
+-        if (!do_indent(out, fld_len - objlen)) {
+-          return -1;
+-        }
+-        outlen += fld_len - objlen;
+-      }
+-      if (!maybe_write(out, sep_eq, sep_eq_len)) {
+-        return -1;
+-      }
+-      outlen += objlen + sep_eq_len;
++    assert((flags & XN_FLAG_FN_MASK) == XN_FLAG_FN_SN);
++    int fn_nid = OBJ_obj2nid(fn);
++    if (fn_nid == NID_undef) {
++      OBJ_obj2txt(objtmp, sizeof(objtmp), fn, 1);
++      objbuf = objtmp;
++    } else {
++      objbuf = OBJ_nid2sn(fn_nid);
++    }
++    int objlen = strlen(objbuf);
++    if (!maybe_write(out, objbuf, objlen) ||
++        !maybe_write(out, sep_eq, sep_eq_len)) {
++      return -1;
+     }
++    outlen += objlen + sep_eq_len;
+     // If the field name is unknown then fix up the DER dump flag. We
+     // might want to limit this further so it will DER dump on anything
+     // other than a few 'standard' fields.
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 5d16048e4..eaa163e0d 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -5103,50 +5103,35 @@ TEST(X509Test, NamePrint) {
+        "CN = \"Common "
+        "Name/CN=A/CN=B,CN=A,CN=B+CN=A+CN=B;CN=A;CN=B\\0ACN=A\\0A\", "
+        "CN = \" spaces \""},
+-      // |XN_FLAG_MULTILINE| is an OpenSSL-specific multi-line format that tries
+-      // to vertically align the equal sizes. The vertical alignment doesn't
+-      // quite handle multi-valued RDNs right and uses a non-RFC-2253 escaping.
++      // Callers can also customize the output, with both |XN_FLAG_*| and
++      // |ASN1_STRFLGS_*|. |XN_FLAG_SEP_SPLUS_SPC| uses semicolon separators.
+       {/*indent=*/0,
+-       /*flags=*/XN_FLAG_MULTILINE,
+-       "countryName               = US\n"
+-       "stateOrProvinceName       = Some State + "
+-       "stateOrProvinceName       = Some Other State \\U2603 + "
+-       "stateOrProvinceName       = Another State \\U2603 + "
+-       "1.2.840.113554.4.1.72585.2 = \\U2603\n"
+-       "1.2.840.113554.4.1.72585.3 = 0\\06\\02\\01\\01\\02\\01\\02\n"
+-       "organizationName          = Org Name\n"
+-       "commonName                = Common "
+-       "Name/CN=A/CN=B,CN=A,CN=B+CN=A+CN=B;CN=A;CN=B\\0ACN=A\\0A\n"
+-       "commonName                =  spaces "},
+-      // The multiline format indents every line.
+-      {/*indent=*/2,
+-       /*flags=*/XN_FLAG_MULTILINE,
+-       "  countryName               = US\n"
+-       "  stateOrProvinceName       = Some State + "
+-       "stateOrProvinceName       = Some Other State \\U2603 + "
+-       "stateOrProvinceName       = Another State \\U2603 + "
+-       "1.2.840.113554.4.1.72585.2 = \\U2603\n"
+-       "  1.2.840.113554.4.1.72585.3 = 0\\06\\02\\01\\01\\02\\01\\02\n"
+-       "  organizationName          = Org Name\n"
+-       "  commonName                = Common "
+-       "Name/CN=A/CN=B,CN=A,CN=B+CN=A+CN=B;CN=A;CN=B\\0ACN=A\\0A\n"
+-       "  commonName                =  spaces "},
+-      // Callers can also customize the output, wuith both |XN_FLAG_*| and
+-      // |ASN1_STRFLGS_*|. |XN_FLAG_SEP_SPLUS_SPC| uses semicolon separators and
+-      // |XN_FLAG_FN_OID| forces OIDs.
+-      {/*indent=*/0,
+-       /*flags=*/XN_FLAG_SEP_SPLUS_SPC | XN_FLAG_FN_OID | ASN1_STRFLGS_RFC2253 |
++       /*flags=*/XN_FLAG_SEP_SPLUS_SPC | ASN1_STRFLGS_RFC2253 |
+            ASN1_STRFLGS_ESC_QUOTE,
+-       "2.5.4.6=US; "
+-       "2.5.4.8=Some State + "
+-       "2.5.4.8=Some Other State \\E2\\98\\83 + "
+-       "2.5.4.8=Another State \\E2\\98\\83 + "
++       "C=US; "
++       "ST=Some State + "
++       "ST=Some Other State \\E2\\98\\83 + "
++       "ST=Another State \\E2\\98\\83 + "
+        "1.2.840.113554.4.1.72585.2=\\E2\\98\\83; "
+        "1.2.840.113554.4.1.72585.3=#3006020101020102; "
+-       "2.5.4.10=Org Name; "
+-       "2.5.4.3=\"Common "
++       "O=Org Name; "
++       "CN=\"Common "
+        "Name/CN=A/CN=B,CN=A,CN=B+CN=A+CN=B;CN=A;CN=B\\0ACN=A\\0A\"; "
+-       "2.5.4.3=\" spaces \""},
++       "CN=\" spaces \""},
++      // Node uses these parameters.
++      {/*indent=*/0,
++       /*flags=*/ASN1_STRFLGS_ESC_2253 | ASN1_STRFLGS_ESC_CTRL |
++           ASN1_STRFLGS_UTF8_CONVERT | XN_FLAG_SEP_MULTILINE | XN_FLAG_FN_SN,
++       "C=US\n"
++       "ST=Some State + "
++       "ST=Some Other State \xE2\x98\x83 + "
++       "ST=Another State \xE2\x98\x83 + "
++       "1.2.840.113554.4.1.72585.2=\xE2\x98\x83\n"
++       "1.2.840.113554.4.1.72585.3=0\\06\\02\\01\\01\\02\\01\\02\n"
++       "O=Org Name\n"
++       "CN=Common "
++       "Name/CN=A/CN=B\\,CN=A\\,CN=B\\+CN=A\\+CN=B\\;CN=A\\;CN=B\\0ACN=A\\0A\n"
++       "CN=\\ spaces\\ "},
+       // |XN_FLAG_COMPAT| matches |X509_NAME_print|, rather than
+       // |X509_NAME_print_ex|.
+       //
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index d11da395c..19f4aa9e4 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -1678,15 +1678,6 @@ OPENSSL_EXPORT int X509_REQ_print_fp(FILE *fp, X509_REQ *req);
+ // XN_FLAG_FN_SN uses the attribute type's short name, when available.
+ #define XN_FLAG_FN_SN 0
+ 
+-// XN_FLAG_FN_LN uses the attribute type's long name, when available.
+-#define XN_FLAG_FN_LN (1 << 21)
+-
+-// XN_FLAG_FN_OID always prints attribute types as OIDs.
+-#define XN_FLAG_FN_OID (2 << 21)
+-
+-// XN_FLAG_FN_NONE skips printing field names.
+-#define XN_FLAG_FN_NONE (3 << 21)
+-
+ // XN_FLAG_SPC_EQ wraps the "=" operator with spaces when printing attributes.
+ #define XN_FLAG_SPC_EQ (1 << 23)
+ 
+@@ -1694,10 +1685,6 @@ OPENSSL_EXPORT int X509_REQ_print_fp(FILE *fp, X509_REQ *req);
+ // hex, as in RFC 2253.
+ #define XN_FLAG_DUMP_UNKNOWN_FIELDS (1 << 24)
+ 
+-// XN_FLAG_FN_ALIGN aligns attribute names to 10 characters if using short
+-// names, and 25 characters if using long names.
+-#define XN_FLAG_FN_ALIGN (1 << 25)
+-
+ // XN_FLAG_RFC2253 prints like RFC 2253.
+ #define XN_FLAG_RFC2253                                             \
+   (ASN1_STRFLGS_RFC2253 | XN_FLAG_SEP_COMMA_PLUS | XN_FLAG_DN_REV | \
+@@ -1708,11 +1695,6 @@ OPENSSL_EXPORT int X509_REQ_print_fp(FILE *fp, X509_REQ *req);
+   (ASN1_STRFLGS_RFC2253 | ASN1_STRFLGS_ESC_QUOTE | XN_FLAG_SEP_CPLUS_SPC | \
+    XN_FLAG_SPC_EQ | XN_FLAG_FN_SN)
+ 
+-// XN_FLAG_MULTILINE prints a multi-line representation of the name.
+-#define XN_FLAG_MULTILINE                                                 \
+-  (ASN1_STRFLGS_ESC_CTRL | ASN1_STRFLGS_ESC_MSB | XN_FLAG_SEP_MULTILINE | \
+-   XN_FLAG_SPC_EQ | XN_FLAG_FN_LN | XN_FLAG_FN_ALIGN)
+-
+ // X509_NAME_print_ex writes a human-readable representation of |nm| to |out|.
+ // Each line of output is indented by |indent| spaces. It returns the number of
+ // bytes written on success, and -1 on error. If |out| is NULL, it returns the

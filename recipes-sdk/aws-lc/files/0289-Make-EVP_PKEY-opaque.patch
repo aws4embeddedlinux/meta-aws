@@ -1,0 +1,335 @@
+From 7149f5d97a40ee2952d8294a938c289235b1865c Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 8 Feb 2023 15:24:47 -0500
+Subject: [PATCH] Make EVP_PKEY opaque.
+
+While hiding 'type' isn't such a huge deal, accessing 'pkey' without a
+type check is very dangerous. The accessors are type-checked and avoid
+this problem. It also gets us slightly closer to not needing to utter
+CRYPTO_refcount_t in public headers, as we're currently not quite
+declaring it right. And it allows us to remove another union:
+https://boringssl-review.googlesource.com/c/boringssl/+/57106
+
+This matches what upstream did in OpenSSL 1.1.0.
+
+Update-Note: Code that reaches into the EVP_PKEY struct will no longer
+compile, like in OpenSSL. I believe I've fixed all the cases. If I
+missed any, the fix is to switch code to accessors. EVP_PKEY_id(pkey)
+for pkey->type is the most common fix.
+
+AWS-LC:
+- macros in evp_extra_test.cc directly access `->pkey.kem_key`;
+"#include "../fipsmodule/evp/internal.h" was added to it.
+
+Change-Id: Ibe8d6b6cb8fbd141ea1cef0d02dc1ae3703e9469
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57105
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit 890c201d4ac9c345c304d646365fe077cf2b60c1)
+---
+ crypto/evp_extra/evp_extra_test.cc | 12 ++++++------
+ crypto/evp_extra/print.c           | 22 +++++++++++-----------
+ crypto/fipsmodule/evp/internal.h   | 20 ++++++++++++++++++++
+ crypto/x509/i2d_pr.c               |  6 +++---
+ crypto/x509/x509_req.c             |  7 +------
+ include/openssl/evp.h              | 26 +-------------------------
+ ssl/ssl_cert.cc                    |  4 ++--
+ ssl/ssl_privkey.cc                 |  2 +-
+ 8 files changed, 45 insertions(+), 54 deletions(-)
+
+diff --git a/crypto/evp_extra/evp_extra_test.cc b/crypto/evp_extra/evp_extra_test.cc
+index 7f9b5d755..4c55d919e 100644
+--- a/crypto/evp_extra/evp_extra_test.cc
++++ b/crypto/evp_extra/evp_extra_test.cc
+@@ -35,6 +35,7 @@
+ #include "../internal.h"
+ 
+ #include "../kem/internal.h"
++#include "../fipsmodule/evp/internal.h"
+ 
+ 
+ // kExampleRSAKeyDER is an RSA private key in ASN.1, DER format. Of course, you
+@@ -1756,7 +1757,7 @@ TEST_P(PerKEMTest, KeyGeneration) {
+ 
+   // ---- 3. Test getting raw keys and their size ----
+   size_t pk_len, sk_len;
+-  
++
+   // First getting the sizes only.
+   ASSERT_TRUE(EVP_PKEY_get_raw_public_key(pkey.get(), nullptr, &pk_len));
+   ASSERT_TRUE(EVP_PKEY_get_raw_private_key(pkey.get(), nullptr, &sk_len));
+@@ -1958,7 +1959,7 @@ TEST_P(PerKEMTest, EndToEnd) {
+   // ---- 4. Alice/Bob: Bob -- ciphertext --> Alice ----
+   // Nothing to do here, we simply use |b_ct|.
+ 
+-  // ---- 5. Alice: decapsulation ---- 
++  // ---- 5. Alice: decapsulation ----
+   std::vector<uint8_t> a_ss(ss_len); // The shared secret.
+   ASSERT_TRUE(EVP_PKEY_decapsulate(a_ctx.get(), a_ss.data(), &ss_len, b_ct.data(), ct_len));
+ 
+@@ -1981,7 +1982,7 @@ TEST_P(PerKEMTest, EndToEnd) {
+           CMP_VEC_AND_PTR(vec, pkey->pkey.kem_key->secret_key, len)
+ 
+ TEST_P(PerKEMTest, RawKeyOperations) {
+-  
++
+   // ---- 1. Setup phase: generate a context and a key ----
+   // Create context of KEM type.
+   bssl::UniquePtr<EVP_PKEY_CTX> ctx(EVP_PKEY_CTX_new_id(EVP_PKEY_KEM, nullptr));
+@@ -2024,7 +2025,7 @@ TEST_P(PerKEMTest, RawKeyOperations) {
+ 
+   // ---- 4. Test creating new keys from raw data ----
+   int nid = GetParam().nid;
+-  
++
+   bssl::UniquePtr<EVP_PKEY> pkey_pk_new(EVP_PKEY_kem_new_raw_public_key(nid, pk.data(), pk_len));
+   bssl::UniquePtr<EVP_PKEY> pkey_sk_new(EVP_PKEY_kem_new_raw_secret_key(nid, sk.data(), sk_len));
+   bssl::UniquePtr<EVP_PKEY> pkey_new(EVP_PKEY_kem_new_raw_key(nid, pk.data(), pk_len, sk.data(), sk_len));
+@@ -2208,7 +2209,7 @@ TEST_P(PerKEMTest, KAT) {
+     size_t ct_len = GetParam().ciphertext_len;
+     size_t ss_len = GetParam().shared_secret_len;
+ 
+-    // Set randomness generation in deterministic mode. 
++    // Set randomness generation in deterministic mode.
+     pq_custom_randombytes_use_deterministic_for_testing();
+     pq_custom_randombytes_init_for_testing(seed.data());
+ 
+@@ -2234,4 +2235,3 @@ TEST_P(PerKEMTest, KAT) {
+     EXPECT_EQ(Bytes(ss_expected), Bytes(ss));
+   });
+ }
+-
+diff --git a/crypto/evp_extra/print.c b/crypto/evp_extra/print.c
+index ed0fb0eec..925074e5a 100644
+--- a/crypto/evp_extra/print.c
++++ b/crypto/evp_extra/print.c
+@@ -181,11 +181,11 @@ static int do_rsa_print(BIO *out, const RSA *rsa, int off,
+ }
+ 
+ static int rsa_pub_print(BIO *bp, const EVP_PKEY *pkey, int indent) {
+-  return do_rsa_print(bp, pkey->pkey.rsa, indent, 0);
++  return do_rsa_print(bp, EVP_PKEY_get0_RSA(pkey), indent, 0);
+ }
+ 
+ static int rsa_priv_print(BIO *bp, const EVP_PKEY *pkey, int indent) {
+-  return do_rsa_print(bp, pkey->pkey.rsa, indent, 1);
++  return do_rsa_print(bp, EVP_PKEY_get0_RSA(pkey), indent, 1);
+ }
+ 
+ 
+@@ -225,15 +225,15 @@ static int do_dsa_print(BIO *bp, const DSA *x, int off, int ptype) {
+ }
+ 
+ static int dsa_param_print(BIO *bp, const EVP_PKEY *pkey, int indent) {
+-  return do_dsa_print(bp, pkey->pkey.dsa, indent, 0);
++  return do_dsa_print(bp, EVP_PKEY_get0_DSA(pkey), indent, 0);
+ }
+ 
+ static int dsa_pub_print(BIO *bp, const EVP_PKEY *pkey, int indent) {
+-  return do_dsa_print(bp, pkey->pkey.dsa, indent, 1);
++  return do_dsa_print(bp, EVP_PKEY_get0_DSA(pkey), indent, 1);
+ }
+ 
+ static int dsa_priv_print(BIO *bp, const EVP_PKEY *pkey, int indent) {
+-  return do_dsa_print(bp, pkey->pkey.dsa, indent, 2);
++  return do_dsa_print(bp, EVP_PKEY_get0_DSA(pkey), indent, 2);
+ }
+ 
+ 
+@@ -293,16 +293,16 @@ static int do_EC_KEY_print(BIO *bp, const EC_KEY *x, int off, int ktype) {
+ }
+ 
+ static int eckey_param_print(BIO *bp, const EVP_PKEY *pkey, int indent) {
+-  return do_EC_KEY_print(bp, pkey->pkey.ec, indent, 0);
++  return do_EC_KEY_print(bp, EVP_PKEY_get0_EC_KEY(pkey), indent, 0);
+ }
+ 
+ static int eckey_pub_print(BIO *bp, const EVP_PKEY *pkey, int indent) {
+-  return do_EC_KEY_print(bp, pkey->pkey.ec, indent, 1);
++  return do_EC_KEY_print(bp, EVP_PKEY_get0_EC_KEY(pkey), indent, 1);
+ }
+ 
+ 
+ static int eckey_priv_print(BIO *bp, const EVP_PKEY *pkey, int indent) {
+-  return do_EC_KEY_print(bp, pkey->pkey.ec, indent, 2);
++  return do_EC_KEY_print(bp, EVP_PKEY_get0_EC_KEY(pkey), indent, 2);
+ }
+ 
+ 
+@@ -354,7 +354,7 @@ static int print_unsupported(BIO *out, const EVP_PKEY *pkey, int indent,
+ 
+ int EVP_PKEY_print_public(BIO *out, const EVP_PKEY *pkey, int indent,
+                           ASN1_PCTX *pctx) {
+-  EVP_PKEY_PRINT_METHOD *method = find_method(pkey->type);
++  EVP_PKEY_PRINT_METHOD *method = find_method(EVP_PKEY_id(pkey));
+   if (method != NULL && method->pub_print != NULL) {
+     return method->pub_print(out, pkey, indent);
+   }
+@@ -363,7 +363,7 @@ int EVP_PKEY_print_public(BIO *out, const EVP_PKEY *pkey, int indent,
+ 
+ int EVP_PKEY_print_private(BIO *out, const EVP_PKEY *pkey, int indent,
+                            ASN1_PCTX *pctx) {
+-  EVP_PKEY_PRINT_METHOD *method = find_method(pkey->type);
++  EVP_PKEY_PRINT_METHOD *method = find_method(EVP_PKEY_id(pkey));
+   if (method != NULL && method->priv_print != NULL) {
+     return method->priv_print(out, pkey, indent);
+   }
+@@ -372,7 +372,7 @@ int EVP_PKEY_print_private(BIO *out, const EVP_PKEY *pkey, int indent,
+ 
+ int EVP_PKEY_print_params(BIO *out, const EVP_PKEY *pkey, int indent,
+                           ASN1_PCTX *pctx) {
+-  EVP_PKEY_PRINT_METHOD *method = find_method(pkey->type);
++  EVP_PKEY_PRINT_METHOD *method = find_method(EVP_PKEY_id(pkey));
+   if (method != NULL && method->param_print != NULL) {
+     return method->param_print(out, pkey, indent);
+   }
+diff --git a/crypto/fipsmodule/evp/internal.h b/crypto/fipsmodule/evp/internal.h
+index c3901d240..ba18ee644 100644
+--- a/crypto/fipsmodule/evp/internal.h
++++ b/crypto/fipsmodule/evp/internal.h
+@@ -123,6 +123,26 @@ struct evp_pkey_asn1_method_st {
+   void (*pkey_free)(EVP_PKEY *pkey);
+ }; // EVP_PKEY_ASN1_METHOD
+ 
++struct evp_pkey_st {
++  CRYPTO_refcount_t references;
++
++  // type contains one of the EVP_PKEY_* values or NID_undef and determines
++  // which element (if any) of the |pkey| union is valid.
++  int type;
++
++  union {
++    void *ptr;
++    RSA *rsa;
++    DSA *dsa;
++    DH *dh;
++    EC_KEY *ec;
++    KEM_KEY *kem_key;
++  } pkey;
++
++  // ameth contains a pointer to a method table that contains many ASN.1
++  // methods for the key type.
++  const EVP_PKEY_ASN1_METHOD *ameth;
++} /* EVP_PKEY */;
+ 
+ #define EVP_PKEY_OP_UNDEFINED 0
+ #define EVP_PKEY_OP_KEYGEN (1 << 2)
+diff --git a/crypto/x509/i2d_pr.c b/crypto/x509/i2d_pr.c
+index 1fb69eca4..e5865a428 100644
+--- a/crypto/x509/i2d_pr.c
++++ b/crypto/x509/i2d_pr.c
+@@ -65,11 +65,11 @@
+ int i2d_PrivateKey(const EVP_PKEY *a, uint8_t **pp) {
+   switch (EVP_PKEY_id(a)) {
+     case EVP_PKEY_RSA:
+-      return i2d_RSAPrivateKey(a->pkey.rsa, pp);
++      return i2d_RSAPrivateKey(EVP_PKEY_get0_RSA(a), pp);
+     case EVP_PKEY_EC:
+-      return i2d_ECPrivateKey(a->pkey.ec, pp);
++      return i2d_ECPrivateKey(EVP_PKEY_get0_EC_KEY(a), pp);
+     case EVP_PKEY_DSA:
+-      return i2d_DSAPrivateKey(a->pkey.dsa, pp);
++      return i2d_DSAPrivateKey(EVP_PKEY_get0_DSA(a), pp);
+     default:
+       // Although this file is in crypto/x509 for layering reasons, it emits
+       // an error code from ASN1 for OpenSSL compatibility.
+diff --git a/crypto/x509/x509_req.c b/crypto/x509/x509_req.c
+index c7829c7be..8734897fe 100644
+--- a/crypto/x509/x509_req.c
++++ b/crypto/x509/x509_req.c
+@@ -99,15 +99,10 @@ int X509_REQ_check_private_key(X509_REQ *x, EVP_PKEY *k) {
+       OPENSSL_PUT_ERROR(X509, X509_R_KEY_TYPE_MISMATCH);
+       break;
+     case -2:
+-      if (k->type == EVP_PKEY_EC) {
++      if (EVP_PKEY_id(k) == EVP_PKEY_EC) {
+         OPENSSL_PUT_ERROR(X509, ERR_R_EC_LIB);
+         break;
+       }
+-      if (k->type == EVP_PKEY_DH) {
+-        // No idea
+-        OPENSSL_PUT_ERROR(X509, X509_R_CANT_CHECK_DH_KEY);
+-        break;
+-      }
+       OPENSSL_PUT_ERROR(X509, X509_R_UNKNOWN_KEY_TYPE);
+   }
+ 
+diff --git a/include/openssl/evp.h b/include/openssl/evp.h
+index 3e4fc3193..830e603c2 100644
+--- a/include/openssl/evp.h
++++ b/include/openssl/evp.h
+@@ -754,7 +754,7 @@ OPENSSL_EXPORT int EVP_PKEY_encapsulate(EVP_PKEY_CTX *ctx          /* IN  */,
+ // provide large enough |shared_secret| buffer.
+ //
+ // It returns one on success or zero on error.
+-OPENSSL_EXPORT int EVP_PKEY_decapsulate(EVP_PKEY_CTX *ctx          /* IN  */, 
++OPENSSL_EXPORT int EVP_PKEY_decapsulate(EVP_PKEY_CTX *ctx          /* IN  */,
+                                         uint8_t *shared_secret     /* OUT */,
+                                         size_t  *shared_secret_len /* OUT */,
+                                         uint8_t *ciphertext        /* IN  */,
+@@ -1156,30 +1156,6 @@ OPENSSL_EXPORT int EVP_PKEY_CTX_set_dsa_paramgen_q_bits(EVP_PKEY_CTX *ctx,
+   ERR_put_error(ERR_LIB_EVP, 0, reason, __FILE__, __LINE__)
+ 
+ 
+-// Private structures.
+-
+-struct evp_pkey_st {
+-  CRYPTO_refcount_t references;
+-
+-  // type contains one of the EVP_PKEY_* values or NID_undef and determines
+-  // which element (if any) of the |pkey| union is valid.
+-  int type;
+-
+-  union {
+-    void *ptr;
+-    RSA *rsa;
+-    DSA *dsa;
+-    DH *dh;
+-    EC_KEY *ec;
+-    KEM_KEY *kem_key;
+-  } pkey;
+-
+-  // ameth contains a pointer to a method table that contains many ASN.1
+-  // methods for the key type.
+-  const EVP_PKEY_ASN1_METHOD *ameth;
+-}; // EVP_PKEY
+-
+-
+ #if defined(__cplusplus)
+ }  // extern C
+ 
+diff --git a/ssl/ssl_cert.cc b/ssl/ssl_cert.cc
+index ec7738198..aa46a8bb6 100644
+--- a/ssl/ssl_cert.cc
++++ b/ssl/ssl_cert.cc
+@@ -237,14 +237,14 @@ static enum leaf_cert_and_privkey_result_t check_leaf_cert_and_privkey(
+     return leaf_cert_and_privkey_error;
+   }
+ 
+-  if (!ssl_is_key_type_supported(pubkey->type)) {
++  if (!ssl_is_key_type_supported(EVP_PKEY_id(pubkey.get()))) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_UNKNOWN_CERTIFICATE_TYPE);
+     return leaf_cert_and_privkey_error;
+   }
+ 
+   // An ECC certificate may be usable for ECDH or ECDSA. We only support ECDSA
+   // certificates, so sanity-check the key usage extension.
+-  if (pubkey->type == EVP_PKEY_EC &&
++  if (EVP_PKEY_id(pubkey.get()) == EVP_PKEY_EC &&
+       !ssl_cert_check_key_usage(&cert_cbs, key_usage_digital_signature)) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_UNKNOWN_CERTIFICATE_TYPE);
+     return leaf_cert_and_privkey_error;
+diff --git a/ssl/ssl_privkey.cc b/ssl/ssl_privkey.cc
+index 60fda697d..5a75b5e51 100644
+--- a/ssl/ssl_privkey.cc
++++ b/ssl/ssl_privkey.cc
+@@ -77,7 +77,7 @@ bool ssl_is_key_type_supported(int key_type) {
+ }
+ 
+ static bool ssl_set_pkey(CERT *cert, EVP_PKEY *pkey) {
+-  if (!ssl_is_key_type_supported(pkey->type)) {
++  if (!ssl_is_key_type_supported(EVP_PKEY_id(pkey))) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_UNKNOWN_CERTIFICATE_TYPE);
+     return false;
+   }

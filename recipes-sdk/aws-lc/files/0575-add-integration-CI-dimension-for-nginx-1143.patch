@@ -1,0 +1,610 @@
+From c05f77c812c6ba16b61fa6cf2ddabeb059e57ded Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Tue, 12 Sep 2023 17:07:06 -0700
+Subject: [PATCH] add integration CI dimension for nginx (#1143)
+
+We've recently ironed out some of the gaps for nginx support. We're not
+100% in line with what OpenSSL supports, but we're satisfied with what
+we have now.
+The remaining gaps are:
+* Stateful Session Resumption (Session Caches)
+* SSL_Conf commands
+
+This adds a CI dimension to verify our newfound support.
+---
+ .../github_ci_integration_omnibus.yaml        |  29 ++-
+ .../run_nonroot_target.yml}                   |   4 +-
+ .../linux-aarch/ubuntu-22.04_base/Dockerfile  |   6 +
+ .../linux-x86/ubuntu-22.04_base/Dockerfile    |   4 +
+ .../linux-x86/ubuntu-22.04_gcc-12x/Dockerfile |   2 +-
+ .../nginx_patch/aws-lc-nginx.patch            | 151 +++++++++++++++
+ .../aws-lc-nginx-tests.patch                  | 180 ++++++++++++++++++
+ tests/ci/integration/run_nginx_integration.sh |  92 +++++++++
+ 8 files changed, 462 insertions(+), 6 deletions(-)
+ rename tests/ci/codebuild/{integration/postgres_integration.yml => common/run_nonroot_target.yml} (78%)
+ create mode 100644 tests/ci/integration/nginx_patch/aws-lc-nginx.patch
+ create mode 100644 tests/ci/integration/nginx_tests_patch/aws-lc-nginx-tests.patch
+ create mode 100755 tests/ci/integration/run_nginx_integration.sh
+
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+index 3cbe78209..597fa50d3 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+@@ -28,20 +28,24 @@ batch:
+           AWS_LC_CI_TARGET: "tests/ci/integration/run_openssh_integration.sh"
+ 
+     - identifier: postgres_integration_x86
+-      buildspec: ./tests/ci/codebuild/integration/postgres_integration.yml
++      buildspec: tests/ci/codebuild/common/run_nonroot_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_MEDIUM
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/integration/run_postgres_integration.sh"
+ 
+     - identifier: postgres_integration_aarch
+-      buildspec: ./tests/ci/codebuild/integration/postgres_integration.yml
++      buildspec: tests/ci/codebuild/common/run_nonroot_target.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-22.04_gcc-12x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/integration/run_postgres_integration.sh"
+ 
+     # MySQL build is bloated without any obvious build configurations we can use to speed up the build, so we use a larger instance here.
+     - identifier: mysql_integration
+@@ -54,7 +58,6 @@ batch:
+         variables:
+           AWS_LC_CI_TARGET: "tests/ci/integration/run_mysql_integration.sh"
+ 
+-
+     - identifier: mariadb_integration
+       buildspec: tests/ci/codebuild/common/run_simple_target.yml
+       env:
+@@ -74,3 +77,23 @@ batch:
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
+         variables:
+           AWS_LC_CI_TARGET: "tests/ci/integration/run_curl_integration.sh"
++
++    - identifier: nginx_integration_x86
++      buildspec: tests/ci/codebuild/common/run_nonroot_target.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_MEDIUM
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/integration/run_nginx_integration.sh"
++
++    - identifier: nginx_integration_aarch
++      buildspec: tests/ci/codebuild/common/run_nonroot_target.yml
++      env:
++        type: ARM_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-22.04_gcc-12x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/integration/run_nginx_integration.sh"
+diff --git a/tests/ci/codebuild/integration/postgres_integration.yml b/tests/ci/codebuild/common/run_nonroot_target.yml
+similarity index 78%
+rename from tests/ci/codebuild/integration/postgres_integration.yml
+rename to tests/ci/codebuild/common/run_nonroot_target.yml
+index 8b83d5760..702b29a00 100644
+--- a/tests/ci/codebuild/integration/postgres_integration.yml
++++ b/tests/ci/codebuild/common/run_nonroot_target.yml
+@@ -11,11 +11,11 @@ phases:
+   install:
+     run-as: root
+     commands:
+-      # Let postgres user in docker image take ownership of codebuild artifacts.
++      # Let non-root user in docker image take ownership of codebuild artifacts.
+       - chown -R postgres:postgres /codebuild/output
+       # Go caches build objects in /root/.cache.
+       - chown -R postgres:postgres /root/
+   build:
+     run-as: postgres
+     commands:
+-      - ./tests/ci/integration/run_postgres_integration.sh
++      - "./${AWS_LC_CI_TARGET}"
+diff --git a/tests/ci/docker_images/linux-aarch/ubuntu-22.04_base/Dockerfile b/tests/ci/docker_images/linux-aarch/ubuntu-22.04_base/Dockerfile
+index fb273f3b6..56008381d 100644
+--- a/tests/ci/docker_images/linux-aarch/ubuntu-22.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/ubuntu-22.04_base/Dockerfile
+@@ -24,6 +24,7 @@ RUN set -ex && \
+     cmake \
+     make \
+     ninja-build \
++    patch \
+     perl \
+     libunwind-dev \
+     pkg-config \
+@@ -33,8 +34,13 @@ RUN set -ex && \
+     lld \
+     llvm \
+     llvm-dev \
++    libcryptx-perl \
+     libicu-dev \
++    libio-socket-ssl-perl \
+     libipc-run-perl \
++    libnet-ssleay-perl \
++    libperl-dev \
++    libpcre2-dev \
+     libreadline-dev \
+     zlib1g-dev \
+     flex \
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+index 4ec62b902..0114feda2 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+@@ -39,9 +39,13 @@ RUN set -ex && \
+     lld \
+     llvm \
+     llvm-dev \
++    libcryptx-perl \
+     libicu-dev \
++    libio-socket-ssl-perl \
+     libipc-run-perl \
+     libjson-perl \
++    libnet-ssleay-perl \
++    libperl-dev \
+     libpcre2-dev \
+     libreadline-dev \
+     libtool \
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-22.04_gcc-12x/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-22.04_gcc-12x/Dockerfile
+index be1a49f31..6bdd05bec 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-22.04_gcc-12x/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-22.04_gcc-12x/Dockerfile
+@@ -21,7 +21,7 @@ RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100 \
+                         --slave /usr/bin/g++ g++ /usr/bin/g++-12 \
+                         --slave /usr/bin/cpp cpp-bin /usr/bin/cpp-12
+ 
+-# Postgres's integration tests cannot be ran as root, so we have to define
++# Postgres and NGINXs integration tests cannot be ran as root, so we have to define
+ # a non-root user here to use in Codebuild.
+ RUN adduser --disabled-password --gecos '' postgres && \
+     adduser postgres sudo && \
+diff --git a/tests/ci/integration/nginx_patch/aws-lc-nginx.patch b/tests/ci/integration/nginx_patch/aws-lc-nginx.patch
+new file mode 100644
+index 000000000..eef19eed1
+--- /dev/null
++++ b/tests/ci/integration/nginx_patch/aws-lc-nginx.patch
+@@ -0,0 +1,151 @@
++diff --git a/src/event/ngx_event_openssl.h b/src/event/ngx_event_openssl.h
++index c062f91..447f003 100644
++--- a/src/event/ngx_event_openssl.h
+++++ b/src/event/ngx_event_openssl.h
++@@ -25,7 +25,7 @@
++ #endif
++ #include <openssl/evp.h>
++ #if (NGX_QUIC)
++-#ifdef OPENSSL_IS_BORINGSSL
+++#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
++ #include <openssl/hkdf.h>
++ #include <openssl/chacha.h>
++ #else
++diff --git a/src/event/quic/ngx_event_quic.c b/src/event/quic/ngx_event_quic.c
++index 6852bb0..9a6f335 100644
++--- a/src/event/quic/ngx_event_quic.c
+++++ b/src/event/quic/ngx_event_quic.c
++@@ -960,7 +960,7 @@ ngx_quic_handle_payload(ngx_connection_t *c, ngx_quic_header_t *pkt)
++         return NGX_DECLINED;
++     }
++ 
++-#if !defined (OPENSSL_IS_BORINGSSL)
+++#if !defined (OPENSSL_IS_BORINGSSL) && !defined (OPENSSL_IS_AWSLC)
++     /* OpenSSL provides read keys for an application level before it's ready */
++ 
++     if (pkt->level == ssl_encryption_application && !c->ssl->handshaked) {
++diff --git a/src/event/quic/ngx_event_quic_protection.c b/src/event/quic/ngx_event_quic_protection.c
++index 5bc3c20..910ef8f 100644
++--- a/src/event/quic/ngx_event_quic_protection.c
+++++ b/src/event/quic/ngx_event_quic_protection.c
++@@ -51,7 +51,7 @@ ngx_quic_ciphers(ngx_uint_t id, ngx_quic_ciphers_t *ciphers,
++     switch (id) {
++ 
++     case TLS1_3_CK_AES_128_GCM_SHA256:
++-#ifdef OPENSSL_IS_BORINGSSL
+++#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
++         ciphers->c = EVP_aead_aes_128_gcm();
++ #else
++         ciphers->c = EVP_aes_128_gcm();
++@@ -62,7 +62,7 @@ ngx_quic_ciphers(ngx_uint_t id, ngx_quic_ciphers_t *ciphers,
++         break;
++ 
++     case TLS1_3_CK_AES_256_GCM_SHA384:
++-#ifdef OPENSSL_IS_BORINGSSL
+++#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
++         ciphers->c = EVP_aead_aes_256_gcm();
++ #else
++         ciphers->c = EVP_aes_256_gcm();
++@@ -73,12 +73,12 @@ ngx_quic_ciphers(ngx_uint_t id, ngx_quic_ciphers_t *ciphers,
++         break;
++ 
++     case TLS1_3_CK_CHACHA20_POLY1305_SHA256:
++-#ifdef OPENSSL_IS_BORINGSSL
+++#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
++         ciphers->c = EVP_aead_chacha20_poly1305();
++ #else
++         ciphers->c = EVP_chacha20_poly1305();
++ #endif
++-#ifdef OPENSSL_IS_BORINGSSL
+++#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
++         ciphers->hp = (const EVP_CIPHER *) EVP_aead_chacha20_poly1305();
++ #else
++         ciphers->hp = EVP_chacha20();
++@@ -87,7 +87,7 @@ ngx_quic_ciphers(ngx_uint_t id, ngx_quic_ciphers_t *ciphers,
++         len = 32;
++         break;
++ 
++-#ifndef OPENSSL_IS_BORINGSSL
+++#if !defined (OPENSSL_IS_BORINGSSL) && !defined (OPENSSL_IS_AWSLC)
++     case TLS1_3_CK_AES_128_CCM_SHA256:
++         ciphers->c = EVP_aes_128_ccm();
++         ciphers->hp = EVP_aes_128_ctr();
++@@ -223,7 +223,7 @@ static ngx_int_t
++ ngx_hkdf_expand(u_char *out_key, size_t out_len, const EVP_MD *digest,
++     const uint8_t *prk, size_t prk_len, const u_char *info, size_t info_len)
++ {
++-#ifdef OPENSSL_IS_BORINGSSL
+++#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
++ 
++     if (HKDF_expand(out_key, out_len, digest, prk, prk_len, info, info_len)
++         == 0)
++@@ -285,7 +285,7 @@ ngx_hkdf_extract(u_char *out_key, size_t *out_len, const EVP_MD *digest,
++     const u_char *secret, size_t secret_len, const u_char *salt,
++     size_t salt_len)
++ {
++-#ifdef OPENSSL_IS_BORINGSSL
+++#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
++ 
++     if (HKDF_extract(out_key, out_len, digest, secret, secret_len, salt,
++                      salt_len)
++@@ -348,7 +348,7 @@ ngx_quic_tls_open(const ngx_quic_cipher_t *cipher, ngx_quic_secret_t *s,
++     ngx_str_t *out, u_char *nonce, ngx_str_t *in, ngx_str_t *ad, ngx_log_t *log)
++ {
++ 
++-#ifdef OPENSSL_IS_BORINGSSL
+++#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
++     EVP_AEAD_CTX  *ctx;
++ 
++     ctx = EVP_AEAD_CTX_new(cipher, s->key.data, s->key.len,
++@@ -453,7 +453,7 @@ ngx_quic_tls_seal(const ngx_quic_cipher_t *cipher, ngx_quic_secret_t *s,
++     ngx_str_t *out, u_char *nonce, ngx_str_t *in, ngx_str_t *ad, ngx_log_t *log)
++ {
++ 
++-#ifdef OPENSSL_IS_BORINGSSL
+++#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
++     EVP_AEAD_CTX  *ctx;
++ 
++     ctx = EVP_AEAD_CTX_new(cipher, s->key.data, s->key.len,
++@@ -572,7 +572,7 @@ ngx_quic_tls_hp(ngx_log_t *log, const EVP_CIPHER *cipher,
++     EVP_CIPHER_CTX  *ctx;
++     u_char           zero[NGX_QUIC_HP_LEN] = {0};
++ 
++-#ifdef OPENSSL_IS_BORINGSSL
+++#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
++     uint32_t         cnt;
++ 
++     ngx_memcpy(&cnt, in, sizeof(uint32_t));
++diff --git a/src/event/quic/ngx_event_quic_protection.h b/src/event/quic/ngx_event_quic_protection.h
++index 2d30067..c83ae14 100644
++--- a/src/event/quic/ngx_event_quic_protection.h
+++++ b/src/event/quic/ngx_event_quic_protection.h
++@@ -24,7 +24,7 @@
++ #define NGX_QUIC_MAX_MD_SIZE          48
++ 
++ 
++-#ifdef OPENSSL_IS_BORINGSSL
+++#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
++ #define ngx_quic_cipher_t             EVP_AEAD
++ #else
++ #define ngx_quic_cipher_t             EVP_CIPHER
++diff --git a/src/event/quic/ngx_event_quic_ssl.c b/src/event/quic/ngx_event_quic_ssl.c
++index c719a1d..87e86fc 100644
++--- a/src/event/quic/ngx_event_quic_ssl.c
+++++ b/src/event/quic/ngx_event_quic_ssl.c
++@@ -11,6 +11,7 @@
++ 
++ 
++ #if defined OPENSSL_IS_BORINGSSL                                              \
+++    || defined OPENSSL_IS_AWSLC                                               \
++     || defined LIBRESSL_VERSION_NUMBER                                        \
++     || NGX_QUIC_OPENSSL_COMPAT
++ #define NGX_QUIC_BORINGSSL_API   1
++@@ -578,7 +579,7 @@ ngx_quic_init_connection(ngx_connection_t *c)
++         return NGX_ERROR;
++     }
++ 
++-#ifdef OPENSSL_IS_BORINGSSL
+++#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
++     if (SSL_set_quic_early_data_context(ssl_conn, p, clen) == 0) {
++         ngx_log_error(NGX_LOG_INFO, c->log, 0,
++                       "quic SSL_set_quic_early_data_context() failed");
+diff --git a/tests/ci/integration/nginx_tests_patch/aws-lc-nginx-tests.patch b/tests/ci/integration/nginx_tests_patch/aws-lc-nginx-tests.patch
+new file mode 100644
+index 000000000..dc6b48ac6
+--- /dev/null
++++ b/tests/ci/integration/nginx_tests_patch/aws-lc-nginx-tests.patch
+@@ -0,0 +1,180 @@
++diff --git a/h3_ssl_early_data.t b/h3_ssl_early_data.t
++index 064ffad..b06acd1 100644
++--- a/h3_ssl_early_data.t
+++++ b/h3_ssl_early_data.t
++@@ -89,6 +89,7 @@ $s = Test::Nginx::HTTP3->new(8980, psk_list => $psk_list, early_data => {});
++ TODO: {
++ local $TODO = 'no 0-RTT in OpenSSL compat layer'
++ 	unless $t->has_module('OpenSSL [.0-9]+\+quic')
+++	or $t->has_module('AWS-LC')
++ 	or $t->has_module('BoringSSL')
++ 	or $t->has_module('LibreSSL');
++ 
++diff --git a/h3_ssl_session_reuse.t b/h3_ssl_session_reuse.t
++index e9ef846..eaac4de 100644
++--- a/h3_ssl_session_reuse.t
+++++ b/h3_ssl_session_reuse.t
++@@ -139,6 +139,8 @@ is(test_reuse(8944), 1, 'tickets and cache reused');
++ 
++ local $TODO = 'no TLSv1.3 session cache in BoringSSL'
++ 	if $t->has_module('BoringSSL');
+++local $TODO = 'no TLSv1.3 session cache in AWS-LC'
+++    if $t->has_module('AWS-LC');
++ 
++ is(test_reuse(8945), 1, 'cache shared reused');
++ is(test_reuse(8946), 1, 'cache builtin reused');
++diff --git a/mail_ssl_conf_command.t b/mail_ssl_conf_command.t
++index 7686eca..cdb7df0 100644
++--- a/mail_ssl_conf_command.t
+++++ b/mail_ssl_conf_command.t
++@@ -30,6 +30,7 @@ my $t = Test::Nginx->new()
++ 	->has_daemon('openssl');
++ 
++ plan(skip_all => 'no ssl_conf_command') if $t->has_module('BoringSSL');
+++plan(skip_all => 'no ssl_conf_command') if $t->has_module('AWS-LC');
++ 
++ $t->write_file_expand('nginx.conf', <<'EOF');
++ 
++diff --git a/mail_ssl_session_reuse.t b/mail_ssl_session_reuse.t
++index 96330cc..30ed758 100644
++--- a/mail_ssl_session_reuse.t
+++++ b/mail_ssl_session_reuse.t
++@@ -147,6 +147,8 @@ is(test_reuse(8994), 1, 'tickets and cache reused');
++ TODO: {
++ local $TODO = 'no TLSv1.3 session cache in BoringSSL'
++ 	if $t->has_module('BoringSSL') && test_tls13();
+++local $TODO = 'no TLSv1.3 session cache in AWS-LC'
+++    if $t->has_module('AWS-LC') && test_tls13();
++ 
++ is(test_reuse(8995), 1, 'cache shared reused');
++ is(test_reuse(8996), 1, 'cache builtin reused');
++diff --git a/proxy_ssl_conf_command.t b/proxy_ssl_conf_command.t
++index c06cbec..0d3aa65 100644
++--- a/proxy_ssl_conf_command.t
+++++ b/proxy_ssl_conf_command.t
++@@ -27,6 +27,7 @@ my $t = Test::Nginx->new()
++ 	->has_daemon('openssl');
++ 
++ plan(skip_all => 'no ssl_conf_command') if $t->has_module('BoringSSL');
+++plan(skip_all => 'no ssl_conf_command') if $t->has_module('AWS-LC');
++ 
++ $t->write_file_expand('nginx.conf', <<'EOF')->plan(3);
++ 
++diff --git a/ssl.t b/ssl.t
++index 13d3dae..2378602 100644
++--- a/ssl.t
+++++ b/ssl.t
++@@ -215,6 +215,8 @@ local $TODO = 'no TLSv1.3 sessions in LibreSSL'
++ 	if $t->has_module('LibreSSL') && test_tls13();
++ local $TODO = 'no TLSv1.3 sessions ids in BoringSSL'
++ 	if $t->has_module('BoringSSL') && test_tls13();
+++local $TODO = 'no TLSv1.3 sessions ids in AWS-LC'
+++	if $t->has_module('AWS-LC') && test_tls13();
++ 
++ like(get('/id', 8085, $ctx), qr/^body \w{64}$/m, 'session id reused');
++ 
++@@ -226,6 +228,7 @@ like(get('/cipher', 8085), qr/^body [\w-]+$/m, 'cipher');
++ 
++ SKIP: {
++ skip 'BoringSSL', 1 if $t->has_module('BoringSSL');
+++skip 'AWS-LC', 1 if $t->has_module('AWS-LC');
++ 
++ like(get('/ciphers', 8085), qr/^body [:\w-]+$/m, 'ciphers');
++ 
++diff --git a/ssl_conf_command.t b/ssl_conf_command.t
++index d4ae398..ef9836e 100644
++--- a/ssl_conf_command.t
+++++ b/ssl_conf_command.t
++@@ -27,6 +27,7 @@ my $t = Test::Nginx->new()
++ 	->has_daemon('openssl');
++ 
++ plan(skip_all => 'no ssl_conf_command') if $t->has_module('BoringSSL');
+++plan(skip_all => 'no ssl_conf_command') if $t->has_module('AWS-LC');
++ 
++ $t->write_file_expand('nginx.conf', <<'EOF');
++ 
++diff --git a/ssl_ocsp.t b/ssl_ocsp.t
++index 3bc9af4..8504204 100644
++--- a/ssl_ocsp.t
+++++ b/ssl_ocsp.t
++@@ -358,6 +358,8 @@ local $TODO = 'no TLSv1.3 sessions, old IO::Socket::SSL'
++ 	if $IO::Socket::SSL::VERSION < 2.061 && test_tls13();
++ local $TODO = 'no TLSv1.3 sessions in LibreSSL'
++ 	if $t->has_module('LibreSSL') && test_tls13();
+++local $TODO = 'no TLSv1.3 session cache in AWS-LC'
+++	if $t->has_module('AWS-LC') && test_tls13();
++ 
++ like(get('ec-end', ses => $s),
++ 	qr/200 OK.*SUCCESS:r/s, 'session reused');
++@@ -390,6 +392,8 @@ local $TODO = 'no TLSv1.3 sessions, old IO::Socket::SSL'
++ 	if $IO::Socket::SSL::VERSION < 2.061 && test_tls13();
++ local $TODO = 'no TLSv1.3 sessions in LibreSSL'
++ 	if $t->has_module('LibreSSL') && test_tls13();
+++local $TODO = 'no TLSv1.3 session cache in AWS-LC'
+++	if $t->has_module('AWS-LC') && test_tls13();
++ 
++ like(get('ec-end', ses => $s),
++ 	qr/400 Bad.*FAILED:certificate revoked:r/s, 'session reused - revoked');
++diff --git a/ssl_session_reuse.t b/ssl_session_reuse.t
++index 163de3d..d22282b 100644
++--- a/ssl_session_reuse.t
+++++ b/ssl_session_reuse.t
++@@ -174,6 +174,8 @@ is(test_reuse(8444), 1, 'tickets and cache reused');
++ TODO: {
++ local $TODO = 'no TLSv1.3 session cache in BoringSSL'
++ 	if $t->has_module('BoringSSL') && test_tls13();
+++local $TODO = 'no TLSv1.3 session cache in AWS-LC'
+++    if $t->has_module('AWS-LC') && test_tls13();
++ 
++ is(test_reuse(8445), 1, 'cache shared reused');
++ is(test_reuse(8446), 1, 'cache builtin reused');
++diff --git a/ssl_sni_sessions.t b/ssl_sni_sessions.t
++index 7ff5fa0..958bfaa 100644
++--- a/ssl_sni_sessions.t
+++++ b/ssl_sni_sessions.t
++@@ -118,6 +118,8 @@ plan(skip_all => 'no TLSv1.3 sessions in LibreSSL')
++         if $t->has_module('LibreSSL') && test_tls13();
++ plan(skip_all => 'no TLS 1.3 session cache in BoringSSL')
++ 	if $t->has_module('BoringSSL') && test_tls13();
+++plan(skip_all => 'no TLS 1.3 session cache in AWS-LC')
+++    if $t->has_module('AWS-LC') && test_tls13();
++ 
++ $t->plan(6);
++ 
++diff --git a/stream_proxy_ssl_conf_command.t b/stream_proxy_ssl_conf_command.t
++index d9b3807..a70fd6d 100644
++--- a/stream_proxy_ssl_conf_command.t
+++++ b/stream_proxy_ssl_conf_command.t
++@@ -27,6 +27,7 @@ my $t = Test::Nginx->new()
++ 	->has_daemon('openssl');
++ 
++ plan(skip_all => 'no ssl_conf_command') if $t->has_module('BoringSSL');
+++plan(skip_all => 'no ssl_conf_command') if $t->has_module('AWS-LC');
++ 
++ $t->write_file_expand('nginx.conf', <<'EOF');
++ 
++diff --git a/stream_ssl_conf_command.t b/stream_ssl_conf_command.t
++index 2b8c8a3..3db9c2b 100644
++--- a/stream_ssl_conf_command.t
+++++ b/stream_ssl_conf_command.t
++@@ -29,6 +29,7 @@ my $t = Test::Nginx->new()
++ 	->has_daemon('openssl');
++ 
++ plan(skip_all => 'no ssl_conf_command') if $t->has_module('BoringSSL');
+++plan(skip_all => 'no ssl_conf_command') if $t->has_module('AWS-LC');
++ 
++ $t->write_file_expand('nginx.conf', <<'EOF');
++ 
++diff --git a/stream_ssl_session_reuse.t b/stream_ssl_session_reuse.t
++index 53f24d2..39b7d62 100644
++--- a/stream_ssl_session_reuse.t
+++++ b/stream_ssl_session_reuse.t
++@@ -151,6 +151,8 @@ is(test_reuse(8444), 1, 'tickets and cache reused');
++ TODO: {
++ local $TODO = 'no TLSv1.3 session cache in BoringSSL'
++ 	if $t->has_module('BoringSSL') && test_tls13();
+++local $TODO = 'no TLSv1.3 session cache in AWS-LC'
+++    if $t->has_module('AWS-LC') && test_tls13();
++ 
++ is(test_reuse(8445), 1, 'cache shared reused');
++ is(test_reuse(8446), 1, 'cache builtin reused');
+diff --git a/tests/ci/integration/run_nginx_integration.sh b/tests/ci/integration/run_nginx_integration.sh
+new file mode 100755
+index 000000000..cd33320b2
+--- /dev/null
++++ b/tests/ci/integration/run_nginx_integration.sh
+@@ -0,0 +1,92 @@
++#!/bin/bash -exu
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++source tests/ci/common_posix_setup.sh
++
++# Set up environment.
++
++# SYS_ROOT
++#  - SRC_ROOT(aws-lc)
++#    - SCRATCH_FOLDER
++#      - nginx
++#      - AWS_LC_BUILD_FOLDER
++#      - AWS_LC_INSTALL_FOLDER
++#      - NGINX_BUILD_FOLDER
++
++# Assumes script is executed from the root of aws-lc directory
++SCRATCH_FOLDER="${SRC_ROOT}/NGINX_BUILD_ROOT"
++NGINX_SRC_FOLDER="${SCRATCH_FOLDER}/nginx"
++NGINX_TEST_FOLDER="${SCRATCH_FOLDER}/nginx-tests"
++NGINX_BUILD_FOLDER="${SCRATCH_FOLDER}/nginx-aws-lc"
++NGINX_PATCH_BUILD_FOLDER="${SRC_ROOT}/tests/ci/integration/nginx_patch"
++NGINX_PATCH_TEST_FOLDER="${SRC_ROOT}/tests/ci/integration/nginx_tests_patch"
++AWS_LC_BUILD_FOLDER="${SCRATCH_FOLDER}/aws-lc-build"
++AWS_LC_INSTALL_FOLDER="${NGINX_SRC_FOLDER}/aws-lc-install"
++
++
++mkdir -p ${SCRATCH_FOLDER}
++rm -rf ${SCRATCH_FOLDER}/*
++cd ${SCRATCH_FOLDER}
++
++function nginx_build() {
++  ./auto/configure --prefix="${NGINX_BUILD_FOLDER}" \
++    --with-http_ssl_module \
++    --with-http_v2_module \
++    --with-http_v3_module \
++    --with-stream \
++    --with-stream_realip_module \
++    --with-stream_ssl_module \
++    --with-stream_ssl_preread_module \
++    --with-mail \
++    --with-mail_ssl_module \
++    --with-cc-opt="-I${AWS_LC_INSTALL_FOLDER}/include" \
++    --with-ld-opt="-L${AWS_LC_INSTALL_FOLDER}/lib"
++  make -j install
++  ls -R ${NGINX_BUILD_FOLDER}
++}
++
++function nginx_run_tests() {
++  TEST_NGINX_BINARY="${NGINX_BUILD_FOLDER}/sbin/nginx" prove .
++}
++
++# TODO: Remove this when we make an upstream contribution.
++function nginx_patch_build() {
++  for patchfile in $(find -L "${NGINX_PATCH_BUILD_FOLDER}" -type f -name '*.patch'); do
++    echo "Apply patch $patchfile..."
++    patch -p1 --quiet -i "$patchfile"
++  done
++}
++
++# There are some features in nginx that we don't currently support. The known gaps are:
++# * SSL_Conf Command
++# * Stateful session resumption (Session Caches)
++function nginx_patch_tests() {
++  for patchfile in $(find -L "${NGINX_PATCH_TEST_FOLDER}" -type f -name '*.patch'); do
++    echo "Apply patch $patchfile..."
++    patch -p1 --quiet -i "$patchfile"
++  done
++  # http_listen.t tries to open port 8182, but this port isn't available within the
++  # docker container from CI configurations. This isn't related to ssl functionality, so
++  # we skip/remove it.
++  rm http_listen.t
++}
++
++git clone https://github.com/nginx/nginx.git ${NGINX_SRC_FOLDER} --depth 1
++git clone https://github.com/nginx/nginx-tests.git ${NGINX_TEST_FOLDER} --depth 1
++mkdir -p ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER} ${NGINX_BUILD_FOLDER}
++ls
++
++aws_lc_build ${SRC_ROOT} ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER}
++
++# Build nginx from source.
++pushd ${NGINX_SRC_FOLDER}
++nginx_patch_build
++nginx_build
++popd
++
++# Run against nginx unit tests.
++pushd ${NGINX_TEST_FOLDER}
++nginx_patch_tests
++nginx_run_tests
++popd

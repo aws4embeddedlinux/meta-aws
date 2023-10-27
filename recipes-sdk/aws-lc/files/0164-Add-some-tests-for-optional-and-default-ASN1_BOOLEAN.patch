@@ -1,0 +1,124 @@
+From 4a92220e2b00a9d0d599de2fc51e5d2642ac1bda Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sat, 28 Jan 2023 10:32:23 -0500
+Subject: [PATCH] Add some tests for optional and default ASN1_BOOLEAN.
+
+ASN1_BOOLEAN has these ASN1_FBOOLEAN and ASN1_TBOOLEAN variants that
+behave slightly strangely. Add some tests to ensure we don't break them
+in the rewrite.
+
+In doing so, fix a bug: ASN1_BOOLEAN canonically represents TRUE as
+0xff, to match DER. But ASN1_TBOOLEAN is initialized with it->size,
+which is 1, not 0xff. Fix it to be 0xff. (This shouldn't actually matter
+because the encoder is lax and ASN1_TBOOLEAN doesn't encode TRUE
+anyway.)
+
+Bug: 548
+Change-Id: I4e7fdc2a3bc87603eaf04a7668359006a1480c2e
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56187
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit 915eb691d3a4c64025acc841d389848db80a5444)
+---
+ crypto/asn1/asn1_test.cc | 74 ++++++++++++++++++++++++++++++++++++++++
+ crypto/asn1/tasn_typ.c   |  3 +-
+ 2 files changed, 75 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/asn1/asn1_test.cc b/crypto/asn1/asn1_test.cc
+index ff48a5d74..42e052e07 100644
+--- a/crypto/asn1/asn1_test.cc
++++ b/crypto/asn1/asn1_test.cc
+@@ -2444,4 +2444,78 @@ TEST(ASN1Test, MissingRequiredField) {
+   }
+ }
+ 
++struct BOOLEANS {
++  ASN1_BOOLEAN required;
++  ASN1_BOOLEAN optional;
++  ASN1_BOOLEAN default_true;
++  ASN1_BOOLEAN default_false;
++};
++
++DECLARE_ASN1_FUNCTIONS(BOOLEANS)
++ASN1_SEQUENCE(BOOLEANS) = {
++    ASN1_SIMPLE(BOOLEANS, required, ASN1_BOOLEAN),
++    ASN1_IMP_OPT(BOOLEANS, optional, ASN1_BOOLEAN, 1),
++    // Although not actually optional, |ASN1_TBOOLEAN| and |ASN1_FBOOLEAN| need
++    // to be marked optional in the template.
++    ASN1_IMP_OPT(BOOLEANS, default_true, ASN1_TBOOLEAN, 2),
++    ASN1_IMP_OPT(BOOLEANS, default_false, ASN1_FBOOLEAN, 3),
++} ASN1_SEQUENCE_END(BOOLEANS)
++IMPLEMENT_ASN1_FUNCTIONS(BOOLEANS)
++
++TEST(ASN1Test, OptionalAndDefaultBooleans) {
++  std::unique_ptr<BOOLEANS, decltype(&BOOLEANS_free)> obj(nullptr,
++                                                          BOOLEANS_free);
++
++  // A default-constructed object should use, respectively, omitted, omitted,
++  // TRUE, FALSE.
++  //
++  // TODO(davidben): Is the first one a bug? It seems more consistent for a
++  // required BOOLEAN default to FALSE. |FOO_new| typically default-initializes
++  // fields valid states. (Though there are exceptions. CHOICE, ANY, and OBJECT
++  // IDENTIFIER are default-initialized to something invalid.)
++  obj.reset(BOOLEANS_new());
++  ASSERT_TRUE(obj);
++  EXPECT_EQ(obj->required, ASN1_BOOLEAN_NONE);
++  EXPECT_EQ(obj->optional, ASN1_BOOLEAN_NONE);
++  EXPECT_EQ(obj->default_true, ASN1_BOOLEAN_TRUE);
++  EXPECT_EQ(obj->default_false, ASN1_BOOLEAN_FALSE);
++
++  // Trying to serialize this should fail, because |obj->required| is omitted.
++  EXPECT_EQ(-1, i2d_BOOLEANS(obj.get(), nullptr));
++
++  // Otherwise, this object is serializable. Most fields are omitted, due to
++  // them being optional or defaulted.
++  static const uint8_t kFieldsOmitted[] = {0x30, 0x03, 0x01, 0x01, 0x00};
++  obj->required = 0;
++  TestSerialize(obj.get(), i2d_BOOLEANS, kFieldsOmitted);
++
++  const uint8_t *der = kFieldsOmitted;
++  obj.reset(d2i_BOOLEANS(nullptr, &der, sizeof(kFieldsOmitted)));
++  ASSERT_TRUE(obj);
++  EXPECT_EQ(obj->required, ASN1_BOOLEAN_FALSE);
++  EXPECT_EQ(obj->optional, ASN1_BOOLEAN_NONE);
++  EXPECT_EQ(obj->default_true, ASN1_BOOLEAN_TRUE);
++  EXPECT_EQ(obj->default_false, ASN1_BOOLEAN_FALSE);
++
++  // Include the optinonal fields instead.
++  static const uint8_t kFieldsIncluded[] = {0x30, 0x0c, 0x01, 0x01, 0xff,
++                                            0x81, 0x01, 0x00, 0x82, 0x01,
++                                            0x00, 0x83, 0x01, 0xff};
++  obj->required = ASN1_BOOLEAN_TRUE;
++  obj->optional = ASN1_BOOLEAN_FALSE;
++  obj->default_true = ASN1_BOOLEAN_FALSE;
++  obj->default_false = ASN1_BOOLEAN_TRUE;
++  TestSerialize(obj.get(), i2d_BOOLEANS, kFieldsIncluded);
++
++  der = kFieldsIncluded;
++  obj.reset(d2i_BOOLEANS(nullptr, &der, sizeof(kFieldsIncluded)));
++  ASSERT_TRUE(obj);
++  EXPECT_EQ(obj->required, ASN1_BOOLEAN_TRUE);
++  EXPECT_EQ(obj->optional, ASN1_BOOLEAN_FALSE);
++  EXPECT_EQ(obj->default_true, ASN1_BOOLEAN_FALSE);
++  EXPECT_EQ(obj->default_false, ASN1_BOOLEAN_TRUE);
++
++  // TODO(https://crbug.com/boringssl/354): Reject explicit DEFAULTs.
++}
++
+ #endif  // !WINDOWS || !SHARED_LIBRARY
+diff --git a/crypto/asn1/tasn_typ.c b/crypto/asn1/tasn_typ.c
+index a9409e2f7..ebeda542e 100644
+--- a/crypto/asn1/tasn_typ.c
++++ b/crypto/asn1/tasn_typ.c
+@@ -107,9 +107,8 @@ IMPLEMENT_ASN1_FUNCTIONS_const_fname(ASN1_STRING, DIRECTORYSTRING,
+                                      DIRECTORYSTRING)
+ 
+ // Three separate BOOLEAN type: normal, DEFAULT TRUE and DEFAULT FALSE
+-// TODO(davidben): ASN1_TBOOLEAN should be ASN1_BOOLEAN_TRUE, or 0xff.
+ IMPLEMENT_ASN1_TYPE_ex(ASN1_BOOLEAN, ASN1_BOOLEAN, ASN1_BOOLEAN_NONE)
+-IMPLEMENT_ASN1_TYPE_ex(ASN1_TBOOLEAN, ASN1_BOOLEAN, 1)
++IMPLEMENT_ASN1_TYPE_ex(ASN1_TBOOLEAN, ASN1_BOOLEAN, ASN1_BOOLEAN_TRUE)
+ IMPLEMENT_ASN1_TYPE_ex(ASN1_FBOOLEAN, ASN1_BOOLEAN, ASN1_BOOLEAN_FALSE)
+ 
+ ASN1_ITEM_TEMPLATE(ASN1_SEQUENCE_ANY) =

@@ -1,0 +1,108 @@
+From 3c0ddb1e2f4b9dc3cb8f98b2dcda48ae8274f324 Mon Sep 17 00:00:00 2001
+From: Joel Knight <knight.joel@gmail.com>
+Date: Wed, 8 Feb 2023 18:16:02 -0700
+Subject: [PATCH] Fix/build on openbsd (#764)
+
+* fix: googletest compile error on OpenBSD
+
+`-Wvla` triggers an error when compiling gtest-port.cc. For now, remove
+the offending code.
+
+```
+third_party/googletest/src/gtest-port.cc:205:26:
+error: variable length arrays are a C99 feature [-Werror,-Wvla-extension]
+  struct kinfo_proc info[mib[5]];
+                           ^~~~~~
+```
+
+* fix: OpenBSD: unknown type name 'pthread_rwlock_t'
+
+---------
+
+Co-authored-by: Andrew Hopkins <andhop@amazon.com>
+Co-authored-by: torben-hansen <50673096+torben-hansen@users.noreply.github.com>
+Co-authored-by: Samuel Chiang <sachiang@amazon.com>
+---
+ include/openssl/base.h                   |  4 +++
+ include/openssl/thread.h                 |  3 ++
+ third_party/googletest/src/gtest-port.cc | 38 ------------------------
+ 3 files changed, 7 insertions(+), 38 deletions(-)
+
+diff --git a/include/openssl/base.h b/include/openssl/base.h
+index ffae488dc..0bc096294 100644
+--- a/include/openssl/base.h
++++ b/include/openssl/base.h
+@@ -170,6 +170,10 @@ extern "C" {
+ #define OPENSSL_FREEBSD
+ #endif
+ 
++#if defined(__OpenBSD__)
++#define OPENSSL_OPENBSD
++#endif
++
+ // BoringSSL requires platform's locking APIs to make internal global state
+ // thread-safe, including the PRNG. On some single-threaded embedded platforms,
+ // locking APIs may not exist, so this dependency may be disabled with the
+diff --git a/include/openssl/thread.h b/include/openssl/thread.h
+index c6e357e18..57484ae28 100644
+--- a/include/openssl/thread.h
++++ b/include/openssl/thread.h
+@@ -78,6 +78,9 @@ typedef union crypto_mutex_st {
+   void *handle;
+ } CRYPTO_MUTEX;
+ #elif !defined(__GLIBC__)
++#if defined(OPENSSL_OPENBSD)
++#include <pthread.h>
++#endif
+ typedef pthread_rwlock_t CRYPTO_MUTEX;
+ #else
+ // On glibc, |pthread_rwlock_t| is hidden under feature flags, and we can't
+diff --git a/third_party/googletest/src/gtest-port.cc b/third_party/googletest/src/gtest-port.cc
+index 3f39f71c0..75b006f0b 100644
+--- a/third_party/googletest/src/gtest-port.cc
++++ b/third_party/googletest/src/gtest-port.cc
+@@ -178,44 +178,6 @@ size_t GetThreadCount() {
+   }
+   return static_cast<size_t>(KP_NLWP(info));
+ }
+-#elif GTEST_OS_OPENBSD
+-
+-// Returns the number of threads running in the process, or 0 to indicate that
+-// we cannot detect it.
+-size_t GetThreadCount() {
+-  int mib[] = {
+-    CTL_KERN,
+-    KERN_PROC,
+-    KERN_PROC_PID | KERN_PROC_SHOW_THREADS,
+-    getpid(),
+-    sizeof(struct kinfo_proc),
+-    0,
+-  };
+-  u_int miblen = sizeof(mib) / sizeof(mib[0]);
+-
+-  // get number of structs
+-  size_t size;
+-  if (sysctl(mib, miblen, NULL, &size, NULL, 0)) {
+-    return 0;
+-  }
+-
+-  mib[5] = static_cast<int>(size / static_cast<size_t>(mib[4]));
+-
+-  // populate array of structs
+-  struct kinfo_proc info[mib[5]];
+-  if (sysctl(mib, miblen, &info, &size, NULL, 0)) {
+-    return 0;
+-  }
+-
+-  // exclude empty members
+-  size_t nthreads = 0;
+-  for (size_t i = 0; i < size / static_cast<size_t>(mib[4]); i++) {
+-    if (info[i].p_tid != -1)
+-      nthreads++;
+-  }
+-  return nthreads;
+-}
+-
+ #elif GTEST_OS_QNX
+ 
+ // Returns the number of threads running in the process, or 0 to indicate that

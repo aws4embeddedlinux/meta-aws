@@ -1,0 +1,506 @@
+From 19bfabd93acefd9318910b0d885eedecc855ab46 Mon Sep 17 00:00:00 2001
+From: Bob Beck <bbe@google.com>
+Date: Tue, 7 Feb 2023 14:32:41 -0700
+Subject: [PATCH] Make ERR and thread use system malloc.
+
+This will let us call ERR and thread_local from OPENSSL_malloc
+without creating a circular dependency. We also make
+ERR_get_error_line_data add ERR_FLAG_MALLOCED to the returned
+flags value, since some projects appear to be making
+assumptions about it being there.
+
+Bug: 564
+
+Update-Note: Any recent documentation (in all OpenSSL forks) for the ERR functions
+cautions against freeing the returned ERR "data" strings, as freeing them is handled
+by the error library. This change can make an existing double free bug more
+obvious by being more likely to cause a crash with the double free.
+
+Change-Id: Ie30bd3aee0b506473988b90675c48510969db31a
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57045
+Reviewed-by: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+Auto-Submit: Bob Beck <bbe@google.com>
+(cherry picked from commit fc524c161e8640e017b0d838f76e75dc49181e34)
+---
+ crypto/err/err.c        | 140 +++++++++++++++++++++-------------------
+ crypto/err/err_test.cc  |   8 +--
+ crypto/thread_pthread.c |   9 +--
+ crypto/thread_win.c     |   9 +--
+ include/openssl/err.h   |   8 ++-
+ include/openssl/mem.h   |   9 ++-
+ 6 files changed, 101 insertions(+), 82 deletions(-)
+
+diff --git a/crypto/err/err.c b/crypto/err/err.c
+index 71ef1675a..68c06341c 100644
+--- a/crypto/err/err.c
++++ b/crypto/err/err.c
+@@ -106,6 +106,8 @@
+  * (eay@cryptsoft.com).  This product includes software written by Tim
+  * Hudson (tjh@cryptsoft.com). */
+ 
++// Ensure we can't call OPENSSL_malloc circularly.
++#define _BORINGSSL_PROHIBIT_OPENSSL_MALLOC
+ #include <openssl/err.h>
+ 
+ #include <assert.h>
+@@ -115,7 +117,8 @@
+ #define __STDC_FORMAT_MACROS
+ #endif
+ #include <inttypes.h>
+-
++#include <limits.h>
++#include <stdarg.h>
+ #include <string.h>
+ 
+ #if defined(OPENSSL_WINDOWS)
+@@ -134,8 +137,8 @@ OPENSSL_MSVC_PRAGMA(warning(pop))
+ struct err_error_st {
+   // file contains the filename where the error occurred.
+   const char *file;
+-  // data contains a NUL-terminated string with optional data. It must be freed
+-  // with |OPENSSL_free|.
++  // data contains a NUL-terminated string with optional data. It is allocated
++  // with system |malloc| and must be freed with |free| (not |OPENSSL_free|)
+   char *data;
+   // packed contains the error library and reason, as packed by ERR_PACK.
+   uint32_t packed;
+@@ -167,7 +170,7 @@ extern const char kOpenSSLReasonStringData[];
+ 
+ // err_clear clears the given queued error.
+ static void err_clear(struct err_error_st *error) {
+-  OPENSSL_free(error->data);
++  free(error->data);
+   OPENSSL_memset(error, 0, sizeof(struct err_error_st));
+ }
+ 
+@@ -175,12 +178,19 @@ static void err_copy(struct err_error_st *dst, const struct err_error_st *src) {
+   err_clear(dst);
+   dst->file = src->file;
+   if (src->data != NULL) {
+-    dst->data = OPENSSL_strdup(src->data);
++    // Disable deprecated functions on msvc so it doesn't complain about strdup.
++    OPENSSL_MSVC_PRAGMA(warning(push))
++    OPENSSL_MSVC_PRAGMA(warning(disable : 4996))
++    // We can't use OPENSSL_strdup because we don't want to call OPENSSL_malloc,
++    // which can affect the error stack.
++    dst->data = strdup(src->data);
++    OPENSSL_MSVC_PRAGMA(warning(pop))
+   }
+   dst->packed = src->packed;
+   dst->line = src->line;
+ }
+ 
++
+ // global_next_library contains the next custom library value to return.
+ static int global_next_library = ERR_NUM_LIBS;
+ 
+@@ -199,15 +209,15 @@ static void err_state_free(void *statep) {
+   for (unsigned i = 0; i < ERR_NUM_ERRORS; i++) {
+     err_clear(&state->errors[i]);
+   }
+-  OPENSSL_free(state->to_free);
+-  OPENSSL_free(state);
++  free(state->to_free);
++  free(state);
+ }
+ 
+ // err_get_state gets the ERR_STATE object for the current thread.
+ static ERR_STATE *err_get_state(void) {
+   ERR_STATE *state = CRYPTO_get_thread_local(OPENSSL_THREAD_LOCAL_ERR);
+   if (state == NULL) {
+-    state = OPENSSL_malloc(sizeof(ERR_STATE));
++    state = malloc(sizeof(ERR_STATE));
+     if (state == NULL) {
+       return NULL;
+     }
+@@ -263,7 +273,10 @@ static uint32_t get_error_values(int inc, int top, const char **file, int *line,
+     } else {
+       *data = error->data;
+       if (flags != NULL) {
+-        *flags = ERR_FLAG_STRING;
++        // Without |ERR_FLAG_MALLOCED|, rust-openssl assumes the string has a
++        // static lifetime. In both cases, we retain ownership of the string,
++        // and the caller is not expected to free it.
++        *flags = ERR_FLAG_STRING | ERR_FLAG_MALLOCED;
+       }
+       // If this error is being removed, take ownership of data from
+       // the error. The semantics are such that the caller doesn't
+@@ -272,7 +285,7 @@ static uint32_t get_error_values(int inc, int top, const char **file, int *line,
+       // error queue.
+       if (inc) {
+         if (error->data != NULL) {
+-          OPENSSL_free(state->to_free);
++          free(state->to_free);
+           state->to_free = error->data;
+         }
+         error->data = NULL;
+@@ -340,7 +353,7 @@ void ERR_clear_error(void) {
+   for (i = 0; i < ERR_NUM_ERRORS; i++) {
+     err_clear(&state->errors[i]);
+   }
+-  OPENSSL_free(state->to_free);
++  free(state->to_free);
+   state->to_free = NULL;
+ 
+   state->top = state->bottom = 0;
+@@ -634,13 +647,13 @@ static void err_set_error_data(char *data) {
+   struct err_error_st *error;
+ 
+   if (state == NULL || state->top == state->bottom) {
+-    OPENSSL_free(data);
++    free(data);
+     return;
+   }
+ 
+   error = &state->errors[state->top];
+ 
+-  OPENSSL_free(error->data);
++  free(error->data);
+   error->data = data;
+ }
+ 
+@@ -677,48 +690,42 @@ void ERR_put_error(int library, int unused, int reason, const char *file,
+ // concatenates them and sets the result as the data on the most recent
+ // error.
+ static void err_add_error_vdata(unsigned num, va_list args) {
+-  size_t alloced, new_len, len = 0, substr_len;
+-  char *buf;
++  size_t total_size = 0;
+   const char *substr;
+-  unsigned i;
++  char *buf;
+ 
+-  alloced = 80;
+-  buf = OPENSSL_malloc(alloced + 1);
+-  if (buf == NULL) {
++  va_list args_copy;
++  va_copy(args_copy, args);
++  for (size_t i = 0; i < num; i++) {
++    substr = va_arg(args_copy, const char *);
++    if (substr == NULL) {
++      continue;
++    }
++    size_t substr_len = strlen(substr);
++    if (SIZE_MAX - total_size < substr_len) {
++      return; // Would overflow.
++    }
++    total_size += substr_len;
++  }
++  va_end(args_copy);
++  if (total_size == SIZE_MAX) {
++      return; // Would overflow.
++  }
++  total_size += 1; // NUL terminator.
++  if ((buf = malloc(total_size)) == NULL) {
+     return;
+   }
+-
+-  for (i = 0; i < num; i++) {
++  buf[0] = '\0';
++  for (size_t i = 0; i < num; i++) {
+     substr = va_arg(args, const char *);
+     if (substr == NULL) {
+       continue;
+     }
+-
+-    substr_len = strlen(substr);
+-    new_len = len + substr_len;
+-    if (new_len > alloced) {
+-      char *new_buf;
+-
+-      if (alloced + 20 + 1 < alloced) {
+-        // overflow.
+-        OPENSSL_free(buf);
+-        return;
+-      }
+-
+-      alloced = new_len + 20;
+-      new_buf = OPENSSL_realloc(buf, alloced + 1);
+-      if (new_buf == NULL) {
+-        OPENSSL_free(buf);
+-        return;
+-      }
+-      buf = new_buf;
++    if (OPENSSL_strlcat(buf, substr, total_size) >= total_size) {
++      assert(0); // should not be possible.
+     }
+-
+-    OPENSSL_memcpy(buf + len, substr, substr_len);
+-    len = new_len;
+   }
+-
+-  buf[len] = 0;
++  va_end(args);
+   err_set_error_data(buf);
+ }
+ 
+@@ -730,21 +737,13 @@ void ERR_add_error_data(unsigned count, ...) {
+ }
+ 
+ void ERR_add_error_dataf(const char *format, ...) {
++  char *buf = NULL;
+   va_list ap;
+-  char *buf;
+-  static const unsigned buf_len = 256;
+ 
+-  // A fixed-size buffer is used because va_copy (which would be needed in
+-  // order to call vsnprintf twice and measure the buffer) wasn't defined until
+-  // C99.
+-  buf = OPENSSL_malloc(buf_len + 1);
+-  if (buf == NULL) {
++  va_start(ap, format);
++  if (OPENSSL_vasprintf_internal(&buf, format, ap, /*system_malloc=*/1) == -1) {
+     return;
+   }
+-
+-  va_start(ap, format);
+-  BIO_vsnprintf(buf, buf_len, format, ap);
+-  buf[buf_len] = 0;
+   va_end(ap);
+ 
+   err_set_error_data(buf);
+@@ -756,13 +755,20 @@ void ERR_set_error_data(char *data, int flags) {
+     assert(0);
+     return;
+   }
++  // Disable deprecated functions on msvc so it doesn't complain about strdup.
++  OPENSSL_MSVC_PRAGMA(warning(push))
++  OPENSSL_MSVC_PRAGMA(warning(disable : 4996))
++  // We can not use OPENSSL_strdup because we don't want to call OPENSSL_malloc,
++  // which can affect the error stack.
++  char *copy = strdup(data);
++  OPENSSL_MSVC_PRAGMA(warning(pop))
++  if (copy != NULL) {
++    err_set_error_data(copy);
++  }
+   if (flags & ERR_FLAG_MALLOCED) {
+-    err_set_error_data(data);
+-  } else {
+-    char *copy = OPENSSL_strdup(data);
+-    if (copy != NULL) {
+-      err_set_error_data(copy);
+-    }
++    // We can not take ownership of |data| directly because it is allocated with
++    // |OPENSSL_malloc| and we will free it with system |free| later.
++    OPENSSL_free(data);
+   }
+ }
+ 
+@@ -824,8 +830,8 @@ void ERR_SAVE_STATE_free(ERR_SAVE_STATE *state) {
+   for (size_t i = 0; i < state->num_errors; i++) {
+     err_clear(&state->errors[i]);
+   }
+-  OPENSSL_free(state->errors);
+-  OPENSSL_free(state);
++  free(state->errors);
++  free(state);
+ }
+ 
+ ERR_SAVE_STATE *ERR_save_state(void) {
+@@ -834,7 +840,7 @@ ERR_SAVE_STATE *ERR_save_state(void) {
+     return NULL;
+   }
+ 
+-  ERR_SAVE_STATE *ret = OPENSSL_malloc(sizeof(ERR_SAVE_STATE));
++  ERR_SAVE_STATE *ret = malloc(sizeof(ERR_SAVE_STATE));
+   if (ret == NULL) {
+     return NULL;
+   }
+@@ -844,9 +850,9 @@ ERR_SAVE_STATE *ERR_save_state(void) {
+                           ? state->top - state->bottom
+                           : ERR_NUM_ERRORS + state->top - state->bottom;
+   assert(num_errors < ERR_NUM_ERRORS);
+-  ret->errors = OPENSSL_malloc(num_errors * sizeof(struct err_error_st));
++  ret->errors = malloc(num_errors * sizeof(struct err_error_st));
+   if (ret->errors == NULL) {
+-    OPENSSL_free(ret);
++    free(ret);
+     return NULL;
+   }
+   OPENSSL_memset(ret->errors, 0, num_errors * sizeof(struct err_error_st));
+diff --git a/crypto/err/err_test.cc b/crypto/err/err_test.cc
+index 5dbe77654..8e9f03c62 100644
+--- a/crypto/err/err_test.cc
++++ b/crypto/err/err_test.cc
+@@ -71,7 +71,7 @@ TEST(ErrTest, PutError) {
+ 
+   EXPECT_STREQ("test", file);
+   EXPECT_EQ(4, line);
+-  EXPECT_TRUE(flags & ERR_FLAG_STRING);
++  EXPECT_EQ(flags, ERR_FLAG_STRING | ERR_FLAG_MALLOCED);
+   EXPECT_EQ(1, ERR_GET_LIB(packed_error));
+   EXPECT_EQ(2, ERR_GET_REASON(packed_error));
+   EXPECT_STREQ("testing", data);
+@@ -167,7 +167,7 @@ TEST(ErrTest, SaveAndRestore) {
+   EXPECT_STREQ("test1.c", file);
+   EXPECT_EQ(line, 1);
+   EXPECT_STREQ(data, "data1");
+-  EXPECT_EQ(flags, ERR_FLAG_STRING);
++  EXPECT_EQ(flags, ERR_FLAG_STRING | ERR_FLAG_MALLOCED);
+ 
+   // The state may be restored, both over an empty and non-empty state.
+   for (unsigned i = 0; i < 2; i++) {
+@@ -180,7 +180,7 @@ TEST(ErrTest, SaveAndRestore) {
+     EXPECT_STREQ("test1.c", file);
+     EXPECT_EQ(line, 1);
+     EXPECT_STREQ(data, "data1");
+-    EXPECT_EQ(flags, ERR_FLAG_STRING);
++    EXPECT_EQ(flags, ERR_FLAG_STRING | ERR_FLAG_MALLOCED);
+ 
+     packed_error = ERR_get_error_line_data(&file, &line, &data, &flags);
+     EXPECT_EQ(ERR_GET_LIB(packed_error), 2);
+@@ -196,7 +196,7 @@ TEST(ErrTest, SaveAndRestore) {
+     EXPECT_STREQ("test3.c", file);
+     EXPECT_EQ(line, 3);
+     EXPECT_STREQ(data, "data3");
+-    EXPECT_EQ(flags, ERR_FLAG_STRING);
++    EXPECT_EQ(flags, ERR_FLAG_STRING | ERR_FLAG_MALLOCED);
+ 
+     // The error queue is now empty for the next iteration.
+     EXPECT_EQ(0u, ERR_get_error());
+diff --git a/crypto/thread_pthread.c b/crypto/thread_pthread.c
+index acec90590..00bc4caff 100644
+--- a/crypto/thread_pthread.c
++++ b/crypto/thread_pthread.c
+@@ -12,6 +12,8 @@
+  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+ 
++// Ensure we can't call OPENSSL_malloc circularly.
++#define _BORINGSSL_PROHIBIT_OPENSSL_MALLOC
+ #include "internal.h"
+ 
+ #if defined(OPENSSL_PTHREADS)
+@@ -20,7 +22,6 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-#include <openssl/mem.h>
+ #include <openssl/type_check.h>
+ 
+ 
+@@ -118,7 +119,7 @@ static void thread_local_destructor(void *arg) {
+     }
+   }
+ 
+-  OPENSSL_free(pointers);
++  free(pointers);
+ }
+ 
+ static pthread_once_t g_thread_local_init_once = PTHREAD_ONCE_INIT;
+@@ -153,14 +154,14 @@ int CRYPTO_set_thread_local(thread_local_data_t index, void *value,
+ 
+   void **pointers = pthread_getspecific(g_thread_local_key);
+   if (pointers == NULL) {
+-    pointers = OPENSSL_malloc(sizeof(void *) * NUM_OPENSSL_THREAD_LOCALS);
++    pointers = malloc(sizeof(void *) * NUM_OPENSSL_THREAD_LOCALS);
+     if (pointers == NULL) {
+       destructor(value);
+       return 0;
+     }
+     OPENSSL_memset(pointers, 0, sizeof(void *) * NUM_OPENSSL_THREAD_LOCALS);
+     if (pthread_setspecific(g_thread_local_key, pointers) != 0) {
+-      OPENSSL_free(pointers);
++      free(pointers);
+       destructor(value);
+       return 0;
+     }
+diff --git a/crypto/thread_win.c b/crypto/thread_win.c
+index 261f03d61..9a1f8045e 100644
+--- a/crypto/thread_win.c
++++ b/crypto/thread_win.c
+@@ -12,6 +12,8 @@
+  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+ 
++// Ensure we can't call OPENSSL_malloc circularly.
++#define _BORINGSSL_PROHIBIT_OPENSSL_MALLOC
+ #include "internal.h"
+ 
+ #if defined(OPENSSL_WINDOWS_THREADS)
+@@ -23,7 +25,6 @@ OPENSSL_MSVC_PRAGMA(warning(pop))
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-#include <openssl/mem.h>
+ #include <openssl/type_check.h>
+ 
+ 
+@@ -129,7 +130,7 @@ static void NTAPI thread_local_destructor(PVOID module, DWORD reason,
+     }
+   }
+ 
+-  OPENSSL_free(pointers);
++  free(pointers);
+ }
+ 
+ // Thread Termination Callbacks.
+@@ -234,14 +235,14 @@ int CRYPTO_set_thread_local(thread_local_data_t index, void *value,
+ 
+   void **pointers = get_thread_locals();
+   if (pointers == NULL) {
+-    pointers = OPENSSL_malloc(sizeof(void *) * NUM_OPENSSL_THREAD_LOCALS);
++    pointers = malloc(sizeof(void *) * NUM_OPENSSL_THREAD_LOCALS);
+     if (pointers == NULL) {
+       destructor(value);
+       return 0;
+     }
+     OPENSSL_memset(pointers, 0, sizeof(void *) * NUM_OPENSSL_THREAD_LOCALS);
+     if (TlsSetValue(g_thread_local_key, pointers) == 0) {
+-      OPENSSL_free(pointers);
++      free(pointers);
+       destructor(value);
+       return 0;
+     }
+diff --git a/include/openssl/err.h b/include/openssl/err.h
+index 7abeae2e3..0ec71b171 100644
+--- a/include/openssl/err.h
++++ b/include/openssl/err.h
+@@ -188,8 +188,12 @@ OPENSSL_EXPORT uint32_t ERR_get_error_line(const char **file, int *line);
+ #define ERR_FLAG_STRING 1
+ 
+ // ERR_FLAG_MALLOCED is passed into |ERR_set_error_data| to indicate that |data|
+-// was allocated with |OPENSSL_malloc|. It is never returned from
+-// |ERR_get_error_line_data|.
++// was allocated with |OPENSSL_malloc|.
++//
++// It is, separately, returned in |*flags| from |ERR_get_error_line_data| to
++// indicate that |*data| has a non-static lifetime, but this lifetime is still
++// managed by the library. The caller must not call |OPENSSL_free| or |free| on
++// |data|.
+ #define ERR_FLAG_MALLOCED 2
+ 
+ // ERR_get_error_line_data acts like |ERR_get_error_line|, but also returns the
+diff --git a/include/openssl/mem.h b/include/openssl/mem.h
+index c2182e8c2..dacd6c94b 100644
+--- a/include/openssl/mem.h
++++ b/include/openssl/mem.h
+@@ -75,19 +75,26 @@ extern "C" {
+ // unless stated otherwise.
+ 
+ 
+-// OPENSSL_malloc acts like a regular |malloc|.
++#ifndef _BORINGSSL_PROHIBIT_OPENSSL_MALLOC
++// OPENSSL_malloc is similar to a regular |malloc|, but allocates additional
++// private data. The resulting pointer must be freed with |OPENSSL_free|. In
++// the case of a malloc failure, prior to returning NULL |OPENSSL_malloc| will
++// push |ERR_R_MALLOC_FAILURE| onto the openssl error stack.
+ OPENSSL_EXPORT void *OPENSSL_malloc(size_t size);
++#endif // !_BORINGSSL_PROHIBIT_OPENSSL_MALLOC
+ 
+ // OPENSSL_free does nothing if |ptr| is NULL. Otherwise it zeros out the
+ // memory allocated at |ptr| and frees it.
+ OPENSSL_EXPORT void OPENSSL_free(void *ptr);
+ 
++#ifndef _BORINGSSL_PROHIBIT_OPENSSL_MALLOC
+ // OPENSSL_realloc returns a pointer to a buffer of |new_size| bytes that
+ // contains the contents of |ptr|. Unlike |realloc|, a new buffer is always
+ // allocated and the data at |ptr| is always wiped and freed. Memory is
+ // allocated with |OPENSSL_malloc| and must be freed with |OPENSSL_free|.
+ // If |ptr| is null |OPENSSL_malloc| is called instead.
+ OPENSSL_EXPORT void *OPENSSL_realloc(void *ptr, size_t new_size);
++#endif // !_BORINGSSL_PROHIBIT_OPENSSL_MALLOC
+ 
+ // OPENSSL_cleanse zeros out |len| bytes of memory at |ptr|. This is similar to
+ // |memset_s| from C11.

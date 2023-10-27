@@ -1,0 +1,766 @@
+From a18468a5134d0ec44e132880d277735cb3e52758 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sat, 4 Feb 2023 19:45:04 -0500
+Subject: [PATCH] Fix various malloc failure paths.
+
+Caught by running malloc failure tests on unit tests.
+
+Bug: 563
+Change-Id: Ic0167ef346a282dc8b5a26a1cedafced7fef9ed0
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56927
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit f7d37fba96e5640186b31ccb834bde98102d6ac7)
+---
+ crypto/asn1/a_mbstr.c                 | 33 +++++-------
+ crypto/asn1/asn1_test.cc              |  2 +
+ crypto/ecdh_extra/ecdh_test.cc        |  1 +
+ crypto/fipsmodule/bn/exponentiation.c |  2 +-
+ crypto/fipsmodule/ec/ec_test.cc       |  9 ++--
+ crypto/fipsmodule/evp/p_hkdf.c        |  4 +-
+ crypto/obj/obj.c                      | 25 ++++++---
+ crypto/pkcs7/pkcs7_test.cc            |  1 +
+ crypto/rsa_extra/rsa_test.cc          |  1 +
+ crypto/stack/stack_test.cc            |  2 +
+ crypto/x509/x509_cmp.c                | 10 ++--
+ crypto/x509/x509_test.cc              |  4 ++
+ ssl/handoff.cc                        | 12 ++++-
+ ssl/ssl_session.cc                    |  1 +
+ ssl/ssl_test.cc                       | 75 +++++++++++++++++----------
+ ssl/tls13_enc.cc                      |  1 +
+ 16 files changed, 121 insertions(+), 62 deletions(-)
+
+diff --git a/crypto/asn1/a_mbstr.c b/crypto/asn1/a_mbstr.c
+index ef74d0d36..81916c22e 100644
+--- a/crypto/asn1/a_mbstr.c
++++ b/crypto/asn1/a_mbstr.c
+@@ -85,11 +85,6 @@ OPENSSL_DECLARE_ERROR_REASON(ASN1, INVALID_UTF8STRING)
+ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+                         int inform, unsigned long mask, long minsize,
+                         long maxsize) {
+-  int str_type;
+-  char free_out;
+-  ASN1_STRING *dest;
+-  size_t nchar = 0;
+-  char strbuf[32];
+   if (len == -1) {
+     len = strlen((const char *)in);
+   }
+@@ -128,7 +123,7 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+   // Check |minsize| and |maxsize| and work out the minimal type, if any.
+   CBS cbs;
+   CBS_init(&cbs, in, len);
+-  size_t utf8_len = 0;
++  size_t utf8_len = 0, nchar = 0;
+   while (CBS_len(&cbs) != 0) {
+     uint32_t c;
+     if (!decode_func(&cbs, &c)) {
+@@ -169,6 +164,7 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+     utf8_len += cbb_get_utf8_len(c);
+   }
+ 
++  char strbuf[32];
+   if (minsize > 0 && nchar < (size_t)minsize) {
+     OPENSSL_PUT_ERROR(ASN1, ASN1_R_STRING_TOO_SHORT);
+     BIO_snprintf(strbuf, sizeof strbuf, "%ld", minsize);
+@@ -184,6 +180,7 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+   }
+ 
+   // Now work out output format and string type
++  int str_type;
+   int (*encode_func)(CBB *, uint32_t) = cbb_add_latin1;
+   size_t size_estimate = nchar;
+   int outform = MBSTRING_ASC;
+@@ -216,31 +213,28 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+   if (!out) {
+     return str_type;
+   }
++
++  int free_dest = 0;
++  ASN1_STRING *dest;
+   if (*out) {
+-    free_out = 0;
+     dest = *out;
+-    if (dest->data) {
+-      dest->length = 0;
+-      OPENSSL_free(dest->data);
+-      dest->data = NULL;
+-    }
+-    dest->type = str_type;
+   } else {
+-    free_out = 1;
++    free_dest = 1;
+     dest = ASN1_STRING_type_new(str_type);
+     if (!dest) {
+       OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+       return -1;
+     }
+-    *out = dest;
+   }
+ 
+   // If both the same type just copy across
+   if (inform == outform) {
+     if (!ASN1_STRING_set(dest, in, len)) {
+       OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+-      return -1;
++      goto err;
+     }
++    dest->type = str_type;
++    *out = dest;
+     return str_type;
+   }
+ 
+@@ -267,12 +261,13 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+     OPENSSL_free(data);
+     goto err;
+   }
+-  dest->length = (int)(data_len - 1);
+-  dest->data = data;
++  dest->type = str_type;
++  ASN1_STRING_set0(dest, data, (int)data_len - 1);
++  *out = dest;
+   return str_type;
+ 
+ err:
+-  if (free_out) {
++  if (free_dest) {
+     ASN1_STRING_free(dest);
+   }
+   CBB_cleanup(&cbb);
+diff --git a/crypto/asn1/asn1_test.cc b/crypto/asn1/asn1_test.cc
+index 0911718a1..985098aaa 100644
+--- a/crypto/asn1/asn1_test.cc
++++ b/crypto/asn1/asn1_test.cc
+@@ -1336,6 +1336,7 @@ TEST(ASN1Test, StringPrintEx) {
+     SCOPED_TRACE(t.flags);
+ 
+     bssl::UniquePtr<ASN1_STRING> str(ASN1_STRING_type_new(t.type));
++    ASSERT_TRUE(str);
+     ASSERT_TRUE(ASN1_STRING_set(str.get(), t.data.data(), t.data.size()));
+     str->flags = t.str_flags;
+ 
+@@ -1378,6 +1379,7 @@ TEST(ASN1Test, StringPrintEx) {
+     SCOPED_TRACE(t.flags);
+ 
+     bssl::UniquePtr<ASN1_STRING> str(ASN1_STRING_type_new(t.type));
++    ASSERT_TRUE(str);
+     ASSERT_TRUE(ASN1_STRING_set(str.get(), t.data.data(), t.data.size()));
+     str->flags = t.str_flags;
+ 
+diff --git a/crypto/ecdh_extra/ecdh_test.cc b/crypto/ecdh_extra/ecdh_test.cc
+index 73bb1e2c1..01b6feb46 100644
+--- a/crypto/ecdh_extra/ecdh_test.cc
++++ b/crypto/ecdh_extra/ecdh_test.cc
+@@ -381,6 +381,7 @@ TEST(ECDHTest, GroupMismatch) {
+       }
+ 
+       bssl::UniquePtr<EC_KEY> key(EC_KEY_new());
++      ASSERT_TRUE(key);
+       ASSERT_TRUE(EC_KEY_set_group(key.get(), a.get()));
+       ASSERT_TRUE(EC_KEY_generate_key(key.get()));
+ 
+diff --git a/crypto/fipsmodule/bn/exponentiation.c b/crypto/fipsmodule/bn/exponentiation.c
+index 7eb95d8d6..f2310b3b1 100644
+--- a/crypto/fipsmodule/bn/exponentiation.c
++++ b/crypto/fipsmodule/bn/exponentiation.c
+@@ -444,6 +444,7 @@ static int mod_exp_recp(BIGNUM *r, const BIGNUM *a, const BIGNUM *p,
+     return BN_one(r);
+   }
+ 
++  BN_RECP_CTX_init(&recp);
+   BN_CTX_start(ctx);
+   aa = BN_CTX_get(ctx);
+   val[0] = BN_CTX_get(ctx);
+@@ -451,7 +452,6 @@ static int mod_exp_recp(BIGNUM *r, const BIGNUM *a, const BIGNUM *p,
+     goto err;
+   }
+ 
+-  BN_RECP_CTX_init(&recp);
+   if (m->neg) {
+     // ignore sign of 'm'
+     if (!BN_copy(aa, m)) {
+diff --git a/crypto/fipsmodule/ec/ec_test.cc b/crypto/fipsmodule/ec/ec_test.cc
+index 215f5ba53..3dc6e6535 100644
+--- a/crypto/fipsmodule/ec/ec_test.cc
++++ b/crypto/fipsmodule/ec/ec_test.cc
+@@ -1440,6 +1440,7 @@ TEST_P(ECCurveTest, Compare) {
+   bssl::UniquePtr<EC_POINT> inf1(EC_POINT_new(group())),
+       inf2(EC_POINT_new(group()));
+   ASSERT_TRUE(inf1);
++  ASSERT_TRUE(inf2);
+   ASSERT_TRUE(EC_POINT_set_to_infinity(group(), inf1.get()));
+   // |q| is currently -|pub2|.
+   ASSERT_TRUE(EC_POINT_add(group(), inf2.get(), pub2, q.get(), nullptr));
+@@ -1627,8 +1628,8 @@ TEST_P(ECCurveTest, SetInvalidPrivateKey) {
+   bssl::UniquePtr<EC_KEY> key(EC_KEY_new_by_curve_name(GetParam()));
+   ASSERT_TRUE(key);
+ 
+-  bssl::UniquePtr<BIGNUM> bn(BN_new());
+-  ASSERT_TRUE(BN_one(bn.get()));
++  bssl::UniquePtr<BIGNUM> bn(BN_dup(BN_value_one()));
++  ASSERT_TRUE(bn);
+   BN_set_negative(bn.get(), 1);
+   EXPECT_FALSE(EC_KEY_set_private_key(key.get(), bn.get()))
+       << "Unexpectedly set a key of -1";
+@@ -1721,11 +1722,13 @@ TEST_P(ECCurveTest, P224Bug) {
+ 
+ TEST_P(ECCurveTest, GPlusMinusG) {
+   const EC_POINT *g = EC_GROUP_get0_generator(group());
++
+   bssl::UniquePtr<EC_POINT> p(EC_POINT_dup(g, group()));
+   ASSERT_TRUE(p);
+   ASSERT_TRUE(EC_POINT_invert(group(), p.get(), nullptr));
+-  bssl::UniquePtr<EC_POINT> sum(EC_POINT_new(group()));
+ 
++  bssl::UniquePtr<EC_POINT> sum(EC_POINT_new(group()));
++  ASSERT_TRUE(sum);
+   ASSERT_TRUE(EC_POINT_add(group(), sum.get(), g, p.get(), nullptr));
+   EXPECT_TRUE(EC_POINT_is_at_infinity(group(), sum.get()));
+ }
+diff --git a/crypto/fipsmodule/evp/p_hkdf.c b/crypto/fipsmodule/evp/p_hkdf.c
+index 115bbcf3b..61ce4caff 100644
+--- a/crypto/fipsmodule/evp/p_hkdf.c
++++ b/crypto/fipsmodule/evp/p_hkdf.c
+@@ -64,7 +64,7 @@ static int pkey_hkdf_copy(EVP_PKEY_CTX *dst, EVP_PKEY_CTX *src) {
+ 
+   if (hctx_src->key_len != 0) {
+     hctx_dst->key = OPENSSL_memdup(hctx_src->key, hctx_src->key_len);
+-    if (hctx_src->key == NULL) {
++    if (hctx_dst->key == NULL) {
+       OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+@@ -73,7 +73,7 @@ static int pkey_hkdf_copy(EVP_PKEY_CTX *dst, EVP_PKEY_CTX *src) {
+ 
+   if (hctx_src->salt_len != 0) {
+     hctx_dst->salt = OPENSSL_memdup(hctx_src->salt, hctx_src->salt_len);
+-    if (hctx_src->salt == NULL) {
++    if (hctx_dst->salt == NULL) {
+       OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+diff --git a/crypto/obj/obj.c b/crypto/obj/obj.c
+index 5b40daae1..05d18215f 100644
+--- a/crypto/obj/obj.c
++++ b/crypto/obj/obj.c
+@@ -510,25 +510,37 @@ static int cmp_long_name(const ASN1_OBJECT *a, const ASN1_OBJECT *b) {
+ // obj_add_object inserts |obj| into the various global hashes for run-time
+ // added objects. It returns one on success or zero otherwise.
+ static int obj_add_object(ASN1_OBJECT *obj) {
+-  int ok;
+-  ASN1_OBJECT *old_object;
+-
+   obj->flags &= ~(ASN1_OBJECT_FLAG_DYNAMIC | ASN1_OBJECT_FLAG_DYNAMIC_STRINGS |
+                   ASN1_OBJECT_FLAG_DYNAMIC_DATA);
+ 
+   CRYPTO_STATIC_MUTEX_lock_write(&global_added_lock);
+   if (global_added_by_nid == NULL) {
+     global_added_by_nid = lh_ASN1_OBJECT_new(hash_nid, cmp_nid);
++  }
++  if (global_added_by_data == NULL) {
+     global_added_by_data = lh_ASN1_OBJECT_new(hash_data, cmp_data);
+-    global_added_by_short_name = lh_ASN1_OBJECT_new(hash_short_name, cmp_short_name);
++  }
++  if (global_added_by_short_name == NULL) {
++    global_added_by_short_name =
++        lh_ASN1_OBJECT_new(hash_short_name, cmp_short_name);
++  }
++  if (global_added_by_long_name == NULL) {
+     global_added_by_long_name = lh_ASN1_OBJECT_new(hash_long_name, cmp_long_name);
+   }
+ 
++  int ok = 0;
++  if (global_added_by_nid == NULL ||
++      global_added_by_data == NULL ||
++      global_added_by_short_name == NULL ||
++      global_added_by_long_name == NULL) {
++    goto err;
++  }
++
+   // We don't pay attention to |old_object| (which contains any previous object
+   // that was evicted from the hashes) because we don't have a reference count
+   // on ASN1_OBJECT values. Also, we should never have duplicates nids and so
+   // should always have objects in |global_added_by_nid|.
+-
++  ASN1_OBJECT *old_object;
+   ok = lh_ASN1_OBJECT_insert(global_added_by_nid, &old_object, obj);
+   if (obj->length != 0 && obj->data != NULL) {
+     ok &= lh_ASN1_OBJECT_insert(global_added_by_data, &old_object, obj);
+@@ -539,8 +551,9 @@ static int obj_add_object(ASN1_OBJECT *obj) {
+   if (obj->ln != NULL) {
+     ok &= lh_ASN1_OBJECT_insert(global_added_by_long_name, &old_object, obj);
+   }
+-  CRYPTO_STATIC_MUTEX_unlock_write(&global_added_lock);
+ 
++err:
++  CRYPTO_STATIC_MUTEX_unlock_write(&global_added_lock);
+   return ok;
+ }
+ 
+diff --git a/crypto/pkcs7/pkcs7_test.cc b/crypto/pkcs7/pkcs7_test.cc
+index bf8537964..3c042ec5f 100644
+--- a/crypto/pkcs7/pkcs7_test.cc
++++ b/crypto/pkcs7/pkcs7_test.cc
+@@ -639,6 +639,7 @@ static void TestPEMCRLs(const char *pem) {
+   bssl::UniquePtr<BIO> bio(BIO_new_mem_buf(pem, strlen(pem)));
+   ASSERT_TRUE(bio);
+   bssl::UniquePtr<STACK_OF(X509_CRL)> crls(sk_X509_CRL_new_null());
++  ASSERT_TRUE(crls);
+ 
+   ASSERT_TRUE(PKCS7_get_PEM_CRLs(crls.get(), bio.get()));
+   ASSERT_EQ(1u, sk_X509_CRL_num(crls.get()));
+diff --git a/crypto/rsa_extra/rsa_test.cc b/crypto/rsa_extra/rsa_test.cc
+index 094fdb9d5..dd32742cf 100644
+--- a/crypto/rsa_extra/rsa_test.cc
++++ b/crypto/rsa_extra/rsa_test.cc
+@@ -513,6 +513,7 @@ TEST(RSATest, GenerateFIPS) {
+     SCOPED_TRACE(bits);
+ 
+     rsa.reset(RSA_new());
++    ASSERT_TRUE(rsa);
+     ASSERT_TRUE(RSA_generate_key_fips(rsa.get(), bits, nullptr));
+     EXPECT_EQ(bits, BN_num_bits(rsa->n));
+   }
+diff --git a/crypto/stack/stack_test.cc b/crypto/stack/stack_test.cc
+index 98e54489a..1ff44b9a4 100644
+--- a/crypto/stack/stack_test.cc
++++ b/crypto/stack/stack_test.cc
+@@ -317,6 +317,7 @@ TEST(StackTest, Sorted) {
+ // sk_*_find should return the first matching element in all cases.
+ TEST(StackTest, FindFirst) {
+   bssl::UniquePtr<STACK_OF(TEST_INT)> sk(sk_TEST_INT_new(compare));
++  ASSERT_TRUE(sk);
+   auto value = TEST_INT_new(1);
+   ASSERT_TRUE(value);
+   ASSERT_TRUE(bssl::PushToStack(sk.get(), std::move(value)));
+@@ -397,6 +398,7 @@ TEST(StackTest, BinarySearch) {
+ 
+ TEST(StackTest, DeleteIf) {
+   bssl::UniquePtr<STACK_OF(TEST_INT)> sk(sk_TEST_INT_new(compare));
++  ASSERT_TRUE(sk);
+   for (int v : {1, 9, 2, 8, 3, 7, 4, 6, 5}) {
+     auto obj = TEST_INT_new(v);
+     ASSERT_TRUE(obj);
+diff --git a/crypto/x509/x509_cmp.c b/crypto/x509/x509_cmp.c
+index 7e3c39552..b640413cd 100644
+--- a/crypto/x509/x509_cmp.c
++++ b/crypto/x509/x509_cmp.c
+@@ -284,10 +284,12 @@ int X509_check_private_key(X509 *x, const EVP_PKEY *k) {
+ // count but it has the same effect by duping the STACK and upping the ref of
+ // each X509 structure.
+ STACK_OF(X509) *X509_chain_up_ref(STACK_OF(X509) *chain) {
+-  STACK_OF(X509) *ret;
+-  size_t i;
+-  ret = sk_X509_dup(chain);
+-  for (i = 0; i < sk_X509_num(ret); i++) {
++  STACK_OF(X509) *ret = sk_X509_dup(chain);
++  if (ret == NULL) {
++    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
++    return NULL;
++  }
++  for (size_t i = 0; i < sk_X509_num(ret); i++) {
+     X509_up_ref(sk_X509_value(ret, i));
+   }
+   return ret;
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 024ac9b5a..5f9164e48 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -1438,6 +1438,7 @@ TEST(X509Test, ZeroLengthsWithX509PARAM) {
+ 
+ TEST(X509Test, ZeroLengthsWithCheckFunctions) {
+   bssl::UniquePtr<X509> leaf(CertFromPEM(kSANTypesLeaf));
++  ASSERT_TRUE(leaf);
+ 
+   EXPECT_EQ(
+       1, X509_check_host(leaf.get(), kHostname, strlen(kHostname), 0, nullptr));
+@@ -2489,7 +2490,9 @@ TEST(X509Test, TestPrintUTCTIME) {
+   for (auto t : asn1_utctime_tests) {
+     SCOPED_TRACE(t.val);
+     bssl::UniquePtr<ASN1_UTCTIME> tm(ASN1_UTCTIME_new());
++    ASSERT_TRUE(tm);
+     bssl::UniquePtr<BIO> bio(BIO_new(BIO_s_mem()));
++    ASSERT_TRUE(bio);
+ 
+     // Use this instead of ASN1_UTCTIME_set() because some callers get
+     // type-confused and pass ASN1_GENERALIZEDTIME to ASN1_UTCTIME_print().
+@@ -2547,6 +2550,7 @@ TEST(X509Test, PrettyPrintIntegers) {
+ 
+ TEST(X509Test, X509NameSet) {
+   bssl::UniquePtr<X509_NAME> name(X509_NAME_new());
++  ASSERT_TRUE(name);
+   EXPECT_TRUE(X509_NAME_add_entry_by_txt(
+       name.get(), "C", MBSTRING_ASC, reinterpret_cast<const uint8_t *>("US"),
+       -1, -1, 0));
+diff --git a/ssl/handoff.cc b/ssl/handoff.cc
+index de28426bf..6f2c496c0 100644
+--- a/ssl/handoff.cc
++++ b/ssl/handoff.cc
+@@ -123,6 +123,9 @@ static bool apply_remote_features(SSL *ssl, CBS *in) {
+     return false;
+   }
+   bssl::UniquePtr<STACK_OF(SSL_CIPHER)> supported(sk_SSL_CIPHER_new_null());
++  if (!supported) {
++    return false;
++  }
+   while (CBS_len(&ciphers)) {
+     uint16_t id;
+     if (!CBS_get_u16(&ciphers, &id)) {
+@@ -140,6 +143,9 @@ static bool apply_remote_features(SSL *ssl, CBS *in) {
+       ssl->config->cipher_list ? ssl->config->cipher_list->ciphers.get()
+                                : ssl->ctx->cipher_list->ciphers.get();
+   bssl::UniquePtr<STACK_OF(SSL_CIPHER)> unsupported(sk_SSL_CIPHER_new_null());
++  if (!unsupported) {
++    return false;
++  }
+   for (const SSL_CIPHER *configured_cipher : configured) {
+     if (sk_SSL_CIPHER_find(supported.get(), nullptr, configured_cipher)) {
+       continue;
+@@ -150,7 +156,8 @@ static bool apply_remote_features(SSL *ssl, CBS *in) {
+   }
+   if (sk_SSL_CIPHER_num(unsupported.get()) && !ssl->config->cipher_list) {
+     ssl->config->cipher_list = bssl::MakeUnique<SSLCipherPreferenceList>();
+-    if (!ssl->config->cipher_list->Init(*ssl->ctx->cipher_list)) {
++    if (!ssl->config->cipher_list ||
++        !ssl->config->cipher_list->Init(*ssl->ctx->cipher_list)) {
+       return false;
+     }
+   }
+@@ -485,6 +492,9 @@ bool SSL_apply_handback(SSL *ssl, Span<const uint8_t> handback) {
+   }
+ 
+   s3->hs = ssl_handshake_new(ssl);
++  if (!s3->hs) {
++    return false;
++  }
+   SSL_HANDSHAKE *const hs = s3->hs.get();
+   if (!session_reused || type == handback_tls13) {
+     hs->new_session =
+diff --git a/ssl/ssl_session.cc b/ssl/ssl_session.cc
+index d9c3b188e..74601e04e 100644
+--- a/ssl/ssl_session.cc
++++ b/ssl/ssl_session.cc
+@@ -221,6 +221,7 @@ UniquePtr<SSL_SESSION> SSL_SESSION_dup(SSL_SESSION *session, int dup_flags) {
+     new_session->certs.reset(sk_CRYPTO_BUFFER_deep_copy(
+         session->certs.get(), buf_up_ref, CRYPTO_BUFFER_free));
+     if (new_session->certs == nullptr) {
++      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return nullptr;
+     }
+   }
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index 9c5755ffb..b1de8d4ee 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -1435,6 +1435,12 @@ static bool GetClientHello(SSL *ssl, std::vector<uint8_t> *out) {
+   if (!BIO_mem_contents(bio.get(), &client_hello, &client_hello_len)) {
+     return false;
+   }
++
++  // We did not get far enough to write a ClientHello.
++  if (client_hello_len == 0) {
++    return false;
++  }
++
+   *out = std::vector<uint8_t>(client_hello, client_hello + client_hello_len);
+   return true;
+ }
+@@ -2305,6 +2311,7 @@ TEST(SSLTest, UnsupportedECHConfig) {
+ TEST(SSLTest, ECHClientRandomsMatch) {
+   bssl::UniquePtr<SSL_CTX> server_ctx =
+       CreateContextWithTestCertificate(TLS_method());
++  ASSERT_TRUE(server_ctx);
+   bssl::UniquePtr<SSL_ECH_KEYS> keys = MakeTestECHKeys();
+   ASSERT_TRUE(keys);
+   ASSERT_TRUE(SSL_CTX_set1_ech_keys(server_ctx.get(), keys.get()));
+@@ -2672,6 +2679,7 @@ TEST(SSLTest, ECHThreads) {
+ 
+   bssl::UniquePtr<SSL_CTX> server_ctx =
+       CreateContextWithTestCertificate(TLS_method());
++  ASSERT_TRUE(server_ctx);
+   ASSERT_TRUE(SSL_CTX_set1_ech_keys(server_ctx.get(), keys1.get()));
+ 
+   bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
+@@ -3621,7 +3629,7 @@ static void ExpectSessionReused(SSL_CTX *client_ctx, SSL_CTX *server_ctx,
+   bssl::UniquePtr<SSL> client, server;
+   ClientConfig config;
+   config.session = session;
+-  EXPECT_TRUE(
++  ASSERT_TRUE(
+       ConnectClientAndServer(&client, &server, client_ctx, server_ctx, config));
+ 
+   EXPECT_EQ(SSL_session_reused(client.get()), SSL_session_reused(server.get()));
+@@ -3826,7 +3834,7 @@ TEST_P(SSLVersionTest, SessionTimeout) {
+   for (bool server_test : {false, true}) {
+     SCOPED_TRACE(server_test);
+ 
+-    ResetContexts();
++    ASSERT_NO_FATAL_FAILURE(ResetContexts());
+     SSL_CTX_set_session_cache_mode(client_ctx_.get(), SSL_SESS_CACHE_BOTH);
+     SSL_CTX_set_session_cache_mode(server_ctx_.get(), SSL_SESS_CACHE_BOTH);
+ 
+@@ -4542,7 +4550,7 @@ TEST_P(SSLVersionTest, SSLWriteRetry) {
+ TEST_P(SSLVersionTest, RecordCallback) {
+   for (bool test_server : {true, false}) {
+     SCOPED_TRACE(test_server);
+-    ResetContexts();
++    ASSERT_NO_FATAL_FAILURE(ResetContexts());
+ 
+     bool read_seen = false;
+     bool write_seen = false;
+@@ -5110,6 +5118,7 @@ static void ConnectClientAndServerWithTicketMethod(
+   state->retry_count = retry_count;
+   state->failure_mode = failure_mode;
+ 
++  ASSERT_GE(ssl_test_ticket_aead_get_ex_index(), 0);
+   ASSERT_TRUE(SSL_set_ex_data(server.get(), ssl_test_ticket_aead_get_ex_index(),
+                               state));
+ 
+@@ -5169,9 +5178,9 @@ TEST_P(TicketAEADMethodTest, Resume) {
+   SSL_CTX_set_ticket_aead_method(server_ctx.get(), &kSSLTestTicketMethod);
+ 
+   bssl::UniquePtr<SSL> client, server;
+-  ConnectClientAndServerWithTicketMethod(&client, &server, client_ctx.get(),
+-                                         server_ctx.get(), retry_count,
+-                                         failure_mode, nullptr);
++  ASSERT_NO_FATAL_FAILURE(ConnectClientAndServerWithTicketMethod(
++      &client, &server, client_ctx.get(), server_ctx.get(), retry_count,
++      failure_mode, nullptr));
+   // Only transfer when the code is to test SSL transfer and the connection is
+   // finished successuflly.
+   if (transfer_ssl && server) {
+@@ -5193,9 +5202,9 @@ TEST_P(TicketAEADMethodTest, Resume) {
+ 
+   ASSERT_TRUE(FlushNewSessionTickets(client.get(), server.get()));
+   bssl::UniquePtr<SSL_SESSION> session = std::move(g_last_session);
+-  ConnectClientAndServerWithTicketMethod(&client, &server, client_ctx.get(),
+-                                         server_ctx.get(), retry_count,
+-                                         failure_mode, session.get());
++  ASSERT_NO_FATAL_FAILURE(ConnectClientAndServerWithTicketMethod(
++      &client, &server, client_ctx.get(), server_ctx.get(), retry_count,
++      failure_mode, session.get()));
+   // Do SSL transfer again.
+   // Only transfer when the code is to test SSL transfer and the connection is
+   // finished successuflly.
+@@ -5588,6 +5597,7 @@ TEST(SSLTest, Handoff) {
+       ASSERT_TRUE(CBBFinishArray(cbb.get(), &handoff));
+ 
+       bssl::UniquePtr<SSL> handshaker(SSL_new(handshaker_ctx.get()));
++      ASSERT_TRUE(handshaker);
+       // Note split handshakes determines 0-RTT support, for both the current
+       // handshake and newly-issued tickets, entirely by |handshaker|. There is
+       // no need to call |SSL_set_early_data_enabled| on |server|.
+@@ -5613,6 +5623,7 @@ TEST(SSLTest, Handoff) {
+       ASSERT_TRUE(CBBFinishArray(cbb_handback.get(), &handback));
+ 
+       bssl::UniquePtr<SSL> server2(SSL_new(server_ctx.get()));
++      ASSERT_TRUE(server2);
+       ASSERT_TRUE(SSL_apply_handback(server2.get(), handback));
+ 
+       MoveBIOs(server2.get(), handshaker.get());
+@@ -5740,6 +5751,7 @@ TEST(SSLTest, SigAlgs) {
+   };
+ 
+   UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
++  ASSERT_TRUE(ctx);
+ 
+   unsigned n = 1;
+   for (const auto &test : kTests) {
+@@ -5795,6 +5807,7 @@ TEST(SSLTest, SigAlgsList) {
+   };
+ 
+   UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
++  ASSERT_TRUE(ctx);
+ 
+   unsigned n = 1;
+   for (const auto &test : kTests) {
+@@ -5820,7 +5833,9 @@ TEST(SSLTest, SigAlgsList) {
+ 
+ TEST(SSLTest, ApplyHandoffRemovesUnsupportedCiphers) {
+   bssl::UniquePtr<SSL_CTX> server_ctx(SSL_CTX_new(TLS_method()));
++  ASSERT_TRUE(server_ctx);
+   bssl::UniquePtr<SSL> server(SSL_new(server_ctx.get()));
++  ASSERT_TRUE(server);
+ 
+   // handoff is a handoff message that has been artificially modified to pretend
+   // that only cipher 0x0A is supported.  When it is applied to |server|, all
+@@ -5858,7 +5873,9 @@ TEST(SSLTest, ApplyHandoffRemovesUnsupportedCiphers) {
+ 
+ TEST(SSLTest, ApplyHandoffRemovesUnsupportedCurves) {
+   bssl::UniquePtr<SSL_CTX> server_ctx(SSL_CTX_new(TLS_method()));
++  ASSERT_TRUE(server_ctx);
+   bssl::UniquePtr<SSL> server(SSL_new(server_ctx.get()));
++  ASSERT_TRUE(server);
+ 
+   // handoff is a handoff message that has been artificially modified to pretend
+   // that only one curve is supported.  When it is applied to |server|, all
+@@ -5938,10 +5955,12 @@ TEST(SSLTest, ZeroSizedWiteFlushesHandshakeMessages) {
+   // flush them.
+   bssl::UniquePtr<SSL_CTX> server_ctx(
+       CreateContextWithTestCertificate(TLS_method()));
++  ASSERT_TRUE(server_ctx);
+   EXPECT_TRUE(SSL_CTX_set_max_proto_version(server_ctx.get(), TLS1_3_VERSION));
+   EXPECT_TRUE(SSL_CTX_set_min_proto_version(server_ctx.get(), TLS1_3_VERSION));
+ 
+   bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
++  ASSERT_TRUE(client_ctx);
+   EXPECT_TRUE(SSL_CTX_set_max_proto_version(client_ctx.get(), TLS1_3_VERSION));
+   EXPECT_TRUE(SSL_CTX_set_min_proto_version(client_ctx.get(), TLS1_3_VERSION));
+ 
+@@ -6023,7 +6042,7 @@ TEST_P(SSLVersionTest, SessionCacheThreads) {
+     ClientConfig config;
+     config.session = session;
+     UniquePtr<SSL> client, server;
+-    EXPECT_TRUE(ConnectClientAndServer(&client, &server, client_ctx_.get(),
++    ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx_.get(),
+                                        server_ctx_.get(), config));
+   };
+ 
+@@ -6119,7 +6138,7 @@ TEST_P(SSLVersionTest, SessionCacheThreads) {
+ TEST_P(SSLVersionTest, SessionTicketThreads) {
+   for (bool renew_ticket : {false, true}) {
+     SCOPED_TRACE(renew_ticket);
+-    ResetContexts();
++    ASSERT_NO_FATAL_FAILURE(ResetContexts());
+     SSL_CTX_set_session_cache_mode(client_ctx_.get(), SSL_SESS_CACHE_BOTH);
+     SSL_CTX_set_session_cache_mode(server_ctx_.get(), SSL_SESS_CACHE_BOTH);
+     if (renew_ticket) {
+@@ -6138,7 +6157,7 @@ TEST_P(SSLVersionTest, SessionTicketThreads) {
+       ClientConfig config;
+       config.session = session;
+       UniquePtr<SSL> client, server;
+-      EXPECT_TRUE(ConnectClientAndServer(&client, &server, client_ctx_.get(),
++      ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx_.get(),
+                                          server_ctx_.get(), config));
+     };
+ 
+@@ -6175,6 +6194,8 @@ TEST(SSLTest, GetCertificateThreads) {
+   X509 *cert2 = SSL_CTX_get0_certificate(ctx.get());
+   thread.join();
+ 
++  ASSERT_TRUE(cert2);
++  ASSERT_TRUE(cert2_thread);
+   EXPECT_EQ(cert2, cert2_thread);
+   EXPECT_EQ(0, X509_cmp(cert.get(), cert2));
+ }
+@@ -6620,8 +6641,10 @@ class QUICMethodTest : public testing::Test {
+     SSL_set_accept_state(server_.get());
+ 
+     transport_.reset(new MockQUICTransportPair);
+-    ex_data_.Set(client_.get(), transport_->client());
+-    ex_data_.Set(server_.get(), transport_->server());
++    if (!ex_data_.Set(client_.get(), transport_->client()) ||
++        !ex_data_.Set(server_.get(), transport_->server())) {
++      return false;
++    }
+     if (allow_out_of_order_writes_) {
+       transport_->client()->AllowOutOfOrderWrites();
+       transport_->server()->AllowOutOfOrderWrites();
+@@ -7008,7 +7031,7 @@ TEST_F(QUICMethodTest, ZeroRTTRejectMismatchedParameters) {
+   // The server will consume the ClientHello, but it will not accept 0-RTT.
+   ASSERT_TRUE(ProvideHandshakeData(server_.get()));
+   ASSERT_EQ(SSL_do_handshake(server_.get()), -1);
+-  EXPECT_EQ(SSL_ERROR_WANT_READ, SSL_get_error(server_.get(), -1));
++  ASSERT_EQ(SSL_ERROR_WANT_READ, SSL_get_error(server_.get(), -1));
+   EXPECT_FALSE(SSL_in_early_data(server_.get()));
+   EXPECT_FALSE(transport_->server()->HasReadSecret(ssl_encryption_early_data));
+ 
+@@ -7093,7 +7116,7 @@ TEST_F(QUICMethodTest, ZeroRTTReject) {
+     // The server will consume the ClientHello, but it will not accept 0-RTT.
+     ASSERT_TRUE(ProvideHandshakeData(server_.get()));
+     ASSERT_EQ(SSL_do_handshake(server_.get()), -1);
+-    EXPECT_EQ(SSL_ERROR_WANT_READ, SSL_get_error(server_.get(), -1));
++    ASSERT_EQ(SSL_ERROR_WANT_READ, SSL_get_error(server_.get(), -1));
+     EXPECT_FALSE(SSL_in_early_data(server_.get()));
+     EXPECT_FALSE(
+         transport_->server()->HasReadSecret(ssl_encryption_early_data));
+@@ -7262,8 +7285,8 @@ TEST_F(QUICMethodTest, Buffered) {
+   ASSERT_TRUE(CreateClientAndServer());
+ 
+   BufferedFlight client_flight, server_flight;
+-  buffered_flights.Set(client_.get(), &client_flight);
+-  buffered_flights.Set(server_.get(), &server_flight);
++  ASSERT_TRUE(buffered_flights.Set(client_.get(), &client_flight));
++  ASSERT_TRUE(buffered_flights.Set(server_.get(), &server_flight));
+ 
+   ASSERT_TRUE(CompleteHandshakesForQUIC());
+ 
+@@ -7484,10 +7507,10 @@ TEST_F(QUICMethodTest, ForbidCrossProtocolResumptionClient) {
+   EXPECT_FALSE(g_last_session);
+   ASSERT_TRUE(ProvideHandshakeData(client_.get()));
+   EXPECT_EQ(SSL_process_quic_post_handshake(client_.get()), 1);
+-  EXPECT_TRUE(g_last_session);
++  ASSERT_TRUE(g_last_session);
+ 
+   // Pretend that g_last_session came from a TLS-over-TCP connection.
+-  g_last_session.get()->is_quic = false;
++  g_last_session->is_quic = false;
+ 
+   // Create a second connection and verify that resumption does not occur with
+   // a session from a non-QUIC connection. This tests that the client does not
+@@ -7525,7 +7548,7 @@ TEST_F(QUICMethodTest, ForbidCrossProtocolResumptionServer) {
+   EXPECT_FALSE(g_last_session);
+   ASSERT_TRUE(ProvideHandshakeData(client_.get()));
+   EXPECT_EQ(SSL_process_quic_post_handshake(client_.get()), 1);
+-  EXPECT_TRUE(g_last_session);
++  ASSERT_TRUE(g_last_session);
+ 
+   // Attempt a resumption with g_last_session using TLS_method.
+   bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
+@@ -7542,7 +7565,7 @@ TEST_F(QUICMethodTest, ForbidCrossProtocolResumptionServer) {
+ 
+   // The TLS-over-TCP client will refuse to resume with a quic session, so
+   // mark is_quic = false to bypass the client check to test the server check.
+-  g_last_session.get()->is_quic = false;
++  g_last_session->is_quic = false;
+   SSL_set_session(client.get(), g_last_session.get());
+ 
+   BIO *bio1, *bio2;
+@@ -7904,7 +7927,7 @@ TEST_P(SSLVersionTest, TicketSessionIDsMatch) {
+   bssl::UniquePtr<SSL> client, server;
+   ClientConfig config;
+   config.session = session.get();
+-  EXPECT_TRUE(ConnectClientAndServer(&client, &server, client_ctx_.get(),
++  ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx_.get(),
+                                      server_ctx_.get(), config));
+   EXPECT_TRUE(SSL_session_reused(client.get()));
+   EXPECT_TRUE(SSL_session_reused(server.get()));
+@@ -8298,7 +8321,7 @@ TEST(SSLTest, ALPNConfig) {
+   auto check_alpn_proto = [&](Span<const uint8_t> expected) {
+     observed_alpn.clear();
+     bssl::UniquePtr<SSL> client, server;
+-    EXPECT_TRUE(ConnectClientAndServer(&client, &server, ctx.get(), ctx.get()));
++    ASSERT_TRUE(ConnectClientAndServer(&client, &server, ctx.get(), ctx.get()));
+     EXPECT_EQ(Bytes(expected), Bytes(observed_alpn));
+   };
+ 
+@@ -8939,7 +8962,7 @@ TEST(SSLTest, ErrorSyscallAfterCloseNotify) {
+   ASSERT_TRUE(client_ctx);
+   ASSERT_TRUE(server_ctx);
+   bssl::UniquePtr<SSL> client, server;
+-  EXPECT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
++  ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
+                                      server_ctx.get()));
+ 
+   // Replace the write |BIO| with |wbio_silent_error|.
+@@ -9005,7 +9028,7 @@ TEST(SSLTest, QuietShutdown) {
+   ASSERT_TRUE(server_ctx);
+   SSL_CTX_set_quiet_shutdown(server_ctx.get(), 1);
+   bssl::UniquePtr<SSL> client, server;
+-  EXPECT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
++  ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
+                                      server_ctx.get()));
+ 
+   // Quiet shutdown is enabled, so |SSL_shutdown| on the server should
+diff --git a/ssl/tls13_enc.cc b/ssl/tls13_enc.cc
+index ad023ef8e..23889bd1c 100644
+--- a/ssl/tls13_enc.cc
++++ b/ssl/tls13_enc.cc
+@@ -111,6 +111,7 @@ static bool hkdf_expand_label(Span<uint8_t> out, const EVP_MD *digest,
+       !CBB_add_u8_length_prefixed(cbb.get(), &child) ||
+       !CBB_add_bytes(&child, hash.data(), hash.size()) ||
+       !CBBFinishArray(cbb.get(), &hkdf_label)) {
++    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return false;
+   }
+ 

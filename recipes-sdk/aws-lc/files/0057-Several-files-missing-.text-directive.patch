@@ -1,0 +1,88 @@
+From 66abdb3b1ad37938bcc636d7bbb5aa7165296ba7 Mon Sep 17 00:00:00 2001
+From: Justin Smith <justsmth@amazon.com>
+Date: Wed, 8 Jun 2022 12:12:13 -0400
+Subject: [PATCH] Several files missing .text directive
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/5df01541f97b68708e2678249f66e2b1bf1cbd1e
+---
+ x86_att/p384/bignum_add_p384.S         | 1 +
+ x86_att/p384/bignum_cmul_p384_alt.S    | 1 +
+ x86_att/p384/bignum_deamont_p384.S     | 2 ++
+ x86_att/p384/bignum_deamont_p384_alt.S | 1 +
+ x86_att/p384/bignum_demont_p384.S      | 1 +
+ x86_att/p384/bignum_demont_p384_alt.S  | 1 +
+ 6 files changed, 7 insertions(+)
+
+diff --git a/x86_att/p384/bignum_add_p384.S b/x86_att/p384/bignum_add_p384.S
+index 54341cd8d..3a2be9c5e 100644
+--- a/x86_att/p384/bignum_add_p384.S
++++ b/x86_att/p384/bignum_add_p384.S
+@@ -28,6 +28,7 @@
+ 
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_p384)
++        .text
+ 
+ #define z %rdi
+ #define x %rsi
+diff --git a/x86_att/p384/bignum_cmul_p384_alt.S b/x86_att/p384/bignum_cmul_p384_alt.S
+index 67a8748bb..f390c461f 100644
+--- a/x86_att/p384/bignum_cmul_p384_alt.S
++++ b/x86_att/p384/bignum_cmul_p384_alt.S
+@@ -29,6 +29,7 @@
+ 
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_cmul_p384_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_cmul_p384_alt)
++        .text
+ 
+ #define z %rdi
+ 
+diff --git a/x86_att/p384/bignum_deamont_p384.S b/x86_att/p384/bignum_deamont_p384.S
+index 6561abd79..39648d329 100644
+--- a/x86_att/p384/bignum_deamont_p384.S
++++ b/x86_att/p384/bignum_deamont_p384.S
+@@ -31,6 +31,8 @@
+ 
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_deamont_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_deamont_p384)
++        .text
++
+ #define z %rdi
+ #define x %rsi
+ 
+diff --git a/x86_att/p384/bignum_deamont_p384_alt.S b/x86_att/p384/bignum_deamont_p384_alt.S
+index 428aa764a..e6aa8f537 100644
+--- a/x86_att/p384/bignum_deamont_p384_alt.S
++++ b/x86_att/p384/bignum_deamont_p384_alt.S
+@@ -31,6 +31,7 @@
+ 
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_deamont_p384_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_deamont_p384_alt)
++        .text
+ 
+ #define z %rdi
+ #define x %rsi
+diff --git a/x86_att/p384/bignum_demont_p384.S b/x86_att/p384/bignum_demont_p384.S
+index bf621dcc7..9ccaece15 100644
+--- a/x86_att/p384/bignum_demont_p384.S
++++ b/x86_att/p384/bignum_demont_p384.S
+@@ -31,6 +31,7 @@
+ 
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_demont_p384)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_demont_p384)
++        .text
+ 
+ #define z %rdi
+ #define x %rsi
+diff --git a/x86_att/p384/bignum_demont_p384_alt.S b/x86_att/p384/bignum_demont_p384_alt.S
+index 9009a2236..b4084025d 100644
+--- a/x86_att/p384/bignum_demont_p384_alt.S
++++ b/x86_att/p384/bignum_demont_p384_alt.S
+@@ -31,6 +31,7 @@
+ 
+         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_demont_p384_alt)
+         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_demont_p384_alt)
++        .text
+ 
+ #define z %rdi
+ #define x %rsi

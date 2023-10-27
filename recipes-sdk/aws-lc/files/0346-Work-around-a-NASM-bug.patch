@@ -1,0 +1,98 @@
+From de14e2f762138ff106c2dc0e65eb1ab7a1a339b7 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 6 Mar 2023 14:25:39 -0500
+Subject: [PATCH] Work around a NASM bug
+
+I did not have "find a bug in the assembler" on my bingo card today, but
+here we are.
+
+NASM 2.15, prior to 2.15.04, has a bug where, if a section that already
+exists is referenced again with alignment qualifiers, it incorrect adds
+padding and mangles the output. See
+https://bugzilla.nasm.us/show_bug.cgi?id=3392701.
+
+Work around this by suppressing the perlasm-emitted qualifiers the
+second time a section is emitted. We likely don't need these qualifiers
+because, for all sections we care about, NASM's defaults are fine, but
+perlasm tries to align .text more aggressively than the default, so let
+it do that.
+
+Bug: chromium:1422018
+Change-Id: Iade5702c139b70772d4957a83c8f9be86c8af97c
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57825
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit abb9af83bc223eca0ffffce246ed551f2fcd11e1)
+---
+ crypto/perlasm/x86_64-xlate.pl | 34 ++++++++++++++++++++++++++++------
+ 1 file changed, 28 insertions(+), 6 deletions(-)
+
+diff --git a/crypto/perlasm/x86_64-xlate.pl b/crypto/perlasm/x86_64-xlate.pl
+index b8802c586..16a784683 100755
+--- a/crypto/perlasm/x86_64-xlate.pl
++++ b/crypto/perlasm/x86_64-xlate.pl
+@@ -1029,6 +1029,27 @@ ____
+     }
+ }
+ { package directive;	# pick up directives, which start with .
++    my %sections;
++    sub nasm_section {
++	my ($name, $qualifiers) = @_;
++	my $ret = "section\t$name";
++	if (exists $sections{$name}) {
++	    # Work around https://bugzilla.nasm.us/show_bug.cgi?id=3392701. Only
++	    # emit section qualifiers the first time a section is referenced.
++	    # For all subsequent references, require the qualifiers match and
++	    # omit them.
++	    #
++	    # See also https://crbug.com/1422018 and b/270643835.
++	    my $old = $sections{$name};
++	    die "Inconsistent qualifiers: $qualifiers vs $old" if ($qualifiers ne "" && $qualifiers ne $old);
++	} else {
++	    $sections{$name} = $qualifiers;
++	    if ($qualifiers ne "") {
++		$ret .= " $qualifiers";
++	    }
++	}
++	return $ret;
++    }
+     sub re {
+ 	my	($class, $line) = @_;
+ 	my	$self = {};
+@@ -1137,7 +1158,7 @@ ____
+ 	    SWITCH: for ($dir) {
+ 		/\.text/    && do { my $v=undef;
+ 				    if ($nasm) {
+-					$v="section	.text code align=64\n";
++					$v=nasm_section(".text", "code align=64")."\n";
+ 				    } else {
+ 					$v="$current_segment\tENDS\n" if ($current_segment);
+ 					$current_segment = ".text\$";
+@@ -1150,7 +1171,7 @@ ____
+ 				  };
+ 		/\.data/    && do { my $v=undef;
+ 				    if ($nasm) {
+-					$v="section	.data data align=8\n";
++					$v=nasm_section(".data", "data align=8")."\n";
+ 				    } else {
+ 					$v="$current_segment\tENDS\n" if ($current_segment);
+ 					$current_segment = "_DATA";
+@@ -1164,13 +1185,14 @@ ____
+ 				    $$line = ".CRT\$XCU" if ($$line eq ".init");
+ 				    $$line = ".rdata" if ($$line eq ".rodata");
+ 				    if ($nasm) {
+-					$v="section	$$line";
++					my $qualifiers = "";
+ 					if ($$line=~/\.([prx])data/) {
+-					    $v.=" rdata align=";
+-					    $v.=$1 eq "p"? 4 : 8;
++					    $qualifiers = "rdata align=";
++					    $qualifiers .= $1 eq "p"? 4 : 8;
+ 					} elsif ($$line=~/\.CRT\$/i) {
+-					    $v.=" rdata align=8";
++					    $qualifiers = "rdata align=8";
+ 					}
++					$v = nasm_section($$line, $qualifiers);
+ 				    } else {
+ 					$v="$current_segment\tENDS\n" if ($current_segment);
+ 					$v.="$$line\tSEGMENT";

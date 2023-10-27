@@ -1,0 +1,364 @@
+From b0af0bca09df1cc22f4fff3525693d6703be7758 Mon Sep 17 00:00:00 2001
+From: Bob Beck <bbe@google.com>
+Date: Wed, 5 Apr 2023 14:38:38 -0600
+Subject: [PATCH] Add functions to allow the mocking of AES hw support for
+ testing.
+
+Bug: 586
+Change-Id: I5bc8e6df3a5a14e6b218f41181d06406e835f9c1
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58605
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit 8cacbd93b8788cfb46f6a4d7e11b99c29b3752bd)
+---
+ include/openssl/ssl.h         | 12 ++++++++++
+ ssl/encrypted_client_hello.cc | 17 +++++++++-----
+ ssl/handshake_client.cc       | 10 +++++---
+ ssl/internal.h                | 28 ++++++++++++++++++----
+ ssl/s3_both.cc                | 10 ++++----
+ ssl/ssl_cipher.cc             |  5 ++--
+ ssl/ssl_lib.cc                | 44 +++++++++++++++++++++++++++++------
+ ssl/tls13_server.cc           |  6 ++++-
+ 8 files changed, 104 insertions(+), 28 deletions(-)
+
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index a40a35687..0a79dc0bb 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -5536,6 +5536,18 @@ OPENSSL_EXPORT bool SSL_get_traffic_secrets(
+     const SSL *ssl, Span<const uint8_t> *out_read_traffic_secret,
+     Span<const uint8_t> *out_write_traffic_secret);
+ 
++// SSL_CTX_set_aes_hw_override_for_testing sets |override_value| to
++// override checking for aes hardware support for testing. If |override_value|
++// is set to true, the library will behave as if aes hardware support is
++// present. If it is set to false, the library will behave as if aes hardware
++// support is not present.
++OPENSSL_EXPORT void SSL_CTX_set_aes_hw_override_for_testing(
++    SSL_CTX *ctx, bool override_value);
++
++// SSL_set_aes_hw_override_for_testing acts the same as
++// |SSL_CTX_set_aes_override_for_testing| but only configures a single |SSL*|.
++OPENSSL_EXPORT void SSL_set_aes_hw_override_for_testing(SSL *ssl,
++                                                        bool override_value);
+ 
+ BSSL_NAMESPACE_END
+ 
+diff --git a/ssl/encrypted_client_hello.cc b/ssl/encrypted_client_hello.cc
+index 8d35f18b4..a5492e9a0 100644
+--- a/ssl/encrypted_client_hello.cc
++++ b/ssl/encrypted_client_hello.cc
+@@ -601,8 +601,8 @@ bool ssl_is_valid_ech_config_list(Span<const uint8_t> ech_config_list) {
+ 
+ static bool select_ech_cipher_suite(const EVP_HPKE_KDF **out_kdf,
+                                     const EVP_HPKE_AEAD **out_aead,
+-                                    Span<const uint8_t> cipher_suites) {
+-  const bool has_aes_hardware = EVP_has_aes_hardware();
++                                    Span<const uint8_t> cipher_suites,
++                                    const bool has_aes_hardware) {
+   const EVP_HPKE_AEAD *aead = nullptr;
+   CBS cbs = cipher_suites;
+   while (CBS_len(&cbs) != 0) {
+@@ -660,7 +660,10 @@ bool ssl_select_ech_config(SSL_HANDSHAKE *hs, Span<uint8_t> out_enc,
+       const EVP_HPKE_AEAD *aead;
+       if (supported &&  //
+           ech_config.kem_id == EVP_HPKE_DHKEM_X25519_HKDF_SHA256 &&
+-          select_ech_cipher_suite(&kdf, &aead, ech_config.cipher_suites)) {
++          select_ech_cipher_suite(&kdf, &aead, ech_config.cipher_suites,
++                                  hs->ssl->config->aes_hw_override
++                                      ? hs->ssl->config->aes_hw_override_value
++                                      : EVP_has_aes_hardware())) {
+         ScopedCBB info;
+         static const uint8_t kInfoLabel[] = "tls ech";  // includes trailing NUL
+         if (!CBB_init(info.get(), sizeof(kInfoLabel) + ech_config.raw.size()) ||
+@@ -714,9 +717,11 @@ static bool setup_ech_grease(SSL_HANDSHAKE *hs) {
+   }
+ 
+   const uint16_t kdf_id = EVP_HPKE_HKDF_SHA256;
+-  const EVP_HPKE_AEAD *aead = EVP_has_aes_hardware()
+-                                  ? EVP_hpke_aes_128_gcm()
+-                                  : EVP_hpke_chacha20_poly1305();
++  const bool has_aes_hw = hs->ssl->config->aes_hw_override
++                              ? hs->ssl->config->aes_hw_override_value
++                              : EVP_has_aes_hardware();
++  const EVP_HPKE_AEAD *aead =
++      has_aes_hw ? EVP_hpke_aes_128_gcm() : EVP_hpke_chacha20_poly1305();
+   static_assert(ssl_grease_ech_config_id < sizeof(hs->grease_seed),
+                 "hs->grease_seed is too small");
+   uint8_t config_id = hs->grease_seed[ssl_grease_ech_config_id];
+diff --git a/ssl/handshake_client.cc b/ssl/handshake_client.cc
+index 34c58aacf..2d40b7947 100644
+--- a/ssl/handshake_client.cc
++++ b/ssl/handshake_client.cc
+@@ -218,7 +218,7 @@ static void ssl_get_client_disabled(const SSL_HANDSHAKE *hs,
+ // collect_cipher_protocol_ids uses |cbb| to collect IANA-assigned numbers
+ // of |ciphers|. |mask_a|, |mask_k|, |max_version| and |min_version|
+ // are used to filter the |ciphers|. |any_enabled| will be true if not all
+-// ciphers are filtered out. 
++// ciphers are filtered out.
+ // It returns true when success. It returns false otherwise.
+ static bool collect_cipher_protocol_ids(STACK_OF(SSL_CIPHER) *ciphers,
+   CBB *cbb, uint32_t mask_k, uint32_t mask_a, uint16_t max_version,
+@@ -276,7 +276,11 @@ static bool ssl_write_client_cipher_list(const SSL_HANDSHAKE *hs, CBB *out,
+   } else if (hs->max_version >= TLS1_3_VERSION) {
+     // Use the built in TLSv1.3 ciphers. Order ChaCha20-Poly1305 relative to
+     // AES-GCM based on hardware support.
+-    if (!EVP_has_aes_hardware() &&
++    const bool has_aes_hw = ssl->config->aes_hw_override
++                                ? ssl->config->aes_hw_override_value
++                                : EVP_has_aes_hardware();
++
++    if (!has_aes_hw &&
+         !CBB_add_u16(&child, TLS1_CK_CHACHA20_POLY1305_SHA256 & 0xffff)) {
+       return false;
+     }
+@@ -284,7 +288,7 @@ static bool ssl_write_client_cipher_list(const SSL_HANDSHAKE *hs, CBB *out,
+         !CBB_add_u16(&child, TLS1_CK_AES_256_GCM_SHA384 & 0xffff)) {
+       return false;
+     }
+-    if (EVP_has_aes_hardware() &&
++    if (has_aes_hw &&
+         !CBB_add_u16(&child, TLS1_CK_CHACHA20_POLY1305_SHA256 & 0xffff)) {
+       return false;
+     }
+diff --git a/ssl/internal.h b/ssl/internal.h
+index 619902d59..dfca8be89 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -649,9 +649,11 @@ const EVP_MD *ssl_get_handshake_digest(uint16_t version,
+ // true, only TLS 1.3 ciphers are considered in |ssl_cipher_collect_ciphers|. If
+ // false, TLS 1.2 and below ciphers participate in |ssl_cipher_collect_ciphers|.
+ // An empty result is considered an error regardless of |strict| or
+-// |config_tls13|.
++// |config_tls13|. |has_aes_hw| indicates if the list should be ordered based on
++// having support for AES in hardware or not.
+ bool ssl_create_cipher_list(UniquePtr<SSLCipherPreferenceList> *out_cipher_list,
+-                            const char *rule_str, bool strict,
++                            const bool has_aes_hw, const char *rule_str,
++                            bool strict,
+                             bool config_tls13);
+ 
+ // ssl_cipher_auth_mask_for_key returns the mask of cipher |algorithm_auth|
+@@ -677,9 +679,10 @@ size_t ssl_cipher_get_record_split_len(const SSL_CIPHER *cipher);
+ // ssl_choose_tls13_cipher returns an |SSL_CIPHER| corresponding with the best
+ // available from |cipher_suites| compatible with |version|, |group_id| and
+ // configured |tls13_ciphers|. It returns NULL if there isn't a compatible
+-// cipher.
++// cipher. |has_aes_hw| indicates if the choice should be made as if support for
++// AES in hardware is available.
+ const SSL_CIPHER *ssl_choose_tls13_cipher(
+-    CBS cipher_suites, uint16_t version, uint16_t group_id,
++    CBS cipher_suites, bool has_aes_hw, uint16_t version, uint16_t group_id,
+     const STACK_OF(SSL_CIPHER) *tls13_ciphers);
+ 
+ 
+@@ -3142,6 +3145,15 @@ struct SSL_CONFIG {
+ 
+   // permute_extensions is whether to permute extensions when sending messages.
+   bool permute_extensions : 1;
++
++  // aes_hw_override if set indicates we should override checking for aes
++  // hardware support, and use the value in aes_hw_override_value instead.
++  bool aes_hw_override : 1;
++
++  // aes_hw_override_value is used for testing to indicate the support or lack
++  // of support for AES hw. The value is only considered if |aes_hw_override| is
++  // true.
++  bool aes_hw_override_value : 1;
+ };
+ 
+ // From RFC 8446, used in determining PSK modes.
+@@ -3786,6 +3798,14 @@ struct ssl_ctx_st {
+   // If enable_early_data is true, early data can be sent and accepted.
+   bool enable_early_data : 1;
+ 
++  // aes_hw_override if set indicates we should override checking for AES
++  // hardware support, and use the value in aes_hw_override_value instead.
++  bool aes_hw_override : 1;
++
++  // aes_hw_override_value is used for testing to indicate the support or lack
++  // of support for AES hardware. The value is only considered if
++  // |aes_hw_override| is true.
++  bool aes_hw_override_value : 1;
+  private:
+   ~ssl_ctx_st();
+   friend OPENSSL_EXPORT void SSL_CTX_free(SSL_CTX *);
+diff --git a/ssl/s3_both.cc b/ssl/s3_both.cc
+index 99bb966fe..9398106f5 100644
+--- a/ssl/s3_both.cc
++++ b/ssl/s3_both.cc
+@@ -663,7 +663,7 @@ void tls_next_message(SSL *ssl) {
+ // the client.
+ class CipherScorer {
+  public:
+-  CipherScorer() : aes_is_fine_(EVP_has_aes_hardware()) {}
++  CipherScorer(bool has_aes_hw) : aes_is_fine_(has_aes_hw) {}
+ 
+   typedef std::tuple<bool, bool> Score;
+ 
+@@ -685,15 +685,15 @@ class CipherScorer {
+   const bool aes_is_fine_;
+ };
+ 
+-const SSL_CIPHER *ssl_choose_tls13_cipher(CBS cipher_suites, uint16_t version,
+-                                          uint16_t group_id,
+-                                          const STACK_OF(SSL_CIPHER) *tls13_ciphers) {
++const SSL_CIPHER *ssl_choose_tls13_cipher(
++    CBS cipher_suites, bool has_aes_hw, uint16_t version, uint16_t group_id,
++    const STACK_OF(SSL_CIPHER) *tls13_ciphers) {
+   if (CBS_len(&cipher_suites) % 2 != 0) {
+     return nullptr;
+   }
+ 
+   const SSL_CIPHER *best = nullptr;
+-  CipherScorer scorer;
++  CipherScorer scorer(has_aes_hw);
+   CipherScorer::Score best_score = scorer.MinScore();
+ 
+   while (CBS_len(&cipher_suites) > 0) {
+diff --git a/ssl/ssl_cipher.cc b/ssl/ssl_cipher.cc
+index ce31023fc..6934cc924 100644
+--- a/ssl/ssl_cipher.cc
++++ b/ssl/ssl_cipher.cc
+@@ -1213,7 +1213,8 @@ static bool is_known_default_alias_keyword_filter_rule(const char *rule,
+ }
+ 
+ bool ssl_create_cipher_list(UniquePtr<SSLCipherPreferenceList> *out_cipher_list,
+-                            const char *rule_str, bool strict, bool config_tls13) {
++                            const bool has_aes_hw, const char *rule_str,
++                            bool strict, bool config_tls13) {
+   // Return with error if nothing to do.
+   if (rule_str == NULL || out_cipher_list == NULL) {
+     return false;
+@@ -1246,7 +1247,7 @@ bool ssl_create_cipher_list(UniquePtr<SSLCipherPreferenceList> *out_cipher_list,
+   // CHACHA20 unless there is hardware support for fast and constant-time
+   // AES_GCM. Of the two CHACHA20 variants, the new one is preferred over the
+   // old one.
+-  if (EVP_has_aes_hardware()) {
++  if (has_aes_hw) {
+     ssl_cipher_apply_rule(0, ~0u, ~0u, SSL_AES128GCM, ~0u, 0, CIPHER_ADD, -1,
+                           false, &head, &tail);
+     ssl_cipher_apply_rule(0, ~0u, ~0u, SSL_AES256GCM, ~0u, 0, CIPHER_ADD, -1,
+diff --git a/ssl/ssl_lib.cc b/ssl/ssl_lib.cc
+index d9b29f254..845042635 100644
+--- a/ssl/ssl_lib.cc
++++ b/ssl/ssl_lib.cc
+@@ -488,6 +488,17 @@ static int ssl_read_counter(const SSL_CTX *ctx, int counter) {
+   return counter;
+ }
+ 
++void SSL_CTX_set_aes_hw_override_for_testing(SSL_CTX *ctx,
++                                             bool override_value) {
++  ctx->aes_hw_override = true;
++  ctx->aes_hw_override_value = override_value;
++}
++
++void SSL_set_aes_hw_override_for_testing(SSL *ssl, bool override_value) {
++  ssl->config->aes_hw_override = true;
++  ssl->config->aes_hw_override_value = override_value;
++}
++
+ BSSL_NAMESPACE_END
+ 
+ using namespace bssl;
+@@ -528,7 +539,9 @@ ssl_ctx_st::ssl_ctx_st(const SSL_METHOD *ssl_method)
+       allow_unknown_alpn_protos(false),
+       false_start_allowed_without_alpn(false),
+       handoff(false),
+-      enable_early_data(false) {
++      enable_early_data(false),
++      aes_hw_override(false),
++      aes_hw_override_value(false) {
+   CRYPTO_MUTEX_init(&lock);
+   CRYPTO_new_ex_data(&ex_data);
+ }
+@@ -645,6 +658,8 @@ SSL *SSL_new(SSL_CTX *ctx) {
+   ssl->config->retain_only_sha256_of_client_certs =
+       ctx->retain_only_sha256_of_client_certs;
+   ssl->config->permute_extensions = ctx->permute_extensions;
++  ssl->config->aes_hw_override = ctx->aes_hw_override;
++  ssl->config->aes_hw_override_value = ctx->aes_hw_override_value;
+ 
+   if (!ssl->config->supported_group_list.CopyFrom(ctx->supported_group_list) ||
+       !ssl->config->alpn_client_proto_list.CopyFrom(
+@@ -2043,12 +2058,18 @@ const char *SSL_get_cipher_list(const SSL *ssl, int n) {
+ }
+ 
+ int SSL_CTX_set_cipher_list(SSL_CTX *ctx, const char *str) {
+-  return ssl_create_cipher_list(&ctx->cipher_list, str, false /* not strict */,
++  const bool has_aes_hw = ctx->aes_hw_override ? ctx->aes_hw_override_value
++                                               : EVP_has_aes_hardware();
++  return ssl_create_cipher_list(&ctx->cipher_list, has_aes_hw, str,
++                                false /* not strict */,
+                                 false /* don't configure TLSv1.3 ciphers */);
+ }
+ 
+ int SSL_CTX_set_strict_cipher_list(SSL_CTX *ctx, const char *str) {
+-  return ssl_create_cipher_list(&ctx->cipher_list, str, true /* strict */,
++  const bool has_aes_hw = ctx->aes_hw_override ? ctx->aes_hw_override_value
++                                               : EVP_has_aes_hardware();
++  return ssl_create_cipher_list(&ctx->cipher_list, has_aes_hw, str,
++                                true /* strict */,
+                                 false /* don't configure TLSv1.3 ciphers */);
+ }
+ 
+@@ -2056,13 +2077,18 @@ int SSL_set_cipher_list(SSL *ssl, const char *str) {
+   if (!ssl->config) {
+     return 0;
+   }
+-  return ssl_create_cipher_list(&ssl->config->cipher_list, str,
++  const bool has_aes_hw = ssl->config->aes_hw_override
++                              ? ssl->config->aes_hw_override_value
++                              : EVP_has_aes_hardware();
++  return ssl_create_cipher_list(&ssl->config->cipher_list, has_aes_hw, str,
+                                 false /* not strict */,
+                                 false /* don't configure TLSv1.3 ciphers */);
+ }
+ 
+ int SSL_CTX_set_ciphersuites(SSL_CTX *ctx, const char *str) {
+-  return ssl_create_cipher_list(&ctx->tls13_cipher_list, str,
++  const bool has_aes_hw = ctx->aes_hw_override ? ctx->aes_hw_override_value
++                                               : EVP_has_aes_hardware();
++  return ssl_create_cipher_list(&ctx->tls13_cipher_list, has_aes_hw, str,
+                                 false /* not strict */,
+                                 true /* only configure TLSv1.3 ciphers */);
+ }
+@@ -2071,7 +2097,10 @@ int SSL_set_strict_cipher_list(SSL *ssl, const char *str) {
+   if (!ssl->config) {
+     return 0;
+   }
+-  return ssl_create_cipher_list(&ssl->config->cipher_list, str,
++  const bool has_aes_hw = ssl->config->aes_hw_override
++                              ? ssl->config->aes_hw_override_value
++                              : EVP_has_aes_hardware();
++  return ssl_create_cipher_list(&ssl->config->cipher_list, has_aes_hw, str,
+                                 true /* strict */,
+                                 false /* don't configure TLSv1.3 ciphers */);
+ }
+@@ -3164,7 +3193,8 @@ int SSL_CTX_set_tlsext_status_cb(SSL_CTX *ctx,
+   return 1;
+ }
+ 
+-int SSL_CTX_get_tlsext_status_cb(SSL_CTX *ctx, int (**callback)(SSL *, void *)) {
++int SSL_CTX_get_tlsext_status_cb(SSL_CTX *ctx,
++                                 int (**callback)(SSL *, void *)) {
+   *callback = ctx->legacy_ocsp_callback;
+   return 1;
+ }
+diff --git a/ssl/tls13_server.cc b/ssl/tls13_server.cc
+index 372260003..fb358ffdf 100644
+--- a/ssl/tls13_server.cc
++++ b/ssl/tls13_server.cc
+@@ -123,7 +123,11 @@ static const SSL_CIPHER *choose_tls13_cipher(
+     tls13_ciphers = ssl->ctx->tls13_cipher_list.get()->ciphers.get();
+   }
+ 
+-  return ssl_choose_tls13_cipher(cipher_suites, version, group_id, tls13_ciphers);
++  return ssl_choose_tls13_cipher(cipher_suites,
++                                 ssl->config->aes_hw_override
++                                     ? ssl->config->aes_hw_override_value
++                                     : EVP_has_aes_hardware(),
++                                 version, group_id, tls13_ciphers);
+ }
+ 
+ static bool add_new_session_tickets(SSL_HANDSHAKE *hs, bool *out_sent_tickets) {

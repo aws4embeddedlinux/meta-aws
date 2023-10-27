@@ -1,0 +1,33 @@
+From 514dead48d9d1db0ec7e32c1a3f5460a5a9a793d Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sun, 29 Jan 2023 15:53:30 -0500
+Subject: [PATCH] Limit the CMake -isysroot assembly workaround to older CMake
+
+It was fixed in CMake 3.19 with
+https://gitlab.kitware.com/cmake/cmake/-/issues/20771
+
+Change-Id: Ia76ab6690e233bc650e11a79db381c00f21c83a1
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56568
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit 61266e464b9b509a8a0943b9cc826c97c31e04e7)
+---
+ crypto/CMakeLists.txt | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index d36773865..ed4c14770 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -39,8 +39,9 @@ if(NOT OPENSSL_NO_ASM)
+       set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -Wa,-g")
+     endif()
+ 
+-    # CMake does not add -isysroot and -arch flags to assembly.
+-    if(APPLE)
++    # Work around https://gitlab.kitware.com/cmake/cmake/-/issues/20771 in older
++    # CMake versions.
++    if(APPLE AND CMAKE_VERSION VERSION_LESS 3.19)
+       if(CMAKE_OSX_SYSROOT)
+         set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -isysroot \"${CMAKE_OSX_SYSROOT}\"")
+       endif()

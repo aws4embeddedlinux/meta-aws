@@ -1,0 +1,38 @@
+From 51917f8652149b00a38bd2ed3fda8d0e4132f5ed Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Thu, 6 Jul 2023 12:17:26 -0700
+Subject: [PATCH] Mark include as PUBLIC not SYSTEM PUBLIC (#1081)
+
+* Mark include as PUBLIC not SYSTEM PUBLIC
+* Update ssl target
+---
+ crypto/CMakeLists.txt | 2 +-
+ ssl/CMakeLists.txt    | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index 21811bd4d..ab86bdaca 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -553,7 +553,7 @@ function(build_libcrypto name module_source)
+     target_link_libraries(${name} PUBLIC pthread)
+   endif()
+ 
+-  target_include_directories(${name} SYSTEM PUBLIC
++  target_include_directories(${name} PUBLIC
+           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+           $<INSTALL_INTERFACE:include>)
+ endfunction()
+diff --git a/ssl/CMakeLists.txt b/ssl/CMakeLists.txt
+index b13e08e31..355949d3a 100644
+--- a/ssl/CMakeLists.txt
++++ b/ssl/CMakeLists.txt
+@@ -46,7 +46,7 @@ target_compile_definitions(ssl PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+ target_link_libraries(ssl crypto)
+ 
+-target_include_directories(ssl SYSTEM PUBLIC
++target_include_directories(ssl PUBLIC
+   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+   $<INSTALL_INTERFACE:include>)
+ 

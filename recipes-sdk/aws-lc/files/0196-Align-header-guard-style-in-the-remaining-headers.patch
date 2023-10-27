@@ -1,0 +1,114 @@
+From 401d58e176702d3282e461d725d269be22acf13d Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 2 Jan 2023 09:55:09 -0800
+Subject: [PATCH] Align header guard style in the remaining headers.
+
+Change-Id: I811884dacf14fb6da4dd2300f27c8801145fd3ae
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56645
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit a1c79226137e8f60ed572dabdd2435f1f942be0f)
+---
+ include/openssl/asn1.h   |  6 +++---
+ include/openssl/asn1t.h  | 14 ++++++++------
+ include/openssl/x509.h   |  6 +++---
+ include/openssl/x509v3.h |  6 +++---
+ 4 files changed, 17 insertions(+), 15 deletions(-)
+
+diff --git a/include/openssl/asn1.h b/include/openssl/asn1.h
+index c82c74e22..0aa234ee2 100644
+--- a/include/openssl/asn1.h
++++ b/include/openssl/asn1.h
+@@ -55,8 +55,8 @@
+  * [including the GNU Public Licence.]
+  */
+ 
+-#ifndef HEADER_ASN1_H
+-#define HEADER_ASN1_H
++#ifndef OPENSSL_HEADER_ASN1_H
++#define OPENSSL_HEADER_ASN1_H
+ 
+ #include <openssl/base.h>
+ 
+@@ -2120,4 +2120,4 @@ BSSL_NAMESPACE_END
+ #define ASN1_R_WRONG_INTEGER_TYPE 195
+ #define ASN1_R_INVALID_INTEGER 196
+ 
+-#endif
++#endif  // OPENSSL_HEADER_ASN1_H
+diff --git a/include/openssl/asn1t.h b/include/openssl/asn1t.h
+index 324eb57f6..72be67278 100644
+--- a/include/openssl/asn1t.h
++++ b/include/openssl/asn1t.h
+@@ -54,13 +54,13 @@
+  * Hudson (tjh@cryptsoft.com).
+  *
+  */
+-#ifndef HEADER_ASN1T_H
+-#define HEADER_ASN1T_H
++#ifndef OPENSSL_HEADER_ASN1T_H
++#define OPENSSL_HEADER_ASN1T_H
+ 
+ #include <openssl/base.h>
+ #include <openssl/asn1.h>
+ 
+-#ifdef  __cplusplus
++#if defined(__cplusplus)
+ extern "C" {
+ #endif
+ 
+@@ -702,7 +702,9 @@ DECLARE_ASN1_ITEM(ASN1_SEQUENCE)
+ 
+ DEFINE_STACK_OF(ASN1_VALUE)
+ 
+-#ifdef  __cplusplus
+-}
+-#endif
++
++#if defined(__cplusplus)
++}  // extern "C"
+ #endif
++
++#endif  // OPENSSL_HEADER_ASN1T_H
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index a9d3a2026..316aa6b65 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -60,8 +60,8 @@
+  * SUN MICROSYSTEMS, INC., and contributed to the OpenSSL project.
+  */
+ 
+-#ifndef HEADER_X509_H
+-#define HEADER_X509_H
++#ifndef OPENSSL_HEADER_X509_H
++#define OPENSSL_HEADER_X509_H
+ 
+ #include <openssl/asn1.h>
+ #include <openssl/base.h>
+@@ -2936,4 +2936,4 @@ BSSL_NAMESPACE_END
+ #define X509_R_NO_CRL_FOUND 143
+ #define X509_R_INVALID_POLICY_EXTENSION 144
+ 
+-#endif
++#endif  // OPENSSL_HEADER_X509_H
+diff --git a/include/openssl/x509v3.h b/include/openssl/x509v3.h
+index dba6edc50..0c9252d72 100644
+--- a/include/openssl/x509v3.h
++++ b/include/openssl/x509v3.h
+@@ -52,8 +52,8 @@
+  * (eay@cryptsoft.com).  This product includes software written by Tim
+  * Hudson (tjh@cryptsoft.com). */
+ 
+-#ifndef HEADER_X509V3_H
+-#define HEADER_X509V3_H
++#ifndef OPENSSL_HEADER_X509V3_H
++#define OPENSSL_HEADER_X509V3_H
+ 
+ #include <openssl/bio.h>
+ #include <openssl/conf.h>
+@@ -1046,4 +1046,4 @@ BSSL_NAMESPACE_END
+ #define X509V3_R_INVALID_VALUE 163
+ #define X509V3_R_TRAILING_DATA_IN_EXTENSION 164
+ 
+-#endif
++#endif  // OPENSSL_HEADER_X509V3_H

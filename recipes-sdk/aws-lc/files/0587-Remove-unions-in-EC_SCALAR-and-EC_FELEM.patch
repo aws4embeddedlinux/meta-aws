@@ -1,0 +1,1215 @@
+From ca700047d1aaa63c174f2f0e4276d65bbd2f7cab Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 5 May 2022 08:43:27 -0400
+Subject: [PATCH] Remove unions in EC_SCALAR and EC_FELEM.
+
+When introducing EC_SCALAR and EC_FELEM, I used unions as convenience
+for converting to and from the byte representation. However,
+type-punning with unions is not allowed in C++ and hard to use correctly
+in C. As I understand the rules, they are:
+
+- The abstract machine knows what member of union was last written to.
+
+- In C, reading from an inactive member is defined to type-pun. In C++,
+  it is UB though some compilers promise the C behavior anyway.
+
+- However, if you read or write from a *pointer* to a union member, the
+  strict aliasing rule applies. (A function passed two pointers of
+  different types otherwise needs to pessimally assume they came from
+  the same union.)
+
+That last rule means the type-punning allowance doesn't apply if you
+take a pointer to an inactive member, and it's common to abstract
+otherwise direct accesses of members via pointers.
+
+https://github.com/openssl/openssl/issues/18225 is an example where
+similar union tricks have caused problems for OpenSSL. While we don't
+have that code, EC_SCALAR and EC_FELEM play similar tricks.
+
+We do get a second lifeline because our alternate view is a uint8_t,
+which we require to be unsigned char. Strict aliasing always allows the
+pointer type to be a character type, so pointer-indirected accesses of
+EC_SCALAR.bytes aren't necessarily UB. But if we ever write to
+EC_SCALAR.bytes directly (and we do), we'll switch the active arm and
+then pointers to EC_SCALAR.words become strict aliasing violations!
+
+This is all far too complicated to deal with. Ideally everyone would
+build with -fno-strict-aliasing because no real C code actually follows
+these rules. But we don't always control our downstream consumers'
+CFLAGS, so let's just avoid the union. This also avoids a pitfall if we
+ever move libcrypto to C++.
+
+For p224-64.c, I just converted the representations directly, which
+avoids worrying about the top 32 bits in p224_felem_to_generic. Most of
+the rest was words vs. bytes conversions and boils down to a cast (we're
+still dealing with a character type, at the end of the day). But I took
+the opportunity to extract some more "words"-based helper functions out
+of BIGNUM, so the casts would only be in one place. That too saves us
+from the top bits problem in the bytes-to-words direction.
+
+Bug: 301
+Change-Id: I3285a86441daaf824a4f6862e825d463a669efdb
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/52505
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+
+(cherry picked from commit 227ff6e6425283b83594a91a1aa81cc78f1a88df)
+------------
+This commit was augmented for AWS-LC by justsmth@amazon.com:
+
+* There is a delocate issue with gcc-11 when
+       p224_generic_to_felem is inlined.
+* Include related changes for p384 and p521.
+* For C99 use `assert` instead of `static_assert`
+* Keep `EC_JACOBIAN` structs
+
+------------
+---
+ crypto/ecdh_extra/ecdh_test.cc          |  16 +--
+ crypto/fipsmodule/bn/bytes.c            | 136 +++++++++++++-----------
+ crypto/fipsmodule/bn/internal.h         |  19 ++++
+ crypto/fipsmodule/ec/ec.c               |  28 ++---
+ crypto/fipsmodule/ec/ec_test.cc         |  16 +--
+ crypto/fipsmodule/ec/internal.h         |   8 +-
+ crypto/fipsmodule/ec/p224-64.c          | 108 +++++++++----------
+ crypto/fipsmodule/ec/p256-nistz.c       |   6 +-
+ crypto/fipsmodule/ec/p256-nistz_test.cc |   4 +-
+ crypto/fipsmodule/ec/p256.c             |  77 ++++++++------
+ crypto/fipsmodule/ec/p384.c             |  46 ++++----
+ crypto/fipsmodule/ec/p521.c             |  40 ++++---
+ crypto/fipsmodule/ec/scalar.c           |  10 +-
+ crypto/fipsmodule/ec/simple.c           |   9 +-
+ crypto/fipsmodule/ecdsa/ecdsa.c         |   5 +-
+ crypto/internal.h                       |  12 +++
+ crypto/trust_token/trust_token_test.cc  |   2 +-
+ 17 files changed, 292 insertions(+), 250 deletions(-)
+
+diff --git a/crypto/ecdh_extra/ecdh_test.cc b/crypto/ecdh_extra/ecdh_test.cc
+index 165f025ff..e2cff1a42 100644
+--- a/crypto/ecdh_extra/ecdh_test.cc
++++ b/crypto/ecdh_extra/ecdh_test.cc
+@@ -194,12 +194,12 @@ TEST(ECDHTest, InvalidPubKeyLargeCoord) {
+ 
+     // Set the raw point directly with the BIGNUM coordinates.
+     // Note that both are in little-endian byte order.
+-    OPENSSL_memcpy(peer_key.get()->pub_key->raw.X.bytes,
+-                   (const uint8_t *)x.get()->d, len);
+-    OPENSSL_memcpy(peer_key.get()->pub_key->raw.Y.bytes,
+-                   (const uint8_t *)y.get()->d, len);
+-    OPENSSL_memset(peer_key.get()->pub_key->raw.Z.bytes, 0, len);
+-    peer_key.get()->pub_key->raw.Z.bytes[0] = 1;
++    OPENSSL_memcpy(peer_key.get()->pub_key->raw.X.words,
++                   x.get()->d, len);
++    OPENSSL_memcpy(peer_key.get()->pub_key->raw.Y.words,
++                   y.get()->d, len);
++    OPENSSL_memset(peer_key.get()->pub_key->raw.Z.words, 0, len);
++    peer_key.get()->pub_key->raw.Z.words[0] = 1;
+ 
+     // |ECDH_compute_key_fips| calls |EC_KEY_check_fips| that calls
+     // |EC_KEY_check_key| function which checks if the computed key point is on
+@@ -223,8 +223,8 @@ TEST(ECDHTest, InvalidPubKeyLargeCoord) {
+     ASSERT_TRUE(pub_key.get());
+ 
+     // Now replace the x-coordinate with the larger one, x+p;
+-    OPENSSL_memcpy(peer_key.get()->pub_key->raw.X.bytes,
+-                   (const uint8_t *)xpp.get()->d, len);
++    OPENSSL_memcpy(peer_key.get()->pub_key->raw.X.words,
++                   xpp.get()->d, len);
+     ret = ECDH_compute_key_fips(shared_key.data(), shared_key.size(),
+                                 EC_KEY_get0_public_key(peer_key.get()),
+                                 priv_key.get());
+diff --git a/crypto/fipsmodule/bn/bytes.c b/crypto/fipsmodule/bn/bytes.c
+index 35aee96d2..da27426c8 100644
+--- a/crypto/fipsmodule/bn/bytes.c
++++ b/crypto/fipsmodule/bn/bytes.c
+@@ -61,19 +61,38 @@
+ 
+ #include "internal.h"
+ 
++void bn_big_endian_to_words(BN_ULONG *out, size_t out_len, const uint8_t *in,
++                            size_t in_len) {
++  for (size_t i = 0; i < out_len; i++) {
++    if (in_len < sizeof(BN_ULONG)) {
++      // Load the last partial word.
++      BN_ULONG word = 0;
++      for (size_t j = 0; j < in_len; j++) {
++        word = (word << 8) | in[j];
++      }
++      in_len = 0;
++      out[i] = word;
++      // Fill the remainder with zeros.
++      OPENSSL_memset(out + i + 1, 0, (out_len - i - 1) * sizeof(BN_ULONG));
++      break;
++    }
+ 
+-BIGNUM *BN_bin2bn(const uint8_t *in, size_t len, BIGNUM *ret) {
+-  size_t num_words;
+-  unsigned m;
+-  BN_ULONG word = 0;
+-  BIGNUM *bn = NULL;
+-
+-  if (ret == NULL) {
+-    ret = bn = BN_new();
++    in_len -= sizeof(BN_ULONG);
++    out[i] = CRYPTO_load_word_be(in + in_len);
+   }
+ 
++  // The caller should have sized the output to avoid truncation.
++  assert(in_len == 0);
++}
++
++BIGNUM *BN_bin2bn(const uint8_t *in, size_t len, BIGNUM *ret) {
++  BIGNUM *bn = NULL;
+   if (ret == NULL) {
+-    return NULL;
++    bn = BN_new();
++    if (bn == NULL) {
++      return NULL;
++    }
++    ret = bn;
+   }
+ 
+   if (len == 0) {
+@@ -81,12 +100,9 @@ BIGNUM *BN_bin2bn(const uint8_t *in, size_t len, BIGNUM *ret) {
+     return ret;
+   }
+ 
+-  num_words = ((len - 1) / BN_BYTES) + 1;
+-  m = (len - 1) % BN_BYTES;
++  size_t num_words = ((len - 1) / BN_BYTES) + 1;
+   if (!bn_wexpand(ret, num_words)) {
+-    if (bn) {
+-      BN_free(bn);
+-    }
++    BN_free(bn);
+     return NULL;
+   }
+ 
+@@ -96,15 +112,7 @@ BIGNUM *BN_bin2bn(const uint8_t *in, size_t len, BIGNUM *ret) {
+   ret->width = (int)num_words;
+   ret->neg = 0;
+ 
+-  while (len--) {
+-    word = (word << 8) | *(in++);
+-    if (m-- == 0) {
+-      ret->d[--num_words] = word;
+-      word = 0;
+-      m = BN_BYTES - 1;
+-    }
+-  }
+-
++  bn_big_endian_to_words(ret->d, ret->width, in, len);
+   return ret;
+ }
+ 
+@@ -112,13 +120,12 @@ BIGNUM *BN_le2bn(const uint8_t *in, size_t len, BIGNUM *ret) {
+   BIGNUM *bn = NULL;
+   if (ret == NULL) {
+     bn = BN_new();
++    if (bn == NULL) {
++      return NULL;
++    }
+     ret = bn;
+   }
+ 
+-  if (ret == NULL) {
+-    return NULL;
+-  }
+-
+   if (len == 0) {
+     ret->width = 0;
+     ret->neg = 0;
+@@ -142,38 +149,58 @@ BIGNUM *BN_le2bn(const uint8_t *in, size_t len, BIGNUM *ret) {
+   return ret;
+ }
+ 
+-size_t BN_bn2bin(const BIGNUM *in, uint8_t *out) {
+-  size_t n, i;
+-  BN_ULONG l;
+-
+-  n = i = BN_num_bytes(in);
+-  while (i--) {
+-    l = in->d[i / BN_BYTES];
+-    *(out++) = (unsigned char)(l >> (8 * (i % BN_BYTES))) & 0xff;
+-  }
+-  return n;
+-}
+-
+-static int fits_in_bytes(const uint8_t *bytes, size_t num_bytes, size_t len) {
++// fits_in_bytes returns one if the |num_words| words in |words| can be
++// represented in |num_bytes| bytes.
++static int fits_in_bytes(const BN_ULONG *words, size_t num_words,
++                         size_t num_bytes) {
++  const uint8_t *bytes = (const uint8_t *)words;
++  size_t tot_bytes = num_words * sizeof(BN_ULONG);
+   uint8_t mask = 0;
+-  for (size_t i = len; i < num_bytes; i++) {
++  for (size_t i = num_bytes; i < tot_bytes; i++) {
+     mask |= bytes[i];
+   }
+   return mask == 0;
+ }
+ 
++void bn_words_to_big_endian(uint8_t *out, size_t out_len, const BN_ULONG *in,
++                            size_t in_len) {
++  // The caller should have selected an output length without truncation.
++  assert(fits_in_bytes(in, in_len, out_len));
++
++  // We only support little-endian platforms, so the internal representation is
++  // also little-endian as bytes. We can simply copy it in reverse.
++  const uint8_t *bytes = (const uint8_t *)in;
++  size_t num_bytes = in_len * sizeof(BN_ULONG);
++  if (out_len < num_bytes) {
++    num_bytes = out_len;
++  }
++
++  for (size_t i = 0; i < num_bytes; i++) {
++    out[out_len - i - 1] = bytes[i];
++  }
++  // Pad out the rest of the buffer with zeroes.
++  OPENSSL_memset(out, 0, out_len - num_bytes);
++}
++
++size_t BN_bn2bin(const BIGNUM *in, uint8_t *out) {
++  size_t n = BN_num_bytes(in);
++  bn_words_to_big_endian(out, n, in->d, in->width);
++  return n;
++}
++
+ int BN_bn2le_padded(uint8_t *out, size_t len, const BIGNUM *in) {
++  if (!fits_in_bytes(in->d, in->width, len)) {
++    return 0;
++  }
++
++  // We only support little-endian platforms, so we can simply memcpy into the
++  // internal representation.
+   const uint8_t *bytes = (const uint8_t *)in->d;
+   size_t num_bytes = in->width * BN_BYTES;
+   if (len < num_bytes) {
+-    if (!fits_in_bytes(bytes, num_bytes, len)) {
+-      return 0;
+-    }
+     num_bytes = len;
+   }
+ 
+-  // We only support little-endian platforms, so we can simply memcpy into the
+-  // internal representation.
+   OPENSSL_memcpy(out, bytes, num_bytes);
+   // Pad out the rest of the buffer with zeroes.
+   OPENSSL_memset(out + num_bytes, 0, len - num_bytes);
+@@ -181,22 +208,11 @@ int BN_bn2le_padded(uint8_t *out, size_t len, const BIGNUM *in) {
+ }
+ 
+ int BN_bn2bin_padded(uint8_t *out, size_t len, const BIGNUM *in) {
+-  const uint8_t *bytes = (const uint8_t *)in->d;
+-  size_t num_bytes = in->width * BN_BYTES;
+-  if (len < num_bytes) {
+-    if (!fits_in_bytes(bytes, num_bytes, len)) {
+-      return 0;
+-    }
+-    num_bytes = len;
++  if (!fits_in_bytes(in->d, in->width, len)) {
++    return 0;
+   }
+ 
+-  // We only support little-endian platforms, so we can simply write the buffer
+-  // in reverse.
+-  for (size_t i = 0; i < num_bytes; i++) {
+-    out[len - i - 1] = bytes[i];
+-  }
+-  // Pad out the rest of the buffer with zeroes.
+-  OPENSSL_memset(out, 0, len - num_bytes);
++  bn_words_to_big_endian(out, len, in->d, in->width);
+   return 1;
+ }
+ 
+diff --git a/crypto/fipsmodule/bn/internal.h b/crypto/fipsmodule/bn/internal.h
+index 2f6fd3d03..67a632118 100644
+--- a/crypto/fipsmodule/bn/internal.h
++++ b/crypto/fipsmodule/bn/internal.h
+@@ -742,6 +742,25 @@ void bn_mod_inverse0_prime_mont_small(BN_ULONG *r, const BN_ULONG *a,
+                                       size_t num, const BN_MONT_CTX *mont);
+ 
+ 
++// Word-based byte conversion functions.
++
++// bn_big_endian_to_words interprets |in_len| bytes from |in| as a big-endian,
++// unsigned integer and writes the result to |out_len| words in |out|. |out_len|
++// must be large enough to represent any |in_len|-byte value. That is, |out_len|
++// must be at least |BN_BYTES * in_len|.
++void bn_big_endian_to_words(BN_ULONG *out, size_t out_len, const uint8_t *in,
++                            size_t in_len);
++
++// bn_words_to_big_endian represents |in_len| words from |in| as a big-endian,
++// unsigned integer in |out_len| bytes. It writes the result to |out|. |out_len|
++// must be large enough to represent |in| without truncation.
++//
++// Note |out_len| may be less than |BN_BYTES * in_len| if |in| is known to have
++// leading zeros.
++void bn_words_to_big_endian(uint8_t *out, size_t out_len, const BN_ULONG *in,
++                            size_t in_len);
++
++
+ #if defined(__cplusplus)
+ }  // extern C
+ #endif
+diff --git a/crypto/fipsmodule/ec/ec.c b/crypto/fipsmodule/ec/ec.c
+index 68ea8648d..112933f12 100644
+--- a/crypto/fipsmodule/ec/ec.c
++++ b/crypto/fipsmodule/ec/ec.c
+@@ -1220,15 +1220,12 @@ int ec_get_x_coordinate_as_scalar(const EC_GROUP *group, EC_SCALAR *out,
+     return 0;
+   }
+ 
+-  // For simplicity, in case of width mismatches between |group->field| and
+-  // |group->order|, zero any untouched words in |out|.
+-  OPENSSL_memset(out, 0, sizeof(EC_SCALAR));
+-  for (size_t i = 0; i < len; i++) {
+-    out->bytes[len - i - 1] = bytes[i];
+-  }
+-
+-  // We must have p < 2×order, assuming p is not tiny (p >= 17). Thus rather we
+-  // can reduce by performing at most one subtraction.
++  // The x-coordinate is bounded by p, but we need a scalar, bounded by the
++  // order. These may not have the same size. However, we must have p < 2×order,
++  // assuming p is not tiny (p >= 17).
++  //
++  // Thus |bytes| will fit in |order.width + 1| words, and we can reduce by
++  // performing at most one subtraction.
+   //
+   // Proof: We only work with prime order curves, so the number of points on
+   // the curve is the order. Thus Hasse's theorem gives:
+@@ -1242,14 +1239,11 @@ int ec_get_x_coordinate_as_scalar(const EC_GROUP *group, EC_SCALAR *out,
+   //
+   // Additionally, one can manually check this property for built-in curves. It
+   // is enforced for legacy custom curves in |EC_GROUP_set_generator|.
+-
+-  // The above does not guarantee |group->field| is not one word larger than
+-  // |group->order|, so read one extra carry word.
+-  BN_ULONG tmp[EC_MAX_WORDS];
+-  BN_ULONG carry =
+-      group->order.width < EC_MAX_WORDS ? out->words[group->order.width] : 0;
+-  bn_reduce_once_in_place(out->words, carry, group->order.d, tmp,
+-                          group->order.width);
++  const BIGNUM *order = EC_GROUP_get0_order(group);
++  BN_ULONG words[EC_MAX_WORDS + 1] = {0};
++  bn_big_endian_to_words(words, order->width + 1, bytes, len);
++  bn_reduce_once(out->words, words, /*carry=*/words[order->width], order->d,
++                 order->width);
+   return 1;
+ }
+ 
+diff --git a/crypto/fipsmodule/ec/ec_test.cc b/crypto/fipsmodule/ec/ec_test.cc
+index afbffae0a..2ecb455d3 100644
+--- a/crypto/fipsmodule/ec/ec_test.cc
++++ b/crypto/fipsmodule/ec/ec_test.cc
+@@ -1899,12 +1899,12 @@ TEST(ECTest, LargeXCoordinateVectors) {
+ 
+     // Set the raw point directly with the BIGNUM coordinates.
+     // Note that both are in little-endian byte order.
+-    OPENSSL_memcpy(key.get()->pub_key->raw.X.bytes,
+-                   (const uint8_t *)x.get()->d, len);
+-    OPENSSL_memcpy(key.get()->pub_key->raw.Y.bytes,
+-                   (const uint8_t *)y.get()->d, len);
+-    OPENSSL_memset(key.get()->pub_key->raw.Z.bytes, 0, len);
+-    key.get()->pub_key->raw.Z.bytes[0] = 1;
++    OPENSSL_memcpy(key.get()->pub_key->raw.X.words,
++                   x.get()->d, len);
++    OPENSSL_memcpy(key.get()->pub_key->raw.Y.words,
++                   y.get()->d, len);
++    OPENSSL_memset(key.get()->pub_key->raw.Z.words, 0, len);
++    key.get()->pub_key->raw.Z.words[0] = 1;
+ 
+     // |EC_KEY_check_fips| first calls the |EC_KEY_check_key| function that
+     // checks if the key point is on the curve (among other checks). If the
+@@ -1921,8 +1921,8 @@ TEST(ECTest, LargeXCoordinateVectors) {
+     }
+ 
+     // Now replace the x-coordinate with the larger one, x+p.
+-    OPENSSL_memcpy(key.get()->pub_key->raw.X.bytes,
+-                   (const uint8_t *)xpp.get()->d, len);
++    OPENSSL_memcpy(key.get()->pub_key->raw.X.words,
++                   xpp.get()->d, len);
+     // We expect |EC_KEY_check_fips| to always fail when given key with x > p.
+     ASSERT_FALSE(EC_KEY_check_fips(key.get()));
+ 
+diff --git a/crypto/fipsmodule/ec/internal.h b/crypto/fipsmodule/ec/internal.h
+index 36de934cd..1a1b84dfe 100644
+--- a/crypto/fipsmodule/ec/internal.h
++++ b/crypto/fipsmodule/ec/internal.h
+@@ -110,8 +110,7 @@ OPENSSL_STATIC_ASSERT(EC_MAX_WORDS <= BN_SMALL_MAX_WORDS,
+ // |order->width| words are used. An |EC_SCALAR| is specific to an |EC_GROUP|
+ // and must not be mixed between groups.
+ typedef union {
+-  // bytes is the representation of the scalar in little-endian order.
+-  uint8_t bytes[EC_MAX_BYTES];
++  // words is the representation of the scalar in little-endian order.
+   BN_ULONG words[EC_MAX_WORDS];
+ } EC_SCALAR;
+ 
+@@ -201,9 +200,8 @@ void ec_scalar_select(const EC_GROUP *group, EC_SCALAR *out, BN_ULONG mask,
+ // are used. An |EC_FELEM| is specific to an |EC_GROUP| and must not be mixed
+ // between groups. Additionally, the representation (whether or not elements are
+ // represented in Montgomery-form) may vary between |EC_METHOD|s.
+-typedef union {
+-  // bytes is the representation of the field element in little-endian order.
+-  uint8_t bytes[EC_MAX_BYTES];
++typedef struct {
++  // words is the representation of the field element in little-endian order.
+   BN_ULONG words[EC_MAX_WORDS];
+ } EC_FELEM;
+ 
+diff --git a/crypto/fipsmodule/ec/p224-64.c b/crypto/fipsmodule/ec/p224-64.c
+index 5724b92c6..1067f0d14 100644
+--- a/crypto/fipsmodule/ec/p224-64.c
++++ b/crypto/fipsmodule/ec/p224-64.c
+@@ -52,11 +52,6 @@ typedef uint128_t p224_widelimb;
+ typedef p224_limb p224_felem[4];
+ typedef p224_widelimb p224_widefelem[7];
+ 
+-// Field element represented as a byte arrary. 28*8 = 224 bits is also the
+-// group order size for the elliptic curve, and we also use this type for
+-// scalars for point multiplication.
+-typedef uint8_t p224_felem_bytearray[28];
+-
+ // Precomputed multiples of the standard generator
+ // Points are given in coordinates (X, Y, Z) where Z normally is 1
+ // (0 for the point at infinity).
+@@ -180,31 +175,20 @@ static const p224_felem g_p224_pre_comp[2][16][3] = {
+       {0x32477c61b6e8c6, 0xb46a97570f018b, 0x91176d0a7e95d1, 0x3df90fbc4c7d0e},
+       {1, 0, 0, 0}}}};
+ 
+-static uint64_t p224_load_u64(const uint8_t in[8]) {
+-  uint64_t ret;
+-  OPENSSL_memcpy(&ret, in, sizeof(ret));
+-  return ret;
+-}
+ 
+ // Helper functions to convert field elements to/from internal representation
+-static void p224_bin28_to_felem(p224_felem out, const uint8_t in[28]) {
+-  out[0] = p224_load_u64(in) & 0x00ffffffffffffff;
+-  out[1] = p224_load_u64(in + 7) & 0x00ffffffffffffff;
+-  out[2] = p224_load_u64(in + 14) & 0x00ffffffffffffff;
+-  out[3] = p224_load_u64(in + 20) >> 8;
+-}
+-
+-static void p224_felem_to_bin28(uint8_t out[28], const p224_felem in) {
+-  for (size_t i = 0; i < 7; ++i) {
+-    out[i] = in[0] >> (8 * i);
+-    out[i + 7] = in[1] >> (8 * i);
+-    out[i + 14] = in[2] >> (8 * i);
+-    out[i + 21] = in[3] >> (8 * i);
+-  }
+-}
+ 
++#if defined(AWSLC_FIPS)
++// Related to delocate issue with gcc-11
++__attribute__((noinline))
++#endif
+ static void p224_generic_to_felem(p224_felem out, const EC_FELEM *in) {
+-  p224_bin28_to_felem(out, in->bytes);
++  // |p224_felem|'s minimal representation uses four 56-bit words. |EC_FELEM|
++  // uses four 64-bit words. (The top-most word only has 32 bits.)
++  out[0] = in->words[0] & 0x00ffffffffffffff;
++  out[1] = ((in->words[0] >> 56) | (in->words[1] << 8)) & 0x00ffffffffffffff;
++  out[2] = ((in->words[1] >> 48) | (in->words[2] << 16)) & 0x00ffffffffffffff;
++  out[3] = ((in->words[2] >> 40) | (in->words[3] << 24)) & 0x00ffffffffffffff;
+ }
+ 
+ // Requires 0 <= in < 2*p (always call p224_felem_reduce first)
+@@ -256,9 +240,12 @@ static void p224_felem_to_generic(EC_FELEM *out, const p224_felem in) {
+   tmp2[2] = tmp[2];
+   tmp2[3] = tmp[3];
+ 
+-  p224_felem_to_bin28(out->bytes, tmp2);
+-  // 224 is not a multiple of 64, so zero the remaining bytes.
+-  OPENSSL_memset(out->bytes + 28, 0, 32 - 28);
++  // |p224_felem|'s minimal representation uses four 56-bit words. |EC_FELEM|
++  // uses four 64-bit words. (The top-most word only has 32 bits.)
++  out->words[0] = tmp2[0] | (tmp2[1] << 56);
++  out->words[1] = (tmp2[1] >> 8) | (tmp2[2] << 48);
++  out->words[2] = (tmp2[2] >> 16) | (tmp2[3] << 40);
++  out->words[3] = tmp2[3] >> 24;
+ }
+ 
+ 
+@@ -865,12 +852,13 @@ static void p224_select_point(const uint64_t idx, size_t size,
+   }
+ }
+ 
+-// p224_get_bit returns the |i|th bit in |in|
+-static crypto_word_t p224_get_bit(const p224_felem_bytearray in, size_t i) {
++// p224_get_bit returns the |i|th bit in |in|.
++static crypto_word_t p224_get_bit(const EC_SCALAR *in, size_t i) {
+   if (i >= 224) {
+     return 0;
+   }
+-  return (in[i >> 3] >> (i & 7)) & 1;
++  assert(sizeof(in->words[0]) == 8);
++  return (in->words[i >> 6] >> (i & 63)) & 1;
+ }
+ 
+ // Takes the Jacobian coordinates (X, Y, Z) of a point and returns
+@@ -977,12 +965,12 @@ static void ec_GFp_nistp224_point_mul(const EC_GROUP *group, EC_JACOBIAN *r,
+ 
+     // Add every 5 doublings.
+     if (i % 5 == 0) {
+-      crypto_word_t bits = p224_get_bit(scalar->bytes, i + 4) << 5;
+-      bits |= p224_get_bit(scalar->bytes, i + 3) << 4;
+-      bits |= p224_get_bit(scalar->bytes, i + 2) << 3;
+-      bits |= p224_get_bit(scalar->bytes, i + 1) << 2;
+-      bits |= p224_get_bit(scalar->bytes, i) << 1;
+-      bits |= p224_get_bit(scalar->bytes, i - 1);
++      crypto_word_t bits = p224_get_bit(scalar, i + 4) << 5;
++      bits |= p224_get_bit(scalar, i + 3) << 4;
++      bits |= p224_get_bit(scalar, i + 2) << 3;
++      bits |= p224_get_bit(scalar, i + 1) << 2;
++      bits |= p224_get_bit(scalar, i) << 1;
++      bits |= p224_get_bit(scalar, i - 1);
+       crypto_word_t sign, digit;
+       ec_GFp_nistp_recode_scalar_bits(&sign, &digit, bits);
+ 
+@@ -1022,10 +1010,10 @@ static void ec_GFp_nistp224_point_mul_base(const EC_GROUP *group,
+     }
+ 
+     // First, look 28 bits upwards.
+-    crypto_word_t bits = p224_get_bit(scalar->bytes, i + 196) << 3;
+-    bits |= p224_get_bit(scalar->bytes, i + 140) << 2;
+-    bits |= p224_get_bit(scalar->bytes, i + 84) << 1;
+-    bits |= p224_get_bit(scalar->bytes, i + 28);
++    crypto_word_t bits = p224_get_bit(scalar, i + 196) << 3;
++    bits |= p224_get_bit(scalar, i + 140) << 2;
++    bits |= p224_get_bit(scalar, i + 84) << 1;
++    bits |= p224_get_bit(scalar, i + 28);
+     // Select the point to add, in constant time.
+     p224_select_point(bits, 16, g_p224_pre_comp[1], tmp);
+ 
+@@ -1038,10 +1026,10 @@ static void ec_GFp_nistp224_point_mul_base(const EC_GROUP *group,
+     }
+ 
+     // Second, look at the current position/
+-    bits = p224_get_bit(scalar->bytes, i + 168) << 3;
+-    bits |= p224_get_bit(scalar->bytes, i + 112) << 2;
+-    bits |= p224_get_bit(scalar->bytes, i + 56) << 1;
+-    bits |= p224_get_bit(scalar->bytes, i);
++    bits = p224_get_bit(scalar, i + 168) << 3;
++    bits |= p224_get_bit(scalar, i + 112) << 2;
++    bits |= p224_get_bit(scalar, i + 56) << 1;
++    bits |= p224_get_bit(scalar, i);
+     // Select the point to add, in constant time.
+     p224_select_point(bits, 16, g_p224_pre_comp[0], tmp);
+     p224_point_add(nq[0], nq[1], nq[2], nq[0], nq[1], nq[2], 1 /* mixed */,
+@@ -1080,10 +1068,10 @@ static void ec_GFp_nistp224_point_mul_public(const EC_GROUP *group,
+     // Add multiples of the generator.
+     if (i <= 27) {
+       // First, look 28 bits upwards.
+-      crypto_word_t bits = p224_get_bit(g_scalar->bytes, i + 196) << 3;
+-      bits |= p224_get_bit(g_scalar->bytes, i + 140) << 2;
+-      bits |= p224_get_bit(g_scalar->bytes, i + 84) << 1;
+-      bits |= p224_get_bit(g_scalar->bytes, i + 28);
++      crypto_word_t bits = p224_get_bit(g_scalar, i + 196) << 3;
++      bits |= p224_get_bit(g_scalar, i + 140) << 2;
++      bits |= p224_get_bit(g_scalar, i + 84) << 1;
++      bits |= p224_get_bit(g_scalar, i + 28);
+ 
+       size_t index = (size_t)bits;
+       p224_point_add(nq[0], nq[1], nq[2], nq[0], nq[1], nq[2], 1 /* mixed */,
+@@ -1092,10 +1080,10 @@ static void ec_GFp_nistp224_point_mul_public(const EC_GROUP *group,
+       assert(!skip);
+ 
+       // Second, look at the current position.
+-      bits = p224_get_bit(g_scalar->bytes, i + 168) << 3;
+-      bits |= p224_get_bit(g_scalar->bytes, i + 112) << 2;
+-      bits |= p224_get_bit(g_scalar->bytes, i + 56) << 1;
+-      bits |= p224_get_bit(g_scalar->bytes, i);
++      bits = p224_get_bit(g_scalar, i + 168) << 3;
++      bits |= p224_get_bit(g_scalar, i + 112) << 2;
++      bits |= p224_get_bit(g_scalar, i + 56) << 1;
++      bits |= p224_get_bit(g_scalar, i);
+       index = (size_t)bits;
+       p224_point_add(nq[0], nq[1], nq[2], nq[0], nq[1], nq[2], 1 /* mixed */,
+                      g_p224_pre_comp[0][index][0], g_p224_pre_comp[0][index][1],
+@@ -1104,12 +1092,12 @@ static void ec_GFp_nistp224_point_mul_public(const EC_GROUP *group,
+ 
+     // Incorporate |p_scalar| every 5 doublings.
+     if (i % 5 == 0) {
+-      crypto_word_t bits = p224_get_bit(p_scalar->bytes, i + 4) << 5;
+-      bits |= p224_get_bit(p_scalar->bytes, i + 3) << 4;
+-      bits |= p224_get_bit(p_scalar->bytes, i + 2) << 3;
+-      bits |= p224_get_bit(p_scalar->bytes, i + 1) << 2;
+-      bits |= p224_get_bit(p_scalar->bytes, i) << 1;
+-      bits |= p224_get_bit(p_scalar->bytes, i - 1);
++      crypto_word_t bits = p224_get_bit(p_scalar, i + 4) << 5;
++      bits |= p224_get_bit(p_scalar, i + 3) << 4;
++      bits |= p224_get_bit(p_scalar, i + 2) << 3;
++      bits |= p224_get_bit(p_scalar, i + 1) << 2;
++      bits |= p224_get_bit(p_scalar, i) << 1;
++      bits |= p224_get_bit(p_scalar, i - 1);
+       crypto_word_t sign, digit;
+       ec_GFp_nistp_recode_scalar_bits(&sign, &digit, bits);
+ 
+diff --git a/crypto/fipsmodule/ec/p256-nistz.c b/crypto/fipsmodule/ec/p256-nistz.c
+index 597e871aa..0c499842e 100644
+--- a/crypto/fipsmodule/ec/p256-nistz.c
++++ b/crypto/fipsmodule/ec/p256-nistz.c
+@@ -202,7 +202,7 @@ static void ecp_nistz256_windowed_mul(const EC_GROUP *group, P256_POINT *r,
+   stack_align_type table_buffer[64 + (sizeof(P256_POINT) * 16)];
+   P256_POINT *aligned_table = (P256_POINT *) align_pointer(table_buffer, 64);
+   uint8_t p_str[33];
+-  OPENSSL_memcpy(p_str, p_scalar->bytes, 32);
++  OPENSSL_memcpy(p_str, p_scalar->words, 32);
+   p_str[32] = 0;
+ 
+   // table[0] is implicitly (0,0,0) (the point at infinity), therefore it is
+@@ -323,7 +323,7 @@ static void ecp_nistz256_point_mul_base(const EC_GROUP *group, EC_JACOBIAN *r,
+   P256_POINT *aligned_p = (P256_POINT *) align_pointer(buffer_p, 32);
+ 
+   uint8_t p_str[33];
+-  OPENSSL_memcpy(p_str, scalar->bytes, 32);
++  OPENSSL_memcpy(p_str, scalar->words, 32);
+   p_str[32] = 0;
+ 
+   // First window
+@@ -374,7 +374,7 @@ static void ecp_nistz256_points_mul_public(const EC_GROUP *group,
+   P256_POINT *aligned_p = (P256_POINT *) align_pointer(buffer_p, 32);
+ 
+   uint8_t p_str[33];
+-  OPENSSL_memcpy(p_str, g_scalar->bytes, 32);
++  OPENSSL_memcpy(p_str, g_scalar->words, 32);
+   p_str[32] = 0;
+ 
+   // First window
+diff --git a/crypto/fipsmodule/ec/p256-nistz_test.cc b/crypto/fipsmodule/ec/p256-nistz_test.cc
+index de8d42e88..6553721d2 100644
+--- a/crypto/fipsmodule/ec/p256-nistz_test.cc
++++ b/crypto/fipsmodule/ec/p256-nistz_test.cc
+@@ -155,8 +155,8 @@ TEST(P256_NistzTest, BEEU) {
+     EXPECT_TRUE(bn_less_than_words(out, order_words, P256_LIMBS));
+ 
+     // Calculate out*in and confirm that it equals one, modulo the order.
+-    OPENSSL_memcpy(in_scalar.bytes, in, sizeof(in));
+-    OPENSSL_memcpy(out_scalar.bytes, out, sizeof(out));
++    OPENSSL_memcpy(in_scalar.words, in, sizeof(in));
++    OPENSSL_memcpy(out_scalar.words, out, sizeof(out));
+     ec_scalar_to_montgomery(group.get(), &in_scalar, &in_scalar);
+     ec_scalar_to_montgomery(group.get(), &out_scalar, &out_scalar);
+     ec_scalar_mul_montgomery(group.get(), &result, &in_scalar, &out_scalar);
+diff --git a/crypto/fipsmodule/ec/p256.c b/crypto/fipsmodule/ec/p256.c
+index 424adbbc1..cd4563a41 100644
+--- a/crypto/fipsmodule/ec/p256.c
++++ b/crypto/fipsmodule/ec/p256.c
+@@ -77,17 +77,22 @@ static void fiat_p256_cmovznz(fiat_p256_limb_t out[FIAT_P256_NLIMBS],
+   fiat_p256_selectznz(out, !!t, z, nz);
+ }
+ 
++static void fiat_p256_from_words(fiat_p256_felem out,
++                                 const BN_ULONG in[32 / sizeof(BN_ULONG)]) {
++  // Typically, |BN_ULONG| and |fiat_p256_limb_t| will be the same type, but on
++  // 64-bit platforms without |uint128_t|, they are different. However, on
++  // little-endian systems, |uint64_t[4]| and |uint32_t[8]| have the same
++  // layout.
++  OPENSSL_memcpy(out, in, 32);
++}
++
+ static void fiat_p256_from_generic(fiat_p256_felem out, const EC_FELEM *in) {
+-  fiat_p256_from_bytes(out, in->bytes);
++  fiat_p256_from_words(out, in->words);
+ }
+ 
+ static void fiat_p256_to_generic(EC_FELEM *out, const fiat_p256_felem in) {
+-  // This works because 256 is a multiple of 64, so there are no excess bytes to
+-  // zero when rounding up to |BN_ULONG|s.
+-  OPENSSL_STATIC_ASSERT(
+-      256 / 8 == sizeof(BN_ULONG) * ((256 + BN_BITS2 - 1) / BN_BITS2),
+-      fiat_p256_to_bytes_leaves_bytes_uninitialized)
+-  fiat_p256_to_bytes(out->bytes, in);
++  // See |fiat_p256_from_words|.
++  OPENSSL_memcpy(out->words, in, 32);
+ }
+ 
+ // fiat_p256_inv_square calculates |out| = |in|^{-2}
+@@ -390,12 +395,18 @@ static void fiat_p256_select_point(const fiat_p256_limb_t idx, size_t size,
+   }
+ }
+ 
+-// fiat_p256_get_bit returns the |i|th bit in |in|
+-static crypto_word_t fiat_p256_get_bit(const uint8_t *in, int i) {
++// fiat_p256_get_bit returns the |i|th bit in |in|.
++static crypto_word_t fiat_p256_get_bit(const EC_SCALAR *in, int i) {
+   if (i < 0 || i >= 256) {
+     return 0;
+   }
+-  return (in[i >> 3] >> (i & 7)) & 1;
++#if defined(OPENSSL_64_BIT)
++  assert(sizeof(BN_ULONG) == 8);
++  return (in->words[i >> 6] >> (i & 63)) & 1;
++#else
++  assert(sizeof(BN_ULONG) == 4);
++  return (in->words[i >> 5] >> (i & 31)) & 1;
++#endif
+ }
+ 
+ // OPENSSL EC_METHOD FUNCTIONS
+@@ -496,12 +507,12 @@ static void ec_GFp_nistp256_point_mul(const EC_GROUP *group, EC_JACOBIAN *r,
+ 
+     // do other additions every 5 doublings
+     if (i % 5 == 0) {
+-      crypto_word_t bits = fiat_p256_get_bit(scalar->bytes, i + 4) << 5;
+-      bits |= fiat_p256_get_bit(scalar->bytes, i + 3) << 4;
+-      bits |= fiat_p256_get_bit(scalar->bytes, i + 2) << 3;
+-      bits |= fiat_p256_get_bit(scalar->bytes, i + 1) << 2;
+-      bits |= fiat_p256_get_bit(scalar->bytes, i) << 1;
+-      bits |= fiat_p256_get_bit(scalar->bytes, i - 1);
++      crypto_word_t bits = fiat_p256_get_bit(scalar, i + 4) << 5;
++      bits |= fiat_p256_get_bit(scalar, i + 3) << 4;
++      bits |= fiat_p256_get_bit(scalar, i + 2) << 3;
++      bits |= fiat_p256_get_bit(scalar, i + 1) << 2;
++      bits |= fiat_p256_get_bit(scalar, i) << 1;
++      bits |= fiat_p256_get_bit(scalar, i - 1);
+       crypto_word_t sign, digit;
+       ec_GFp_nistp_recode_scalar_bits(&sign, &digit, bits);
+ 
+@@ -541,10 +552,10 @@ static void ec_GFp_nistp256_point_mul_base(const EC_GROUP *group,
+     }
+ 
+     // First, look 32 bits upwards.
+-    crypto_word_t bits = fiat_p256_get_bit(scalar->bytes, i + 224) << 3;
+-    bits |= fiat_p256_get_bit(scalar->bytes, i + 160) << 2;
+-    bits |= fiat_p256_get_bit(scalar->bytes, i + 96) << 1;
+-    bits |= fiat_p256_get_bit(scalar->bytes, i + 32);
++    crypto_word_t bits = fiat_p256_get_bit(scalar, i + 224) << 3;
++    bits |= fiat_p256_get_bit(scalar, i + 160) << 2;
++    bits |= fiat_p256_get_bit(scalar, i + 96) << 1;
++    bits |= fiat_p256_get_bit(scalar, i + 32);
+     // Select the point to add, in constant time.
+     fiat_p256_select_point_affine((fiat_p256_limb_t)bits, 15,
+                                   fiat_p256_g_pre_comp[1], tmp);
+@@ -560,10 +571,10 @@ static void ec_GFp_nistp256_point_mul_base(const EC_GROUP *group,
+     }
+ 
+     // Second, look at the current position.
+-    bits = fiat_p256_get_bit(scalar->bytes, i + 192) << 3;
+-    bits |= fiat_p256_get_bit(scalar->bytes, i + 128) << 2;
+-    bits |= fiat_p256_get_bit(scalar->bytes, i + 64) << 1;
+-    bits |= fiat_p256_get_bit(scalar->bytes, i);
++    bits = fiat_p256_get_bit(scalar, i + 192) << 3;
++    bits |= fiat_p256_get_bit(scalar, i + 128) << 2;
++    bits |= fiat_p256_get_bit(scalar, i + 64) << 1;
++    bits |= fiat_p256_get_bit(scalar, i);
+     // Select the point to add, in constant time.
+     fiat_p256_select_point_affine((fiat_p256_limb_t)bits, 15,
+                                   fiat_p256_g_pre_comp[0], tmp);
+@@ -613,10 +624,10 @@ static void ec_GFp_nistp256_point_mul_public(const EC_GROUP *group,
+     // constant-time lookup.
+     if (i <= 31) {
+       // First, look 32 bits upwards.
+-      crypto_word_t bits = fiat_p256_get_bit(g_scalar->bytes, i + 224) << 3;
+-      bits |= fiat_p256_get_bit(g_scalar->bytes, i + 160) << 2;
+-      bits |= fiat_p256_get_bit(g_scalar->bytes, i + 96) << 1;
+-      bits |= fiat_p256_get_bit(g_scalar->bytes, i + 32);
++      crypto_word_t bits = fiat_p256_get_bit(g_scalar, i + 224) << 3;
++      bits |= fiat_p256_get_bit(g_scalar, i + 160) << 2;
++      bits |= fiat_p256_get_bit(g_scalar, i + 96) << 1;
++      bits |= fiat_p256_get_bit(g_scalar, i + 32);
+       if (bits != 0) {
+         size_t index = (size_t)(bits - 1);
+         fiat_p256_point_add(ret[0], ret[1], ret[2], ret[0], ret[1], ret[2],
+@@ -627,10 +638,10 @@ static void ec_GFp_nistp256_point_mul_public(const EC_GROUP *group,
+       }
+ 
+       // Second, look at the current position.
+-      bits = fiat_p256_get_bit(g_scalar->bytes, i + 192) << 3;
+-      bits |= fiat_p256_get_bit(g_scalar->bytes, i + 128) << 2;
+-      bits |= fiat_p256_get_bit(g_scalar->bytes, i + 64) << 1;
+-      bits |= fiat_p256_get_bit(g_scalar->bytes, i);
++      bits = fiat_p256_get_bit(g_scalar, i + 192) << 3;
++      bits |= fiat_p256_get_bit(g_scalar, i + 128) << 2;
++      bits |= fiat_p256_get_bit(g_scalar, i + 64) << 1;
++      bits |= fiat_p256_get_bit(g_scalar, i);
+       if (bits != 0) {
+         size_t index = (size_t)(bits - 1);
+         fiat_p256_point_add(ret[0], ret[1], ret[2], ret[0], ret[1], ret[2],
+@@ -683,7 +694,7 @@ static int ec_GFp_nistp256_cmp_x_coordinate(const EC_GROUP *group,
+   fiat_p256_mul(Z2_mont, Z2_mont, Z2_mont);
+ 
+   fiat_p256_felem r_Z2;
+-  fiat_p256_from_bytes(r_Z2, r->bytes);  // r < order < p, so this is valid.
++  fiat_p256_from_words(r_Z2, r->words);  // r < order < p, so this is valid.
+   fiat_p256_mul(r_Z2, r_Z2, Z2_mont);
+ 
+   fiat_p256_felem X;
+diff --git a/crypto/fipsmodule/ec/p384.c b/crypto/fipsmodule/ec/p384.c
+index 716e9b409..3ac946d8e 100644
+--- a/crypto/fipsmodule/ec/p384.c
++++ b/crypto/fipsmodule/ec/p384.c
+@@ -98,7 +98,9 @@ static inline uint8_t p384_use_s2n_bignum_alt(void) {
+ #define p384_felem_add(out, in0, in1)   bignum_add_p384(out, in0, in1)
+ #define p384_felem_sub(out, in0, in1)   bignum_sub_p384(out, in0, in1)
+ #define p384_felem_opp(out, in0)        bignum_neg_p384(out, in0)
++// TODO: convert to p384_felem_to_words
+ #define p384_felem_to_bytes(out, in0)   bignum_tolebytes_6(out, in0)
++// TODO: convert to p384_felem_from_words
+ #define p384_felem_from_bytes(out, in0) bignum_fromlebytes_6(out, in0)
+ 
+ // The following four functions need bmi2 and adx support.
+@@ -132,7 +134,9 @@ static p384_limb_t p384_felem_nz(const p384_limb_t in1[P384_NLIMBS]) {
+ #define p384_felem_sqr(out, in0)        fiat_p384_square(out, in0)
+ #define p384_felem_to_mont(out, in0)    fiat_p384_to_montgomery(out, in0)
+ #define p384_felem_from_mont(out, in0)  fiat_p384_from_montgomery(out, in0)
++// TODO: convert to p384_felem_to_words
+ #define p384_felem_to_bytes(out, in0)   fiat_p384_to_bytes(out, in0)
++// TODO: convert to p384_felem_from_words
+ #define p384_felem_from_bytes(out, in0) fiat_p384_from_bytes(out, in0)
+ 
+ static p384_limb_t p384_felem_nz(const p384_limb_t in1[P384_NLIMBS]) {
+@@ -162,7 +166,7 @@ static void p384_felem_cmovznz(p384_limb_t out[P384_NLIMBS],
+ 
+ // NOTE: the input and output are in little-endian representation.
+ static void p384_from_generic(p384_felem out, const EC_FELEM *in) {
+-  p384_felem_from_bytes(out, in->bytes);
++  p384_felem_from_bytes(out, (const uint8_t *)in->words);
+ }
+ 
+ // NOTE: the input and output are in little-endian representation.
+@@ -172,7 +176,7 @@ static void p384_to_generic(EC_FELEM *out, const p384_felem in) {
+   OPENSSL_STATIC_ASSERT(
+       384 / 8 == sizeof(BN_ULONG) * ((384 + BN_BITS2 - 1) / BN_BITS2),
+       p384_felem_to_bytes_leaves_bytes_uninitialized);
+-  p384_felem_to_bytes(out->bytes, in);
++  p384_felem_to_bytes((uint8_t *)out->words, in);
+ }
+ 
+ // p384_inv_square calculates |out| = |in|^{-2}
+@@ -547,10 +551,8 @@ static void ec_GFp_nistp384_mont_felem_to_bytes(
+   p384_felem_from_mont(tmp, tmp);
+   p384_to_generic(&felem_tmp, tmp);
+ 
+-  // Convert to a big-endian byte array.
+-  for (size_t i = 0; i < len; i++) {
+-    out[i] = felem_tmp.bytes[len - 1 - i];
+-  }
++  bn_words_to_big_endian(out, len, felem_tmp.words, group->order.width);
++
+   *out_len = len;
+ }
+ 
+@@ -584,7 +586,7 @@ static int ec_GFp_nistp384_cmp_x_coordinate(const EC_GROUP *group,
+   p384_felem_mul(Z2_mont, Z2_mont, Z2_mont);
+ 
+   p384_felem r_Z2;
+-  p384_felem_from_bytes(r_Z2, r->bytes);  // r < order < p, so this is valid.
++  p384_felem_from_bytes(r_Z2, (const uint8_t*)r->words);  // r < order < p, so this is valid.
+   p384_felem_mul(r_Z2, r_Z2, Z2_mont);
+ 
+   p384_felem X;
+@@ -651,11 +653,17 @@ static int ec_GFp_nistp384_cmp_x_coordinate(const EC_GROUP *group,
+ 
+ 
+ // p384_get_bit returns the |i|-th bit in |in|
+-static crypto_word_t p384_get_bit(const uint8_t *in, int i) {
++static crypto_word_t p384_get_bit(const EC_SCALAR *in, int i) {
+   if (i < 0 || i >= 384) {
+     return 0;
+   }
+-  return (in[i >> 3] >> (i & 7)) & 1;
++#if defined(OPENSSL_64_BIT)
++  assert(sizeof(BN_ULONG) == 8);
++  return (in->words[i >> 6] >> (i & 63)) & 1;
++#else
++  assert(sizeof(BN_ULONG) == 4);
++  return (in->words[i >> 5] >> (i & 31)) & 1;
++#endif
+ }
+ 
+ // Constants for scalar encoding in the scalar multiplication functions.
+@@ -685,10 +693,10 @@ OPENSSL_STATIC_ASSERT(P384_MUL_WSIZE == 5,
+ // It forces an odd scalar and outputs digits in
+ // {\pm 1, \pm 3, \pm 5, \pm 7, \pm 9, ...}
+ // i.e. signed odd digits with _no zeroes_ -- that makes it "regular".
+-static void p384_felem_mul_scalar_rwnaf(int16_t *out, const unsigned char *in) {
++static void p384_felem_mul_scalar_rwnaf(int16_t *out, const EC_SCALAR *in) {
+   int16_t window, d;
+ 
+-  window = (in[0] & P384_MUL_WSIZE_MASK) | 1;
++  window = (in->words[0] & P384_MUL_WSIZE_MASK) | 1;
+   for (size_t i = 0; i < P384_MUL_NWINDOWS - 1; i++) {
+     d = (window & P384_MUL_WSIZE_MASK) - P384_MUL_TWO_TO_WSIZE;
+     out[i] = d;
+@@ -787,7 +795,7 @@ static void ec_GFp_nistp384_point_mul(const EC_GROUP *group, EC_JACOBIAN *r,
+ 
+   // Recode the scalar.
+   int16_t rnaf[P384_MUL_NWINDOWS] = {0};
+-  p384_felem_mul_scalar_rwnaf(rnaf, scalar->bytes);
++  p384_felem_mul_scalar_rwnaf(rnaf, scalar);
+ 
+   // Initialize the accumulator |res| with the table entry corresponding to
+   // the most significant digit of the recoded scalar (note that this digit
+@@ -833,9 +841,9 @@ static void ec_GFp_nistp384_point_mul(const EC_GROUP *group, EC_JACOBIAN *r,
+                  0 /* both Jacobian */, tmp[0], tmp[1], tmp[2]);
+ 
+   // Select |res| or |tmp| based on the |scalar| parity, in constant-time.
+-  p384_felem_cmovznz(res[0], scalar->bytes[0] & 1, tmp[0], res[0]);
+-  p384_felem_cmovznz(res[1], scalar->bytes[0] & 1, tmp[1], res[1]);
+-  p384_felem_cmovznz(res[2], scalar->bytes[0] & 1, tmp[2], res[2]);
++  p384_felem_cmovznz(res[0], scalar->words[0] & 1, tmp[0], res[0]);
++  p384_felem_cmovznz(res[1], scalar->words[0] & 1, tmp[1], res[1]);
++  p384_felem_cmovznz(res[2], scalar->words[0] & 1, tmp[2], res[2]);
+ 
+   // Copy the result to the output.
+   p384_to_generic(&r->X, res[0]);
+@@ -911,7 +919,7 @@ static void ec_GFp_nistp384_point_mul_base(const EC_GROUP *group,
+   int16_t rnaf[P384_MUL_NWINDOWS] = {0};
+ 
+   // Recode the scalar.
+-  p384_felem_mul_scalar_rwnaf(rnaf, scalar->bytes);
++  p384_felem_mul_scalar_rwnaf(rnaf, scalar);
+ 
+   // Process the 4 groups of digits starting from group (3) down to group (0).
+   for (int i = 3; i >= 0; i--) {
+@@ -967,9 +975,9 @@ static void ec_GFp_nistp384_point_mul_base(const EC_GROUP *group,
+                  1 /* mixed */, tmp[0], tmp[1], p384_felem_one);
+ 
+   // Select |res| or |tmp| based on the |scalar| parity.
+-  p384_felem_cmovznz(res[0], scalar->bytes[0] & 1, tmp[0], res[0]);
+-  p384_felem_cmovznz(res[1], scalar->bytes[0] & 1, tmp[1], res[1]);
+-  p384_felem_cmovznz(res[2], scalar->bytes[0] & 1, tmp[2], res[2]);
++  p384_felem_cmovznz(res[0], scalar->words[0] & 1, tmp[0], res[0]);
++  p384_felem_cmovznz(res[1], scalar->words[0] & 1, tmp[1], res[1]);
++  p384_felem_cmovznz(res[2], scalar->words[0] & 1, tmp[2], res[2]);
+ 
+   // Copy the result to the output.
+   p384_to_generic(&r->X, res[0]);
+diff --git a/crypto/fipsmodule/ec/p521.c b/crypto/fipsmodule/ec/p521.c
+index cfb2f65da..e840acd92 100644
+--- a/crypto/fipsmodule/ec/p521.c
++++ b/crypto/fipsmodule/ec/p521.c
+@@ -100,7 +100,9 @@ static inline uint8_t p521_use_s2n_bignum_alt(void) {
+ #define p521_felem_add(out, in0, in1)   bignum_add_p521(out, in0, in1)
+ #define p521_felem_sub(out, in0, in1)   bignum_sub_p521(out, in0, in1)
+ #define p521_felem_opp(out, in0)        bignum_neg_p521(out, in0)
++// TODO: Convert to p521_felem_to_words
+ #define p521_felem_to_bytes(out, in0)   bignum_tolebytes_p521(out, in0)
++// TODO: Convert to p521_felem_from_words
+ #define p521_felem_from_bytes(out, in0) bignum_fromlebytes_p521(out, in0)
+ 
+ // The following two functions need bmi2 and adx support.
+@@ -171,7 +173,9 @@ static const p521_limb_t p521_felem_p[P521_NLIMBS] = {
+ #define p521_felem_opp(out, in0)        fiat_secp521r1_carry_opp(out, in0)
+ #define p521_felem_mul(out, in0, in1)   fiat_secp521r1_carry_mul(out, in0, in1)
+ #define p521_felem_sqr(out, in0)        fiat_secp521r1_carry_square(out, in0)
++// TODO: Convert to p521_felem_to_words
+ #define p521_felem_to_bytes(out, in0)   fiat_secp521r1_to_bytes(out, in0)
++// TODO: Convert to p521_felem_from_words
+ #define p521_felem_from_bytes(out, in0) fiat_secp521r1_from_bytes(out, in0)
+ 
+ #endif // P521_USE_S2N_BIGNUM_FIELD_ARITH
+@@ -216,14 +220,14 @@ static void p521_felem_cmovznz(p521_limb_t out[P521_NLIMBS],
+ 
+ // NOTE: the input and output are in little-endian representation.
+ static void p521_from_generic(p521_felem out, const EC_FELEM *in) {
+-  p521_felem_from_bytes(out, in->bytes);
++  p521_felem_from_bytes(out, (const uint8_t *)in->words);
+ }
+ 
+ // NOTE: the input and output are in little-endian representation.
+ static void p521_to_generic(EC_FELEM *out, const p521_felem in) {
+   // |p521_felem_to_bytes| function will write the result to the first 66 bytes
+   // of |out| which is exactly how many bytes are needed to represent a 521-bit
+-  // element. However, EC_FELEM is a union of uint8_t array and BN_ULONG array.
++  // element.
+   // The number of BN_ULONGs to represent a 521-bit value is 9 and 17, when
+   // BN_ULONG is 64-bit and 32-bit, respectively. Nine 64-bit BN_ULONGs
+   // translate to 72 bytes, which means that we have to make sure that the
+@@ -231,7 +235,7 @@ static void p521_to_generic(EC_FELEM *out, const p521_felem in) {
+   // systems and Fiat's vs. ours representation we zero out the whole element.
+   OPENSSL_memset((uint8_t*)out->words, 0, sizeof(out->words));
+   // Convert the element to bytes.
+-  p521_felem_to_bytes(out->bytes, in);
++  p521_felem_to_bytes((uint8_t *)out->words, in);
+ }
+ 
+ // Finite field inversion using Fermat Little Theorem.
+@@ -583,11 +587,17 @@ static void ec_GFp_nistp521_dbl(const EC_GROUP *group, EC_JACOBIAN *r,
+ // |make_tables.go| script.
+ 
+ // p521_get_bit returns the |i|-th bit in |in|
+-static crypto_word_t p521_get_bit(const uint8_t *in, int i) {
++static crypto_word_t p521_get_bit(const EC_SCALAR *in, int i) {
+   if (i < 0 || i >= 521) {
+     return 0;
+   }
+-  return (in[i >> 3] >> (i & 7)) & 1;
++#if defined(OPENSSL_64_BIT)
++  assert(sizeof(BN_ULONG) == 8);
++  return (in->words[i >> 6] >> (i & 63)) & 1;
++#else
++  assert(sizeof(BN_ULONG) == 4);
++  return (in->words[i >> 5] >> (i & 31)) & 1;
++#endif
+ }
+ 
+ // Constants for scalar encoding in the scalar multiplication functions.
+@@ -617,10 +627,10 @@ OPENSSL_STATIC_ASSERT(P521_MUL_WSIZE == 5,
+ // It forces an odd scalar and outputs digits in
+ // {\pm 1, \pm 3, \pm 5, \pm 7, \pm 9, ...}
+ // i.e. signed odd digits with _no zeroes_ -- that makes it "regular".
+-static void p521_felem_mul_scalar_rwnaf(int16_t *out, const unsigned char *in) {
++static void p521_felem_mul_scalar_rwnaf(int16_t *out, const EC_SCALAR *in) {
+   int16_t window, d;
+ 
+-  window = (in[0] & P521_MUL_WSIZE_MASK) | 1;
++  window = (in->words[0] & P521_MUL_WSIZE_MASK) | 1;
+   for (size_t i = 0; i < P521_MUL_NWINDOWS - 1; i++) {
+     d = (window & P521_MUL_WSIZE_MASK) - P521_MUL_TWO_TO_WSIZE;
+     out[i] = d;
+@@ -719,7 +729,7 @@ static void ec_GFp_nistp521_point_mul(const EC_GROUP *group, EC_JACOBIAN *r,
+ 
+   // Recode the scalar.
+   int16_t rnaf[P521_MUL_NWINDOWS] = {0};
+-  p521_felem_mul_scalar_rwnaf(rnaf, scalar->bytes);
++  p521_felem_mul_scalar_rwnaf(rnaf, scalar);
+ 
+   // Initialize the accumulator |res| with the table entry corresponding to
+   // the most significant digit of the recoded scalar (note that this digit
+@@ -765,9 +775,9 @@ static void ec_GFp_nistp521_point_mul(const EC_GROUP *group, EC_JACOBIAN *r,
+                  0 /* both Jacobian */, tmp[0], tmp[1], tmp[2]);
+ 
+   // Select |res| or |tmp| based on the |scalar| parity, in constant-time.
+-  p521_felem_cmovznz(res[0], scalar->bytes[0] & 1, tmp[0], res[0]);
+-  p521_felem_cmovznz(res[1], scalar->bytes[0] & 1, tmp[1], res[1]);
+-  p521_felem_cmovznz(res[2], scalar->bytes[0] & 1, tmp[2], res[2]);
++  p521_felem_cmovznz(res[0], scalar->words[0] & 1, tmp[0], res[0]);
++  p521_felem_cmovznz(res[1], scalar->words[0] & 1, tmp[1], res[1]);
++  p521_felem_cmovznz(res[2], scalar->words[0] & 1, tmp[2], res[2]);
+ 
+   // Copy the result to the output.
+   p521_to_generic(&r->X, res[0]);
+@@ -843,7 +853,7 @@ static void ec_GFp_nistp521_point_mul_base(const EC_GROUP *group,
+   int16_t rnaf[P521_MUL_NWINDOWS] = {0};
+ 
+   // Recode the scalar.
+-  p521_felem_mul_scalar_rwnaf(rnaf, scalar->bytes);
++  p521_felem_mul_scalar_rwnaf(rnaf, scalar);
+ 
+   // Process the 4 groups of digits starting from group (3) down to group (0).
+   for (int i = 3; i >= 0; i--) {
+@@ -899,9 +909,9 @@ static void ec_GFp_nistp521_point_mul_base(const EC_GROUP *group,
+                  1 /* mixed */, tmp[0], tmp[1], p521_felem_one);
+ 
+   // Select |res| or |tmp| based on the |scalar| parity.
+-  p521_felem_cmovznz(res[0], scalar->bytes[0] & 1, tmp[0], res[0]);
+-  p521_felem_cmovznz(res[1], scalar->bytes[0] & 1, tmp[1], res[1]);
+-  p521_felem_cmovznz(res[2], scalar->bytes[0] & 1, tmp[2], res[2]);
++  p521_felem_cmovznz(res[0], scalar->words[0] & 1, tmp[0], res[0]);
++  p521_felem_cmovznz(res[1], scalar->words[0] & 1, tmp[1], res[1]);
++  p521_felem_cmovznz(res[2], scalar->words[0] & 1, tmp[2], res[2]);
+ 
+   // Copy the result to the output.
+   p521_to_generic(&r->X, res[0]);
+diff --git a/crypto/fipsmodule/ec/scalar.c b/crypto/fipsmodule/ec/scalar.c
+index e4ae9d7fc..036049e09 100644
+--- a/crypto/fipsmodule/ec/scalar.c
++++ b/crypto/fipsmodule/ec/scalar.c
+@@ -54,9 +54,7 @@ int ec_random_nonzero_scalar(const EC_GROUP *group, EC_SCALAR *out,
+ void ec_scalar_to_bytes(const EC_GROUP *group, uint8_t *out, size_t *out_len,
+                         const EC_SCALAR *in) {
+   size_t len = BN_num_bytes(&group->order);
+-  for (size_t i = 0; i < len; i++) {
+-    out[len - i - 1] = in->bytes[i];
+-  }
++  bn_words_to_big_endian(out, len, in->words, group->order.width);
+   *out_len = len;
+ }
+ 
+@@ -67,11 +65,7 @@ int ec_scalar_from_bytes(const EC_GROUP *group, EC_SCALAR *out,
+     return 0;
+   }
+ 
+-  OPENSSL_memset(out, 0, sizeof(EC_SCALAR));
+-
+-  for (size_t i = 0; i < len; i++) {
+-    out->bytes[i] = in[len - i - 1];
+-  }
++  bn_big_endian_to_words(out->words, group->order.width, in, len);
+ 
+   if (!bn_less_than_words(out->words, group->order.d, group->order.width)) {
+     OPENSSL_PUT_ERROR(EC, EC_R_INVALID_SCALAR);
+diff --git a/crypto/fipsmodule/ec/simple.c b/crypto/fipsmodule/ec/simple.c
+index cffe60b96..6498bdc0f 100644
+--- a/crypto/fipsmodule/ec/simple.c
++++ b/crypto/fipsmodule/ec/simple.c
+@@ -330,9 +330,7 @@ int ec_GFp_simple_cmp_x_coordinate(const EC_GROUP *group, const EC_JACOBIAN *p,
+ void ec_GFp_simple_felem_to_bytes(const EC_GROUP *group, uint8_t *out,
+                                   size_t *out_len, const EC_FELEM *in) {
+   size_t len = BN_num_bytes(&group->field);
+-  for (size_t i = 0; i < len; i++) {
+-    out[i] = in->bytes[len - 1 - i];
+-  }
++  bn_words_to_big_endian(out, len, in->words, group->field.width);
+   *out_len = len;
+ }
+ 
+@@ -343,10 +341,7 @@ int ec_GFp_simple_felem_from_bytes(const EC_GROUP *group, EC_FELEM *out,
+     return 0;
+   }
+ 
+-  OPENSSL_memset(out, 0, sizeof(EC_FELEM));
+-  for (size_t i = 0; i < len; i++) {
+-    out->bytes[i] = in[len - 1 - i];
+-  }
++  bn_big_endian_to_words(out->words, group->field.width, in, len);
+ 
+   if (!bn_less_than_words(out->words, group->field.d, group->field.width)) {
+     OPENSSL_PUT_ERROR(EC, EC_R_DECODE_ERROR);
+diff --git a/crypto/fipsmodule/ecdsa/ecdsa.c b/crypto/fipsmodule/ecdsa/ecdsa.c
+index 497ceee19..9f7a4ab22 100644
+--- a/crypto/fipsmodule/ecdsa/ecdsa.c
++++ b/crypto/fipsmodule/ecdsa/ecdsa.c
+@@ -79,10 +79,7 @@ static void digest_to_scalar(const EC_GROUP *group, EC_SCALAR *out,
+   if (digest_len > num_bytes) {
+     digest_len = num_bytes;
+   }
+-  OPENSSL_memset(out, 0, sizeof(EC_SCALAR));
+-  for (size_t i = 0; i < digest_len; i++) {
+-    out->bytes[i] = digest[digest_len - 1 - i];
+-  }
++  bn_big_endian_to_words(out->words, order->width, digest, digest_len);
+ 
+   // If it is still too long, truncate remaining bits with a shift.
+   if (8 * digest_len > num_bits) {
+diff --git a/crypto/internal.h b/crypto/internal.h
+index 8098e8fd4..7d01e13c0 100644
+--- a/crypto/internal.h
++++ b/crypto/internal.h
+@@ -904,6 +904,18 @@ static inline void CRYPTO_store_word_le(void *out, crypto_word_t v) {
+   OPENSSL_memcpy(out, &v, sizeof(v));
+ }
+ 
++static inline crypto_word_t CRYPTO_load_word_be(const void *in) {
++  crypto_word_t v;
++  OPENSSL_memcpy(&v, in, sizeof(v));
++#if defined(OPENSSL_64_BIT)
++  assert(sizeof(v) == 8);
++  return CRYPTO_bswap8(v);
++#else
++  assert(sizeof(v) == 4);
++  return CRYPTO_bswap4(v);
++#endif
++}
++
+ 
+ // Bit rotation functions.
+ //
+diff --git a/crypto/trust_token/trust_token_test.cc b/crypto/trust_token/trust_token_test.cc
+index e67f9ee95..df679b616 100644
+--- a/crypto/trust_token/trust_token_test.cc
++++ b/crypto/trust_token/trust_token_test.cc
+@@ -1234,7 +1234,7 @@ TEST_P(TrustTokenBadKeyTest, BadKey) {
+                           &key->key.y1, &key->key.xs, &key->key.ys};
+ 
+   // Corrupt private key scalar.
+-  scalars[corrupted_key()]->bytes[0] ^= 42;
++  scalars[corrupted_key()]->words[0] ^= 42;
+ 
+   size_t tokens_issued;
+   ASSERT_TRUE(TRUST_TOKEN_ISSUER_issue(

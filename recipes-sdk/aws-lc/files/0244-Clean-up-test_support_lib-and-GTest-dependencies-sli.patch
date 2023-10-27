@@ -1,0 +1,61 @@
+From a9bdae63e18d7f72652fb6956018504eb6ca39ae Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sat, 4 Feb 2023 20:05:04 -0500
+Subject: [PATCH] Clean up test_support_lib and GTest dependencies slightly.
+
+test_support_lib depends on GTest and should be marked as such.
+Historically it was a bit fuzzy, but now it's unambiguous.
+
+With that cleaned up, we can remove one of the global
+include_directories calls and rely on CMake's
+INTERFACE_INCLUDE_DIRECTORIES machinery.
+
+(CMake's documentation and "modern CMake" prefers setting include
+directories on the target and letting them flow up the dependency tree,
+rather than configuring it globally across the project.)
+
+Change-Id: I364df834d62328b69f146fbe35c10af97618a713
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56567
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+---
+ CMakeLists.txt             | 8 +++++---
+ crypto/test/CMakeLists.txt | 2 ++
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c1dd5fbff..e74417fe9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -795,9 +795,11 @@ if(BUILD_TESTING)
+     # This is needed for the Windows build to correctly annotate GTest's API with __declspec(dllexport)
+     target_compile_options(boringssl_gtest PRIVATE -DGTEST_CREATE_SHARED_LIBRARY=1)
+   endif()
+-  target_include_directories(boringssl_gtest PRIVATE third_party/googletest)
+-
+-  include_directories(third_party/googletest/include)
++  target_include_directories(
++    boringssl_gtest
++    PUBLIC third_party/googletest/include
++    PRIVATE third_party/googletest
++  )
+ 
+   # Declare a dummy target to build all unit tests. Test targets should inject
+   # themselves as dependencies next to the target definition.
+diff --git a/crypto/test/CMakeLists.txt b/crypto/test/CMakeLists.txt
+index b968fd78c..dbeb4603d 100644
+--- a/crypto/test/CMakeLists.txt
++++ b/crypto/test/CMakeLists.txt
+@@ -18,6 +18,7 @@ endif()
+ if(WIN32)
+   target_link_libraries(test_support_lib dbghelp)
+ endif()
++target_link_libraries(test_support_lib boringssl_gtest crypto)
+ add_dependencies(test_support_lib global_target)
+ 
+ add_library(
+@@ -29,3 +30,4 @@ add_library(
+ )
+ 
+ add_dependencies(boringssl_gtest_main global_target)
++target_link_libraries(boringssl_gtest_main boringssl_gtest crypto test_support_lib)

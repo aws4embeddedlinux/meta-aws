@@ -1,0 +1,1775 @@
+From efbc22c90ea0648629729421bc26fd14a4d473e4 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sun, 3 Feb 2019 19:18:11 +0000
+Subject: [PATCH] Add initial support for SEH directives in x86_64 perlasm
+
+This implements similar directives as MASM, so we do not need to build
+all the structures by hand. It does not provide any help to abstract
+between Win64 and SysV differences, however.
+
+This is pulled together from some old draft CLs I had, one of which
+actually synthesized CFI directives from SEH, so it should be possible.
+I've intentionally omitted that however, as it also brings in questions
+about how to handle the calling convention differences (the existing
+machinery won't *quite* work). I've uploaded just this for now, so
+review can focus on the basic mechanism.
+
+I've also preserved perlasm's weird mixed tabs and spaces indentation
+convention for now, though it is a bit tedious.
+
+Bug: 259
+Change-Id: Ib3f46a27751a5319b758d12c462c660cf9f3e632
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56126
+Auto-Submit: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+(cherry picked from commit c556ee91ff7fc106baadb41ddaaae951ac9b3ba2)
+---
+ .../modes/asm/ghash-ssse3-x86_64.pl           |  90 +----
+ crypto/perlasm/x86_64-xlate.pl                | 332 +++++++++++++++++-
+ crypto/test/asm/trampoline-x86_64.pl          | 170 ++-------
+ generated-src/err_data.c                      | 172 ++++-----
+ .../crypto/fipsmodule/ghash-ssse3-x86_64.S    |   8 +-
+ .../crypto/test/trampoline-x86_64.S           |  31 +-
+ .../crypto/fipsmodule/ghash-ssse3-x86_64.S    |   8 +-
+ .../crypto/test/trampoline-x86_64.S           |  31 +-
+ .../crypto/fipsmodule/ghash-ssse3-x86_64.asm  |  69 ++--
+ .../crypto/test/trampoline-x86_64.asm         | 155 ++++----
+ 10 files changed, 589 insertions(+), 477 deletions(-)
+
+diff --git a/crypto/fipsmodule/modes/asm/ghash-ssse3-x86_64.pl b/crypto/fipsmodule/modes/asm/ghash-ssse3-x86_64.pl
+index 26ace03ee..599865780 100644
+--- a/crypto/fipsmodule/modes/asm/ghash-ssse3-x86_64.pl
++++ b/crypto/fipsmodule/modes/asm/ghash-ssse3-x86_64.pl
+@@ -106,16 +106,15 @@ my $code = <<____;
+ .align	16
+ gcm_gmult_ssse3:
+ .cfi_startproc
+-.Lgmult_seh_begin:
++.seh_startproc
+ ____
+ $code .= <<____ if ($win64);
+ 	subq	\$40, %rsp
+-.Lgmult_seh_allocstack:
++.seh_allocstack	40
+ 	movdqa	%xmm6, (%rsp)
+-.Lgmult_seh_save_xmm6:
++.seh_savexmm128	%xmm6, 0
+ 	movdqa	%xmm10, 16(%rsp)
+-.Lgmult_seh_save_xmm10:
+-.Lgmult_seh_prolog_end:
++.seh_savexmm128	%xmm10, 16
+ ____
+ $code .= <<____;
+ 	movdqu	($Xi), %xmm0
+@@ -233,8 +232,8 @@ $code .= <<____ if ($win64);
+ ____
+ $code .= <<____;
+ 	ret
+-.Lgmult_seh_end:
+ .cfi_endproc
++.seh_endproc
+ .size	gcm_gmult_ssse3,.-gcm_gmult_ssse3
+ ____
+ 
+@@ -248,19 +247,18 @@ $code .= <<____;
+ .globl	gcm_ghash_ssse3
+ .align	16
+ gcm_ghash_ssse3:
+-.Lghash_seh_begin:
+ .cfi_startproc
++.seh_startproc
+ ____
+ $code .= <<____ if ($win64);
+ 	subq	\$56, %rsp
+-.Lghash_seh_allocstack:
++.seh_allocstack	56
+ 	movdqa	%xmm6, (%rsp)
+-.Lghash_seh_save_xmm6:
++.seh_savexmm128	%xmm6, 0
+ 	movdqa	%xmm10, 16(%rsp)
+-.Lghash_seh_save_xmm10:
++.seh_savexmm128	%xmm10, 16
+ 	movdqa	%xmm11, 32(%rsp)
+-.Lghash_seh_save_xmm11:
+-.Lghash_seh_prolog_end:
++.seh_savexmm128	%xmm11, 32
+ ____
+ $code .= <<____;
+ 	movdqu	($Xi), %xmm0
+@@ -332,8 +330,8 @@ $code .= <<____ if ($win64);
+ ____
+ $code .= <<____;
+ 	ret
+-.Lghash_seh_end:
+ .cfi_endproc
++.seh_endproc
+ .size	gcm_ghash_ssse3,.-gcm_ghash_ssse3
+ 
+ .align	16
+@@ -346,71 +344,5 @@ $code .= <<____;
+ .quad	0x0f0f0f0f0f0f0f0f, 0x0f0f0f0f0f0f0f0f
+ ____
+ 
+-if ($win64) {
+-  # Add unwind metadata for SEH.
+-  #
+-  # TODO(davidben): This is all manual right now. Once we've added SEH tests,
+-  # add support for emitting these in x86_64-xlate.pl, probably based on MASM
+-  # and Yasm's unwind directives, and unify with CFI. Then upstream it to
+-  # replace the error-prone and non-standard custom handlers.
+-
+-  # See https://docs.microsoft.com/en-us/cpp/build/struct-unwind-code?view=vs-2017
+-  my $UWOP_ALLOC_SMALL = 2;
+-  my $UWOP_SAVE_XMM128 = 8;
+-
+-  $code .= <<____;
+-.section	.pdata
+-.align	4
+-	.rva	.Lgmult_seh_begin
+-	.rva	.Lgmult_seh_end
+-	.rva	.Lgmult_seh_info
+-
+-	.rva	.Lghash_seh_begin
+-	.rva	.Lghash_seh_end
+-	.rva	.Lghash_seh_info
+-
+-.section	.xdata
+-.align	8
+-.Lgmult_seh_info:
+-	.byte	1	# version 1, no flags
+-	.byte	.Lgmult_seh_prolog_end-.Lgmult_seh_begin
+-	.byte	5	# num_slots = 1 + 2 + 2
+-	.byte	0	# no frame register
+-
+-	.byte	.Lgmult_seh_save_xmm10-.Lgmult_seh_begin
+-	.byte	@{[$UWOP_SAVE_XMM128 | (10 << 4)]}
+-	.value	1
+-
+-	.byte	.Lgmult_seh_save_xmm6-.Lgmult_seh_begin
+-	.byte	@{[$UWOP_SAVE_XMM128 | (6 << 4)]}
+-	.value	0
+-
+-	.byte	.Lgmult_seh_allocstack-.Lgmult_seh_begin
+-	.byte	@{[$UWOP_ALLOC_SMALL | (((40 - 8) / 8) << 4)]}
+-
+-.align	8
+-.Lghash_seh_info:
+-	.byte	1	# version 1, no flags
+-	.byte	.Lghash_seh_prolog_end-.Lghash_seh_begin
+-	.byte	7	# num_slots = 1 + 2 + 2 + 2
+-	.byte	0	# no frame register
+-
+-	.byte	.Lghash_seh_save_xmm11-.Lghash_seh_begin
+-	.byte	@{[$UWOP_SAVE_XMM128 | (11 << 4)]}
+-	.value	2
+-
+-	.byte	.Lghash_seh_save_xmm10-.Lghash_seh_begin
+-	.byte	@{[$UWOP_SAVE_XMM128 | (10 << 4)]}
+-	.value	1
+-
+-	.byte	.Lghash_seh_save_xmm6-.Lghash_seh_begin
+-	.byte	@{[$UWOP_SAVE_XMM128 | (6 << 4)]}
+-	.value	0
+-
+-	.byte	.Lghash_seh_allocstack-.Lghash_seh_begin
+-	.byte	@{[$UWOP_ALLOC_SMALL | (((56 - 8) / 8) << 4)]}
+-____
+-}
+-
+ print $code;
+ close STDOUT or die "error closing STDOUT: $!";
+diff --git a/crypto/perlasm/x86_64-xlate.pl b/crypto/perlasm/x86_64-xlate.pl
+index 0f57463ef..f9068287a 100755
+--- a/crypto/perlasm/x86_64-xlate.pl
++++ b/crypto/perlasm/x86_64-xlate.pl
+@@ -59,6 +59,10 @@
+ # 9. .init segment is allowed to contain calls to functions only.
+ # a. If function accepts more than 4 arguments *and* >4th argument
+ #    is declared as non 64-bit value, do clear its upper part.
++#
++# TODO(https://crbug.com/boringssl/259): The dual-ABI mechanism described here
++# does not quite unwind correctly on Windows. The seh_directive logic below has
++# the start of a new mechanism.
+ 
+ 
+ use strict;
+@@ -710,6 +714,320 @@ my %globals;
+ 	return ($elf ? $self->{value} : undef);
+     }
+ }
++{ package seh_directive;
++    # This implements directives, like MASM's, for specifying Windows unwind
++    # codes. See https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64?view=msvc-170
++    # for details on the Windows unwind mechanism. Unlike MASM's directives, we
++    # have no .seh_endprolog directive. Instead, the last prolog directive is
++    # implicitly the end of the prolog.
++    #
++    # TODO(https://crbug.com/boringssl/259): For now, SEH directives are ignored
++    # on non-Windows platforms. This means functions need to specify both CFI
++    # and SEH directives, often redundantly. Ideally we'd abstract between the
++    # two. E.g., we can synthesize CFI from SEH prologs, but SEH does not
++    # annotate epilogs, so we'd need to combine parts from both. Or we can
++    # restrict ourselves to a subset of CFI and synthesize SEH from CFI.
++    #
++    # Additionally, this only supports @abi-omnipotent functions. It is
++    # incompatible with the automatic calling convention conversion. The main
++    # complication is the current scheme modifies RDI and RSI (non-volatile on
++    # Windows) at the start of the function, and saves them in the parameter
++    # stack area. This can be expressed with .seh_savereg, but .seh_savereg is
++    # only usable late in the prolog. However, unwind information gives enough
++    # information to locate the parameter stack area at any point in the
++    # function, so we can defer conversion or implement other schemes.
++
++    my $UWOP_PUSH_NONVOL = 0;
++    my $UWOP_ALLOC_LARGE = 1;
++    my $UWOP_ALLOC_SMALL = 2;
++    my $UWOP_SET_FPREG = 3;
++    my $UWOP_SAVE_NONVOL = 4;
++    my $UWOP_SAVE_NONVOL_FAR = 5;
++    my $UWOP_SAVE_XMM128 = 8;
++    my $UWOP_SAVE_XMM128_FAR = 9;
++
++    my %UWOP_REG_TO_NUMBER = ("%rax" => 0, "%rcx" => 1, "%rdx" => 2, "%rbx" => 3,
++			      "%rsp" => 4, "%rbp" => 5, "%rsi" => 6, "%rdi" => 7,
++			      map(("%r$_" => $_), (8..15)));
++    my %UWOP_NUMBER_TO_REG = reverse %UWOP_REG_TO_NUMBER;
++
++    # The contents of the pdata and xdata sections so far.
++    my ($xdata, $pdata) = ("", "");
++
++    my %info;
++
++    my $next_label = 0;
++    my $current_label_func = "";
++
++    # _new_unwind_label allocates a new label, unique to the file.
++    sub _new_unwind_label {
++	my ($name) = (@_);
++	# Labels only need to be unique, but to make diffs easier to read, scope
++	# them all under the current function.
++	my $func = $current_function->{name};
++	if ($func ne $current_label_func) {
++	    $current_label_func = $func;
++	    $next_label = 0;
++	}
++
++	my $num = $next_label++;
++	return ".LSEH_${name}_${func}_${num}";
++    }
++
++    sub _check_in_proc {
++	die "Missing .seh_startproc directive" unless %info;
++    }
++
++    sub _check_not_in_proc {
++	die "Missing .seh_endproc directive" if %info;
++    }
++
++    sub _startproc {
++	_check_not_in_proc();
++	if ($current_function->{abi} eq "svr4") {
++	    die "SEH directives can only be used with \@abi-omnipotent";
++	}
++
++	my $info_label = _new_unwind_label("info");
++	my $start_label = _new_unwind_label("begin");
++	%info = (
++	    # info_label is the label of the function's entry in .xdata.
++	    info_label => $info_label,
++	    # start_label is the start of the function.
++	    start_label => $start_label,
++	    # endprolog is the label of the last unwind code in the function.
++	    endprolog => $start_label,
++	    # unwind_codes contains the textual representation of the
++	    # unwind codes in the function so far.
++	    unwind_codes => "",
++	    # num_codes is the number of 16-bit words in unwind_codes.
++	    num_codes => 0,
++	    # frame_reg is the number of the frame register, or zero if
++	    # there is none.
++	    frame_reg => 0,
++	    # frame_offset is the offset into the fixed part of the stack that
++	    # the frame register points into.
++	    frame_offset => 0,
++	    # has_offset is whether directives taking an offset have
++	    # been used. This is used to check that such directives
++	    # come after the fixed portion of the stack frame is established.
++	    has_offset => 0,
++	    # has_nonpushreg is whether directives other than
++	    # .seh_pushreg have been used. This is used to check that
++	    # .seh_pushreg directives are first.
++	    has_nonpushreg => 0,
++	);
++	return $start_label;
++    }
++
++    sub _add_unwind_code {
++	my ($op, $value, @extra) = @_;
++	_check_in_proc();
++	if ($op != $UWOP_PUSH_NONVOL) {
++	    $info{has_nonpushreg} = 1;
++	} elsif ($info{has_nonpushreg}) {
++	    die ".seh_pushreg directives must appear first in the prolog";
++	}
++
++	my $label = _new_unwind_label("prolog");
++	# Encode an UNWIND_CODE structure. See
++	# https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64?view=msvc-170#struct-unwind_code
++	my $encoded = $op | ($value << 4);
++	my $codes = <<____;
++	.byte	$label-$info{start_label}
++	.byte	$encoded
++____
++	# Some opcodes need additional values to encode themselves.
++	foreach (@extra) {
++	    $codes .= "\t.value\t$_\n";
++	}
++
++	$info{num_codes} += 1 + scalar(@extra);
++	# Unwind codes are listed in reverse order.
++	$info{unwind_codes} = $codes . $info{unwind_codes};
++	# Track the label of the last unwind code. It implicitly is the end of
++	# the prolog. MASM has an endprolog directive, but it seems to be
++	# unnecessary.
++	$info{endprolog} = $label;
++	return $label;
++    }
++
++    sub _updating_fixed_allocation {
++	_check_in_proc();
++	if ($info{frame_reg} != 0) {
++	    # Windows documentation does not explicitly forbid .seh_allocstack
++	    # after .seh_setframe, but it appears to have no effect. Offsets are
++	    # still relative to the fixed allocation when the frame register was
++	    # established.
++	    die "fixed allocation may not be increased after .seh_setframe";
++	}
++	if ($info{has_offset}) {
++	    # Windows documentation does not explicitly forbid .seh_savereg
++	    # before .seh_allocstack, but it does not work very well. Offsets
++	    # are relative to the top of the final fixed allocation, not where
++	    # RSP currently is.
++	    die "directives with an offset must come after the fixed allocation is established.";
++	}
++    }
++
++    sub _endproc {
++	_check_in_proc();
++	if ($info{num_codes} == 0) {
++	    # If a Windows function has no directives (i.e. it doesn't touch the
++	    # stack), it is a leaf function and is not expected to appear in
++	    # .pdata or .xdata.
++	    die ".seh_endproc found with no unwind codes";
++	}
++
++	my $end_label = _new_unwind_label("end");
++	# Encode a RUNTIME_FUNCTION. See
++	# https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64?view=msvc-170#struct-runtime_function
++	$pdata .= <<____;
++	.rva	$info{start_label}
++	.rva	$end_label
++	.rva	$info{info_label}
++
++____
++
++	# Encode an UNWIND_INFO. See
++	# https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64?view=msvc-170#struct-unwind_info
++	my $frame_encoded = $info{frame_reg} | (($info{frame_offset} / 16) << 4);
++	$xdata .= <<____;
++$info{info_label}:
++	.byte	1	# version 1, no flags
++	.byte	$info{endprolog}-$info{start_label}
++	.byte	$info{num_codes}
++	.byte	$frame_encoded
++$info{unwind_codes}
++____
++
++	%info = ();
++	return $end_label;
++    }
++
++    sub re {
++	my ($class, $line) = @_;
++	if ($$line =~ s/^\s*\.seh_(\w+)\s*//) {
++	    my $dir = $1;
++	    if (!$win64) {
++		$$line = "";
++		return;
++	    }
++
++	    my $label;
++	    SWITCH: for ($dir) {
++		/^startproc$/ && do {
++		    $label = _startproc();
++		    last;
++		};
++		/^pushreg$/ && do {
++		    $$line =~ /^(%\w+)\s*$/ or die "could not parse .seh_$dir";
++		    my $reg_num = $UWOP_REG_TO_NUMBER{$1} or die "unknown register $1";
++		    _updating_fixed_allocation();
++		    $label = _add_unwind_code($UWOP_PUSH_NONVOL, $reg_num);
++		    last;
++		};
++		/^allocstack$/ && do {
++		    my $num = eval($$line);
++		    if ($num <= 0 || $num % 8 != 0) {
++			die "invalid stack allocation: $num";
++		    }
++		    _updating_fixed_allocation();
++		    if ($num <= 128) {
++			$label = _add_unwind_code($UWOP_ALLOC_SMALL, ($num - 8) / 8);
++		    } elsif ($num < 512 * 1024) {
++			$label = _add_unwind_code($UWOP_ALLOC_LARGE, 0, $num / 8);
++		    } elsif ($num < 4 * 1024 * 1024 * 1024) {
++			$label = _add_unwind_code($UWOP_ALLOC_LARGE, 1, $num >> 16, $num & 0xffff);
++		    } else {
++			die "stack allocation too large: $num"
++		    }
++		    last;
++		};
++		/^setframe$/ && do {
++		    if ($info{frame_reg} != 0) {
++			die "duplicate .seh_setframe directive";
++		    }
++		    if ($info{has_offset}) {
++			die "directives with with an offset must come after .seh_setframe.";
++		    }
++		    $$line =~ /(%\w+)\s*,\s*(.+)/ or die "could not parse .seh_$dir";
++		    my $reg_num = $UWOP_REG_TO_NUMBER{$1} or die "unknown register $1";
++		    my $offset = eval($2);
++		    if ($offset < 0 || $offset % 16 != 0 || $offset > 240) {
++			die "invalid offset: $offset";
++		    }
++		    $info{frame_reg} = $reg_num;
++		    $info{frame_offset} = $offset;
++		    $label = _add_unwind_code($UWOP_SET_FPREG, 0);
++		    last;
++		};
++		/^savereg$/ && do {
++		    $$line =~ /(%\w+)\s*,\s*(.+)/ or die "could not parse .seh_$dir";
++		    my $reg_num = $UWOP_REG_TO_NUMBER{$1} or die "unknown register $1";
++		    my $offset = eval($2);
++		    if ($offset < 0 || $offset % 8 != 0) {
++			die "invalid offset: $offset";
++		    }
++		    if ($offset < 8 * 65536) {
++			$label = _add_unwind_code($UWOP_SAVE_NONVOL, $reg_num, $offset / 8);
++		    } else {
++			$label = _add_unwind_code($UWOP_SAVE_NONVOL_FAR, $reg_num, $offset >> 16, $offset & 0xffff);
++		    }
++		    $info{has_offset} = 1;
++		    last;
++		};
++		/^savexmm128$/ && do {
++		    $$line =~ /%xmm(\d+)\s*,\s*(.+)/ or die "could not parse .seh_$dir";
++		    my $reg_num = $1;
++		    my $offset = eval($2);
++		    if ($offset < 0 || $offset % 16 != 0) {
++			die "invalid offset: $offset";
++		    }
++		    if ($offset < 16 * 65536) {
++			$label = _add_unwind_code($UWOP_SAVE_XMM128, $reg_num, $offset / 16);
++		    } else {
++			$label = _add_unwind_code($UWOP_SAVE_XMM128_FAR, $reg_num, $offset >> 16, $offset & 0xffff);
++		    }
++		    $info{has_offset} = 1;
++		    last;
++		};
++		/^endproc$/ && do {
++		    $label = _endproc();
++		    last;
++		};
++		die "unknown SEH directive .seh_$dir";
++	    }
++
++	    # All SEH directives compile to labels inline. The other data is
++	    # emitted later.
++	    $$line = "";
++	    $label .= ":";
++	    return label->re(\$label);
++	}
++    }
++
++    sub pdata_and_xdata {
++	return "" unless $win64;
++
++	my $ret = "";
++	if ($pdata ne "") {
++	    $ret .= <<____;
++.section	.pdata
++.align	4
++$pdata
++____
++	}
++	if ($xdata ne "") {
++	    $ret .= <<____;
++.section	.xdata
++.align	4
++$xdata
++____
++	}
++	return $ret;
++    }
++}
+ { package directive;	# pick up directives, which start with .
+     sub re {
+ 	my	($class, $line) = @_;
+@@ -717,8 +1035,9 @@ my %globals;
+ 	my	$ret;
+ 	my	$dir;
+ 
+-	# chain-call to cfi_directive
++	# chain-call to cfi_directive and seh_directive.
+ 	$ret = cfi_directive->re($line) and return $ret;
++	$ret = seh_directive->re($line) and return $ret;
+ 
+ 	if ($$line =~ /^\s*(\.\w+)/) {
+ 	    bless $self,$class;
+@@ -1190,8 +1509,8 @@ if ($gas) {
+ ___
+ }
+ 
+-while(defined(my $line=<>)) {
+-
++sub process_line {
++    my $line = shift;
+     $line =~ s|\R$||;           # Better chomp
+ 
+     if ($nasm) {
+@@ -1271,6 +1590,13 @@ while(defined(my $line=<>)) {
+     print $line,"\n";
+ }
+ 
++while(defined(my $line=<>)) {
++    process_line($line);
++}
++foreach my $line (split(/\n/, seh_directive->pdata_and_xdata())) {
++    process_line($line);
++}
++
+ print "\n$current_segment\tENDS\n"	if ($current_segment && $masm);
+ if ($masm) {
+     print "END\n";
+diff --git a/crypto/test/asm/trampoline-x86_64.pl b/crypto/test/asm/trampoline-x86_64.pl
+index ff2dd7dc2..4ddbe4712 100755
+--- a/crypto/test/asm/trampoline-x86_64.pl
++++ b/crypto/test/asm/trampoline-x86_64.pl
+@@ -138,8 +138,8 @@ my $code = <<____;
+ .globl	abi_test_trampoline
+ .align	16
+ abi_test_trampoline:
+-.Labi_test_trampoline_seh_begin:
+ .cfi_startproc
++.seh_startproc
+ 	# Stack layout:
+ 	#   8 bytes - align
+ 	#   $caller_state_size bytes - saved caller registers
+@@ -177,7 +177,7 @@ my $caller_state_offset = $scratch_offset + 8;
+ $code .= <<____;
+ 	subq	\$$stack_alloc_size, %rsp
+ .cfi_adjust_cfa_offset	$stack_alloc_size
+-.Labi_test_trampoline_seh_prolog_alloc:
++.seh_allocstack	$stack_alloc_size
+ ____
+ $code .= <<____ if (!$win64);
+ 	movq	$unwind, $unwind_offset(%rsp)
+@@ -185,20 +185,20 @@ ____
+ # Store our caller's state. This is needed because we modify it ourselves, and
+ # also to isolate the test infrastruction from the function under test failing
+ # to save some register.
+-my %reg_offsets;
+ $code .= store_caller_state($caller_state_offset, "%rsp", sub {
+   my ($off, $reg) = @_;
+   $reg = substr($reg, 1);
+-  $reg_offsets{$reg} = $off;
+-  $off -= $stack_alloc_size + 8;
++  # SEH records offsets relative to %rsp (when there is no frame pointer), while
++  # CFI records them relative to the CFA, the value of the parent's stack
++  # pointer just before the call.
++  my $cfi_off = $off - $stack_alloc_size - 8;
++  my $seh_dir = ".seh_savereg";
++  $seh_dir = ".seh_savexmm128" if ($reg =~ /^xmm/);
+   return <<____;
+-.cfi_offset	$reg, $off
+-.Labi_test_trampoline_seh_prolog_$reg:
++.cfi_offset	$reg, $cfi_off
++$seh_dir	\%$reg, $off
+ ____
+ });
+-$code .= <<____;
+-.Labi_test_trampoline_seh_prolog_end:
+-____
+ 
+ $code .= load_caller_state(0, $state);
+ $code .= <<____;
+@@ -294,7 +294,7 @@ $code .= <<____;
+ 	# %rax already contains \$func's return value, unmodified.
+ 	ret
+ .cfi_endproc
+-.Labi_test_trampoline_seh_end:
++.seh_endproc
+ .size	abi_test_trampoline,.-abi_test_trampoline
+ ____
+ 
+@@ -333,10 +333,10 @@ $code .= <<____;
+ .align	16
+ abi_test_bad_unwind_wrong_register:
+ .cfi_startproc
+-.Labi_test_bad_unwind_wrong_register_seh_begin:
++.seh_startproc
+ 	pushq	%r12
+-.cfi_push	%r13	# This should be %r12
+-.Labi_test_bad_unwind_wrong_register_seh_push_r13:
++.cfi_push	%r13	# This should be %r13
++.seh_pushreg	%r13	# This should be %r13
+ 	# Windows evaluates epilogs directly in the unwinder, rather than using
+ 	# unwind codes. Add a nop so there is one non-epilog point (immediately
+ 	# before the nop) where the unwinder can observe the mistake.
+@@ -344,7 +344,7 @@ abi_test_bad_unwind_wrong_register:
+ 	popq	%r12
+ .cfi_pop	%r12
+ 	ret
+-.Labi_test_bad_unwind_wrong_register_seh_end:
++.seh_endproc
+ .cfi_endproc
+ .size	abi_test_bad_unwind_wrong_register,.-abi_test_bad_unwind_wrong_register
+ 
+@@ -356,10 +356,10 @@ abi_test_bad_unwind_wrong_register:
+ .align	16
+ abi_test_bad_unwind_temporary:
+ .cfi_startproc
+-.Labi_test_bad_unwind_temporary_seh_begin:
++.seh_startproc
+ 	pushq	%r12
+ .cfi_push	%r12
+-.Labi_test_bad_unwind_temporary_seh_push_r12:
++.seh_pushreg	%r12
+ 
+ 	movq	%r12, %rax
+ 	inc	%rax
+@@ -373,8 +373,8 @@ abi_test_bad_unwind_temporary:
+ 	popq	%r12
+ .cfi_pop	%r12
+ 	ret
+-.Labi_test_bad_unwind_temporary_seh_end:
+ .cfi_endproc
++.seh_endproc
+ .size	abi_test_bad_unwind_temporary,.-abi_test_bad_unwind_temporary
+ 
+ # abi_test_get_and_clear_direction_flag clears the direction flag. If the flag
+@@ -411,9 +411,9 @@ if ($win64) {
+ .globl	abi_test_bad_unwind_epilog
+ .align	16
+ abi_test_bad_unwind_epilog:
+-.Labi_test_bad_unwind_epilog_seh_begin:
++.seh_startproc
+ 	pushq	%r12
+-.Labi_test_bad_unwind_epilog_seh_push_r12:
++.seh_pushreg	%r12
+ 
+ 	nop
+ 
+@@ -421,136 +421,8 @@ abi_test_bad_unwind_epilog:
+ 	popq	%r12
+ 	nop
+ 	ret
+-.Labi_test_bad_unwind_epilog_seh_end:
++.seh_endproc
+ .size	abi_test_bad_unwind_epilog,.-abi_test_bad_unwind_epilog
+-____
+-
+-  # Add unwind metadata for SEH.
+-  #
+-  # TODO(davidben): This is all manual right now. Once we've added SEH tests,
+-  # add support for emitting these in x86_64-xlate.pl, probably based on MASM
+-  # and Yasm's unwind directives, and unify with CFI. (Sadly, NASM does not
+-  # support these directives.) Then push that upstream to replace the
+-  # error-prone and non-standard custom handlers.
+-
+-  # See https://docs.microsoft.com/en-us/cpp/build/struct-unwind-code?view=vs-2017
+-  my $UWOP_PUSH_NONVOL = 0;
+-  my $UWOP_ALLOC_LARGE = 1;
+-  my $UWOP_ALLOC_SMALL = 2;
+-  my $UWOP_SAVE_NONVOL = 4;
+-  my $UWOP_SAVE_XMM128 = 8;
+-
+-  my %UWOP_REG_NUMBER = (rax => 0, rcx => 1, rdx => 2, rbx => 3, rsp => 4,
+-                         rbp => 5, rsi => 6, rdi => 7,
+-                         map(("r$_" => $_), (8..15)));
+-
+-  my $unwind_codes = "";
+-  my $num_slots = 0;
+-  foreach my $reg (reverse @caller_state) {
+-    $reg = substr($reg, 1);
+-    die "unknown register $reg" unless exists($reg_offsets{$reg});
+-    if ($reg =~ /^r/) {
+-      die "unknown register $reg" unless exists($UWOP_REG_NUMBER{$reg});
+-      my $info = $UWOP_SAVE_NONVOL | ($UWOP_REG_NUMBER{$reg} << 4);
+-      my $value = $reg_offsets{$reg} / 8;
+-      $unwind_codes .= <<____;
+-	.byte	.Labi_test_trampoline_seh_prolog_$reg-.Labi_test_trampoline_seh_begin
+-	.byte	$info
+-	.value	$value
+-____
+-      $num_slots += 2;
+-    } elsif ($reg =~ /^xmm/) {
+-      my $info = $UWOP_SAVE_XMM128 | (substr($reg, 3) << 4);
+-      my $value = $reg_offsets{$reg} / 16;
+-      $unwind_codes .= <<____;
+-	.byte	.Labi_test_trampoline_seh_prolog_$reg-.Labi_test_trampoline_seh_begin
+-	.byte	$info
+-	.value	$value
+-____
+-      $num_slots += 2;
+-    } else {
+-      die "unknown register $reg";
+-    }
+-  }
+-
+-  if ($stack_alloc_size <= 128) {
+-    my $info = $UWOP_ALLOC_SMALL | ((($stack_alloc_size - 8) / 8) << 4);
+-    $unwind_codes .= <<____;
+-	.byte	.Labi_test_trampoline_seh_prolog_alloc-.Labi_test_trampoline_seh_begin
+-	.byte	$info
+-____
+-    $num_slots++;
+-  } else {
+-    die "stack allocation needs three unwind slots" if ($stack_alloc_size > 512 * 1024 + 8);
+-    my $info = $UWOP_ALLOC_LARGE;
+-    my $value = $stack_alloc_size / 8;
+-    $unwind_codes .= <<____;
+-	.byte	.Labi_test_trampoline_seh_prolog_alloc-.Labi_test_trampoline_seh_begin
+-	.byte	$info
+-	.value	$value
+-____
+-    $num_slots += 2;
+-  }
+-
+-  $code .= <<____;
+-.section	.pdata
+-.align	4
+-	# https://docs.microsoft.com/en-us/cpp/build/struct-runtime-function?view=vs-2017
+-	.rva	.Labi_test_trampoline_seh_begin
+-	.rva	.Labi_test_trampoline_seh_end
+-	.rva	.Labi_test_trampoline_seh_info
+-
+-	.rva	.Labi_test_bad_unwind_wrong_register_seh_begin
+-	.rva	.Labi_test_bad_unwind_wrong_register_seh_end
+-	.rva	.Labi_test_bad_unwind_wrong_register_seh_info
+-
+-	.rva	.Labi_test_bad_unwind_temporary_seh_begin
+-	.rva	.Labi_test_bad_unwind_temporary_seh_end
+-	.rva	.Labi_test_bad_unwind_temporary_seh_info
+-
+-	.rva	.Labi_test_bad_unwind_epilog_seh_begin
+-	.rva	.Labi_test_bad_unwind_epilog_seh_end
+-	.rva	.Labi_test_bad_unwind_epilog_seh_info
+-
+-.section	.xdata
+-.align	8
+-.Labi_test_trampoline_seh_info:
+-	# https://docs.microsoft.com/en-us/cpp/build/struct-unwind-info?view=vs-2017
+-	.byte	1	# version 1, no flags
+-	.byte	.Labi_test_trampoline_seh_prolog_end-.Labi_test_trampoline_seh_begin
+-	.byte	$num_slots
+-	.byte	0	# no frame register
+-$unwind_codes
+-
+-.align	8
+-.Labi_test_bad_unwind_wrong_register_seh_info:
+-	.byte	1	# version 1, no flags
+-	.byte	.Labi_test_bad_unwind_wrong_register_seh_push_r13-.Labi_test_bad_unwind_wrong_register_seh_begin
+-	.byte	1	# one slot
+-	.byte	0	# no frame register
+-
+-	.byte	.Labi_test_bad_unwind_wrong_register_seh_push_r13-.Labi_test_bad_unwind_wrong_register_seh_begin
+-	.byte	@{[$UWOP_PUSH_NONVOL | ($UWOP_REG_NUMBER{r13} << 4)]}
+-
+-.align	8
+-.Labi_test_bad_unwind_temporary_seh_info:
+-	.byte	1	# version 1, no flags
+-	.byte	.Labi_test_bad_unwind_temporary_seh_push_r12-.Labi_test_bad_unwind_temporary_seh_begin
+-	.byte	1	# one slot
+-	.byte	0	# no frame register
+-
+-	.byte	.Labi_test_bad_unwind_temporary_seh_push_r12-.Labi_test_bad_unwind_temporary_seh_begin
+-	.byte	@{[$UWOP_PUSH_NONVOL | ($UWOP_REG_NUMBER{r12} << 4)]}
+-
+-.align	8
+-.Labi_test_bad_unwind_epilog_seh_info:
+-	.byte	1	# version 1, no flags
+-	.byte	.Labi_test_bad_unwind_epilog_seh_push_r12-.Labi_test_bad_unwind_epilog_seh_begin
+-	.byte	1	# one slot
+-	.byte	0	# no frame register
+-
+-	.byte	.Labi_test_bad_unwind_epilog_seh_push_r12-.Labi_test_bad_unwind_epilog_seh_begin
+-	.byte	@{[$UWOP_PUSH_NONVOL | ($UWOP_REG_NUMBER{r12} << 4)]}
+ ____
+ }
+ 
+diff --git a/generated-src/err_data.c b/generated-src/err_data.c
+index 1414006cb..6b129975d 100644
+--- a/generated-src/err_data.c
++++ b/generated-src/err_data.c
+@@ -209,38 +209,39 @@ const uint32_t kOpenSSLReasonValues[] = {
+     0x2c36833a,
+     0x2c373561,
+     0x2c37b58d,
+-    0x2c3835b2,
+-    0x2c38b5c9,
+-    0x2c3935e7,
+-    0x2c39b5f7,
+-    0x2c3a3609,
+-    0x2c3ab61d,
+-    0x2c3b362e,
+-    0x2c3bb64d,
++    0x2c3835cb,
++    0x2c38b5e2,
++    0x2c393600,
++    0x2c39b610,
++    0x2c3a3622,
++    0x2c3ab636,
++    0x2c3b3647,
++    0x2c3bb666,
+     0x2c3c14be,
+     0x2c3c94d4,
+-    0x2c3d3692,
++    0x2c3d36ab,
+     0x2c3d94ed,
+-    0x2c3e36bc,
+-    0x2c3eb6ca,
+-    0x2c3f36e2,
+-    0x2c3fb6fa,
+-    0x2c403724,
++    0x2c3e36d5,
++    0x2c3eb6e3,
++    0x2c3f36fb,
++    0x2c3fb713,
++    0x2c40373d,
+     0x2c4092b7,
+-    0x2c413735,
+-    0x2c41b748,
++    0x2c41374e,
++    0x2c41b761,
+     0x2c42127d,
+-    0x2c42b759,
++    0x2c42b772,
+     0x2c43076d,
+-    0x2c43b63f,
++    0x2c43b658,
+     0x2c4435a0,
+-    0x2c44b707,
++    0x2c44b720,
+     0x2c453537,
+     0x2c45b573,
+-    0x2c4635d7,
+-    0x2c46b661,
+-    0x2c473676,
+-    0x2c47b6af,
++    0x2c4635f0,
++    0x2c46b67a,
++    0x2c47368f,
++    0x2c47b6c8,
++    0x2c4835b2,
+     0x30320000,
+     0x30328015,
+     0x3033001f,
+@@ -694,71 +695,71 @@ const uint32_t kOpenSSLReasonValues[] = {
+     0x4c4195b6,
+     0x4c42171f,
+     0x4c4294fe,
+-    0x5032376b,
+-    0x5032b77a,
+-    0x50333785,
+-    0x5033b795,
+-    0x503437ae,
+-    0x5034b7c8,
+-    0x503537d6,
+-    0x5035b7ec,
+-    0x503637fe,
+-    0x5036b814,
+-    0x5037382d,
+-    0x5037b840,
+-    0x50383858,
+-    0x5038b869,
+-    0x5039387e,
+-    0x5039b892,
+-    0x503a38b2,
+-    0x503ab8c8,
+-    0x503b38e0,
+-    0x503bb8f2,
+-    0x503c390e,
+-    0x503cb925,
+-    0x503d393e,
+-    0x503db954,
+-    0x503e3961,
+-    0x503eb977,
+-    0x503f3989,
++    0x50323784,
++    0x5032b793,
++    0x5033379e,
++    0x5033b7ae,
++    0x503437c7,
++    0x5034b7e1,
++    0x503537ef,
++    0x5035b805,
++    0x50363817,
++    0x5036b82d,
++    0x50373846,
++    0x5037b859,
++    0x50383871,
++    0x5038b882,
++    0x50393897,
++    0x5039b8ab,
++    0x503a38cb,
++    0x503ab8e1,
++    0x503b38f9,
++    0x503bb90b,
++    0x503c3927,
++    0x503cb93e,
++    0x503d3957,
++    0x503db96d,
++    0x503e397a,
++    0x503eb990,
++    0x503f39a2,
+     0x503f83b3,
+-    0x5040399c,
+-    0x5040b9ac,
+-    0x504139c6,
+-    0x5041b9d5,
+-    0x504239ef,
+-    0x5042ba0c,
+-    0x50433a1c,
+-    0x5043ba2c,
+-    0x50443a49,
++    0x504039b5,
++    0x5040b9c5,
++    0x504139df,
++    0x5041b9ee,
++    0x50423a08,
++    0x5042ba25,
++    0x50433a35,
++    0x5043ba45,
++    0x50443a62,
+     0x50448469,
+-    0x50453a5d,
+-    0x5045ba7b,
+-    0x50463a8e,
+-    0x5046baa4,
+-    0x50473ab6,
+-    0x5047bacb,
+-    0x50483af1,
+-    0x5048baff,
+-    0x50493b12,
+-    0x5049bb27,
+-    0x504a3b3d,
+-    0x504abb4d,
+-    0x504b3b6d,
+-    0x504bbb80,
+-    0x504c3ba3,
+-    0x504cbbd1,
+-    0x504d3bfe,
+-    0x504dbc1b,
+-    0x504e3c36,
+-    0x504ebc52,
+-    0x504f3c64,
+-    0x504fbc7b,
+-    0x50503c8a,
++    0x50453a76,
++    0x5045ba94,
++    0x50463aa7,
++    0x5046babd,
++    0x50473acf,
++    0x5047bae4,
++    0x50483b0a,
++    0x5048bb18,
++    0x50493b2b,
++    0x5049bb40,
++    0x504a3b56,
++    0x504abb66,
++    0x504b3b86,
++    0x504bbb99,
++    0x504c3bbc,
++    0x504cbbea,
++    0x504d3c17,
++    0x504dbc34,
++    0x504e3c4f,
++    0x504ebc6b,
++    0x504f3c7d,
++    0x504fbc94,
++    0x50503ca3,
+     0x50508729,
+-    0x50513c9d,
+-    0x5051ba3b,
+-    0x50523be3,
++    0x50513cb6,
++    0x5051ba54,
++    0x50523bfc,
+     0x58320fc5,
+     0x5c3292c3,
+     0x5c3312dc,
+@@ -1460,6 +1461,7 @@ const char kOpenSSLReasonStringData[] =
+     "INVALID_FIELD_FOR_VERSION\0"
+     "INVALID_FIELD_NAME\0"
+     "INVALID_PARAMETER\0"
++    "INVALID_POLICY_EXTENSION\0"
+     "INVALID_PSS_PARAMETERS\0"
+     "INVALID_TRUST\0"
+     "INVALID_VERSION\0"
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S b/generated-src/linux-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S
+index 890300bbd..48fe63123 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S
+@@ -23,7 +23,7 @@
+ .align	16
+ gcm_gmult_ssse3:
+ .cfi_startproc	
+-.Lgmult_seh_begin:
++
+ 	movdqu	(%rdi),%xmm0
+ 	movdqa	.Lreverse_bytes(%rip),%xmm10
+ 	movdqa	.Llow4_mask(%rip),%xmm2
+@@ -199,8 +199,8 @@ gcm_gmult_ssse3:
+ 	pxor	%xmm5,%xmm5
+ 	pxor	%xmm6,%xmm6
+ 	.byte	0xf3,0xc3
+-.Lgmult_seh_end:
+ .cfi_endproc	
++
+ .size	gcm_gmult_ssse3,.-gcm_gmult_ssse3
+ 
+ 
+@@ -212,8 +212,8 @@ gcm_gmult_ssse3:
+ .hidden gcm_ghash_ssse3
+ .align	16
+ gcm_ghash_ssse3:
+-.Lghash_seh_begin:
+ .cfi_startproc	
++
+ 	movdqu	(%rdi),%xmm0
+ 	movdqa	.Lreverse_bytes(%rip),%xmm10
+ 	movdqa	.Llow4_mask(%rip),%xmm11
+@@ -411,8 +411,8 @@ gcm_ghash_ssse3:
+ 	pxor	%xmm5,%xmm5
+ 	pxor	%xmm6,%xmm6
+ 	.byte	0xf3,0xc3
+-.Lghash_seh_end:
+ .cfi_endproc	
++
+ .size	gcm_ghash_ssse3,.-gcm_ghash_ssse3
+ 
+ .align	16
+diff --git a/generated-src/linux-x86_64/crypto/test/trampoline-x86_64.S b/generated-src/linux-x86_64/crypto/test/trampoline-x86_64.S
+index 3abbbb050..aa2698047 100644
+--- a/generated-src/linux-x86_64/crypto/test/trampoline-x86_64.S
++++ b/generated-src/linux-x86_64/crypto/test/trampoline-x86_64.S
+@@ -25,7 +25,6 @@
+ .hidden abi_test_trampoline
+ .align	16
+ abi_test_trampoline:
+-.Labi_test_trampoline_seh_begin:
+ .cfi_startproc	
+ 
+ 
+@@ -36,29 +35,29 @@ abi_test_trampoline:
+ 
+ 
+ 
++
+ 	subq	$120,%rsp
+ .cfi_adjust_cfa_offset	120
+-.Labi_test_trampoline_seh_prolog_alloc:
++
+ 	movq	%r8,48(%rsp)
+ 	movq	%rbx,64(%rsp)
+ .cfi_offset	rbx, -64
+-.Labi_test_trampoline_seh_prolog_rbx:
++
+ 	movq	%rbp,72(%rsp)
+ .cfi_offset	rbp, -56
+-.Labi_test_trampoline_seh_prolog_rbp:
++
+ 	movq	%r12,80(%rsp)
+ .cfi_offset	r12, -48
+-.Labi_test_trampoline_seh_prolog_r12:
++
+ 	movq	%r13,88(%rsp)
+ .cfi_offset	r13, -40
+-.Labi_test_trampoline_seh_prolog_r13:
++
+ 	movq	%r14,96(%rsp)
+ .cfi_offset	r14, -32
+-.Labi_test_trampoline_seh_prolog_r14:
++
+ 	movq	%r15,104(%rsp)
+ .cfi_offset	r15, -24
+-.Labi_test_trampoline_seh_prolog_r15:
+-.Labi_test_trampoline_seh_prolog_end:
++
+ 	movq	0(%rsi),%rbx
+ 	movq	8(%rsi),%rbp
+ 	movq	16(%rsi),%r12
+@@ -182,7 +181,7 @@ abi_test_unwind_stop:
+ 
+ 	.byte	0xf3,0xc3
+ .cfi_endproc	
+-.Labi_test_trampoline_seh_end:
++
+ .size	abi_test_trampoline,.-abi_test_trampoline
+ .type	abi_test_clobber_rax, @function
+ .globl	abi_test_clobber_rax
+@@ -441,11 +440,11 @@ abi_test_clobber_xmm15:
+ .align	16
+ abi_test_bad_unwind_wrong_register:
+ .cfi_startproc	
+-.Labi_test_bad_unwind_wrong_register_seh_begin:
++
+ 	pushq	%r12
+ .cfi_adjust_cfa_offset	8
+ .cfi_offset	%r13,-16
+-.Labi_test_bad_unwind_wrong_register_seh_push_r13:
++
+ 
+ 
+ 
+@@ -454,7 +453,7 @@ abi_test_bad_unwind_wrong_register:
+ .cfi_adjust_cfa_offset	-8
+ .cfi_restore	%r12
+ 	.byte	0xf3,0xc3
+-.Labi_test_bad_unwind_wrong_register_seh_end:
++
+ .cfi_endproc	
+ .size	abi_test_bad_unwind_wrong_register,.-abi_test_bad_unwind_wrong_register
+ 
+@@ -467,11 +466,11 @@ abi_test_bad_unwind_wrong_register:
+ .align	16
+ abi_test_bad_unwind_temporary:
+ .cfi_startproc	
+-.Labi_test_bad_unwind_temporary_seh_begin:
++
+ 	pushq	%r12
+ .cfi_adjust_cfa_offset	8
+ .cfi_offset	%r12,-16
+-.Labi_test_bad_unwind_temporary_seh_push_r12:
++
+ 
+ 	movq	%r12,%rax
+ 	incq	%rax
+@@ -486,8 +485,8 @@ abi_test_bad_unwind_temporary:
+ .cfi_adjust_cfa_offset	-8
+ .cfi_restore	%r12
+ 	.byte	0xf3,0xc3
+-.Labi_test_bad_unwind_temporary_seh_end:
+ .cfi_endproc	
++
+ .size	abi_test_bad_unwind_temporary,.-abi_test_bad_unwind_temporary
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S b/generated-src/mac-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S
+index 1f9450665..0a8183911 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S
+@@ -23,7 +23,7 @@
+ .p2align	4
+ _gcm_gmult_ssse3:
+ 
+-L$gmult_seh_begin:
++
+ 	movdqu	(%rdi),%xmm0
+ 	movdqa	L$reverse_bytes(%rip),%xmm10
+ 	movdqa	L$low4_mask(%rip),%xmm2
+@@ -199,7 +199,7 @@ L$oop_row_3:
+ 	pxor	%xmm5,%xmm5
+ 	pxor	%xmm6,%xmm6
+ 	.byte	0xf3,0xc3
+-L$gmult_seh_end:
++
+ 
+ 
+ 
+@@ -212,7 +212,7 @@ L$gmult_seh_end:
+ .private_extern _gcm_ghash_ssse3
+ .p2align	4
+ _gcm_ghash_ssse3:
+-L$ghash_seh_begin:
++
+ 
+ 	movdqu	(%rdi),%xmm0
+ 	movdqa	L$reverse_bytes(%rip),%xmm10
+@@ -411,7 +411,7 @@ L$oop_row_6:
+ 	pxor	%xmm5,%xmm5
+ 	pxor	%xmm6,%xmm6
+ 	.byte	0xf3,0xc3
+-L$ghash_seh_end:
++
+ 
+ 
+ 
+diff --git a/generated-src/mac-x86_64/crypto/test/trampoline-x86_64.S b/generated-src/mac-x86_64/crypto/test/trampoline-x86_64.S
+index eebbf8059..966ec0ae8 100644
+--- a/generated-src/mac-x86_64/crypto/test/trampoline-x86_64.S
++++ b/generated-src/mac-x86_64/crypto/test/trampoline-x86_64.S
+@@ -25,7 +25,7 @@
+ .private_extern _abi_test_trampoline
+ .p2align	4
+ _abi_test_trampoline:
+-L$abi_test_trampoline_seh_begin:
++
+ 
+ 
+ 
+@@ -38,27 +38,26 @@ L$abi_test_trampoline_seh_begin:
+ 
+ 	subq	$120,%rsp
+ 
+-L$abi_test_trampoline_seh_prolog_alloc:
++
+ 	movq	%r8,48(%rsp)
+ 	movq	%rbx,64(%rsp)
+ 
+-L$abi_test_trampoline_seh_prolog_rbx:
++
+ 	movq	%rbp,72(%rsp)
+ 
+-L$abi_test_trampoline_seh_prolog_rbp:
++
+ 	movq	%r12,80(%rsp)
+ 
+-L$abi_test_trampoline_seh_prolog_r12:
++
+ 	movq	%r13,88(%rsp)
+ 
+-L$abi_test_trampoline_seh_prolog_r13:
++
+ 	movq	%r14,96(%rsp)
+ 
+-L$abi_test_trampoline_seh_prolog_r14:
++
+ 	movq	%r15,104(%rsp)
+ 
+-L$abi_test_trampoline_seh_prolog_r15:
+-L$abi_test_trampoline_seh_prolog_end:
++
+ 	movq	0(%rsi),%rbx
+ 	movq	8(%rsi),%rbp
+ 	movq	16(%rsi),%r12
+@@ -182,7 +181,7 @@ L$call_done:
+ 
+ 	.byte	0xf3,0xc3
+ 
+-L$abi_test_trampoline_seh_end:
++
+ 
+ 
+ .globl	_abi_test_clobber_rax
+@@ -441,10 +440,10 @@ _abi_test_clobber_xmm15:
+ .p2align	4
+ _abi_test_bad_unwind_wrong_register:
+ 
+-L$abi_test_bad_unwind_wrong_register_seh_begin:
++
+ 	pushq	%r12
+ 
+-L$abi_test_bad_unwind_wrong_register_seh_push_r13:
++
+ 
+ 
+ 
+@@ -452,7 +451,7 @@ L$abi_test_bad_unwind_wrong_register_seh_push_r13:
+ 	popq	%r12
+ 
+ 	.byte	0xf3,0xc3
+-L$abi_test_bad_unwind_wrong_register_seh_end:
++
+ 
+ 
+ 
+@@ -465,10 +464,10 @@ L$abi_test_bad_unwind_wrong_register_seh_end:
+ .p2align	4
+ _abi_test_bad_unwind_temporary:
+ 
+-L$abi_test_bad_unwind_temporary_seh_begin:
++
+ 	pushq	%r12
+ 
+-L$abi_test_bad_unwind_temporary_seh_push_r12:
++
+ 
+ 	movq	%r12,%rax
+ 	incq	%rax
+@@ -482,7 +481,7 @@ L$abi_test_bad_unwind_temporary_seh_push_r12:
+ 	popq	%r12
+ 
+ 	.byte	0xf3,0xc3
+-L$abi_test_bad_unwind_temporary_seh_end:
++
+ 
+ 
+ 
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm b/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm
+index b1c9e581b..d794d19eb 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.asm
+@@ -22,14 +22,13 @@ global	gcm_gmult_ssse3
+ ALIGN	16
+ gcm_gmult_ssse3:
+ 
+-$L$gmult_seh_begin:
++$L$SEH_begin_gcm_gmult_ssse3_1:
+ 	sub	rsp,40
+-$L$gmult_seh_allocstack:
++$L$SEH_prolog_gcm_gmult_ssse3_2:
+ 	movdqa	XMMWORD[rsp],xmm6
+-$L$gmult_seh_save_xmm6:
++$L$SEH_prolog_gcm_gmult_ssse3_3:
+ 	movdqa	XMMWORD[16+rsp],xmm10
+-$L$gmult_seh_save_xmm10:
+-$L$gmult_seh_prolog_end:
++$L$SEH_prolog_gcm_gmult_ssse3_4:
+ 	movdqu	xmm0,XMMWORD[rcx]
+ 	movdqa	xmm10,XMMWORD[$L$reverse_bytes]
+ 	movdqa	xmm2,XMMWORD[$L$low4_mask]
+@@ -208,8 +207,8 @@ DB	102,65,15,56,0,210
+ 	movdqa	xmm10,XMMWORD[16+rsp]
+ 	add	rsp,40
+ 	DB	0F3h,0C3h		;repret
+-$L$gmult_seh_end:
+ 
++$L$SEH_end_gcm_gmult_ssse3_5:
+ 
+ 
+ 
+@@ -220,17 +219,16 @@ $L$gmult_seh_end:
+ global	gcm_ghash_ssse3
+ ALIGN	16
+ gcm_ghash_ssse3:
+-$L$ghash_seh_begin:
+ 
++$L$SEH_begin_gcm_ghash_ssse3_1:
+ 	sub	rsp,56
+-$L$ghash_seh_allocstack:
++$L$SEH_prolog_gcm_ghash_ssse3_2:
+ 	movdqa	XMMWORD[rsp],xmm6
+-$L$ghash_seh_save_xmm6:
++$L$SEH_prolog_gcm_ghash_ssse3_3:
+ 	movdqa	XMMWORD[16+rsp],xmm10
+-$L$ghash_seh_save_xmm10:
++$L$SEH_prolog_gcm_ghash_ssse3_4:
+ 	movdqa	XMMWORD[32+rsp],xmm11
+-$L$ghash_seh_save_xmm11:
+-$L$ghash_seh_prolog_end:
++$L$SEH_prolog_gcm_ghash_ssse3_5:
+ 	movdqu	xmm0,XMMWORD[rcx]
+ 	movdqa	xmm10,XMMWORD[$L$reverse_bytes]
+ 	movdqa	xmm11,XMMWORD[$L$low4_mask]
+@@ -432,8 +430,8 @@ DB	102,65,15,56,0,194
+ 	movdqa	xmm11,XMMWORD[32+rsp]
+ 	add	rsp,56
+ 	DB	0F3h,0C3h		;repret
+-$L$ghash_seh_end:
+ 
++$L$SEH_end_gcm_ghash_ssse3_6:
+ 
+ 
+ ALIGN	16
+@@ -446,52 +444,45 @@ $L$low4_mask:
+ 	DQ	0x0f0f0f0f0f0f0f0f,0x0f0f0f0f0f0f0f0f
+ section	.pdata rdata align=4
+ ALIGN	4
+-	DD	$L$gmult_seh_begin wrt ..imagebase
+-	DD	$L$gmult_seh_end wrt ..imagebase
+-	DD	$L$gmult_seh_info wrt ..imagebase
++	DD	$L$SEH_begin_gcm_gmult_ssse3_1 wrt ..imagebase
++	DD	$L$SEH_end_gcm_gmult_ssse3_5 wrt ..imagebase
++	DD	$L$SEH_info_gcm_gmult_ssse3_0 wrt ..imagebase
++
++	DD	$L$SEH_begin_gcm_ghash_ssse3_1 wrt ..imagebase
++	DD	$L$SEH_end_gcm_ghash_ssse3_6 wrt ..imagebase
++	DD	$L$SEH_info_gcm_ghash_ssse3_0 wrt ..imagebase
+ 
+-	DD	$L$ghash_seh_begin wrt ..imagebase
+-	DD	$L$ghash_seh_end wrt ..imagebase
+-	DD	$L$ghash_seh_info wrt ..imagebase
+ 
+ section	.xdata rdata align=8
+-ALIGN	8
+-$L$gmult_seh_info:
++ALIGN	4
++$L$SEH_info_gcm_gmult_ssse3_0:
+ 	DB	1
+-	DB	$L$gmult_seh_prolog_end-$L$gmult_seh_begin
++	DB	$L$SEH_prolog_gcm_gmult_ssse3_4-$L$SEH_begin_gcm_gmult_ssse3_1
+ 	DB	5
+ 	DB	0
+-
+-	DB	$L$gmult_seh_save_xmm10-$L$gmult_seh_begin
++	DB	$L$SEH_prolog_gcm_gmult_ssse3_4-$L$SEH_begin_gcm_gmult_ssse3_1
+ 	DB	168
+ 	DW	1
+-
+-	DB	$L$gmult_seh_save_xmm6-$L$gmult_seh_begin
++	DB	$L$SEH_prolog_gcm_gmult_ssse3_3-$L$SEH_begin_gcm_gmult_ssse3_1
+ 	DB	104
+ 	DW	0
+-
+-	DB	$L$gmult_seh_allocstack-$L$gmult_seh_begin
++	DB	$L$SEH_prolog_gcm_gmult_ssse3_2-$L$SEH_begin_gcm_gmult_ssse3_1
+ 	DB	66
+ 
+-ALIGN	8
+-$L$ghash_seh_info:
++$L$SEH_info_gcm_ghash_ssse3_0:
+ 	DB	1
+-	DB	$L$ghash_seh_prolog_end-$L$ghash_seh_begin
++	DB	$L$SEH_prolog_gcm_ghash_ssse3_5-$L$SEH_begin_gcm_ghash_ssse3_1
+ 	DB	7
+ 	DB	0
+-
+-	DB	$L$ghash_seh_save_xmm11-$L$ghash_seh_begin
++	DB	$L$SEH_prolog_gcm_ghash_ssse3_5-$L$SEH_begin_gcm_ghash_ssse3_1
+ 	DB	184
+ 	DW	2
+-
+-	DB	$L$ghash_seh_save_xmm10-$L$ghash_seh_begin
++	DB	$L$SEH_prolog_gcm_ghash_ssse3_4-$L$SEH_begin_gcm_ghash_ssse3_1
+ 	DB	168
+ 	DW	1
+-
+-	DB	$L$ghash_seh_save_xmm6-$L$ghash_seh_begin
++	DB	$L$SEH_prolog_gcm_ghash_ssse3_3-$L$SEH_begin_gcm_ghash_ssse3_1
+ 	DB	104
+ 	DW	0
+-
+-	DB	$L$ghash_seh_allocstack-$L$ghash_seh_begin
++	DB	$L$SEH_prolog_gcm_ghash_ssse3_2-$L$SEH_begin_gcm_ghash_ssse3_1
+ 	DB	98
+ %endif
+diff --git a/generated-src/win-x86_64/crypto/test/trampoline-x86_64.asm b/generated-src/win-x86_64/crypto/test/trampoline-x86_64.asm
+index ad36f4ab8..f2c8b6090 100644
+--- a/generated-src/win-x86_64/crypto/test/trampoline-x86_64.asm
++++ b/generated-src/win-x86_64/crypto/test/trampoline-x86_64.asm
+@@ -24,8 +24,8 @@ section	.text code align=64
+ global	abi_test_trampoline
+ ALIGN	16
+ abi_test_trampoline:
+-$L$abi_test_trampoline_seh_begin:
+ 
++$L$SEH_begin_abi_test_trampoline_1:
+ 
+ 
+ 
+@@ -37,62 +37,61 @@ $L$abi_test_trampoline_seh_begin:
+ 
+ 	sub	rsp,344
+ 
+-$L$abi_test_trampoline_seh_prolog_alloc:
++$L$SEH_prolog_abi_test_trampoline_2:
+ 	mov	QWORD[112+rsp],rbx
+ 
+-$L$abi_test_trampoline_seh_prolog_rbx:
++$L$SEH_prolog_abi_test_trampoline_3:
+ 	mov	QWORD[120+rsp],rbp
+ 
+-$L$abi_test_trampoline_seh_prolog_rbp:
++$L$SEH_prolog_abi_test_trampoline_4:
+ 	mov	QWORD[128+rsp],rdi
+ 
+-$L$abi_test_trampoline_seh_prolog_rdi:
++$L$SEH_prolog_abi_test_trampoline_5:
+ 	mov	QWORD[136+rsp],rsi
+ 
+-$L$abi_test_trampoline_seh_prolog_rsi:
++$L$SEH_prolog_abi_test_trampoline_6:
+ 	mov	QWORD[144+rsp],r12
+ 
+-$L$abi_test_trampoline_seh_prolog_r12:
++$L$SEH_prolog_abi_test_trampoline_7:
+ 	mov	QWORD[152+rsp],r13
+ 
+-$L$abi_test_trampoline_seh_prolog_r13:
++$L$SEH_prolog_abi_test_trampoline_8:
+ 	mov	QWORD[160+rsp],r14
+ 
+-$L$abi_test_trampoline_seh_prolog_r14:
++$L$SEH_prolog_abi_test_trampoline_9:
+ 	mov	QWORD[168+rsp],r15
+ 
+-$L$abi_test_trampoline_seh_prolog_r15:
++$L$SEH_prolog_abi_test_trampoline_10:
+ 	movdqa	XMMWORD[176+rsp],xmm6
+ 
+-$L$abi_test_trampoline_seh_prolog_xmm6:
++$L$SEH_prolog_abi_test_trampoline_11:
+ 	movdqa	XMMWORD[192+rsp],xmm7
+ 
+-$L$abi_test_trampoline_seh_prolog_xmm7:
++$L$SEH_prolog_abi_test_trampoline_12:
+ 	movdqa	XMMWORD[208+rsp],xmm8
+ 
+-$L$abi_test_trampoline_seh_prolog_xmm8:
++$L$SEH_prolog_abi_test_trampoline_13:
+ 	movdqa	XMMWORD[224+rsp],xmm9
+ 
+-$L$abi_test_trampoline_seh_prolog_xmm9:
++$L$SEH_prolog_abi_test_trampoline_14:
+ 	movdqa	XMMWORD[240+rsp],xmm10
+ 
+-$L$abi_test_trampoline_seh_prolog_xmm10:
++$L$SEH_prolog_abi_test_trampoline_15:
+ 	movdqa	XMMWORD[256+rsp],xmm11
+ 
+-$L$abi_test_trampoline_seh_prolog_xmm11:
++$L$SEH_prolog_abi_test_trampoline_16:
+ 	movdqa	XMMWORD[272+rsp],xmm12
+ 
+-$L$abi_test_trampoline_seh_prolog_xmm12:
++$L$SEH_prolog_abi_test_trampoline_17:
+ 	movdqa	XMMWORD[288+rsp],xmm13
+ 
+-$L$abi_test_trampoline_seh_prolog_xmm13:
++$L$SEH_prolog_abi_test_trampoline_18:
+ 	movdqa	XMMWORD[304+rsp],xmm14
+ 
+-$L$abi_test_trampoline_seh_prolog_xmm14:
++$L$SEH_prolog_abi_test_trampoline_19:
+ 	movdqa	XMMWORD[320+rsp],xmm15
+ 
+-$L$abi_test_trampoline_seh_prolog_xmm15:
+-$L$abi_test_trampoline_seh_prolog_end:
++$L$SEH_prolog_abi_test_trampoline_20:
+ 	mov	rbx,QWORD[rdx]
+ 	mov	rbp,QWORD[8+rdx]
+ 	mov	rdi,QWORD[16+rdx]
+@@ -253,7 +252,7 @@ $L$call_done:
+ 
+ 	DB	0F3h,0C3h		;repret
+ 
+-$L$abi_test_trampoline_seh_end:
++$L$SEH_end_abi_test_trampoline_21:
+ 
+ 
+ global	abi_test_clobber_rax
+@@ -480,10 +479,10 @@ global	abi_test_bad_unwind_wrong_register
+ ALIGN	16
+ abi_test_bad_unwind_wrong_register:
+ 
+-$L$abi_test_bad_unwind_wrong_register_seh_begin:
++$L$SEH_begin_abi_test_bad_unwind_wrong_register_1:
+ 	push	r12
+ 
+-$L$abi_test_bad_unwind_wrong_register_seh_push_r13:
++$L$SEH_prolog_abi_test_bad_unwind_wrong_register_2:
+ 
+ 
+ 
+@@ -491,7 +490,7 @@ $L$abi_test_bad_unwind_wrong_register_seh_push_r13:
+ 	pop	r12
+ 
+ 	DB	0F3h,0C3h		;repret
+-$L$abi_test_bad_unwind_wrong_register_seh_end:
++$L$SEH_end_abi_test_bad_unwind_wrong_register_3:
+ 
+ 
+ 
+@@ -503,10 +502,10 @@ global	abi_test_bad_unwind_temporary
+ ALIGN	16
+ abi_test_bad_unwind_temporary:
+ 
+-$L$abi_test_bad_unwind_temporary_seh_begin:
++$L$SEH_begin_abi_test_bad_unwind_temporary_1:
+ 	push	r12
+ 
+-$L$abi_test_bad_unwind_temporary_seh_push_r12:
++$L$SEH_prolog_abi_test_bad_unwind_temporary_2:
+ 
+ 	mov	rax,r12
+ 	inc	rax
+@@ -520,8 +519,8 @@ $L$abi_test_bad_unwind_temporary_seh_push_r12:
+ 	pop	r12
+ 
+ 	DB	0F3h,0C3h		;repret
+-$L$abi_test_bad_unwind_temporary_seh_end:
+ 
++$L$SEH_end_abi_test_bad_unwind_temporary_3:
+ 
+ 
+ 
+@@ -554,9 +553,9 @@ abi_test_set_direction_flag:
+ global	abi_test_bad_unwind_epilog
+ ALIGN	16
+ abi_test_bad_unwind_epilog:
+-$L$abi_test_bad_unwind_epilog_seh_begin:
++$L$SEH_begin_abi_test_bad_unwind_epilog_1:
+ 	push	r12
+-$L$abi_test_bad_unwind_epilog_seh_push_r12:
++$L$SEH_prolog_abi_test_bad_unwind_epilog_2:
+ 
+ 	nop
+ 
+@@ -564,121 +563,113 @@ $L$abi_test_bad_unwind_epilog_seh_push_r12:
+ 	pop	r12
+ 	nop
+ 	DB	0F3h,0C3h		;repret
+-$L$abi_test_bad_unwind_epilog_seh_end:
++$L$SEH_end_abi_test_bad_unwind_epilog_3:
+ 
+ section	.pdata rdata align=4
+ ALIGN	4
++	DD	$L$SEH_begin_abi_test_trampoline_1 wrt ..imagebase
++	DD	$L$SEH_end_abi_test_trampoline_21 wrt ..imagebase
++	DD	$L$SEH_info_abi_test_trampoline_0 wrt ..imagebase
+ 
+-	DD	$L$abi_test_trampoline_seh_begin wrt ..imagebase
+-	DD	$L$abi_test_trampoline_seh_end wrt ..imagebase
+-	DD	$L$abi_test_trampoline_seh_info wrt ..imagebase
++	DD	$L$SEH_begin_abi_test_bad_unwind_wrong_register_1 wrt ..imagebase
++	DD	$L$SEH_end_abi_test_bad_unwind_wrong_register_3 wrt ..imagebase
++	DD	$L$SEH_info_abi_test_bad_unwind_wrong_register_0 wrt ..imagebase
+ 
+-	DD	$L$abi_test_bad_unwind_wrong_register_seh_begin wrt ..imagebase
+-	DD	$L$abi_test_bad_unwind_wrong_register_seh_end wrt ..imagebase
+-	DD	$L$abi_test_bad_unwind_wrong_register_seh_info wrt ..imagebase
++	DD	$L$SEH_begin_abi_test_bad_unwind_temporary_1 wrt ..imagebase
++	DD	$L$SEH_end_abi_test_bad_unwind_temporary_3 wrt ..imagebase
++	DD	$L$SEH_info_abi_test_bad_unwind_temporary_0 wrt ..imagebase
+ 
+-	DD	$L$abi_test_bad_unwind_temporary_seh_begin wrt ..imagebase
+-	DD	$L$abi_test_bad_unwind_temporary_seh_end wrt ..imagebase
+-	DD	$L$abi_test_bad_unwind_temporary_seh_info wrt ..imagebase
++	DD	$L$SEH_begin_abi_test_bad_unwind_epilog_1 wrt ..imagebase
++	DD	$L$SEH_end_abi_test_bad_unwind_epilog_3 wrt ..imagebase
++	DD	$L$SEH_info_abi_test_bad_unwind_epilog_0 wrt ..imagebase
+ 
+-	DD	$L$abi_test_bad_unwind_epilog_seh_begin wrt ..imagebase
+-	DD	$L$abi_test_bad_unwind_epilog_seh_end wrt ..imagebase
+-	DD	$L$abi_test_bad_unwind_epilog_seh_info wrt ..imagebase
+ 
+ section	.xdata rdata align=8
+-ALIGN	8
+-$L$abi_test_trampoline_seh_info:
+-
++ALIGN	4
++$L$SEH_info_abi_test_trampoline_0:
+ 	DB	1
+-	DB	$L$abi_test_trampoline_seh_prolog_end-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_20-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	38
+ 	DB	0
+-	DB	$L$abi_test_trampoline_seh_prolog_xmm15-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_20-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	248
+ 	DW	20
+-	DB	$L$abi_test_trampoline_seh_prolog_xmm14-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_19-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	232
+ 	DW	19
+-	DB	$L$abi_test_trampoline_seh_prolog_xmm13-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_18-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	216
+ 	DW	18
+-	DB	$L$abi_test_trampoline_seh_prolog_xmm12-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_17-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	200
+ 	DW	17
+-	DB	$L$abi_test_trampoline_seh_prolog_xmm11-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_16-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	184
+ 	DW	16
+-	DB	$L$abi_test_trampoline_seh_prolog_xmm10-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_15-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	168
+ 	DW	15
+-	DB	$L$abi_test_trampoline_seh_prolog_xmm9-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_14-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	152
+ 	DW	14
+-	DB	$L$abi_test_trampoline_seh_prolog_xmm8-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_13-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	136
+ 	DW	13
+-	DB	$L$abi_test_trampoline_seh_prolog_xmm7-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_12-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	120
+ 	DW	12
+-	DB	$L$abi_test_trampoline_seh_prolog_xmm6-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_11-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	104
+ 	DW	11
+-	DB	$L$abi_test_trampoline_seh_prolog_r15-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_10-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	244
+ 	DW	21
+-	DB	$L$abi_test_trampoline_seh_prolog_r14-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_9-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	228
+ 	DW	20
+-	DB	$L$abi_test_trampoline_seh_prolog_r13-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_8-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	212
+ 	DW	19
+-	DB	$L$abi_test_trampoline_seh_prolog_r12-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_7-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	196
+ 	DW	18
+-	DB	$L$abi_test_trampoline_seh_prolog_rsi-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_6-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	100
+ 	DW	17
+-	DB	$L$abi_test_trampoline_seh_prolog_rdi-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_5-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	116
+ 	DW	16
+-	DB	$L$abi_test_trampoline_seh_prolog_rbp-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_4-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	84
+ 	DW	15
+-	DB	$L$abi_test_trampoline_seh_prolog_rbx-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_3-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	52
+ 	DW	14
+-	DB	$L$abi_test_trampoline_seh_prolog_alloc-$L$abi_test_trampoline_seh_begin
++	DB	$L$SEH_prolog_abi_test_trampoline_2-$L$SEH_begin_abi_test_trampoline_1
+ 	DB	1
+ 	DW	43
+ 
+-
+-ALIGN	8
+-$L$abi_test_bad_unwind_wrong_register_seh_info:
++$L$SEH_info_abi_test_bad_unwind_wrong_register_0:
+ 	DB	1
+-	DB	$L$abi_test_bad_unwind_wrong_register_seh_push_r13-$L$abi_test_bad_unwind_wrong_register_seh_begin
++	DB	$L$SEH_prolog_abi_test_bad_unwind_wrong_register_2-$L$SEH_begin_abi_test_bad_unwind_wrong_register_1
+ 	DB	1
+ 	DB	0
+-
+-	DB	$L$abi_test_bad_unwind_wrong_register_seh_push_r13-$L$abi_test_bad_unwind_wrong_register_seh_begin
++	DB	$L$SEH_prolog_abi_test_bad_unwind_wrong_register_2-$L$SEH_begin_abi_test_bad_unwind_wrong_register_1
+ 	DB	208
+ 
+-ALIGN	8
+-$L$abi_test_bad_unwind_temporary_seh_info:
++$L$SEH_info_abi_test_bad_unwind_temporary_0:
+ 	DB	1
+-	DB	$L$abi_test_bad_unwind_temporary_seh_push_r12-$L$abi_test_bad_unwind_temporary_seh_begin
++	DB	$L$SEH_prolog_abi_test_bad_unwind_temporary_2-$L$SEH_begin_abi_test_bad_unwind_temporary_1
+ 	DB	1
+ 	DB	0
+-
+-	DB	$L$abi_test_bad_unwind_temporary_seh_push_r12-$L$abi_test_bad_unwind_temporary_seh_begin
++	DB	$L$SEH_prolog_abi_test_bad_unwind_temporary_2-$L$SEH_begin_abi_test_bad_unwind_temporary_1
+ 	DB	192
+ 
+-ALIGN	8
+-$L$abi_test_bad_unwind_epilog_seh_info:
++$L$SEH_info_abi_test_bad_unwind_epilog_0:
+ 	DB	1
+-	DB	$L$abi_test_bad_unwind_epilog_seh_push_r12-$L$abi_test_bad_unwind_epilog_seh_begin
++	DB	$L$SEH_prolog_abi_test_bad_unwind_epilog_2-$L$SEH_begin_abi_test_bad_unwind_epilog_1
+ 	DB	1
+ 	DB	0
+-
+-	DB	$L$abi_test_bad_unwind_epilog_seh_push_r12-$L$abi_test_bad_unwind_epilog_seh_begin
++	DB	$L$SEH_prolog_abi_test_bad_unwind_epilog_2-$L$SEH_begin_abi_test_bad_unwind_epilog_1
+ 	DB	192
+ %endif

@@ -1,0 +1,41 @@
+From d723334d7a26d2d981c6f63adf4f07b6fcd61bac Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Thu, 4 May 2023 12:39:14 -0700
+Subject: [PATCH] fix device farm CI build with boto3 (#990)
+
+---
+ tests/ci/devicefarm_job.py | 2 +-
+ tests/ci/setup.py          | 5 +++--
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/tests/ci/devicefarm_job.py b/tests/ci/devicefarm_job.py
+index 24779cd09..c8e0ae1bb 100644
+--- a/tests/ci/devicefarm_job.py
++++ b/tests/ci/devicefarm_job.py
+@@ -20,7 +20,7 @@ config = {
+     "poolArn": DEVICEFARM_DEVICE_POOL,
+ }
+ 
+-client = boto3.client('devicefarm')
++client = boto3.client('devicefarm', region_name=AWS_REGION)
+ 
+ unique = config['namePrefix']
+ aws_region = config['awsRegion']
+diff --git a/tests/ci/setup.py b/tests/ci/setup.py
+index 278a9d58b..966d298a9 100644
+--- a/tests/ci/setup.py
++++ b/tests/ci/setup.py
+@@ -29,10 +29,11 @@ setuptools.setup(
+         # A formatter for Python code.
+         "yapf==0.30.0",
+         # Introduced by benchmark framework.
+-        "boto3==1.18.11",
++        "boto3==1.26.126",
+         # Introduced by Android Device Farm CI.
+         "requests",
+-        "arnparse==0.0.2"
++        "arnparse==0.0.2",
++        "urllib3==1.25.4"
+     ],
+ 
+     python_requires=">=3.6",

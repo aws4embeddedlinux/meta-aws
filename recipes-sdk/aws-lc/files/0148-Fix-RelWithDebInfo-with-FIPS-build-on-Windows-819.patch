@@ -1,0 +1,109 @@
+From e6fd80ef7741a4977401ebd315c7c7a65767e70f Mon Sep 17 00:00:00 2001
+From: William Bo Yang <coolbillyang@gmail.com>
+Date: Fri, 24 Feb 2023 12:50:38 -0600
+Subject: [PATCH] Fix RelWithDebInfo with FIPS build on Windows (#819)
+
+* add flags to generate .pdb files when building on windows
+
+* move logic under RelWithDebInfo
+
+* add relwithdebinfo to windows ci test script
+
+* add PDB files to install config
+
+* update comments with better explanation of what's happening
+---
+ CMakeLists.txt                 | 13 +++++++++++++
+ crypto/CMakeLists.txt          |  4 ++++
+ ssl/CMakeLists.txt             |  4 ++++
+ tests/ci/run_windows_tests.bat |  4 +++-
+ tool/CMakeLists.txt            |  4 ++++
+ 5 files changed, 28 insertions(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 1a1cb5df9..d1c555a72 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -441,6 +441,19 @@ elseif(MSVC)
+                             ${MSVC_LEVEL4_WARNINGS_LIST})
+   set(CMAKE_C_FLAGS   "-utf-8 -Wall -WX ${MSVC_DISABLED_WARNINGS_STR} ${MSVC_LEVEL4_WARNINGS_STR}")
+   set(CMAKE_CXX_FLAGS "-utf-8 -Wall -WX ${MSVC_DISABLED_WARNINGS_STR} ${MSVC_LEVEL4_WARNINGS_STR}")
++
++  # If we're using MSVC on Windows in FIPS mode with RelWithDebInfo then we want to override some of the default RelWithDebInfo flags.
++  # This fixes the problem we run into with RelWithDebInfo and FIPS mode on Windows where the FIPS module wouldn't span the expected symbol.
++  if(CMAKE_BUILD_TYPE_LOWER MATCHES "relwithdebinfo" AND FIPS)
++    # /Zi requires the /debug flag for executables/libraries that we want .pdb files for.
++    # We want to replace the default /debug flag with /DEBUG:FULL, to explicitly make sure that the .pdb files can be used on machines other than one on which it's built.
++    string(REPLACE "/debug" "/DEBUG:FULL" CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO}")
++    string(REPLACE "/debug" "/DEBUG:FULL" CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO}")
++
++    # The /debug flag also turns off the /OPT linker flag so we want to turn them back on across the board.
++    set(CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO} /OPT:REF,ICF,LBR")
++    set(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO} /OPT:REF,ICF,LBR")
++  endif()
+ endif()
+ 
+ if(WIN32)
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index 9a779bbfa..d36773865 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -755,6 +755,10 @@ install(TARGETS crypto
+         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+ 
++if(MSVC AND CMAKE_BUILD_TYPE_LOWER MATCHES "relwithdebinfo" AND FIPS)
++  install (FILES $<TARGET_FILE_DIR:crypto>/crypto.pdb DESTINATION ${CMAKE_INSTALL_LIBDIR})
++endif()
++
+ configure_file("cmake/crypto-config.cmake"
+     "${CMAKE_CURRENT_BINARY_DIR}/crypto-config.cmake"
+     @ONLY)
+diff --git a/ssl/CMakeLists.txt b/ssl/CMakeLists.txt
+index c5510f4a3..6b12fcd3d 100644
+--- a/ssl/CMakeLists.txt
++++ b/ssl/CMakeLists.txt
+@@ -79,6 +79,10 @@ install(TARGETS ssl
+         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+ )
+ 
++if(MSVC AND CMAKE_BUILD_TYPE_LOWER MATCHES "relwithdebinfo" AND FIPS)
++  install(FILES $<TARGET_FILE_DIR:ssl>/ssl.pdb DESTINATION ${CMAKE_INSTALL_LIBDIR})
++endif()
++
+ configure_file("cmake/ssl-config.cmake"
+     "${CMAKE_CURRENT_BINARY_DIR}/ssl-config.cmake"
+     @ONLY)
+diff --git a/tests/ci/run_windows_tests.bat b/tests/ci/run_windows_tests.bat
+index d35d5d12d..fdb9a59f4 100644
+--- a/tests/ci/run_windows_tests.bat
++++ b/tests/ci/run_windows_tests.bat
+@@ -21,10 +21,12 @@ call :build_and_test Release "-DOPENSSL_NO_ASM=1" || goto error
+ set PATH=%BUILD_DIR%;%BUILD_DIR%\crypto;%BUILD_DIR%\ssl;%PATH%
+ call :build_and_test Release "-DBUILD_SHARED_LIBS=1" || goto error
+ call :build_and_test Release "-DBUILD_SHARED_LIBS=1 -DFIPS=1" || goto error
++@rem For FIPS on Windows we also have a RelWithDebInfo build to generate debug symbols.
++call :build_and_test RelWithDebInfo "-DBUILD_SHARED_LIBS=1 -DFIPS=1" || goto error
+ 
+ goto :EOF
+ 
+-@rem %1 is the build type Release/Debug
++@rem %1 is the build type (e.g. Release/Debug)
+ @rem %2 is the additional full CMake args
+ :build_and_test
+ @echo on
+diff --git a/tool/CMakeLists.txt b/tool/CMakeLists.txt
+index b185979b4..d5d9c7408 100644
+--- a/tool/CMakeLists.txt
++++ b/tool/CMakeLists.txt
+@@ -46,6 +46,10 @@ endif()
+ install(TARGETS bssl
+         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+ 
++if(MSVC AND CMAKE_BUILD_TYPE_LOWER MATCHES "relwithdebinfo" AND FIPS)
++  install (FILES $<TARGET_FILE_DIR:bssl>/bssl.pdb DESTINATION ${CMAKE_INSTALL_LIBDIR})
++endif()
++
+ function(build_benchmark target_name install_path)
+   find_library(libcrypto-${target_name} crypto PATHS ${install_path}/lib/ ${install_path}/lib64/ NO_DEFAULT_PATH)
+   message(STATUS "Building ${target_name} benchmark using header files from ${install_path}/include and libcrypto from ${libcrypto-${target_name}}.")

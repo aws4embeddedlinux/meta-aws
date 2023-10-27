@@ -1,0 +1,62 @@
+From 2ad1b6590dc8ae7bf788e72d9c15de09e8692e5b Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 23 May 2023 11:45:09 -0400
+Subject: [PATCH] Bound STACK_OF(T) sizes by int
+
+Although we've switched STACK_OF(T) to use size_t, OpenSSL used int
+pervasively. Much of crypto/x509 and third-party callers use int
+indices. As much of that is in the public API now, ensure that
+STACK_OF(T) can never exceed INT_MAX elements.
+
+Bug: 516
+Change-Id: I26b8fe590655f8c3e449b749b5d0222e28c413f8
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/60065
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit 8c7e925b5dab1f826f08f38e4b9e1543b8413476)
+---
+ crypto/stack/stack.c    | 7 +++++++
+ include/openssl/stack.h | 3 ++-
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/crypto/stack/stack.c b/crypto/stack/stack.c
+index 7f60b2ea7..c81afcbb7 100644
+--- a/crypto/stack/stack.c
++++ b/crypto/stack/stack.c
+@@ -57,7 +57,9 @@
+ #include <openssl/stack.h>
+ 
+ #include <assert.h>
++#include <limits.h>
+ 
++#include <openssl/err.h>
+ #include <openssl/mem.h>
+ 
+ #include "../internal.h"
+@@ -161,6 +163,11 @@ size_t sk_insert(_STACK *sk, void *p, size_t where) {
+     return 0;
+   }
+ 
++  if (sk->num >= INT_MAX) {
++    OPENSSL_PUT_ERROR(CRYPTO, ERR_R_OVERFLOW);
++    return 0;
++  }
++
+   if (sk->num_alloc <= sk->num + 1) {
+     // Attempt to double the size of the array.
+     size_t new_alloc = sk->num_alloc << 1;
+diff --git a/include/openssl/stack.h b/include/openssl/stack.h
+index f5712f062..e2b9d3187 100644
+--- a/include/openssl/stack.h
++++ b/include/openssl/stack.h
+@@ -140,7 +140,8 @@ STACK_OF(SAMPLE) *sk_SAMPLE_new(sk_SAMPLE_cmp_func comp);
+ // NULL on allocation failure.
+ STACK_OF(SAMPLE) *sk_SAMPLE_new_null(void);
+ 
+-// sk_SAMPLE_num returns the number of elements in |sk|.
++// sk_SAMPLE_num returns the number of elements in |sk|. It is safe to cast this
++// value to |int|. |sk| is guaranteed to have at most |INT_MAX| elements.
+ size_t sk_SAMPLE_num(const STACK_OF(SAMPLE) *sk);
+ 
+ // sk_SAMPLE_zero resets |sk| to the empty state but does nothing to free the

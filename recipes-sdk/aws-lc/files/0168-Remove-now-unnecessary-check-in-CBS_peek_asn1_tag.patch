@@ -1,0 +1,33 @@
+From 9b67834b12241a19ea0e9f74a31b3732c392e182 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sun, 11 Dec 2022 11:57:04 -0500
+Subject: [PATCH] Remove now unnecessary check in CBS_peek_asn1_tag.
+
+Since we started supporting higher tag numbers, this function needed to
+call parse_asn1_tag, which is internally bounds-checked.
+
+Change-Id: I19202fb1256240155fa1b53dd31f2b96fd0e8d40
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56188
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit a7fbc543c9b2305befee733d689fdf8b821ab880)
+---
+ crypto/bytestring/cbs.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/crypto/bytestring/cbs.c b/crypto/bytestring/cbs.c
+index d9c94f956..0b161f5bd 100644
+--- a/crypto/bytestring/cbs.c
++++ b/crypto/bytestring/cbs.c
+@@ -485,10 +485,6 @@ int CBS_get_asn1_element(CBS *cbs, CBS *out, CBS_ASN1_TAG tag_value) {
+ }
+ 
+ int CBS_peek_asn1_tag(const CBS *cbs, CBS_ASN1_TAG tag_value) {
+-  if (CBS_len(cbs) < 1) {
+-    return 0;
+-  }
+-
+   CBS copy = *cbs;
+   CBS_ASN1_TAG actual_tag;
+   return parse_asn1_tag(&copy, &actual_tag) && tag_value == actual_tag;

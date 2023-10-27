@@ -1,0 +1,489 @@
+From b5a60f14d40b16b84d2fd509bade08deb2174c83 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 26 May 2023 21:55:56 -0400
+Subject: [PATCH] Align remaining TLS ECDH APIs on "group" terminology
+
+This adds "group" versions of our codepoint-based APIs. This is mostly
+because it looks weird to switch terminology randomly in the
+implementation. See I7a356793d36419fc668364c912ca7b4f5c6c23a2 for
+additional context.
+
+I've not bothered renaming the bssl_shim flags. That seems a waste of
+time.
+
+Change-Id: I566ad132f5a33d99efd8cb2bb8b76d9a6038c825
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/60207
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 335523a2c456e7444297ed0786e65771839931c3)
+---
+ include/openssl/ssl.h    | 46 +++++++++++++++++--------------
+ ssl/extensions.cc        |  6 ++---
+ ssl/handoff.cc           | 40 +++++++++++++--------------
+ ssl/handshake_server.cc  |  2 +-
+ ssl/ssl_key_share.cc     | 34 +++++++++++------------
+ ssl/ssl_lib.cc           |  2 +-
+ ssl/ssl_test.cc          | 58 ++++++++++++++++++++--------------------
+ ssl/test/bssl_shim.cc    |  6 ++---
+ ssl/test/test_config.cc  | 10 +++----
+ tool/transport_common.cc |  6 ++---
+ 10 files changed, 108 insertions(+), 102 deletions(-)
+
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index ae44bfe43..26fea6a62 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -2531,7 +2531,7 @@ OPENSSL_EXPORT size_t SSL_CTX_get_num_tickets(const SSL_CTX *ctx);
+ // element of |groups| should be a |NID_*| constant from nid.h. It returns one
+ // on success and zero on failure.
+ //
+-// Note that this API does not use the |SSL_CURVE_*| values defined below.
++// Note that this API does not use the |SSL_GROUP_*| values defined below.
+ OPENSSL_EXPORT int SSL_CTX_set1_groups(SSL_CTX *ctx, const int *groups,
+                                        size_t num_groups);
+ 
+@@ -2539,7 +2539,7 @@ OPENSSL_EXPORT int SSL_CTX_set1_groups(SSL_CTX *ctx, const int *groups,
+ // element of |groups| should be a |NID_*| constant from nid.h. It returns one
+ // on success and zero on failure.
+ //
+-// Note that this API does not use the |SSL_CURVE_*| values defined below.
++// Note that this API does not use the |SSL_GROUP_*| values defined below.
+ OPENSSL_EXPORT int SSL_set1_groups(SSL *ssl, const int *groups,
+                                    size_t num_groups);
+ 
+@@ -2555,23 +2555,20 @@ OPENSSL_EXPORT int SSL_CTX_set1_groups_list(SSL_CTX *ctx, const char *groups);
+ // failure.
+ OPENSSL_EXPORT int SSL_set1_groups_list(SSL *ssl, const char *groups);
+ 
+-// SSL_CURVE_* define TLS curve IDs.
+-#define SSL_CURVE_SECP224R1 21
+-#define SSL_CURVE_SECP256R1 23
+-#define SSL_CURVE_SECP384R1 24
+-#define SSL_CURVE_SECP521R1 25
+-#define SSL_CURVE_X25519 29
++// SSL_GROUP_* define TLS group IDs.
++#define SSL_GROUP_SECP224R1 21
++#define SSL_GROUP_SECP256R1 23
++#define SSL_GROUP_SECP384R1 24
++#define SSL_GROUP_SECP521R1 25
++#define SSL_GROUP_X25519 29
+ 
+-// SSL_get_curve_id returns the ID of the curve used by |ssl|'s most recently
+-// completed handshake or 0 if not applicable.
+-//
+-// TODO(davidben): This API currently does not work correctly if there is a
+-// renegotiation in progress. Fix this.
+-OPENSSL_EXPORT uint16_t SSL_get_curve_id(const SSL *ssl);
++// SSL_get_group_id returns the ID of the group used by |ssl|'s most recently
++// completed handshake, or 0 if not applicable.
++OPENSSL_EXPORT uint16_t SSL_get_group_id(const SSL *ssl);
+ 
+-// SSL_get_curve_name returns a human-readable name for the curve specified by
+-// the given TLS curve id, or NULL if the curve is unknown.
+-OPENSSL_EXPORT const char *SSL_get_curve_name(uint16_t curve_id);
++// SSL_get_group_name returns a human-readable name for the group specified by
++// the given TLS group ID, or NULL if the group is unknown.
++OPENSSL_EXPORT const char *SSL_get_group_name(uint16_t group_id);
+ 
+ // *** EXPERIMENTAL — DO NOT USE WITHOUT CHECKING ***
+ //
+@@ -2620,8 +2617,8 @@ OPENSSL_EXPORT int SSL_to_bytes(const SSL *in, uint8_t **out_data,
+ OPENSSL_EXPORT SSL *SSL_from_bytes(const uint8_t *in, size_t in_len,
+                                    SSL_CTX *ctx);
+ 
+-// SSL_get_all_curve_names outputs a list of possible strings
+-// |SSL_get_curve_name| may return in this version of BoringSSL. It writes at
++// SSL_get_all_group_names outputs a list of possible strings
++// |SSL_get_group_name| may return in this version of BoringSSL. It writes at
+ // most |max_out| entries to |out| and returns the total number it would have
+ // written, if |max_out| had been large enough. |max_out| may be initially set
+ // to zero to size the output.
+@@ -2632,7 +2629,7 @@ OPENSSL_EXPORT SSL *SSL_from_bytes(const uint8_t *in, size_t in_len,
+ // placeholder, experimental, or deprecated values that do not apply to every
+ // caller. Future versions of BoringSSL may also return strings not in this
+ // list, so this does not apply if, say, sending strings across services.
+-OPENSSL_EXPORT size_t SSL_get_all_curve_names(const char **out, size_t max_out);
++OPENSSL_EXPORT size_t SSL_get_all_group_names(const char **out, size_t max_out);
+ 
+ 
+ // Certificate verification.
+@@ -5511,6 +5508,15 @@ OPENSSL_EXPORT int SSL_CTX_set_tlsext_status_arg(SSL_CTX *ctx, void *arg);
+ #define SSL_set1_curves SSL_set1_groups
+ #define SSL_CTX_set1_curves_list SSL_CTX_set1_groups_list
+ #define SSL_set1_curves_list SSL_set1_groups_list
++#define SSL_get_curve_id SSL_get_group_id
++#define SSL_get_curve_name SSL_get_group_name
++#define SSL_get_all_curve_names SSL_get_all_group_names
++#define SSL_CURVE_SECP224R1 SSL_GROUP_SECP224R1
++#define SSL_CURVE_SECP256R1 SSL_GROUP_SECP256R1
++#define SSL_CURVE_SECP384R1 SSL_GROUP_SECP384R1
++#define SSL_CURVE_SECP521R1 SSL_GROUP_SECP521R1
++#define SSL_CURVE_X25519 SSL_GROUP_X25519
++#define SSL_CURVE_X25519_KYBER768_DRAFT00 SSL_GROUP_X25519_KYBER768_DRAFT00
+ 
+ 
+ // Nodejs compatibility section (hidden).
+diff --git a/ssl/extensions.cc b/ssl/extensions.cc
+index 8e5d0d9d3..65a5425ec 100644
+--- a/ssl/extensions.cc
++++ b/ssl/extensions.cc
+@@ -302,9 +302,9 @@ bool ssl_client_hello_get_extension(const SSL_CLIENT_HELLO *client_hello,
+ }
+ 
+ static const uint16_t kDefaultGroups[] = {
+-    SSL_CURVE_X25519,
+-    SSL_CURVE_SECP256R1,
+-    SSL_CURVE_SECP384R1,
++    SSL_GROUP_X25519,
++    SSL_GROUP_SECP256R1,
++    SSL_GROUP_SECP384R1,
+ };
+ 
+ Span<const uint16_t> tls1_get_grouplist(const SSL_HANDSHAKE *hs) {
+diff --git a/ssl/handoff.cc b/ssl/handoff.cc
+index 059768125..617ccc7c2 100644
+--- a/ssl/handoff.cc
++++ b/ssl/handoff.cc
+@@ -51,12 +51,12 @@ static bool serialize_features(CBB *out) {
+       return false;
+     }
+   }
+-  CBB curves;
+-  if (!CBB_add_asn1(out, &curves, CBS_ASN1_OCTETSTRING)) {
++  CBB groups;
++  if (!CBB_add_asn1(out, &groups, CBS_ASN1_OCTETSTRING)) {
+     return false;
+   }
+   for (const NamedGroup& g : NamedGroups()) {
+-    if (!CBB_add_u16(&curves, g.group_id)) {
++    if (!CBB_add_u16(&groups, g.group_id)) {
+       return false;
+     }
+   }
+@@ -168,46 +168,46 @@ static bool apply_remote_features(SSL *ssl, CBS *in) {
+     return false;
+   }
+ 
+-  CBS curves;
+-  if (!CBS_get_asn1(in, &curves, CBS_ASN1_OCTETSTRING)) {
++  CBS groups;
++  if (!CBS_get_asn1(in, &groups, CBS_ASN1_OCTETSTRING)) {
+     return false;
+   }
+-  Array<uint16_t> supported_curves;
+-  if (!supported_curves.Init(CBS_len(&curves) / 2)) {
++  Array<uint16_t> supported_groups;
++  if (!supported_groups.Init(CBS_len(&groups) / 2)) {
+     return false;
+   }
+   size_t idx = 0;
+-  while (CBS_len(&curves)) {
+-    uint16_t curve;
+-    if (!CBS_get_u16(&curves, &curve)) {
++  while (CBS_len(&groups)) {
++    uint16_t group;
++    if (!CBS_get_u16(&groups, &group)) {
+       return false;
+     }
+-    supported_curves[idx++] = curve;
++    supported_groups[idx++] = group;
+   }
+-  Span<const uint16_t> configured_curves =
++  Span<const uint16_t> configured_groups =
+       tls1_get_grouplist(ssl->s3->hs.get());
+-  Array<uint16_t> new_configured_curves;
+-  if (!new_configured_curves.Init(configured_curves.size())) {
++  Array<uint16_t> new_configured_groups;
++  if (!new_configured_groups.Init(configured_groups.size())) {
+     return false;
+   }
+   idx = 0;
+-  for (uint16_t configured_curve : configured_curves) {
++  for (uint16_t configured_group : configured_groups) {
+     bool ok = false;
+-    for (uint16_t supported_curve : supported_curves) {
+-      if (supported_curve == configured_curve) {
++    for (uint16_t supported_group : supported_groups) {
++      if (supported_group == configured_group) {
+         ok = true;
+         break;
+       }
+     }
+     if (ok) {
+-      new_configured_curves[idx++] = configured_curve;
++      new_configured_groups[idx++] = configured_group;
+     }
+   }
+   if (idx == 0) {
+     return false;
+   }
+-  new_configured_curves.Shrink(idx);
+-  ssl->config->supported_group_list = std::move(new_configured_curves);
++  new_configured_groups.Shrink(idx);
++  ssl->config->supported_group_list = std::move(new_configured_groups);
+ 
+   CBS alps;
+   CBS_init(&alps, nullptr, 0);
+diff --git a/ssl/handshake_server.cc b/ssl/handshake_server.cc
+index c346ba06f..79bf2f3fc 100644
+--- a/ssl/handshake_server.cc
++++ b/ssl/handshake_server.cc
+@@ -498,7 +498,7 @@ static bool is_probably_jdk11_with_tls13(const SSL_CLIENT_HELLO *client_hello) {
+   while (CBS_len(&supported_groups) > 0) {
+     uint16_t group;
+     if (!CBS_get_u16(&supported_groups, &group) ||
+-        group == SSL_CURVE_X25519) {
++        group == SSL_GROUP_X25519) {
+       return false;
+     }
+   }
+diff --git a/ssl/ssl_key_share.cc b/ssl/ssl_key_share.cc
+index 704860c1f..608aef36a 100644
+--- a/ssl/ssl_key_share.cc
++++ b/ssl/ssl_key_share.cc
+@@ -132,7 +132,7 @@ class X25519KeyShare : public SSLKeyShare {
+  public:
+   X25519KeyShare() {}
+ 
+-  uint16_t GroupID() const override { return SSL_CURVE_X25519; }
++  uint16_t GroupID() const override { return SSL_GROUP_X25519; }
+ 
+   bool Offer(CBB *out) override {
+     uint8_t public_key[32];
+@@ -177,11 +177,11 @@ class X25519KeyShare : public SSLKeyShare {
+ };
+ 
+ CONSTEXPR_ARRAY NamedGroup kNamedGroups[] = {
+-    {NID_secp224r1, SSL_CURVE_SECP224R1, "P-224", "secp224r1"},
+-    {NID_X9_62_prime256v1, SSL_CURVE_SECP256R1, "P-256", "prime256v1"},
+-    {NID_secp384r1, SSL_CURVE_SECP384R1, "P-384", "secp384r1"},
+-    {NID_secp521r1, SSL_CURVE_SECP521R1, "P-521", "secp521r1"},
+-    {NID_X25519, SSL_CURVE_X25519, "X25519", "x25519"},
++    {NID_secp224r1, SSL_GROUP_SECP224R1, "P-224", "secp224r1"},
++    {NID_X9_62_prime256v1, SSL_GROUP_SECP256R1, "P-256", "prime256v1"},
++    {NID_secp384r1, SSL_GROUP_SECP384R1, "P-384", "secp384r1"},
++    {NID_secp521r1, SSL_GROUP_SECP521R1, "P-521", "secp521r1"},
++    {NID_X25519, SSL_GROUP_X25519, "X25519", "x25519"},
+ };
+ 
+ }  // namespace
+@@ -192,15 +192,15 @@ Span<const NamedGroup> NamedGroups() {
+ 
+ UniquePtr<SSLKeyShare> SSLKeyShare::Create(uint16_t group_id) {
+   switch (group_id) {
+-    case SSL_CURVE_SECP224R1:
+-      return MakeUnique<ECKeyShare>(NID_secp224r1, SSL_CURVE_SECP224R1);
+-    case SSL_CURVE_SECP256R1:
+-      return MakeUnique<ECKeyShare>(NID_X9_62_prime256v1, SSL_CURVE_SECP256R1);
+-    case SSL_CURVE_SECP384R1:
+-      return MakeUnique<ECKeyShare>(NID_secp384r1, SSL_CURVE_SECP384R1);
+-    case SSL_CURVE_SECP521R1:
+-      return MakeUnique<ECKeyShare>(NID_secp521r1, SSL_CURVE_SECP521R1);
+-    case SSL_CURVE_X25519:
++    case SSL_GROUP_SECP224R1:
++      return MakeUnique<ECKeyShare>(NID_secp224r1, SSL_GROUP_SECP224R1);
++    case SSL_GROUP_SECP256R1:
++      return MakeUnique<ECKeyShare>(NID_X9_62_prime256v1, SSL_GROUP_SECP256R1);
++    case SSL_GROUP_SECP384R1:
++      return MakeUnique<ECKeyShare>(NID_secp384r1, SSL_GROUP_SECP384R1);
++    case SSL_GROUP_SECP521R1:
++      return MakeUnique<ECKeyShare>(NID_secp521r1, SSL_GROUP_SECP521R1);
++    case SSL_GROUP_X25519:
+       return MakeUnique<X25519KeyShare>();
+     default:
+       return nullptr;
+@@ -244,7 +244,7 @@ BSSL_NAMESPACE_END
+ 
+ using namespace bssl;
+ 
+-const char* SSL_get_curve_name(uint16_t group_id) {
++const char* SSL_get_group_name(uint16_t group_id) {
+   for (const auto &group : kNamedGroups) {
+     if (group.group_id == group_id) {
+       return group.name;
+@@ -253,7 +253,7 @@ const char* SSL_get_curve_name(uint16_t group_id) {
+   return nullptr;
+ }
+ 
+-size_t SSL_get_all_curve_names(const char **out, size_t max_out) {
++size_t SSL_get_all_group_names(const char **out, size_t max_out) {
+   return GetAllNames(out, max_out, Span<const char *>(), &NamedGroup::name,
+                      MakeConstSpan(kNamedGroups));
+ }
+diff --git a/ssl/ssl_lib.cc b/ssl/ssl_lib.cc
+index 1ca24e019..84a2f33b3 100644
+--- a/ssl/ssl_lib.cc
++++ b/ssl/ssl_lib.cc
+@@ -2054,7 +2054,7 @@ int SSL_set1_groups_list(SSL *ssl, const char *groups) {
+   return ssl_str_to_group_ids(&ssl->config->supported_group_list, groups);
+ }
+ 
+-uint16_t SSL_get_curve_id(const SSL *ssl) {
++uint16_t SSL_get_group_id(const SSL *ssl) {
+   SSL_SESSION *session = SSL_get_session(ssl);
+   if (session == NULL) {
+     return 0;
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index 5eb555e0d..862978ac8 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -547,39 +547,39 @@ static const char *kMustNotInclude3DES[] = {
+ };
+ 
+ static const CurveTest kCurveTests[] = {
++  {
++    "P-256",
++    {SSL_GROUP_SECP256R1},
++  },
++  {
++    "P-256:P-384:P-521:X25519",
+     {
+-        "P-256",
+-        {SSL_CURVE_SECP256R1},
+-    },
+-    {
+-        "P-256:P-384:P-521:X25519",
+-        {
+-            SSL_CURVE_SECP256R1,
+-            SSL_CURVE_SECP384R1,
+-            SSL_CURVE_SECP521R1,
+-            SSL_CURVE_X25519,
+-        },
++      SSL_GROUP_SECP256R1,
++      SSL_GROUP_SECP384R1,
++      SSL_GROUP_SECP521R1,
++      SSL_GROUP_X25519,
+     },
++  },
++  {
++    "prime256v1:secp384r1:secp521r1:x25519",
+     {
+-        "prime256v1:secp384r1:secp521r1:x25519",
+-        {
+-            SSL_CURVE_SECP256R1,
+-            SSL_CURVE_SECP384R1,
+-            SSL_CURVE_SECP521R1,
+-            SSL_CURVE_X25519,
+-        },
++      SSL_GROUP_SECP256R1,
++      SSL_GROUP_SECP384R1,
++      SSL_GROUP_SECP521R1,
++      SSL_GROUP_X25519,
+     },
++  },
+ };
+ 
+ static const char *kBadCurvesLists[] = {
+-    "",
+-    ":",
+-    "::",
+-    "P-256::X25519",
+-    "RSA:P-256",
+-    "P-256:RSA",
+-    "X25519:P-256:",
+-    ":X25519:P-256",
++  "",
++  ":",
++  "::",
++  "P-256::X25519",
++  "RSA:P-256",
++  "P-256:RSA",
++  "X25519:P-256:",
++  ":X25519:P-256",
+ };
+ 
+ static STACK_OF(SSL_CIPHER) *tls13_ciphers(const SSL_CTX *ctx) {
+@@ -6796,7 +6796,7 @@ TEST_P(SSLVersionTest, SessionPropertiesThreads) {
+     // This test sets a custom verifier callback which doesn't actually do any verification
+     EXPECT_FALSE(verified_chain);
+     EXPECT_TRUE(SSL_get_current_cipher(ssl));
+-    EXPECT_TRUE(SSL_get_curve_id(ssl));
++    EXPECT_TRUE(SSL_get_group_id(ssl));
+   };
+ 
+   std::vector<std::thread> threads;
+@@ -8842,7 +8842,7 @@ TEST(SSLTest, ConnectionPropertiesDuringRenegotiate) {
+     ASSERT_TRUE(cipher);
+     EXPECT_EQ(SSL_CIPHER_get_id(cipher),
+               uint32_t{TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256});
+-    EXPECT_EQ(SSL_get_curve_id(client.get()), SSL_CURVE_X25519);
++    EXPECT_EQ(SSL_get_group_id(client.get()), SSL_GROUP_X25519);
+     EXPECT_EQ(SSL_get_peer_signature_algorithm(client.get()),
+               SSL_SIGN_RSA_PKCS1_SHA256);
+     bssl::UniquePtr<X509> peer(SSL_get_peer_certificate(client.get()));
+@@ -9830,7 +9830,7 @@ TEST(SSLTest, NameLists) {
+        {"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", "TLS_AES_128_GCM_SHA256"}},
+       {SSL_get_all_cipher_names,
+        {"ECDHE-ECDSA-AES128-GCM-SHA256", "TLS_AES_128_GCM_SHA256", "(NONE)"}},
+-      {SSL_get_all_curve_names, {"P-256", "X25519"}},
++      {SSL_get_all_group_names, {"P-256", "X25519"}},
+       {SSL_get_all_signature_algorithm_names,
+        {"rsa_pkcs1_sha256", "ecdsa_secp256r1_sha256", "ecdsa_sha256"}},
+   };
+diff --git a/ssl/test/bssl_shim.cc b/ssl/test/bssl_shim.cc
+index b8e9d0a73..54c78d020 100644
+--- a/ssl/test/bssl_shim.cc
++++ b/ssl/test/bssl_shim.cc
+@@ -718,9 +718,9 @@ static bool CheckHandshakeProperties(SSL *ssl, bool is_resume,
+           SSL_CIPHER_standard_name(SSL_get_current_cipher(ssl))) ||
+       !CheckListContains("OpenSSL cipher name", SSL_get_all_cipher_names,
+                          SSL_CIPHER_get_name(SSL_get_current_cipher(ssl))) ||
+-      (SSL_get_curve_id(ssl) != 0 &&
+-       !CheckListContains("curve", SSL_get_all_curve_names,
+-                          SSL_get_curve_name(SSL_get_curve_id(ssl)))) ||
++      (SSL_get_group_id(ssl) != 0 &&
++       !CheckListContains("group", SSL_get_all_group_names,
++                          SSL_get_group_name(SSL_get_group_id(ssl)))) ||
+       (SSL_get_peer_signature_algorithm(ssl) != 0 &&
+        !CheckListContains(
+            "sigalg", SSL_get_all_signature_algorithm_names,
+diff --git a/ssl/test/test_config.cc b/ssl/test/test_config.cc
+index 2aaebd9af..c650b7600 100644
+--- a/ssl/test/test_config.cc
++++ b/ssl/test/test_config.cc
+@@ -2007,23 +2007,23 @@ bssl::UniquePtr<SSL> TestConfig::NewSSL(
+     std::vector<int> nids;
+     for (auto curve : curves) {
+       switch (curve) {
+-        case SSL_CURVE_SECP224R1:
++        case SSL_GROUP_SECP224R1:
+           nids.push_back(NID_secp224r1);
+           break;
+ 
+-        case SSL_CURVE_SECP256R1:
++        case SSL_GROUP_SECP256R1:
+           nids.push_back(NID_X9_62_prime256v1);
+           break;
+ 
+-        case SSL_CURVE_SECP384R1:
++        case SSL_GROUP_SECP384R1:
+           nids.push_back(NID_secp384r1);
+           break;
+ 
+-        case SSL_CURVE_SECP521R1:
++        case SSL_GROUP_SECP521R1:
+           nids.push_back(NID_secp521r1);
+           break;
+ 
+-        case SSL_CURVE_X25519:
++        case SSL_GROUP_X25519:
+           nids.push_back(NID_X25519);
+           break;
+       }
+diff --git a/tool/transport_common.cc b/tool/transport_common.cc
+index b78fd0c3d..88bae97dc 100644
+--- a/tool/transport_common.cc
++++ b/tool/transport_common.cc
+@@ -286,9 +286,9 @@ void PrintConnectionInfo(BIO *bio, const SSL *ssl) {
+   BIO_printf(bio, "  Resumed session: %s\n",
+              SSL_session_reused(ssl) ? "yes" : "no");
+   BIO_printf(bio, "  Cipher: %s\n", SSL_CIPHER_standard_name(cipher));
+-  uint16_t curve = SSL_get_curve_id(ssl);
+-  if (curve != 0) {
+-    BIO_printf(bio, "  ECDHE curve: %s\n", SSL_get_curve_name(curve));
++  uint16_t group = SSL_get_group_id(ssl);
++  if (group != 0) {
++    BIO_printf(bio, "  ECDHE group: %s\n", SSL_get_group_name(group));
+   }
+   uint16_t sigalg = SSL_get_peer_signature_algorithm(ssl);
+   if (sigalg != 0) {

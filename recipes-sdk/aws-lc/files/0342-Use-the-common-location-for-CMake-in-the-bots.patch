@@ -1,0 +1,77 @@
+From 1df42cc56e33b8dbedfb164afe6412c0799cd85c Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 27 Feb 2023 15:28:30 -0500
+Subject: [PATCH] Use the common location for CMake in the bots
+
+Follow-up to
+https://chromium-review.googlesource.com/c/chromium/tools/build/+/4296194/
+
+But mostly I've since added a lot more configurations to CI and want to
+make sure I haven't broken anything.
+
+Change-Id: I627711356004bf2244bd729b6055e9e0e619724e
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57691
+Commit-Queue: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit f88b7c83979d128fa83eb5f9102be56cc4bec33c)
+---
+ .gitignore    |  4 +---
+ util/bot/DEPS | 25 +------------------------
+ 2 files changed, 2 insertions(+), 27 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index 26b63cccb..0754f0a58 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -17,9 +17,7 @@ bindings/rust/generate/target
+ 
+ util/bot/android_ndk
+ util/bot/android_sdk/public
+-util/bot/cmake-linux64
+-util/bot/cmake-mac
+-util/bot/cmake-win32
++util/bot/cmake
+ util/bot/golang
+ util/bot/libFuzzer
+ util/bot/libcxx
+diff --git a/util/bot/DEPS b/util/bot/DEPS
+index 20eed07ed..777f7c301 100644
+--- a/util/bot/DEPS
++++ b/util/bot/DEPS
+@@ -56,34 +56,11 @@ deps = {
+     'dep_type': 'cipd',
+   },
+ 
+-  # TODO(davidben): Merge the three CMake directories. Now that we use CIPD,
+-  # which supports a ${{platform}} marker, there is nothing platform-specific
+-  # about this anymore. However, the recipe still expects CMake to be found at
+-  # these directories, so this needs to be coordinated with a change there.
+-  'boringssl/util/bot/cmake-linux64': {
++  'boringssl/util/bot/cmake': {
+     'packages': [{
+       'package': 'infra/3pp/tools/cmake/${{platform}}',
+       'version': Var('cmake_version'),
+     }],
+-    'condition': 'host_os == "linux"',
+-    'dep_type': 'cipd',
+-  },
+-
+-  'boringssl/util/bot/cmake-mac': {
+-    'packages': [{
+-      'package': 'infra/3pp/tools/cmake/${{platform}}',
+-      'version': Var('cmake_version'),
+-    }],
+-    'condition': 'host_os == "mac"',
+-    'dep_type': 'cipd',
+-  },
+-
+-  'boringssl/util/bot/cmake-win32': {
+-    'packages': [{
+-      'package': 'infra/3pp/tools/cmake/${{platform}}',
+-      'version': Var('cmake_version'),
+-    }],
+-    'condition': 'host_os == "win"',
+     'dep_type': 'cipd',
+   },
+ 

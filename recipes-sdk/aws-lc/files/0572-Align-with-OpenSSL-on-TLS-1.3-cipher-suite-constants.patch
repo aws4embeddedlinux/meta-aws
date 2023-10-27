@@ -1,0 +1,145 @@
+From 753b7d78b6d2673357293730f71e2adc9404a16f Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 18 Jul 2022 16:08:06 -0400
+Subject: [PATCH] Align with OpenSSL on TLS 1.3 cipher suite constants.
+
+Our TLS 1.3 stack predates OpenSSL's. We chose TLS1_CK_* to align with
+the existing names. OpenSSL made a new convention, TLS1_3_CK_*. Match
+them.
+
+This means that, in the likely event that TLS 1.4 uses the same
+constants, they'll have weird names, just as several of our constants
+still say SSL3_* but it doesn't particularly matter.
+
+Change-Id: I97f29b224d0d282e946344e4b907f2df2be39ce1
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/53425
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+---
+ include/openssl/tls1.h  | 12 +++++++++---
+ ssl/handshake_client.cc |  6 +++---
+ ssl/handshake_server.cc |  2 +-
+ ssl/ssl_cipher.cc       |  6 +++---
+ ssl/ssl_test.cc         |  6 +++---
+ 5 files changed, 19 insertions(+), 13 deletions(-)
+
+diff --git a/include/openssl/tls1.h b/include/openssl/tls1.h
+index a3136c0d3..d55d905aa 100644
+--- a/include/openssl/tls1.h
++++ b/include/openssl/tls1.h
+@@ -452,9 +452,15 @@ extern "C" {
+ #define TLS1_CK_ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256 0x0300CCAC
+ 
+ // TLS 1.3 ciphersuites from RFC 8446.
+-#define TLS1_CK_AES_128_GCM_SHA256 0x03001301
+-#define TLS1_CK_AES_256_GCM_SHA384 0x03001302
+-#define TLS1_CK_CHACHA20_POLY1305_SHA256 0x03001303
++#define TLS1_3_CK_AES_128_GCM_SHA256 0x03001301
++#define TLS1_3_CK_AES_256_GCM_SHA384 0x03001302
++#define TLS1_3_CK_CHACHA20_POLY1305_SHA256 0x03001303
++
++// The following constants are legacy aliases of |TLS1_3_CK_*|.
++// TODO(davidben): Migrate callers to the new name and remove these.
++#define TLS1_CK_AES_128_GCM_SHA256 TLS1_3_CK_AES_128_GCM_SHA256
++#define TLS1_CK_AES_256_GCM_SHA384 TLS1_3_CK_AES_256_GCM_SHA384
++#define TLS1_CK_CHACHA20_POLY1305_SHA256 TLS1_3_CK_CHACHA20_POLY1305_SHA256
+ 
+ // XXX
+ // Inconsistency alert:
+diff --git a/ssl/handshake_client.cc b/ssl/handshake_client.cc
+index c73fb241c..0b92df95f 100644
+--- a/ssl/handshake_client.cc
++++ b/ssl/handshake_client.cc
+@@ -284,12 +284,12 @@ static bool ssl_write_client_cipher_list(const SSL_HANDSHAKE *hs, CBB *out,
+         !CBB_add_u16(&child, TLS1_CK_CHACHA20_POLY1305_SHA256 & 0xffff)) {
+       return false;
+     }
+-    if (!CBB_add_u16(&child, TLS1_CK_AES_128_GCM_SHA256 & 0xffff) ||
+-        !CBB_add_u16(&child, TLS1_CK_AES_256_GCM_SHA384 & 0xffff)) {
++    if (!CBB_add_u16(&child, TLS1_3_CK_AES_128_GCM_SHA256 & 0xffff) ||
++        !CBB_add_u16(&child, TLS1_3_CK_AES_256_GCM_SHA384 & 0xffff)) {
+       return false;
+     }
+     if (has_aes_hw &&
+-        !CBB_add_u16(&child, TLS1_CK_CHACHA20_POLY1305_SHA256 & 0xffff)) {
++        !CBB_add_u16(&child, TLS1_3_CK_CHACHA20_POLY1305_SHA256 & 0xffff)) {
+       return false;
+     }
+   }
+diff --git a/ssl/handshake_server.cc b/ssl/handshake_server.cc
+index 79bf2f3fc..4da8cc1dd 100644
+--- a/ssl/handshake_server.cc
++++ b/ssl/handshake_server.cc
+@@ -424,7 +424,7 @@ static bool is_probably_jdk11_with_tls13(const SSL_CLIENT_HELLO *client_hello) {
+   // JDK 11 does not support ChaCha20-Poly1305. This is unusual: many modern
+   // clients implement ChaCha20-Poly1305.
+   if (ssl_client_cipher_list_contains_cipher(
+-          client_hello, TLS1_CK_CHACHA20_POLY1305_SHA256 & 0xffff)) {
++          client_hello, TLS1_3_CK_CHACHA20_POLY1305_SHA256 & 0xffff)) {
+     return false;
+   }
+ 
+diff --git a/ssl/ssl_cipher.cc b/ssl/ssl_cipher.cc
+index 899547572..0d93a3474 100644
+--- a/ssl/ssl_cipher.cc
++++ b/ssl/ssl_cipher.cc
+@@ -278,7 +278,7 @@ static constexpr SSL_CIPHER kCiphers[] = {
+     {
+       TLS1_TXT_AES_128_GCM_SHA256,
+       "TLS_AES_128_GCM_SHA256",
+-      TLS1_CK_AES_128_GCM_SHA256,
++      TLS1_3_CK_AES_128_GCM_SHA256,
+       SSL_kGENERIC,
+       SSL_aGENERIC,
+       SSL_AES128GCM,
+@@ -290,7 +290,7 @@ static constexpr SSL_CIPHER kCiphers[] = {
+     {
+       TLS1_TXT_AES_256_GCM_SHA384,
+       "TLS_AES_256_GCM_SHA384",
+-      TLS1_CK_AES_256_GCM_SHA384,
++      TLS1_3_CK_AES_256_GCM_SHA384,
+       SSL_kGENERIC,
+       SSL_aGENERIC,
+       SSL_AES256GCM,
+@@ -302,7 +302,7 @@ static constexpr SSL_CIPHER kCiphers[] = {
+     {
+       TLS1_TXT_CHACHA20_POLY1305_SHA256,
+       "TLS_CHACHA20_POLY1305_SHA256",
+-      TLS1_CK_CHACHA20_POLY1305_SHA256,
++      TLS1_3_CK_CHACHA20_POLY1305_SHA256,
+       SSL_kGENERIC,
+       SSL_aGENERIC,
+       SSL_CHACHA20POLY1305,
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index 862978ac8..925b25b5c 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -1353,7 +1353,7 @@ TEST(SSLTest, CipherProperties) {
+           NID_sha256,
+       },
+       {
+-          TLS1_CK_AES_256_GCM_SHA384,
++          TLS1_3_CK_AES_256_GCM_SHA384,
+           "TLS_AES_256_GCM_SHA384",
+           NID_aes_256_gcm,
+           NID_undef,
+@@ -1362,7 +1362,7 @@ TEST(SSLTest, CipherProperties) {
+           NID_sha384,
+       },
+       {
+-          TLS1_CK_AES_128_GCM_SHA256,
++          TLS1_3_CK_AES_128_GCM_SHA256,
+           "TLS_AES_128_GCM_SHA256",
+           NID_aes_128_gcm,
+           NID_undef,
+@@ -1371,7 +1371,7 @@ TEST(SSLTest, CipherProperties) {
+           NID_sha256,
+       },
+       {
+-          TLS1_CK_CHACHA20_POLY1305_SHA256,
++          TLS1_3_CK_CHACHA20_POLY1305_SHA256,
+           "TLS_CHACHA20_POLY1305_SHA256",
+           NID_chacha20_poly1305,
+           NID_undef,

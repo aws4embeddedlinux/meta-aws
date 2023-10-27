@@ -1,0 +1,43 @@
+From 2779eb5d627f7eda119ff507226ee29d7acfb5c3 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sun, 29 Jan 2023 12:06:01 -0500
+Subject: [PATCH] Simplify a pair of Go range expressions
+
+gopls was warning about this.
+
+Change-Id: Ida8ff67bcb9ada253fb075a8a800cbefd432ca8f
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56545
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit f31654786c0e9c54c227b1e966faadc615780ef5)
+---
+ crypto/fipsmodule/bn/bn_test_to_fuzzer.go | 2 +-
+ crypto/fipsmodule/bn/check_bn_tests.go    | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/fipsmodule/bn/bn_test_to_fuzzer.go b/crypto/fipsmodule/bn/bn_test_to_fuzzer.go
+index afe7d61c8..2915db5f9 100644
+--- a/crypto/fipsmodule/bn/bn_test_to_fuzzer.go
++++ b/crypto/fipsmodule/bn/bn_test_to_fuzzer.go
+@@ -140,7 +140,7 @@ func checkKeys(t test, keys ...string) bool {
+ 		}
+ 	}
+ 
+-	for k, _ := range t.Values {
++	for k := range t.Values {
+ 		var found bool
+ 		for _, k2 := range keys {
+ 			if k == k2 {
+diff --git a/crypto/fipsmodule/bn/check_bn_tests.go b/crypto/fipsmodule/bn/check_bn_tests.go
+index 0c8493d06..032b9e328 100644
+--- a/crypto/fipsmodule/bn/check_bn_tests.go
++++ b/crypto/fipsmodule/bn/check_bn_tests.go
+@@ -137,7 +137,7 @@ func checkKeys(t test, keys ...string) bool {
+ 		}
+ 	}
+ 
+-	for k, _ := range t.Values {
++	for k := range t.Values {
+ 		var found bool
+ 		for _, k2 := range keys {
+ 			if k == k2 {

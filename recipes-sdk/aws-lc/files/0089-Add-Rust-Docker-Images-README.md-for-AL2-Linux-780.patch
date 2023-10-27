@@ -1,0 +1,42 @@
+From 81bfa270c7727c5c4995156d2812630065850068 Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Wed, 1 Feb 2023 10:08:51 -0800
+Subject: [PATCH] Add Rust Docker Images README.md for AL2/Linux (#780)
+
+Co-authored-by: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+---
+ tests/ci/docker_images/rust/README.md | 25 +++++++++++++++++++++++++
+ 1 file changed, 25 insertions(+)
+ create mode 100644 tests/ci/docker_images/rust/README.md
+
+diff --git a/tests/ci/docker_images/rust/README.md b/tests/ci/docker_images/rust/README.md
+new file mode 100644
+index 000000000..d5b610311
+--- /dev/null
++++ b/tests/ci/docker_images/rust/README.md
+@@ -0,0 +1,25 @@
++# macOS Setup
++
++```
++$ docker buildx install
++```
++
++# Setup for AL2 or other Linux distributions
++The following setup is required for Docker in order to be able to build cross-platform images.
++
++By default, Docker Desktop is installed and configured with [Buildx](https://docs.docker.com/build/install-buildx/),
++but this is not installed by default on most Linux distributions of docker. The following steps are required to install
++on Amazon Linux 2.
++
++## Steps for AL2
++The following steps are required for Amazon Linux 2, note that symlink step is required due to a packaging bug in the
++current Docker RPM for AL2.
++
++```
++$ sudo ln -s /usr/libexec/docker/cli-plugins/buildx /usr/libexec/docker/cli-plugins/docker-buildx
++$ sudo systemctl restart docker
++$ docker buildx install
++$ sudo yum install -y qemu-system-aarch64 qemu-system-x86 qemu-user-binfmt
++$ docker buildx create --name=container --driver=docker-container --use
++$ docker run --privileged --rm tonistiigi/binfmt --install all
++```

@@ -1,0 +1,35 @@
+From 81b017152aa9627d18fd1611a4e9300293139836 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Fri, 21 Apr 2023 10:36:35 -0700
+Subject: [PATCH] add test for libssl off (#959)
+
+---
+ tests/ci/run_posix_tests.sh | 9 +++------
+ 1 file changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/tests/ci/run_posix_tests.sh b/tests/ci/run_posix_tests.sh
+index 0ac68291f..7ca1f130f 100755
+--- a/tests/ci/run_posix_tests.sh
++++ b/tests/ci/run_posix_tests.sh
+@@ -16,18 +16,15 @@ build_and_test -DCMAKE_BUILD_TYPE=Release
+ echo "Testing AWS-LC small compilation."
+ build_and_test -DOPENSSL_SMALL=1 -DCMAKE_BUILD_TYPE=Release
+ 
++echo "Testing AWS-LC with libssl off."
++build_and_test -DBUILD_LIBSSL=OFF -DCMAKE_BUILD_TYPE=Release
++
+ echo "Testing AWS-LC in no asm mode."
+ build_and_test -DOPENSSL_NO_ASM=1 -DCMAKE_BUILD_TYPE=Release
+ 
+ echo "Testing building shared lib."
+ build_and_test -DBUILD_SHARED_LIBS=1 -DCMAKE_BUILD_TYPE=Release
+ 
+-if [[ "${AWSLC_FIPS}" == "1" ]]; then
+-  echo "Testing AWS-LC in FIPS release mode."
+-  build_and_test -DFIPS=1 -DCMAKE_BUILD_TYPE=Release
+-  "${BUILD_ROOT}/util/fipstools/test_fips"
+-fi
+-
+ if [[ "${AWSLC_C99_TEST}" == "1" ]]; then
+     echo "Testing the C99 compatability of AWS-LC headers."
+     ./tests/coding_guidelines/c99_gcc_test.sh

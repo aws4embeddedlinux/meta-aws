@@ -1,0 +1,125 @@
+From 692f2e587fa6dbbd102e375c03f471e5d9844c0d Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 29 Mar 2023 03:22:49 +0900
+Subject: [PATCH] Remove dynamic X509_VERIFY_PARAM registration
+
+This was not thread-safe and, until the previous CL, egregiously so. No
+one uses this API, so remove it.
+
+Update-Note: Various unused functions for registering named
+X509_VERIFY_PARAMs were removed. These functions only exist to make
+X509_VERIFY_PARAM_lookup return a custom value. Instead, applications
+that want a particular X509_VERIFY_PARAM can just configure it directly,
+rather than stashing it in library-global state and then looking it back
+up with X509_VERIFY_PARAM_lookup.
+
+Change-Id: I8d532a1a137c7abbc131f2cb5d12ba94e5728e2d
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58386
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit 678bae408369d614e0777bc5cd5a380dac35ed59)
+---
+ crypto/x509/x509_vpm.c | 68 +-----------------------------------------
+ include/openssl/x509.h |  4 ---
+ 2 files changed, 1 insertion(+), 71 deletions(-)
+
+diff --git a/crypto/x509/x509_vpm.c b/crypto/x509/x509_vpm.c
+index 8ff80389e..57c9bc0c8 100644
+--- a/crypto/x509/x509_vpm.c
++++ b/crypto/x509/x509_vpm.c
+@@ -547,77 +547,11 @@ static const X509_VERIFY_PARAM default_table[] = {
+      NULL,                     // policies
+      vpm_empty_id}};
+ 
+-static STACK_OF(X509_VERIFY_PARAM) *param_table = NULL;
+-
+-static int param_cmp(const X509_VERIFY_PARAM *const *a,
+-                     const X509_VERIFY_PARAM *const *b) {
+-  return strcmp((*a)->name, (*b)->name);
+-}
+-
+-int X509_VERIFY_PARAM_add0_table(X509_VERIFY_PARAM *param) {
+-  // TODO(davidben): This should be locked. Alternatively, remove the dynamic
+-  // registration mechanism entirely.
+-  X509_VERIFY_PARAM *ptmp;
+-  if (!param_table) {
+-    param_table = sk_X509_VERIFY_PARAM_new(param_cmp);
+-    if (!param_table) {
+-      return 0;
+-    }
+-  } else {
+-    size_t idx;
+-    if (sk_X509_VERIFY_PARAM_find(param_table, &idx, param)) {
+-      ptmp = sk_X509_VERIFY_PARAM_value(param_table, idx);
+-      X509_VERIFY_PARAM_free(ptmp);
+-      (void)sk_X509_VERIFY_PARAM_delete(param_table, idx);
+-    }
+-  }
+-  if (!sk_X509_VERIFY_PARAM_push(param_table, param)) {
+-    return 0;
+-  }
+-  sk_X509_VERIFY_PARAM_sort(param_table);
+-  return 1;
+-}
+-
+-int X509_VERIFY_PARAM_get_count(void) {
+-  int num = sizeof(default_table) / sizeof(X509_VERIFY_PARAM);
+-  if (param_table) {
+-    num += sk_X509_VERIFY_PARAM_num(param_table);
+-  }
+-  return num;
+-}
+-
+-const X509_VERIFY_PARAM *X509_VERIFY_PARAM_get0(int id) {
+-  int num = sizeof(default_table) / sizeof(X509_VERIFY_PARAM);
+-  if (id < num) {
+-    return default_table + id;
+-  }
+-  return sk_X509_VERIFY_PARAM_value(param_table, id - num);
+-}
+-
+ const X509_VERIFY_PARAM *X509_VERIFY_PARAM_lookup(const char *name) {
+-  X509_VERIFY_PARAM pm;
+-  unsigned i, limit;
+-
+-  pm.name = (char *)name;
+-  if (param_table) {
+-    size_t idx;
+-    if (sk_X509_VERIFY_PARAM_find(param_table, &idx, &pm)) {
+-      return sk_X509_VERIFY_PARAM_value(param_table, idx);
+-    }
+-  }
+-
+-  limit = sizeof(default_table) / sizeof(X509_VERIFY_PARAM);
+-  for (i = 0; i < limit; i++) {
++  for (size_t i = 0; i < OPENSSL_ARRAY_SIZE(default_table); i++) {
+     if (strcmp(default_table[i].name, name) == 0) {
+       return &default_table[i];
+     }
+   }
+   return NULL;
+ }
+-
+-void X509_VERIFY_PARAM_table_cleanup(void) {
+-  if (param_table) {
+-    sk_X509_VERIFY_PARAM_pop_free(param_table, X509_VERIFY_PARAM_free);
+-  }
+-  param_table = NULL;
+-}
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index c509ee1a6..53ba80c46 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -2851,12 +2851,8 @@ OPENSSL_EXPORT int X509_VERIFY_PARAM_get_depth(const X509_VERIFY_PARAM *param);
+ OPENSSL_EXPORT const char *X509_VERIFY_PARAM_get0_name(
+     const X509_VERIFY_PARAM *param);
+ 
+-OPENSSL_EXPORT int X509_VERIFY_PARAM_add0_table(X509_VERIFY_PARAM *param);
+-OPENSSL_EXPORT int X509_VERIFY_PARAM_get_count(void);
+-OPENSSL_EXPORT const X509_VERIFY_PARAM *X509_VERIFY_PARAM_get0(int id);
+ OPENSSL_EXPORT const X509_VERIFY_PARAM *X509_VERIFY_PARAM_lookup(
+     const char *name);
+-OPENSSL_EXPORT void X509_VERIFY_PARAM_table_cleanup(void);
+ 
+ 
+ #if defined(__cplusplus)

@@ -1,0 +1,39 @@
+From b4a717fc726d1b4b2a16995634f39769ea98904c Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Tue, 23 May 2023 14:29:10 -0700
+Subject: [PATCH] Remove delocate/README.md as delocate.peg includes better
+ instructions for installing and running PEG
+
+---
+ util/fipstools/delocate/README.md | 22 ----------------------
+ 1 file changed, 22 deletions(-)
+ delete mode 100644 util/fipstools/delocate/README.md
+
+diff --git a/util/fipstools/delocate/README.md b/util/fipstools/delocate/README.md
+deleted file mode 100644
+index e74e2f3ec..000000000
+--- a/util/fipstools/delocate/README.md
++++ /dev/null
+@@ -1,22 +0,0 @@
+-### Convert delocate.peg to delocate.peg.go
+-
+-Below shell script should be execute under the directory having `delocate.peg`.
+-```shell script
+-# Clone peg.
+-git clone https://github.com/pointlander/peg
+-cd peg
+-
+-# Building.
+-go run build.go
+-
+-# After build, 'peg' executable is available under current dir.
+-# Below command can tell the https://github.com/pointlander/peg#usage
+-./peg --help
+-
+-# Generate delocate.peg.go by running below command.
+-cd ..
+-./peg/peg delocate.peg
+-
+-# Clean up.
+-rm -rf peg
+-```           

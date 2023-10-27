@@ -1,0 +1,525 @@
+From 173ebfb724c0d8c99bd34e07b8f2b5f8c3d500f3 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 29 Dec 2022 00:45:26 -0500
+Subject: [PATCH] Remove the last of the filename comments.
+
+We've removed them in other files.
+
+Change-Id: I14ea99c85fd3a21094beeac88cb669e7aa9e2763
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56028
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 974083f2afe32b54645cecee013092f531836027)
+---
+ crypto/bio/socket.c       | 1 -
+ crypto/conf/conf_def.h    | 1 -
+ crypto/pem/pem_info.c     | 1 -
+ crypto/pem/pem_lib.c      | 1 -
+ crypto/pem/pem_oth.c      | 1 -
+ crypto/pem/pem_x509.c     | 1 -
+ crypto/pem/pem_xaux.c     | 1 -
+ crypto/x509/by_dir.c      | 1 -
+ crypto/x509/by_file.c     | 1 -
+ crypto/x509/i2d_pr.c      | 1 -
+ crypto/x509/x509_att.c    | 1 -
+ crypto/x509/x509_cmp.c    | 1 -
+ crypto/x509/x509_d2.c     | 1 -
+ crypto/x509/x509_def.c    | 1 -
+ crypto/x509/x509_ext.c    | 1 -
+ crypto/x509/x509_lu.c     | 1 -
+ crypto/x509/x509_obj.c    | 1 -
+ crypto/x509/x509_req.c    | 1 -
+ crypto/x509/x_sig.c       | 1 -
+ crypto/x509/x_spki.c      | 1 -
+ crypto/x509/x_val.c       | 1 -
+ crypto/x509/x_x509.c      | 1 -
+ crypto/x509v3/pcy_data.c  | 1 -
+ crypto/x509v3/pcy_map.c   | 1 -
+ crypto/x509v3/pcy_node.c  | 1 -
+ crypto/x509v3/tab_test.cc | 1 -
+ crypto/x509v3/v3_akey.c   | 1 -
+ crypto/x509v3/v3_akeya.c  | 1 -
+ crypto/x509v3/v3_alt.c    | 1 -
+ crypto/x509v3/v3_bcons.c  | 1 -
+ crypto/x509v3/v3_bitst.c  | 1 -
+ crypto/x509v3/v3_conf.c   | 1 -
+ crypto/x509v3/v3_cpols.c  | 1 -
+ crypto/x509v3/v3_crld.c   | 1 -
+ crypto/x509v3/v3_enum.c   | 1 -
+ crypto/x509v3/v3_extku.c  | 1 -
+ crypto/x509v3/v3_genn.c   | 1 -
+ crypto/x509v3/v3_ia5.c    | 1 -
+ crypto/x509v3/v3_info.c   | 1 -
+ crypto/x509v3/v3_int.c    | 1 -
+ crypto/x509v3/v3_lib.c    | 1 -
+ crypto/x509v3/v3_ncons.c  | 1 -
+ crypto/x509v3/v3_pci.c    | 1 -
+ crypto/x509v3/v3_pcia.c   | 1 -
+ crypto/x509v3/v3_pcons.c  | 1 -
+ crypto/x509v3/v3_pmaps.c  | 1 -
+ crypto/x509v3/v3_prn.c    | 1 -
+ crypto/x509v3/v3_purp.c   | 1 -
+ crypto/x509v3/v3_skey.c   | 1 -
+ crypto/x509v3/v3_utl.c    | 1 -
+ include/openssl/ssl3.h    | 1 -
+ 51 files changed, 51 deletions(-)
+
+diff --git a/crypto/bio/socket.c b/crypto/bio/socket.c
+index 0358e5982..2b6295f6d 100644
+--- a/crypto/bio/socket.c
++++ b/crypto/bio/socket.c
+@@ -1,4 +1,3 @@
+-/* crypto/bio/bss_sock.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/conf/conf_def.h b/crypto/conf/conf_def.h
+index b1e6ba63a..f01a79b26 100644
+--- a/crypto/conf/conf_def.h
++++ b/crypto/conf/conf_def.h
+@@ -1,4 +1,3 @@
+-/* crypto/conf/conf_def.h */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/pem/pem_info.c b/crypto/pem/pem_info.c
+index 04b474370..80c06b81c 100644
+--- a/crypto/pem/pem_info.c
++++ b/crypto/pem/pem_info.c
+@@ -1,4 +1,3 @@
+-/* crypto/pem/pem_info.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/pem/pem_lib.c b/crypto/pem/pem_lib.c
+index 76622abd7..3be92a087 100644
+--- a/crypto/pem/pem_lib.c
++++ b/crypto/pem/pem_lib.c
+@@ -1,4 +1,3 @@
+-/* crypto/pem/pem_lib.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/pem/pem_oth.c b/crypto/pem/pem_oth.c
+index 8ea05be08..a94fed9be 100644
+--- a/crypto/pem/pem_oth.c
++++ b/crypto/pem/pem_oth.c
+@@ -1,4 +1,3 @@
+-/* crypto/pem/pem_oth.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/pem/pem_x509.c b/crypto/pem/pem_x509.c
+index 97f814dba..fbaf6ca6a 100644
+--- a/crypto/pem/pem_x509.c
++++ b/crypto/pem/pem_x509.c
+@@ -1,4 +1,3 @@
+-/* pem_x509.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 2001.
+diff --git a/crypto/pem/pem_xaux.c b/crypto/pem/pem_xaux.c
+index b0cceca30..5967175f4 100644
+--- a/crypto/pem/pem_xaux.c
++++ b/crypto/pem/pem_xaux.c
+@@ -1,4 +1,3 @@
+-/* pem_xaux.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 2001.
+diff --git a/crypto/x509/by_dir.c b/crypto/x509/by_dir.c
+index 47ccd6bac..b959bb8bd 100644
+--- a/crypto/x509/by_dir.c
++++ b/crypto/x509/by_dir.c
+@@ -1,4 +1,3 @@
+-/* crypto/x509/by_dir.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/by_file.c b/crypto/x509/by_file.c
+index 4c388eb48..7c056f081 100644
+--- a/crypto/x509/by_file.c
++++ b/crypto/x509/by_file.c
+@@ -1,4 +1,3 @@
+-/* crypto/x509/by_file.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/i2d_pr.c b/crypto/x509/i2d_pr.c
+index 3c8887ff6..1fb69eca4 100644
+--- a/crypto/x509/i2d_pr.c
++++ b/crypto/x509/i2d_pr.c
+@@ -1,4 +1,3 @@
+-/* crypto/asn1/i2d_pr.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/x509_att.c b/crypto/x509/x509_att.c
+index d1c8f5604..4a4ee476d 100644
+--- a/crypto/x509/x509_att.c
++++ b/crypto/x509/x509_att.c
+@@ -1,4 +1,3 @@
+-/* crypto/x509/x509_att.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/x509_cmp.c b/crypto/x509/x509_cmp.c
+index c9966e9ad..7e3c39552 100644
+--- a/crypto/x509/x509_cmp.c
++++ b/crypto/x509/x509_cmp.c
+@@ -1,4 +1,3 @@
+-/* crypto/x509/x509_cmp.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/x509_d2.c b/crypto/x509/x509_d2.c
+index da08f244e..748bd88ac 100644
+--- a/crypto/x509/x509_d2.c
++++ b/crypto/x509/x509_d2.c
+@@ -1,4 +1,3 @@
+-/* crypto/x509/x509_d2.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/x509_def.c b/crypto/x509/x509_def.c
+index a6489c62d..1721da5d9 100644
+--- a/crypto/x509/x509_def.c
++++ b/crypto/x509/x509_def.c
+@@ -1,4 +1,3 @@
+-/* crypto/x509/x509_def.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/x509_ext.c b/crypto/x509/x509_ext.c
+index 8ab1926d2..a8f561d44 100644
+--- a/crypto/x509/x509_ext.c
++++ b/crypto/x509/x509_ext.c
+@@ -1,4 +1,3 @@
+-/* crypto/x509/x509_ext.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/x509_lu.c b/crypto/x509/x509_lu.c
+index d02aef8f9..7a2d3a261 100644
+--- a/crypto/x509/x509_lu.c
++++ b/crypto/x509/x509_lu.c
+@@ -1,4 +1,3 @@
+-/* crypto/x509/x509_lu.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/x509_obj.c b/crypto/x509/x509_obj.c
+index d247314e5..6caae4d62 100644
+--- a/crypto/x509/x509_obj.c
++++ b/crypto/x509/x509_obj.c
+@@ -1,4 +1,3 @@
+-/* crypto/x509/x509_obj.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/x509_req.c b/crypto/x509/x509_req.c
+index a384a7759..c7829c7be 100644
+--- a/crypto/x509/x509_req.c
++++ b/crypto/x509/x509_req.c
+@@ -1,4 +1,3 @@
+-/* crypto/x509/x509_req.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/x_sig.c b/crypto/x509/x_sig.c
+index 4710cae85..adf224df4 100644
+--- a/crypto/x509/x_sig.c
++++ b/crypto/x509/x_sig.c
+@@ -1,4 +1,3 @@
+-/* crypto/asn1/x_sig.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/x_spki.c b/crypto/x509/x_spki.c
+index 589987821..905a87be3 100644
+--- a/crypto/x509/x_spki.c
++++ b/crypto/x509/x_spki.c
+@@ -1,4 +1,3 @@
+-/* crypto/asn1/x_spki.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/x_val.c b/crypto/x509/x_val.c
+index 62dbf6fef..cc02e92fb 100644
+--- a/crypto/x509/x_val.c
++++ b/crypto/x509/x_val.c
+@@ -1,4 +1,3 @@
+-/* crypto/asn1/x_val.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509/x_x509.c b/crypto/x509/x_x509.c
+index c1c1a1977..c6c48feb7 100644
+--- a/crypto/x509/x_x509.c
++++ b/crypto/x509/x_x509.c
+@@ -1,4 +1,3 @@
+-/* crypto/asn1/x_x509.c */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *
+diff --git a/crypto/x509v3/pcy_data.c b/crypto/x509v3/pcy_data.c
+index 28a572f29..91ba714ef 100644
+--- a/crypto/x509v3/pcy_data.c
++++ b/crypto/x509v3/pcy_data.c
+@@ -1,4 +1,3 @@
+-/* pcy_data.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 2004.
+diff --git a/crypto/x509v3/pcy_map.c b/crypto/x509v3/pcy_map.c
+index e4fa9a1e6..06c70b219 100644
+--- a/crypto/x509v3/pcy_map.c
++++ b/crypto/x509v3/pcy_map.c
+@@ -1,4 +1,3 @@
+-/* pcy_map.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 2004.
+diff --git a/crypto/x509v3/pcy_node.c b/crypto/x509v3/pcy_node.c
+index 71847f347..8966b065d 100644
+--- a/crypto/x509v3/pcy_node.c
++++ b/crypto/x509v3/pcy_node.c
+@@ -1,4 +1,3 @@
+-/* pcy_node.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 2004.
+diff --git a/crypto/x509v3/tab_test.cc b/crypto/x509v3/tab_test.cc
+index bf91a265f..b5b662fda 100644
+--- a/crypto/x509v3/tab_test.cc
++++ b/crypto/x509v3/tab_test.cc
+@@ -1,4 +1,3 @@
+-/* tabtest.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_akey.c b/crypto/x509v3/v3_akey.c
+index a7e1ee22c..76ac834c9 100644
+--- a/crypto/x509v3/v3_akey.c
++++ b/crypto/x509v3/v3_akey.c
+@@ -1,4 +1,3 @@
+-/* v3_akey.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_akeya.c b/crypto/x509v3/v3_akeya.c
+index f612d7c01..f18f4e339 100644
+--- a/crypto/x509v3/v3_akeya.c
++++ b/crypto/x509v3/v3_akeya.c
+@@ -1,4 +1,3 @@
+-/* v3_akey_asn1.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_alt.c b/crypto/x509v3/v3_alt.c
+index 3a7df6bbe..cec354a77 100644
+--- a/crypto/x509v3/v3_alt.c
++++ b/crypto/x509v3/v3_alt.c
+@@ -1,4 +1,3 @@
+-/* v3_alt.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL
+  * project.
+diff --git a/crypto/x509v3/v3_bcons.c b/crypto/x509v3/v3_bcons.c
+index 11a651964..c558c78e6 100644
+--- a/crypto/x509v3/v3_bcons.c
++++ b/crypto/x509v3/v3_bcons.c
+@@ -1,4 +1,3 @@
+-/* v3_bcons.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_bitst.c b/crypto/x509v3/v3_bitst.c
+index c1d1734a8..d87dcf995 100644
+--- a/crypto/x509v3/v3_bitst.c
++++ b/crypto/x509v3/v3_bitst.c
+@@ -1,4 +1,3 @@
+-/* v3_bitst.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_conf.c b/crypto/x509v3/v3_conf.c
+index ef5536317..b4cff9d45 100644
+--- a/crypto/x509v3/v3_conf.c
++++ b/crypto/x509v3/v3_conf.c
+@@ -1,4 +1,3 @@
+-/* v3_conf.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_cpols.c b/crypto/x509v3/v3_cpols.c
+index 6fa011da0..e723cf338 100644
+--- a/crypto/x509v3/v3_cpols.c
++++ b/crypto/x509v3/v3_cpols.c
+@@ -1,4 +1,3 @@
+-/* v3_cpols.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_crld.c b/crypto/x509v3/v3_crld.c
+index 02916305f..4b5a36df8 100644
+--- a/crypto/x509v3/v3_crld.c
++++ b/crypto/x509v3/v3_crld.c
+@@ -1,4 +1,3 @@
+-/* v3_crld.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_enum.c b/crypto/x509v3/v3_enum.c
+index cd93f30b3..3143a98d3 100644
+--- a/crypto/x509v3/v3_enum.c
++++ b/crypto/x509v3/v3_enum.c
+@@ -1,4 +1,3 @@
+-/* v3_enum.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_extku.c b/crypto/x509v3/v3_extku.c
+index d493bf2e2..46f40a78d 100644
+--- a/crypto/x509v3/v3_extku.c
++++ b/crypto/x509v3/v3_extku.c
+@@ -1,4 +1,3 @@
+-/* v3_extku.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_genn.c b/crypto/x509v3/v3_genn.c
+index 2153a1d09..aafad9396 100644
+--- a/crypto/x509v3/v3_genn.c
++++ b/crypto/x509v3/v3_genn.c
+@@ -1,4 +1,3 @@
+-/* v3_genn.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_ia5.c b/crypto/x509v3/v3_ia5.c
+index 80ba5f9a3..8104e7bef 100644
+--- a/crypto/x509v3/v3_ia5.c
++++ b/crypto/x509v3/v3_ia5.c
+@@ -1,4 +1,3 @@
+-/* v3_ia5.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_info.c b/crypto/x509v3/v3_info.c
+index 386b51950..e6b3cc593 100644
+--- a/crypto/x509v3/v3_info.c
++++ b/crypto/x509v3/v3_info.c
+@@ -1,4 +1,3 @@
+-/* v3_info.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_int.c b/crypto/x509v3/v3_int.c
+index 843c758b5..0ca2b5ec2 100644
+--- a/crypto/x509v3/v3_int.c
++++ b/crypto/x509v3/v3_int.c
+@@ -1,4 +1,3 @@
+-/* v3_int.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_lib.c b/crypto/x509v3/v3_lib.c
+index 51b0f3767..51d15bb6a 100644
+--- a/crypto/x509v3/v3_lib.c
++++ b/crypto/x509v3/v3_lib.c
+@@ -1,4 +1,3 @@
+-/* v3_lib.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_ncons.c b/crypto/x509v3/v3_ncons.c
+index 97a79c82b..1b3b9f8a1 100644
+--- a/crypto/x509v3/v3_ncons.c
++++ b/crypto/x509v3/v3_ncons.c
+@@ -1,4 +1,3 @@
+-/* v3_ncons.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL
+  * project.
+diff --git a/crypto/x509v3/v3_pci.c b/crypto/x509v3/v3_pci.c
+index 5616aac0f..e680b5b36 100644
+--- a/crypto/x509v3/v3_pci.c
++++ b/crypto/x509v3/v3_pci.c
+@@ -1,4 +1,3 @@
+-/* v3_pci.c -*- mode:C; c-file-style: "eay" -*- */
+ /*
+  * Contributed to the OpenSSL Project 2004 by Richard Levitte
+  * (richard@levitte.org)
+diff --git a/crypto/x509v3/v3_pcia.c b/crypto/x509v3/v3_pcia.c
+index 62893ed79..e388eb6ab 100644
+--- a/crypto/x509v3/v3_pcia.c
++++ b/crypto/x509v3/v3_pcia.c
+@@ -1,4 +1,3 @@
+-/* v3_pcia.c -*- mode:C; c-file-style: "eay" -*- */
+ /*
+  * Contributed to the OpenSSL Project 2004 by Richard Levitte
+  * (richard@levitte.org)
+diff --git a/crypto/x509v3/v3_pcons.c b/crypto/x509v3/v3_pcons.c
+index ea1e8ba8b..4cb554157 100644
+--- a/crypto/x509v3/v3_pcons.c
++++ b/crypto/x509v3/v3_pcons.c
+@@ -1,4 +1,3 @@
+-/* v3_pcons.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL
+  * project.
+diff --git a/crypto/x509v3/v3_pmaps.c b/crypto/x509v3/v3_pmaps.c
+index 304934758..b6f33841d 100644
+--- a/crypto/x509v3/v3_pmaps.c
++++ b/crypto/x509v3/v3_pmaps.c
+@@ -1,4 +1,3 @@
+-/* v3_pmaps.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL
+  * project.
+diff --git a/crypto/x509v3/v3_prn.c b/crypto/x509v3/v3_prn.c
+index 20d2ad99e..ce9c18770 100644
+--- a/crypto/x509v3/v3_prn.c
++++ b/crypto/x509v3/v3_prn.c
+@@ -1,4 +1,3 @@
+-/* v3_prn.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_purp.c b/crypto/x509v3/v3_purp.c
+index 00c0571c2..44151328a 100644
+--- a/crypto/x509v3/v3_purp.c
++++ b/crypto/x509v3/v3_purp.c
+@@ -1,4 +1,3 @@
+-/* v3_purp.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 2001.
+diff --git a/crypto/x509v3/v3_skey.c b/crypto/x509v3/v3_skey.c
+index 9e777ed6e..56fdabc13 100644
+--- a/crypto/x509v3/v3_skey.c
++++ b/crypto/x509v3/v3_skey.c
+@@ -1,4 +1,3 @@
+-/* v3_skey.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+  * 1999.
+diff --git a/crypto/x509v3/v3_utl.c b/crypto/x509v3/v3_utl.c
+index 1abb306f6..a8f31e4ed 100644
+--- a/crypto/x509v3/v3_utl.c
++++ b/crypto/x509v3/v3_utl.c
+@@ -1,4 +1,3 @@
+-/* v3_utl.c */
+ /*
+  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL
+  * project.
+diff --git a/include/openssl/ssl3.h b/include/openssl/ssl3.h
+index 43f5df8cb..baad4140f 100644
+--- a/include/openssl/ssl3.h
++++ b/include/openssl/ssl3.h
+@@ -1,4 +1,3 @@
+-/* ssl/ssl3.h */
+ /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+  * All rights reserved.
+  *

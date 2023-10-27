@@ -1,0 +1,22 @@
+From ab887f2ee9381bbe0115b4b09b290251ba8ce03a Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Fri, 3 Mar 2023 15:28:56 -0800
+Subject: [PATCH] Fix typo in stale_issue.yml (#852)
+
+---
+ .github/workflows/stale_issue.yml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.github/workflows/stale_issue.yml b/.github/workflows/stale_issue.yml
+index a8444a8dd..a08676b77 100644
+--- a/.github/workflows/stale_issue.yml
++++ b/.github/workflows/stale_issue.yml
+@@ -22,7 +22,7 @@ jobs:
+           stale-issue-label: closing-soon
+           exempt-issue-label: automation-exempt
+           stale-pr-label: no-pr-activity
+-          exempt-pr-labels: automation-exempt
++          exempt-pr-label: automation-exempt
+           response-requested-label: response-requested
+ 
+           # Don't set closed-for-staleness label to skip closing very old issues

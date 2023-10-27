@@ -1,0 +1,183 @@
+From 6c839c0ecc11b49428f77f5f736c70fe58749d12 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sun, 8 Jan 2023 21:49:42 -0500
+Subject: [PATCH] Fix RAND_enable_fork_unsafe_buffering when called after fork
+
+If a process calls fork(), then the child process never forks again, the
+child may wish to call RAND_enable_fork_unsafe_buffering(). However,
+doing so exposes a bug: we assume that, if the flag is set, we don't
+need to worry about fork-safety. But it is possible that the PRNG state
+was cloned from another process which does not work.
+
+Concretely, consider a zygote process, e.g. Chromium's. A zygote process
+would retain fork-safety, but pass along its PRNG state to each of its
+children. If the children never fork, they might disable fork-safety,
+hitting this bug. (Chromium does not call this API. This is just a
+hypothetical scenario.)
+
+Fix this by reseeding whenever the fork-safety bit changes. This fix
+does not strictly depend on the atomics work, but it causes us to
+unconditionally sample rand_fork_unsafe_buffering_enabled(). This no
+longer causes contention because it's just another atomic load.
+
+This only affects systems without MADV_WIPEONFORK and without fast
+RDRAND. If RDRAND is fast, we're always fork-safe and MADV_WIPEONFORK
+allows us to efficiently detect forks.
+
+Cq-Include-Trybots: luci.boringssl.try:linux_clang_rel_tsan
+Change-Id: I6d0c471c62c951254faf85420a7dc3f4a9d65ee0
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59850
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+
+(cherry picked from commit dd5219451c3ce26221762a15d867edf43b463bb2)
+---
+ crypto/fipsmodule/rand/rand.c  | 25 ++++++++++++++++------
+ crypto/rand_extra/rand_test.cc | 38 ++++++++++++++++++++++------------
+ 2 files changed, 44 insertions(+), 19 deletions(-)
+
+diff --git a/crypto/fipsmodule/rand/rand.c b/crypto/fipsmodule/rand/rand.c
+index 8de4fadda..797e51b43 100644
+--- a/crypto/fipsmodule/rand/rand.c
++++ b/crypto/fipsmodule/rand/rand.c
+@@ -52,14 +52,14 @@
+ // This might be a bit of a leap of faith, esp on Windows, but there's nothing
+ // that we can do about it.)
+ 
+-// When in FIPS mode we use the CPU Jitter entropy source to seed our DRBG.  
++// When in FIPS mode we use the CPU Jitter entropy source to seed our DRBG.
+ // This entropy source is very slow and can incur a cost anywhere between 10-60ms
+-// depending on configuration and CPU.  Increasing to 2^24 will amortize the 
+-// penalty over more requests.  This is the same value used in OpenSSL 3.0  
++// depending on configuration and CPU.  Increasing to 2^24 will amortize the
++// penalty over more requests.  This is the same value used in OpenSSL 3.0
+ // and meets the requirements defined in SP 800-90B for a max reseed of interval (2^48)
+ //
+ // CPU Jitter:  https://www.chronox.de/jent/doc/CPU-Jitter-NPTRNG.html
+-// 
++//
+ // kReseedInterval is the number of generate calls made to CTR-DRBG before
+ // reseeding.
+ 
+@@ -94,6 +94,9 @@ struct rand_thread_state {
+   // calls is the number of generate calls made on |drbg| since it was last
+   // (re)seeded. This is bound by |kReseedInterval|.
+   unsigned calls;
++  // fork_unsafe_buffering is non-zero iff, when |drbg| was last (re)seeded,
++  // fork-unsafe buffering was enabled.
++  int fork_unsafe_buffering;
+ 
+ #if defined(BORINGSSL_FIPS)
+   // next and prev form a NULL-terminated, double-linked list of all states in
+@@ -375,6 +378,7 @@ void RAND_bytes_with_additional_data(uint8_t *out, size_t out_len,
+   }
+ 
+   const uint64_t fork_generation = CRYPTO_get_fork_generation();
++  const int fork_unsafe_buffering = rand_fork_unsafe_buffering_enabled();
+ 
+   // Additional data is mixed into every CTR-DRBG call to protect, as best we
+   // can, against forks & VM clones. We do not over-read this information and
+@@ -389,7 +393,7 @@ void RAND_bytes_with_additional_data(uint8_t *out, size_t out_len,
+     // entropy is used. This can be expensive (one read per |RAND_bytes| call)
+     // and so is disabled when we have fork detection, or if the application has
+     // promised not to fork.
+-    if (fork_generation != 0 || rand_fork_unsafe_buffering_enabled()) {
++    if (fork_generation != 0 || fork_unsafe_buffering) {
+       OPENSSL_memset(additional_data, 0, sizeof(additional_data));
+     } else if (!have_rdrand()) {
+       // No alternative so block for OS entropy.
+@@ -441,6 +445,7 @@ void RAND_bytes_with_additional_data(uint8_t *out, size_t out_len,
+     }
+     state->calls = 0;
+     state->fork_generation = fork_generation;
++    state->fork_unsafe_buffering = fork_unsafe_buffering;
+ 
+ #if defined(BORINGSSL_FIPS)
+     if (state != &stack_state) {
+@@ -460,7 +465,14 @@ void RAND_bytes_with_additional_data(uint8_t *out, size_t out_len,
+   }
+ 
+   if (state->calls >= kReseedInterval ||
+-      state->fork_generation != fork_generation) {
++      // If we've forked since |state| was last seeded, reseed.
++      state->fork_generation != fork_generation ||
++      // If |state| was seeded from a state with different fork-safety
++      // preferences, reseed. Suppose |state| was fork-safe, then forked into
++      // two children, but each of the children never fork and disable fork
++      // safety. The children must reseed to avoid working from the same PRNG
++      // state.
++      state->fork_unsafe_buffering != fork_unsafe_buffering) {
+     uint8_t seed[CTR_DRBG_ENTROPY_LEN];
+     int want_additional_input;
+     rand_get_seed(state, seed, &want_additional_input);
+@@ -487,6 +499,7 @@ void RAND_bytes_with_additional_data(uint8_t *out, size_t out_len,
+     }
+     state->calls = 0;
+     state->fork_generation = fork_generation;
++    state->fork_unsafe_buffering = fork_unsafe_buffering;
+     OPENSSL_cleanse(seed, CTR_DRBG_ENTROPY_LEN);
+     OPENSSL_cleanse(add_data_for_reseed, CTR_DRBG_ENTROPY_LEN);
+   } else {
+diff --git a/crypto/rand_extra/rand_test.cc b/crypto/rand_extra/rand_test.cc
+index 61da75033..697572fd6 100644
+--- a/crypto/rand_extra/rand_test.cc
++++ b/crypto/rand_extra/rand_test.cc
+@@ -66,7 +66,7 @@ TEST(RandTest, NotObviouslyBroken) {
+ 
+ #if !defined(OPENSSL_WINDOWS) && !defined(OPENSSL_IOS) && \
+     !defined(OPENSSL_FUCHSIA) && !defined(BORINGSSL_UNSAFE_DETERMINISTIC_MODE)
+-static bool ForkAndRand(bssl::Span<uint8_t> out) {
++static bool ForkAndRand(bssl::Span<uint8_t> out, bool fork_unsafe_buffering) {
+   int pipefds[2];
+   if (pipe(pipefds) < 0) {
+     perror("pipe");
+@@ -86,6 +86,9 @@ static bool ForkAndRand(bssl::Span<uint8_t> out) {
+   if (child == 0) {
+     // This is the child. Generate entropy and write it to the parent.
+     close(pipefds[0]);
++    if (fork_unsafe_buffering) {
++      RAND_enable_fork_unsafe_buffering(-1);
++    }
+     RAND_bytes(out.data(), out.size());
+     while (!out.empty()) {
+       ssize_t ret = write(pipefds[1], out.data(), out.size());
+@@ -148,18 +151,27 @@ TEST(RandTest, Fork) {
+   // intentionally uses smaller buffers than the others, to minimize the chance
+   // of sneaking by with a large enough buffer that we've since reseeded from
+   // the OS.
+-  uint8_t buf1[16], buf2[16], buf3[16];
+-  ASSERT_TRUE(ForkAndRand(buf1));
+-  ASSERT_TRUE(ForkAndRand(buf2));
+-  RAND_bytes(buf3, sizeof(buf3));
+-
+-  // All should be different.
+-  EXPECT_NE(Bytes(buf1), Bytes(buf2));
+-  EXPECT_NE(Bytes(buf2), Bytes(buf3));
+-  EXPECT_NE(Bytes(buf1), Bytes(buf3));
+-  EXPECT_NE(Bytes(buf1), Bytes(kZeros));
+-  EXPECT_NE(Bytes(buf2), Bytes(kZeros));
+-  EXPECT_NE(Bytes(buf3), Bytes(kZeros));
++  //
++  // All child processes should have different PRNGs, including the ones that
++  // disavow fork-safety. Although they are produced by fork, they themselves do
++  // not fork after that call.
++  uint8_t bufs[5][16];
++  ASSERT_TRUE(ForkAndRand(bufs[0], /*fork_unsafe_buffering=*/false));
++  ASSERT_TRUE(ForkAndRand(bufs[1], /*fork_unsafe_buffering=*/false));
++  ASSERT_TRUE(ForkAndRand(bufs[2], /*fork_unsafe_buffering=*/true));
++  ASSERT_TRUE(ForkAndRand(bufs[3], /*fork_unsafe_buffering=*/true));
++  RAND_bytes(bufs[4], sizeof(bufs[4]));
++
++  // All should be different and non-zero.
++  for (const auto &buf : bufs) {
++    EXPECT_NE(Bytes(buf), Bytes(kZeros));
++  }
++  for (size_t i = 0; i < OPENSSL_ARRAY_SIZE(bufs); i++) {
++    for (size_t j = 0; j < i; j++) {
++      EXPECT_NE(Bytes(bufs[i]), Bytes(bufs[j]))
++          << "buffers " << i << " and " << j << " matched";
++    }
++  }
+ }
+ #endif  // !OPENSSL_WINDOWS && !OPENSSL_IOS &&
+         // !OPENSSL_FUCHSIA && !BORINGSSL_UNSAFE_DETERMINISTIC_MODE

@@ -1,0 +1,52 @@
+From 00bd65042810c18e6fb8be39ef094c123e71558d Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 29 Dec 2022 22:01:00 -0500
+Subject: [PATCH] Remove no-op entries from asn1_str2tag.
+
+They don't work because ASN1_mbstring_ncopy doesn't recognize them.
+
+Change-Id: Id036252f4c6790714a73c5d0666149e13050fd4a
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56105
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 0d9208e8896a8989af859d490d54c3be3f5174ca)
+---
+ crypto/x509/asn1_gen.c   | 6 ------
+ crypto/x509/x509_test.cc | 2 --
+ 2 files changed, 8 deletions(-)
+
+diff --git a/crypto/x509/asn1_gen.c b/crypto/x509/asn1_gen.c
+index 821d90d20..63650170a 100644
+--- a/crypto/x509/asn1_gen.c
++++ b/crypto/x509/asn1_gen.c
+@@ -569,17 +569,11 @@ static int asn1_str2tag(const char *tagstr, size_t len) {
+       ASN1_GEN_STR("UTF8String", V_ASN1_UTF8STRING),
+       ASN1_GEN_STR("BMP", V_ASN1_BMPSTRING),
+       ASN1_GEN_STR("BMPSTRING", V_ASN1_BMPSTRING),
+-      ASN1_GEN_STR("VISIBLESTRING", V_ASN1_VISIBLESTRING),
+-      ASN1_GEN_STR("VISIBLE", V_ASN1_VISIBLESTRING),
+       ASN1_GEN_STR("PRINTABLESTRING", V_ASN1_PRINTABLESTRING),
+       ASN1_GEN_STR("PRINTABLE", V_ASN1_PRINTABLESTRING),
+       ASN1_GEN_STR("T61", V_ASN1_T61STRING),
+       ASN1_GEN_STR("T61STRING", V_ASN1_T61STRING),
+       ASN1_GEN_STR("TELETEXSTRING", V_ASN1_T61STRING),
+-      ASN1_GEN_STR("GeneralString", V_ASN1_GENERALSTRING),
+-      ASN1_GEN_STR("GENSTR", V_ASN1_GENERALSTRING),
+-      ASN1_GEN_STR("NUMERIC", V_ASN1_NUMERICSTRING),
+-      ASN1_GEN_STR("NUMERICSTRING", V_ASN1_NUMERICSTRING),
+ 
+       // Special cases
+       ASN1_GEN_STR("SEQUENCE", V_ASN1_SEQUENCE),
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 355aacd99..d0054aa3d 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -5517,8 +5517,6 @@ TEST(X509Test, ExtensionFromConf) {
+       {kTestOID, "ASN1:FORMAT:UTF8,UTF8:\xff", nullptr, {}},
+ 
+       // We don't support these string types.
+-      // TODO(davidben): Remove them from the implementation, as they don't do
+-      // anything.
+       {kTestOID, "ASN1:NUMERIC:0", nullptr, {}},
+       {kTestOID, "ASN1:NUMERICSTRING:0", nullptr, {}},
+       {kTestOID, "ASN1:VISIBLE:hello", nullptr, {}},

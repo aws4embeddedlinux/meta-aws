@@ -1,0 +1,400 @@
+From 17ae867efd85dfd1490e6a8dc84bab6baab0d5a5 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 19 Apr 2023 10:41:02 -0400
+Subject: [PATCH] Remove the X509at_* functions
+
+They're not used anywhere, as X509_REQ doesn't expose the underlying
+STACK_OF(X509_ATTRIBUTE) anyway. They're also very thin wrappers over
+the stack functions, so just delete them and inline them into X509_REQ
+functions.
+
+While I'm here, I've tidied up the add1_attr_by_* functions to reduce an
+unnecessary copy.
+
+Change-Id: Iec002c83ab7ad7267314e98866d680d12a82e971
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58927
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 437ef4d7f1399ad92ff55be7b418579c511065aa)
+---
+ crypto/x509/x509_att.c | 140 -----------------------------------------
+ crypto/x509/x509_req.c |  95 +++++++++++++++++++++-------
+ include/openssl/x509.h |  61 +-----------------
+ 3 files changed, 74 insertions(+), 222 deletions(-)
+
+diff --git a/crypto/x509/x509_att.c b/crypto/x509/x509_att.c
+index 0dda757f5..23e92f294 100644
+--- a/crypto/x509/x509_att.c
++++ b/crypto/x509/x509_att.c
+@@ -56,153 +56,13 @@
+ 
+ #include <openssl/asn1.h>
+ #include <openssl/err.h>
+-#include <openssl/evp.h>
+ #include <openssl/obj.h>
+-#include <openssl/stack.h>
+ #include <openssl/x509.h>
+ 
+ #include "../asn1/internal.h"
+ #include "internal.h"
+ 
+ 
+-int X509at_get_attr_count(const STACK_OF(X509_ATTRIBUTE) *x) {
+-  return sk_X509_ATTRIBUTE_num(x);
+-}
+-
+-int X509at_get_attr_by_NID(const STACK_OF(X509_ATTRIBUTE) *x, int nid,
+-                           int lastpos) {
+-  const ASN1_OBJECT *obj = OBJ_nid2obj(nid);
+-  if (obj == NULL) {
+-    return -1;
+-  }
+-  return X509at_get_attr_by_OBJ(x, obj, lastpos);
+-}
+-
+-int X509at_get_attr_by_OBJ(const STACK_OF(X509_ATTRIBUTE) *sk,
+-                           const ASN1_OBJECT *obj, int lastpos) {
+-  int n;
+-  X509_ATTRIBUTE *ex;
+-
+-  if (sk == NULL) {
+-    return -1;
+-  }
+-  lastpos++;
+-  if (lastpos < 0) {
+-    lastpos = 0;
+-  }
+-  n = sk_X509_ATTRIBUTE_num(sk);
+-  for (; lastpos < n; lastpos++) {
+-    ex = sk_X509_ATTRIBUTE_value(sk, lastpos);
+-    if (OBJ_cmp(ex->object, obj) == 0) {
+-      return lastpos;
+-    }
+-  }
+-  return -1;
+-}
+-
+-X509_ATTRIBUTE *X509at_get_attr(const STACK_OF(X509_ATTRIBUTE) *x, int loc) {
+-  if (x == NULL || loc < 0 || sk_X509_ATTRIBUTE_num(x) <= (size_t)loc) {
+-    return NULL;
+-  } else {
+-    return sk_X509_ATTRIBUTE_value(x, loc);
+-  }
+-}
+-
+-X509_ATTRIBUTE *X509at_delete_attr(STACK_OF(X509_ATTRIBUTE) *x, int loc) {
+-  X509_ATTRIBUTE *ret;
+-
+-  if (x == NULL || loc < 0 || sk_X509_ATTRIBUTE_num(x) <= (size_t)loc) {
+-    return NULL;
+-  }
+-  ret = sk_X509_ATTRIBUTE_delete(x, loc);
+-  return ret;
+-}
+-
+-STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr(STACK_OF(X509_ATTRIBUTE) **x,
+-                                           X509_ATTRIBUTE *attr) {
+-  X509_ATTRIBUTE *new_attr = NULL;
+-  STACK_OF(X509_ATTRIBUTE) *sk = NULL;
+-
+-  if (x == NULL) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_PASSED_NULL_PARAMETER);
+-    goto err;
+-  }
+-
+-  if (*x == NULL) {
+-    if ((sk = sk_X509_ATTRIBUTE_new_null()) == NULL) {
+-      goto err;
+-    }
+-  } else {
+-    sk = *x;
+-  }
+-
+-  if ((new_attr = X509_ATTRIBUTE_dup(attr)) == NULL) {
+-    goto err;
+-  }
+-  if (!sk_X509_ATTRIBUTE_push(sk, new_attr)) {
+-    goto err;
+-  }
+-  if (*x == NULL) {
+-    *x = sk;
+-  }
+-  return sk;
+-err:
+-  if (new_attr != NULL) {
+-    X509_ATTRIBUTE_free(new_attr);
+-  }
+-  if (sk != NULL) {
+-    sk_X509_ATTRIBUTE_free(sk);
+-  }
+-  return NULL;
+-}
+-
+-STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr_by_OBJ(STACK_OF(X509_ATTRIBUTE) **x,
+-                                                  const ASN1_OBJECT *obj,
+-                                                  int type,
+-                                                  const unsigned char *bytes,
+-                                                  int len) {
+-  X509_ATTRIBUTE *attr;
+-  STACK_OF(X509_ATTRIBUTE) *ret;
+-  attr = X509_ATTRIBUTE_create_by_OBJ(NULL, obj, type, bytes, len);
+-  if (!attr) {
+-    return 0;
+-  }
+-  ret = X509at_add1_attr(x, attr);
+-  X509_ATTRIBUTE_free(attr);
+-  return ret;
+-}
+-
+-STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr_by_NID(STACK_OF(X509_ATTRIBUTE) **x,
+-                                                  int nid, int type,
+-                                                  const unsigned char *bytes,
+-                                                  int len) {
+-  X509_ATTRIBUTE *attr;
+-  STACK_OF(X509_ATTRIBUTE) *ret;
+-  attr = X509_ATTRIBUTE_create_by_NID(NULL, nid, type, bytes, len);
+-  if (!attr) {
+-    return 0;
+-  }
+-  ret = X509at_add1_attr(x, attr);
+-  X509_ATTRIBUTE_free(attr);
+-  return ret;
+-}
+-
+-STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr_by_txt(STACK_OF(X509_ATTRIBUTE) **x,
+-                                                  const char *attrname,
+-                                                  int type,
+-                                                  const unsigned char *bytes,
+-                                                  int len) {
+-  X509_ATTRIBUTE *attr;
+-  STACK_OF(X509_ATTRIBUTE) *ret;
+-  attr = X509_ATTRIBUTE_create_by_txt(NULL, attrname, type, bytes, len);
+-  if (!attr) {
+-    return 0;
+-  }
+-  ret = X509at_add1_attr(x, attr);
+-  X509_ATTRIBUTE_free(attr);
+-  return ret;
+-}
+-
+ X509_ATTRIBUTE *X509_ATTRIBUTE_create_by_NID(X509_ATTRIBUTE **attr, int nid,
+                                              int attrtype, const void *data,
+                                              int len) {
+diff --git a/crypto/x509/x509_req.c b/crypto/x509/x509_req.c
+index 8734897fe..69eb63c27 100644
+--- a/crypto/x509/x509_req.c
++++ b/crypto/x509/x509_req.c
+@@ -160,62 +160,111 @@ int X509_REQ_add_extensions(X509_REQ *req,
+   return X509_REQ_add_extensions_nid(req, exts, NID_ext_req);
+ }
+ 
+-// Request attribute functions
+-
+ int X509_REQ_get_attr_count(const X509_REQ *req) {
+-  return X509at_get_attr_count(req->req_info->attributes);
++  return sk_X509_ATTRIBUTE_num(req->req_info->attributes);
+ }
+ 
+ int X509_REQ_get_attr_by_NID(const X509_REQ *req, int nid, int lastpos) {
+-  return X509at_get_attr_by_NID(req->req_info->attributes, nid, lastpos);
++  const ASN1_OBJECT *obj = OBJ_nid2obj(nid);
++  if (obj == NULL) {
++    return -1;
++  }
++  return X509_REQ_get_attr_by_OBJ(req, obj, lastpos);
+ }
+ 
+ int X509_REQ_get_attr_by_OBJ(const X509_REQ *req, const ASN1_OBJECT *obj,
+                              int lastpos) {
+-  return X509at_get_attr_by_OBJ(req->req_info->attributes, obj, lastpos);
++  if (req->req_info->attributes == NULL) {
++    return -1;
++  }
++  lastpos++;
++  if (lastpos < 0) {
++    lastpos = 0;
++  }
++  int n = sk_X509_ATTRIBUTE_num(req->req_info->attributes);
++  for (; lastpos < n; lastpos++) {
++    const X509_ATTRIBUTE *attr =
++        sk_X509_ATTRIBUTE_value(req->req_info->attributes, lastpos);
++    if (OBJ_cmp(attr->object, obj) == 0) {
++      return lastpos;
++    }
++  }
++  return -1;
+ }
+ 
+ X509_ATTRIBUTE *X509_REQ_get_attr(const X509_REQ *req, int loc) {
+-  return X509at_get_attr(req->req_info->attributes, loc);
++  if (req->req_info->attributes == NULL || loc < 0 ||
++      sk_X509_ATTRIBUTE_num(req->req_info->attributes) <= (size_t)loc) {
++    return NULL;
++  }
++  return sk_X509_ATTRIBUTE_value(req->req_info->attributes, loc);
+ }
+ 
+ X509_ATTRIBUTE *X509_REQ_delete_attr(X509_REQ *req, int loc) {
+-  return X509at_delete_attr(req->req_info->attributes, loc);
++  if (req->req_info->attributes == NULL || loc < 0 ||
++      sk_X509_ATTRIBUTE_num(req->req_info->attributes) <= (size_t)loc) {
++    return NULL;
++  }
++  return sk_X509_ATTRIBUTE_delete(req->req_info->attributes, loc);
+ }
+ 
+-int X509_REQ_add1_attr(X509_REQ *req, X509_ATTRIBUTE *attr) {
+-  if (X509at_add1_attr(&req->req_info->attributes, attr)) {
+-    return 1;
++static int X509_REQ_add0_attr(X509_REQ *req, X509_ATTRIBUTE *attr) {
++  if (req->req_info->attributes == NULL) {
++    req->req_info->attributes = sk_X509_ATTRIBUTE_new_null();
+   }
+-  return 0;
++  if (req->req_info->attributes == NULL ||
++      !sk_X509_ATTRIBUTE_push(req->req_info->attributes, attr)) {
++    return 0;
++  }
++
++  return 1;
++}
++
++int X509_REQ_add1_attr(X509_REQ *req, const X509_ATTRIBUTE *attr) {
++  X509_ATTRIBUTE *new_attr = X509_ATTRIBUTE_dup(attr);
++  if (new_attr == NULL || !X509_REQ_add0_attr(req, new_attr)) {
++    X509_ATTRIBUTE_free(new_attr);
++    return 0;
++  }
++
++  return 1;
+ }
+ 
+ int X509_REQ_add1_attr_by_OBJ(X509_REQ *req, const ASN1_OBJECT *obj,
+                               int attrtype, const unsigned char *data,
+                               int len) {
+-  if (X509at_add1_attr_by_OBJ(&req->req_info->attributes, obj, attrtype, data,
+-                              len)) {
+-    return 1;
++  X509_ATTRIBUTE *attr =
++      X509_ATTRIBUTE_create_by_OBJ(NULL, obj, attrtype, data, len);
++  if (attr == NULL || !X509_REQ_add0_attr(req, attr)) {
++    X509_ATTRIBUTE_free(attr);
++    return 0;
+   }
+-  return 0;
++
++  return 1;
+ }
+ 
+ int X509_REQ_add1_attr_by_NID(X509_REQ *req, int nid, int attrtype,
+                               const unsigned char *data, int len) {
+-  if (X509at_add1_attr_by_NID(&req->req_info->attributes, nid, attrtype, data,
+-                              len)) {
+-    return 1;
++  X509_ATTRIBUTE *attr =
++      X509_ATTRIBUTE_create_by_NID(NULL, nid, attrtype, data, len);
++  if (attr == NULL || !X509_REQ_add0_attr(req, attr)) {
++    X509_ATTRIBUTE_free(attr);
++    return 0;
+   }
+-  return 0;
++
++  return 1;
+ }
+ 
+ int X509_REQ_add1_attr_by_txt(X509_REQ *req, const char *attrname, int attrtype,
+                               const unsigned char *data, int len) {
+-  if (X509at_add1_attr_by_txt(&req->req_info->attributes, attrname, attrtype,
+-                              data, len)) {
+-    return 1;
++  X509_ATTRIBUTE *attr =
++      X509_ATTRIBUTE_create_by_txt(NULL, attrname, attrtype, data, len);
++  if (attr == NULL || !X509_REQ_add0_attr(req, attr)) {
++    X509_ATTRIBUTE_free(attr);
++    return 0;
+   }
+-  return 0;
++
++  return 1;
+ }
+ 
+ void X509_REQ_get0_signature(const X509_REQ *req, const ASN1_BIT_STRING **psig,
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index 264a16bc6..d11da395c 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -840,9 +840,8 @@ OPENSSL_EXPORT X509_ATTRIBUTE *X509_REQ_delete_attr(X509_REQ *req, int loc);
+ 
+ // X509_REQ_add1_attr appends a copy of |attr| to |req|'s list of attributes. It
+ // returns one on success and zero on error.
+-//
+-// TODO(https://crbug.com/boringssl/407): |attr| should be const.
+-OPENSSL_EXPORT int X509_REQ_add1_attr(X509_REQ *req, X509_ATTRIBUTE *attr);
++OPENSSL_EXPORT int X509_REQ_add1_attr(X509_REQ *req,
++                                      const X509_ATTRIBUTE *attr);
+ 
+ // X509_REQ_add1_attr_by_OBJ appends a new attribute to |req| with type |obj|.
+ // It returns one on success and zero on error. The value is determined by
+@@ -1540,62 +1539,6 @@ OPENSSL_EXPORT ASN1_OBJECT *X509_ATTRIBUTE_get0_object(X509_ATTRIBUTE *attr);
+ OPENSSL_EXPORT ASN1_TYPE *X509_ATTRIBUTE_get0_type(X509_ATTRIBUTE *attr,
+                                                    int idx);
+ 
+-// X509at_get_attr_count returns the number of attributes in |x|.
+-OPENSSL_EXPORT int X509at_get_attr_count(const STACK_OF(X509_ATTRIBUTE) *x);
+-
+-// X509at_get_attr_by_NID returns the index of the attribute in |x| of type
+-// |nid|, or a negative number if not found. If found, callers can use
+-// |X509at_get_attr| to look up the attribute by index.
+-//
+-// If |lastpos| is non-negative, it begins searching at |lastpos| + 1. Callers
+-// can thus loop over all matching attributes by first passing -1 and then
+-// passing the previously-returned value until no match is returned.
+-OPENSSL_EXPORT int X509at_get_attr_by_NID(const STACK_OF(X509_ATTRIBUTE) *x,
+-                                          int nid, int lastpos);
+-
+-// X509at_get_attr_by_OBJ behaves like |X509at_get_attr_by_NID| but looks for
+-// attributes of type |obj|.
+-OPENSSL_EXPORT int X509at_get_attr_by_OBJ(const STACK_OF(X509_ATTRIBUTE) *sk,
+-                                          const ASN1_OBJECT *obj, int lastpos);
+-
+-// X509at_get_attr returns the attribute at index |loc| in |x|, or NULL if
+-// out of bounds.
+-OPENSSL_EXPORT X509_ATTRIBUTE *X509at_get_attr(
+-    const STACK_OF(X509_ATTRIBUTE) *x, int loc);
+-
+-// X509at_delete_attr removes the attribute at index |loc| in |x|. It returns
+-// the removed attribute to the caller, or NULL if |loc| was out of bounds. If
+-// non-NULL, the caller must release the result with |X509_ATTRIBUTE_free| when
+-// done.
+-OPENSSL_EXPORT X509_ATTRIBUTE *X509at_delete_attr(STACK_OF(X509_ATTRIBUTE) *x,
+-                                                  int loc);
+-
+-// X509at_add1_attr appends a copy of |attr| to the attribute list in |*x|. If
+-// |*x| is NULL, it allocates a new |STACK_OF(X509_ATTRIBUTE)| to hold the copy
+-// and sets |*x| to the new list. It returns |*x| on success and NULL on error.
+-// The caller retains ownership of |attr| and can release it independently of
+-// |*x|.
+-OPENSSL_EXPORT STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr(
+-    STACK_OF(X509_ATTRIBUTE) **x, X509_ATTRIBUTE *attr);
+-
+-// X509at_add1_attr_by_OBJ behaves like |X509at_add1_attr|, but adds an
+-// attribute created by |X509_ATTRIBUTE_create_by_OBJ|.
+-OPENSSL_EXPORT STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr_by_OBJ(
+-    STACK_OF(X509_ATTRIBUTE) **x, const ASN1_OBJECT *obj, int type,
+-    const unsigned char *bytes, int len);
+-
+-// X509at_add1_attr_by_NID behaves like |X509at_add1_attr|, but adds an
+-// attribute created by |X509_ATTRIBUTE_create_by_NID|.
+-OPENSSL_EXPORT STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr_by_NID(
+-    STACK_OF(X509_ATTRIBUTE) **x, int nid, int type, const unsigned char *bytes,
+-    int len);
+-
+-// X509at_add1_attr_by_txt behaves like |X509at_add1_attr|, but adds an
+-// attribute created by |X509_ATTRIBUTE_create_by_txt|.
+-OPENSSL_EXPORT STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr_by_txt(
+-    STACK_OF(X509_ATTRIBUTE) **x, const char *attrname, int type,
+-    const unsigned char *bytes, int len);
+-
+ 
+ // Printing functions.
+ //

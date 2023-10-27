@@ -1,0 +1,108 @@
+From 79d69d7387bc661609e70cbf2b4d5f3b8bfbf4a8 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 18 Apr 2023 14:13:13 -0400
+Subject: [PATCH] Replace sort.Sort with sort.Slice
+
+Change-Id: I6e0361a42b9612ba4294cc8806203ea445bc9257
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58945
+Reviewed-by: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit bcecc7d834fc44ad257b2f23f88e1cf597ab2736)
+---
+ crypto/err/err_data_generate.go | 17 +----------------
+ crypto/obj/objects.go           | 15 +--------------
+ util/make_errors.go             | 19 ++-----------------
+ 3 files changed, 4 insertions(+), 47 deletions(-)
+
+diff --git a/crypto/err/err_data_generate.go b/crypto/err/err_data_generate.go
+index f7bf75a45..17fb8e535 100644
+--- a/crypto/err/err_data_generate.go
++++ b/crypto/err/err_data_generate.go
+@@ -115,23 +115,8 @@ func (st *stringList) Add(key uint32, value string) error {
+ 	return nil
+ }
+ 
+-// keySlice is a type that implements sorting of entries values.
+-type keySlice []uint32
+-
+-func (ks keySlice) Len() int {
+-	return len(ks)
+-}
+-
+-func (ks keySlice) Less(i, j int) bool {
+-	return (ks[i] >> 15) < (ks[j] >> 15)
+-}
+-
+-func (ks keySlice) Swap(i, j int) {
+-	ks[i], ks[j] = ks[j], ks[i]
+-}
+-
+ func (st *stringList) buildList() []uint32 {
+-	sort.Sort(keySlice(st.entries))
++	sort.Slice(st.entries, func(i, j int) bool { return (st.entries[i] >> 15) < (st.entries[j] >> 15) })
+ 	return st.entries
+ }
+ 
+diff --git a/crypto/obj/objects.go b/crypto/obj/objects.go
+index ae1346af2..1375ffa2d 100644
+--- a/crypto/obj/objects.go
++++ b/crypto/obj/objects.go
+@@ -520,21 +520,8 @@ extern "C" {
+ 	return os.WriteFile(path, []byte(formatted), 0666)
+ }
+ 
+-// TODO(davidben): Replace this with sort.Slice once Go 1.8 is sufficiently
+-// common.
+-type nidSorter struct {
+-	nids []int
+-	objs *objects
+-	cmp  func(a, b object) bool
+-}
+-
+-func (a nidSorter) obj(i int) object   { return a.objs.byNID[a.nids[i]] }
+-func (a nidSorter) Len() int           { return len(a.nids) }
+-func (a nidSorter) Swap(i, j int)      { a.nids[i], a.nids[j] = a.nids[j], a.nids[i] }
+-func (a nidSorter) Less(i, j int) bool { return a.cmp(a.obj(i), a.obj(j)) }
+-
+ func sortNIDs(nids []int, objs *objects, cmp func(a, b object) bool) {
+-	sort.Sort(&nidSorter{nids, objs, cmp})
++	sort.Slice(nids, func(i, j int) bool { return cmp(objs.byNID[nids[i]], objs.byNID[nids[j]]) })
+ }
+ 
+ func writeData(path string, objs *objects) error {
+diff --git a/util/make_errors.go b/util/make_errors.go
+index 4e2718b8d..5d1d3210e 100644
+--- a/util/make_errors.go
++++ b/util/make_errors.go
+@@ -188,28 +188,13 @@ type assignment struct {
+ 	value int
+ }
+ 
+-type assignmentsSlice []assignment
+-
+-func (a assignmentsSlice) Len() int {
+-	return len(a)
+-}
+-
+-func (a assignmentsSlice) Less(i, j int) bool {
+-	return a[i].value < a[j].value
+-}
+-
+-func (a assignmentsSlice) Swap(i, j int) {
+-	a[i], a[j] = a[j], a[i]
+-}
+-
+ func outputAssignments(w io.Writer, assignments map[string]int) {
+-	var sorted assignmentsSlice
+-
++	sorted := make([]assignment, 0, len(assignments))
+ 	for key, value := range assignments {
+ 		sorted = append(sorted, assignment{key, value})
+ 	}
+ 
+-	sort.Sort(sorted)
++	sort.Slice(sorted, func(i, j int) bool { return sorted[i].value < sorted[j].value })
+ 
+ 	for _, assignment := range sorted {
+ 		fmt.Fprintf(w, "#define %s %d\n", assignment.key, assignment.value)

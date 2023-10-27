@@ -1,0 +1,251 @@
+From f99a90faf43312522e7435f5e139a3b1fac09d2f Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 13 Feb 2023 15:00:09 -0500
+Subject: [PATCH] Add more DSA consistency checks.
+
+DSA private keys cannot be zero. If they are, trying to sign an all
+zeros digest loops forever. Thanks to Guido Vranken who reported this in
+https://github.com/openssl/openssl/issues/20268
+
+Along the way, because OpenSSL's bad API design made constructing DSA
+objects such a mess, just move all the consistency checks to
+dsa_check_parameters (now dsa_check_key) so it is consistently checked
+everywhere.
+
+Ideally we'd get a better handle on DSA state, like we hope to do for
+RSA state (though not there yet), so checks only happen once. But we
+consider DSA deprecated so it's not worth putting much effort into it.
+
+Update-Note: Some invalid DSA keys will be rejected by the parser and at
+use. Nothing should be using DSA anymore.
+
+Change-Id: I25d3faf145a85389c47abdd9db8e9b0056b37d8a
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57227
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit 788bf74188fd091b7e67f1ff4a5258bec653b1ea)
+---
+ crypto/dsa/dsa.c               |  4 ++--
+ crypto/dsa/dsa_asn1.c          | 44 ++++++++++++++++++++++++++++------
+ crypto/dsa/dsa_test.cc         | 13 ++++++++++
+ crypto/dsa/internal.h          |  6 ++---
+ crypto/evp_extra/evp_tests.txt |  5 ++++
+ crypto/evp_extra/p_dsa_asn1.c  | 23 ++++++++++--------
+ 6 files changed, 73 insertions(+), 22 deletions(-)
+
+diff --git a/crypto/dsa/dsa.c b/crypto/dsa/dsa.c
+index c5b53295d..68cf39101 100644
+--- a/crypto/dsa/dsa.c
++++ b/crypto/dsa/dsa.c
+@@ -589,7 +589,7 @@ static int mod_mul_consttime(BIGNUM *r, const BIGNUM *a, const BIGNUM *b,
+ }
+ 
+ DSA_SIG *DSA_do_sign(const uint8_t *digest, size_t digest_len, const DSA *dsa) {
+-  if (!dsa_check_parameters(dsa)) {
++  if (!dsa_check_key(dsa)) {
+     return NULL;
+   }
+ 
+@@ -689,7 +689,7 @@ int DSA_do_verify(const uint8_t *digest, size_t digest_len, DSA_SIG *sig,
+ int DSA_do_check_signature(int *out_valid, const uint8_t *digest,
+                            size_t digest_len, DSA_SIG *sig, const DSA *dsa) {
+   *out_valid = 0;
+-  if (!dsa_check_parameters(dsa)) {
++  if (!dsa_check_key(dsa)) {
+     return 0;
+   }
+ 
+diff --git a/crypto/dsa/dsa_asn1.c b/crypto/dsa/dsa_asn1.c
+index 3f3bd4886..1985bb4f6 100644
+--- a/crypto/dsa/dsa_asn1.c
++++ b/crypto/dsa/dsa_asn1.c
+@@ -70,15 +70,25 @@
+ // This function is in dsa_asn1.c rather than dsa.c because it is reachable from
+ // |EVP_PKEY| parsers. This makes it easier for the static linker to drop most
+ // of the DSA implementation.
+-int dsa_check_parameters(const DSA *dsa) {
++int dsa_check_key(const DSA *dsa) {
+   if (!dsa->p || !dsa->q || !dsa->g) {
+     OPENSSL_PUT_ERROR(DSA, DSA_R_MISSING_PARAMETERS);
+     return 0;
+   }
+ 
+-  // Reject invalid parameters. In particular, signing will infinite loop if |g|
+-  // is zero.
+-  if (BN_is_zero(dsa->p) || BN_is_zero(dsa->q) || BN_is_zero(dsa->g)) {
++  // Fully checking for invalid DSA groups is expensive, so security and
++  // correctness of the signature scheme depend on how |dsa| was computed. I.e.
++  // we leave "assurance of domain parameter validity" from FIPS 186-4 to the
++  // caller. However, we check bounds on all values to avoid DoS vectors even
++  // when domain parameters are invalid. In particular, signing will infinite
++  // loop if |g| is zero.
++  if (BN_is_negative(dsa->p) || BN_is_negative(dsa->q) || BN_is_zero(dsa->p) ||
++      BN_is_zero(dsa->q) || !BN_is_odd(dsa->p) || !BN_is_odd(dsa->q) ||
++      // |q| must be a prime divisor of |p - 1|, which implies |q < p|.
++      BN_cmp(dsa->q, dsa->p) >= 0 ||
++      // |g| is in the multiplicative group of |p|.
++      BN_is_negative(dsa->g) || BN_is_zero(dsa->g) ||
++      BN_cmp(dsa->g, dsa->p) >= 0) {
+     OPENSSL_PUT_ERROR(DSA, DSA_R_INVALID_PARAMETERS);
+     return 0;
+   }
+@@ -97,6 +107,25 @@ int dsa_check_parameters(const DSA *dsa) {
+     return 0;
+   }
+ 
++  if (dsa->pub_key != NULL) {
++    // The public key is also in the multiplicative group of |p|.
++    if (BN_is_negative(dsa->pub_key) || BN_is_zero(dsa->pub_key) ||
++        BN_cmp(dsa->pub_key, dsa->p) >= 0) {
++      OPENSSL_PUT_ERROR(DSA, DSA_R_INVALID_PARAMETERS);
++      return 0;
++    }
++  }
++
++  if (dsa->priv_key != NULL) {
++    // The private key is a non-zero element of the scalar field, determined by
++    // |q|.
++    if (BN_is_negative(dsa->priv_key) || BN_is_zero(dsa->priv_key) ||
++        BN_cmp(dsa->priv_key, dsa->q) >= 0) {
++      OPENSSL_PUT_ERROR(DSA, DSA_R_INVALID_PARAMETERS);
++      return 0;
++    }
++  }
++
+   return 1;
+ }
+ 
+@@ -162,7 +191,7 @@ DSA *DSA_parse_public_key(CBS *cbs) {
+     OPENSSL_PUT_ERROR(DSA, DSA_R_DECODE_ERROR);
+     goto err;
+   }
+-  if (!dsa_check_parameters(ret)) {
++  if (!dsa_check_key(ret)) {
+     goto err;
+   }
+   return ret;
+@@ -200,7 +229,7 @@ DSA *DSA_parse_parameters(CBS *cbs) {
+     OPENSSL_PUT_ERROR(DSA, DSA_R_DECODE_ERROR);
+     goto err;
+   }
+-  if (!dsa_check_parameters(ret)) {
++  if (!dsa_check_key(ret)) {
+     goto err;
+   }
+   return ret;
+@@ -251,9 +280,10 @@ DSA *DSA_parse_private_key(CBS *cbs) {
+     OPENSSL_PUT_ERROR(DSA, DSA_R_DECODE_ERROR);
+     goto err;
+   }
+-  if (!dsa_check_parameters(ret)) {
++  if (!dsa_check_key(ret)) {
+     goto err;
+   }
++
+   return ret;
+ 
+ err:
+diff --git a/crypto/dsa/dsa_test.cc b/crypto/dsa/dsa_test.cc
+index 878e67db6..a4b6dfa12 100644
+--- a/crypto/dsa/dsa_test.cc
++++ b/crypto/dsa/dsa_test.cc
+@@ -299,3 +299,16 @@ TEST(DSATest, MissingPrivate) {
+   EXPECT_FALSE(DSA_sign(0, fips_digest, sizeof(fips_digest), sig.data(),
+                         &sig_len, dsa.get()));
+ }
++
++// A zero private key is invalid and can cause signing to loop forever.
++TEST(DSATest, ZeroPrivateKey) {
++  bssl::UniquePtr<DSA> dsa = GetFIPSDSA();
++  ASSERT_TRUE(dsa);
++  BN_zero(dsa->priv_key);
++
++  static const uint8_t kZeroDigest[32] = {0};
++  std::vector<uint8_t> sig(DSA_size(dsa.get()));
++  unsigned sig_len;
++  EXPECT_FALSE(DSA_sign(0, kZeroDigest, sizeof(kZeroDigest), sig.data(),
++                        &sig_len, dsa.get()));
++}
+diff --git a/crypto/dsa/internal.h b/crypto/dsa/internal.h
+index 2d86edb2d..560ae7f33 100644
+--- a/crypto/dsa/internal.h
++++ b/crypto/dsa/internal.h
+@@ -22,9 +22,9 @@ extern "C" {
+ #endif
+ 
+ 
+-// dsa_check_parameters checks that |dsa|'s group is within DoS bounds. It
+-// returns one on success and zero on error.
+-int dsa_check_parameters(const DSA *dsa);
++// dsa_check_key performs cheap self-checks on |dsa|, and ensures it is within
++// DoS bounds. It returns one on success and zero on error.
++int dsa_check_key(const DSA *dsa);
+ 
+ 
+ #if defined(__cplusplus)
+diff --git a/crypto/evp_extra/evp_tests.txt b/crypto/evp_extra/evp_tests.txt
+index 7d354498f..5b0754a0e 100644
+--- a/crypto/evp_extra/evp_tests.txt
++++ b/crypto/evp_extra/evp_tests.txt
+@@ -169,6 +169,11 @@ Input = 308202650201003082023906072a8648ce3804013082022c02820101009e12fab3de1221
+ PKCS8VersionOut = 2
+ Error = UNSUPPORTED_ALGORITHM
+ 
++# An invalid zero DSA private key.
++PrivateKey = DSA-1024-Zero
++Input = 308202450201003082023906072a8648ce3804013082022c02820101009e12fab3de12213501dd82aa10ca2d101d2d4ebfef4d2a3f8daa0fe0cedad8d6af85616aa2f3252c0a2b5a6db09e6f14900e0ddb8311876dd8f9669525f99ed65949e184d5064793271169a228680b95ec12f59a8e20b21f2b58eb2a2012d35bde2ee351822fe8f32d0a330565dcce5c672b7259c14b2433d0b5b2ca2b2db0ab626e8f13f47fe0345d904e7294bb038e9ce21a9e580b83356278706cfe768436c69de149ccff98b4aab8cb4f6385c9f102ce59346eaeef27e0ad222d53d6e89cc8cde5776dd00057b03f2d88ab3cedbafd7b585f0b7f7835e17a3728bbf25ea62572f245dc111f3ce39cb6ffacc31b0a2790e7bde90224ea9b09315362af3d2b022100f381dcf53ebf724f8b2e5ca82c010fb4b5eda9358d0fd88ed278589488b54fc3028201000c402a725dcc3a62e02bf4cf43cd17f4a493591220223669cf4193edab423ad08dfb552e308a6a57a5ffbc7cd0fb2087f81f8df0cb08ab2133287d2b6968714a94f633c940845a48a3e16708dde761cc6a8eab2d84db21b6ea5b07681493cc9c31fbc368b243f6ddf8c932a8b4038f44e7b15ca876344a147859f2b43b39458668ad5e0a1a9a669546dd2812e3b3617a0aef99d58e3bb4cc87fd94225e01d2dcc469a77268146c51918f18e8b4d70aa1f0c7623bcc52cf3731d38641b2d2830b7eecb2f09552ff137d046e494e7f33c3590002b16d1b97d936fda28f90c3ed3ca35338168ac16f77c3c57adc2e8f7c6c2256e41a5f65450590dbb5bcf06d66610403020100
++Error = INVALID_PARAMETERS
++
+ # A DSA public key.
+ PublicKey = DSA-1024-SPKI
+ Type = DSA
+diff --git a/crypto/evp_extra/p_dsa_asn1.c b/crypto/evp_extra/p_dsa_asn1.c
+index af01de4fc..69530b14f 100644
+--- a/crypto/evp_extra/p_dsa_asn1.c
++++ b/crypto/evp_extra/p_dsa_asn1.c
+@@ -62,6 +62,7 @@
+ #include <openssl/err.h>
+ 
+ #include "../fipsmodule/evp/internal.h"
++#include "../dsa/internal.h"
+ #include "internal.h"
+ 
+ 
+@@ -141,25 +142,27 @@ static int dsa_priv_decode(EVP_PKEY *out, CBS *params, CBS *key, CBS *pubkey) {
+   }
+ 
+   dsa->priv_key = BN_new();
+-  dsa->pub_key = BN_new();
+-  if (dsa->priv_key == NULL || dsa->pub_key == NULL) {
++  if (dsa->priv_key == NULL) {
+     goto err;
+   }
+-
+-  // Decode the key. To avoid DoS attacks when importing private keys, we bound
+-  // |dsa->priv_key| against |dsa->q|, which itself bound by
+-  // |DSA_parse_parameters|. (We cannot call |BN_num_bits| on |dsa->priv_key|.
+-  // That would leak a secret bit width.)
+   if (!BN_parse_asn1_unsigned(key, dsa->priv_key) ||
+-      CBS_len(key) != 0 ||
+-      BN_cmp(dsa->priv_key, dsa->q) >= 0) {
++      CBS_len(key) != 0) {
++    OPENSSL_PUT_ERROR(EVP, EVP_R_DECODE_ERROR);
++    goto err;
++  }
++
++  // To avoid DoS attacks when importing private keys, check bounds on |dsa|.
++  // This bounds |dsa->priv_key| against |dsa->q| and bounds |dsa->q|'s bit
++  // width.
++  if (!dsa_check_key(dsa)) {
+     OPENSSL_PUT_ERROR(EVP, EVP_R_DECODE_ERROR);
+     goto err;
+   }
+ 
+   // Calculate the public key.
+   ctx = BN_CTX_new();
+-  if (ctx == NULL ||
++  dsa->pub_key = BN_new();
++  if (ctx == NULL || dsa->pub_key == NULL ||
+       !BN_mod_exp_mont_consttime(dsa->pub_key, dsa->g, dsa->priv_key, dsa->p,
+                                  ctx, NULL)) {
+     goto err;

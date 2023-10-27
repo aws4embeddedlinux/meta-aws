@@ -1,0 +1,29 @@
+From db01934b146a1d7b6cadd5f649cae540284be394 Mon Sep 17 00:00:00 2001
+From: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+Date: Mon, 3 Apr 2023 12:24:26 -0400
+Subject: [PATCH] Build flag AWS_LC_IGNORE_BN_SET_FLAGS (#918)
+
+---
+ include/openssl/bn.h | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/include/openssl/bn.h b/include/openssl/bn.h
+index f4f7c31cc..b722188f7 100644
+--- a/include/openssl/bn.h
++++ b/include/openssl/bn.h
+@@ -1036,8 +1036,14 @@ OPENSSL_EXPORT unsigned BN_num_bits_word(BN_ULONG l);
+ 
+ #define BN_FLG_MALLOCED 0x01
+ #define BN_FLG_STATIC_DATA 0x02
++
++#ifdef AWS_LC_INTERNAL_IGNORE_BN_SET_FLAGS
++#define BN_set_flags(x, y) /* Ignored */
++#define BN_FLG_CONSTTIME 0x04
++#endif /* AWS_LC_INTERNAL_IGNORE_BN_SET_FLAGS */
++
+ // |BN_FLG_CONSTTIME| has been removed and intentionally omitted so code relying
+-// on it will not compile. Consumers outside BoringSSL should use the
++// on it will not compile unless the flag above is set. Consumers should use the
+ // higher-level cryptographic algorithms exposed by other modules. Consumers
+ // within the library should call the appropriate timing-sensitive algorithm
+ // directly.

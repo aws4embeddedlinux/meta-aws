@@ -1,0 +1,132 @@
+From 90762d48ae3cc463538816d4586ac58aa7c5df39 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 7 Feb 2023 12:03:04 -0500
+Subject: [PATCH] Unexport GENERAL_NAME_cmp
+
+This function was involved in both CVE-2020-1971 and CVE-2023-0286. Both
+times, we've had to confirm there were no external callers. Unexport it
+so we can be sure of this.
+
+Change-Id: I37b756f5bd66e389f03540872371001c85a0b5af
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56987
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit d3d7d36151ce966ed132bfcb9e108fffa6d70535)
+---
+ crypto/x509v3/internal.h |  8 ++++++++
+ crypto/x509v3/v3_genn.c  | 36 +++++++++++++++++++-----------------
+ include/openssl/x509v3.h |  7 -------
+ 3 files changed, 27 insertions(+), 24 deletions(-)
+
+diff --git a/crypto/x509v3/internal.h b/crypto/x509v3/internal.h
+index f1aa42aa1..cccd3c039 100644
+--- a/crypto/x509v3/internal.h
++++ b/crypto/x509v3/internal.h
+@@ -179,6 +179,14 @@ int X509V3_add_value_int(const char *name, const ASN1_INTEGER *aint,
+   ERR_add_error_data(6, "section:", (val)->section, ",name:", (val)->name, \
+                      ",value:", (val)->value);
+ 
++// GENERAL_NAME_cmp returns zero if |a| and |b| are equal and a non-zero
++// value otherwise. Note this function does not provide a comparison suitable
++// for sorting.
++//
++// This function is exported for testing.
++OPENSSL_EXPORT int GENERAL_NAME_cmp(const GENERAL_NAME *a,
++                                    const GENERAL_NAME *b);
++
+ 
+ #if defined(__cplusplus)
+ }  // extern C
+diff --git a/crypto/x509v3/v3_genn.c b/crypto/x509v3/v3_genn.c
+index aafad9396..d593727b0 100644
+--- a/crypto/x509v3/v3_genn.c
++++ b/crypto/x509v3/v3_genn.c
+@@ -61,6 +61,8 @@
+ #include <openssl/obj.h>
+ #include <openssl/x509v3.h>
+ 
++#include "internal.h"
++
+ 
+ ASN1_SEQUENCE(OTHERNAME) = {
+     ASN1_SIMPLE(OTHERNAME, type_id, ASN1_OBJECT),
+@@ -121,6 +123,22 @@ static int edipartyname_cmp(const EDIPARTYNAME *a, const EDIPARTYNAME *b) {
+   return ASN1_STRING_cmp(a->partyName, b->partyName);
+ }
+ 
++// Returns 0 if they are equal, != 0 otherwise.
++static int othername_cmp(OTHERNAME *a, OTHERNAME *b) {
++  int result = -1;
++
++  if (!a || !b) {
++    return -1;
++  }
++  // Check their type first.
++  if ((result = OBJ_cmp(a->type_id, b->type_id)) != 0) {
++    return result;
++  }
++  // Check the value.
++  result = ASN1_TYPE_cmp(a->value, b->value);
++  return result;
++}
++
+ // Returns 0 if they are equal, != 0 otherwise.
+ int GENERAL_NAME_cmp(const GENERAL_NAME *a, const GENERAL_NAME *b) {
+   if (!a || !b || a->type != b->type) {
+@@ -135,7 +153,7 @@ int GENERAL_NAME_cmp(const GENERAL_NAME *a, const GENERAL_NAME *b) {
+       return edipartyname_cmp(a->d.ediPartyName, b->d.ediPartyName);
+ 
+     case GEN_OTHERNAME:
+-      return OTHERNAME_cmp(a->d.otherName, b->d.otherName);
++      return othername_cmp(a->d.otherName, b->d.otherName);
+ 
+     case GEN_EMAIL:
+     case GEN_DNS:
+@@ -155,22 +173,6 @@ int GENERAL_NAME_cmp(const GENERAL_NAME *a, const GENERAL_NAME *b) {
+   return -1;
+ }
+ 
+-// Returns 0 if they are equal, != 0 otherwise.
+-int OTHERNAME_cmp(OTHERNAME *a, OTHERNAME *b) {
+-  int result = -1;
+-
+-  if (!a || !b) {
+-    return -1;
+-  }
+-  // Check their type first.
+-  if ((result = OBJ_cmp(a->type_id, b->type_id)) != 0) {
+-    return result;
+-  }
+-  // Check the value.
+-  result = ASN1_TYPE_cmp(a->value, b->value);
+-  return result;
+-}
+-
+ void GENERAL_NAME_set0_value(GENERAL_NAME *a, int type, void *value) {
+   switch (type) {
+     case GEN_X400:
+diff --git a/include/openssl/x509v3.h b/include/openssl/x509v3.h
+index 0c9252d72..1071e2eeb 100644
+--- a/include/openssl/x509v3.h
++++ b/include/openssl/x509v3.h
+@@ -426,12 +426,6 @@ DECLARE_ASN1_FUNCTIONS(AUTHORITY_KEYID)
+ DECLARE_ASN1_FUNCTIONS(GENERAL_NAME)
+ OPENSSL_EXPORT GENERAL_NAME *GENERAL_NAME_dup(GENERAL_NAME *a);
+ 
+-// GENERAL_NAME_cmp returns zero if |a| and |b| are equal and a non-zero
+-// value otherwise. Note this function does not provide a comparison suitable
+-// for sorting.
+-OPENSSL_EXPORT int GENERAL_NAME_cmp(const GENERAL_NAME *a,
+-                                    const GENERAL_NAME *b);
+-
+ // i2v_GENERAL_NAME serializes |gen| as a |CONF_VALUE|. If |ret| is non-NULL, it
+ // appends the value to |ret| and returns |ret| on success or NULL on error. If
+ // it returns NULL, the caller is still responsible for freeing |ret|. If |ret|
+@@ -468,7 +462,6 @@ OPENSSL_EXPORT GENERAL_NAMES *v2i_GENERAL_NAMES(
+ 
+ DECLARE_ASN1_FUNCTIONS_const(OTHERNAME)
+ DECLARE_ASN1_FUNCTIONS_const(EDIPARTYNAME)
+-OPENSSL_EXPORT int OTHERNAME_cmp(OTHERNAME *a, OTHERNAME *b);
+ OPENSSL_EXPORT void GENERAL_NAME_set0_value(GENERAL_NAME *a, int type,
+                                             void *value);
+ OPENSSL_EXPORT void *GENERAL_NAME_get0_value(const GENERAL_NAME *a, int *ptype);

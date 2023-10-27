@@ -1,0 +1,569 @@
+From 35c77081dde35539fdde903231630802d90be560 Mon Sep 17 00:00:00 2001
+From: Steven Valdez <svaldez@google.com>
+Date: Mon, 20 Mar 2023 10:43:08 -0400
+Subject: [PATCH] Add Trust Token version using standardized hash2curve.
+
+Change-Id: I6e53434246f3fef06d4f88924bfe1cbfad0543e8
+Bug: chromium:1414562
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58205
+Reviewed-by: David Benjamin <davidben@google.com>
+Commit-Queue: Steven Valdez <svaldez@google.com>
+(cherry picked from commit c5f762dc7dec560cb1e273a49c8dba442752565b)
+---
+ crypto/ec_extra/hash_to_curve.c        |  12 ++
+ crypto/ec_extra/internal.h             |   8 ++
+ crypto/trust_token/internal.h          |  58 +++++++++
+ crypto/trust_token/pmbtoken.c          | 174 +++++++++++++++++++++++++
+ crypto/trust_token/trust_token.c       |  35 +++++
+ crypto/trust_token/trust_token_test.cc |  32 ++++-
+ crypto/trust_token/voprf.c             | 113 ++++++++++++++++
+ include/openssl/trust_token.h          |   8 ++
+ 8 files changed, 437 insertions(+), 3 deletions(-)
+
+diff --git a/crypto/ec_extra/hash_to_curve.c b/crypto/ec_extra/hash_to_curve.c
+index 2e53ae68a..3de07486b 100644
+--- a/crypto/ec_extra/hash_to_curve.c
++++ b/crypto/ec_extra/hash_to_curve.c
+@@ -467,6 +467,18 @@ int EC_hash_to_curve_p384_xmd_sha384_sswu(const EC_GROUP *group, EC_POINT *out,
+                                                msg, msg_len);
+ }
+ 
++int ec_hash_to_scalar_p384_xmd_sha384(
++    const EC_GROUP *group, EC_SCALAR *out, const uint8_t *dst, size_t dst_len,
++    const uint8_t *msg, size_t msg_len) {
++  if (EC_GROUP_get_curve_name(group) != NID_secp384r1) {
++    OPENSSL_PUT_ERROR(EC, EC_R_GROUP_MISMATCH);
++    return 0;
++  }
++
++  return hash_to_scalar(group, EVP_sha384(), out, dst, dst_len, /*k=*/192, msg,
++                        msg_len);
++}
++
+ int ec_hash_to_curve_p384_xmd_sha512_sswu_draft07(
+     const EC_GROUP *group, EC_RAW_POINT *out, const uint8_t *dst,
+     size_t dst_len, const uint8_t *msg, size_t msg_len) {
+diff --git a/crypto/ec_extra/internal.h b/crypto/ec_extra/internal.h
+index c7f517dee..cf6ff2fa1 100644
+--- a/crypto/ec_extra/internal.h
++++ b/crypto/ec_extra/internal.h
+@@ -44,6 +44,14 @@ OPENSSL_EXPORT int ec_hash_to_curve_p384_xmd_sha384_sswu(
+     const EC_GROUP *group, EC_RAW_POINT *out, const uint8_t *dst,
+     size_t dst_len, const uint8_t *msg, size_t msg_len);
+ 
++// ec_hash_to_scalar_p384_xmd_sha384 hashes |msg| to a scalar on |group|
++// and writes the result to |out|, using the hash_to_field operation from the
++// P384_XMD:SHA-384_SSWU_RO_ suite from draft-irtf-cfrg-hash-to-curve-16, but
++// generating a value modulo the group order rather than a field element.
++OPENSSL_EXPORT int ec_hash_to_scalar_p384_xmd_sha384(
++    const EC_GROUP *group, EC_SCALAR *out, const uint8_t *dst, size_t dst_len,
++    const uint8_t *msg, size_t msg_len);
++
+ // ec_hash_to_curve_p384_xmd_sha512_sswu_draft07 hashes |msg| to a point on
+ // |group| and writes the result to |out|, implementing the
+ // P384_XMD:SHA-512_SSWU_RO_ suite from draft-irtf-cfrg-hash-to-curve-07. It
+diff --git a/crypto/trust_token/internal.h b/crypto/trust_token/internal.h
+index 093b4acd7..e940565f2 100644
+--- a/crypto/trust_token/internal.h
++++ b/crypto/trust_token/internal.h
+@@ -154,6 +154,38 @@ int pmbtoken_exp2_read(const TRUST_TOKEN_ISSUER_KEY *key,
+ // function is used to confirm H was computed as expected.
+ OPENSSL_EXPORT int pmbtoken_exp2_get_h_for_testing(uint8_t out[97]);
+ 
++// The following functions implement the corresponding |TRUST_TOKENS_METHOD|
++// functions for |TRUST_TOKENS_pst_v1|'s PMBTokens construction which uses
++// P-384.
++int pmbtoken_pst1_generate_key(CBB *out_private, CBB *out_public);
++int pmbtoken_pst1_derive_key_from_secret(CBB *out_private, CBB *out_public,
++                                         const uint8_t *secret,
++                                         size_t secret_len);
++int pmbtoken_pst1_client_key_from_bytes(TRUST_TOKEN_CLIENT_KEY *key,
++                                        const uint8_t *in, size_t len);
++int pmbtoken_pst1_issuer_key_from_bytes(TRUST_TOKEN_ISSUER_KEY *key,
++                                        const uint8_t *in, size_t len);
++STACK_OF(TRUST_TOKEN_PRETOKEN) *pmbtoken_pst1_blind(CBB *cbb, size_t count,
++                                                    int include_message,
++                                                    const uint8_t *msg,
++                                                    size_t msg_len);
++int pmbtoken_pst1_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
++                       size_t num_requested, size_t num_to_issue,
++                       uint8_t private_metadata);
++STACK_OF(TRUST_TOKEN) *pmbtoken_pst1_unblind(
++    const TRUST_TOKEN_CLIENT_KEY *key,
++    const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++    uint32_t key_id);
++int pmbtoken_pst1_read(const TRUST_TOKEN_ISSUER_KEY *key,
++                       uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
++                       uint8_t *out_private_metadata, const uint8_t *token,
++                       size_t token_len, int include_message,
++                       const uint8_t *msg, size_t msg_len);
++
++// pmbtoken_pst1_get_h_for_testing returns H in uncompressed coordinates. This
++// function is used to confirm H was computed as expected.
++OPENSSL_EXPORT int pmbtoken_pst1_get_h_for_testing(uint8_t out[97]);
++
+ 
+ // VOPRF.
+ //
+@@ -191,6 +223,32 @@ int voprf_exp2_read(const TRUST_TOKEN_ISSUER_KEY *key,
+                     size_t token_len, int include_message, const uint8_t *msg,
+                     size_t msg_len);
+ 
++// The following functions implement the corresponding |TRUST_TOKENS_METHOD|
++// functions for |TRUST_TOKENS_pst_v1|'s VOPRF construction which uses P-384.
++int voprf_pst1_generate_key(CBB *out_private, CBB *out_public);
++int voprf_pst1_derive_key_from_secret(CBB *out_private, CBB *out_public,
++                                      const uint8_t *secret, size_t secret_len);
++int voprf_pst1_client_key_from_bytes(TRUST_TOKEN_CLIENT_KEY *key,
++                                     const uint8_t *in, size_t len);
++int voprf_pst1_issuer_key_from_bytes(TRUST_TOKEN_ISSUER_KEY *key,
++                                     const uint8_t *in, size_t len);
++STACK_OF(TRUST_TOKEN_PRETOKEN) *voprf_pst1_blind(CBB *cbb, size_t count,
++                                                 int include_message,
++                                                 const uint8_t *msg,
++                                                 size_t msg_len);
++int voprf_pst1_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
++                    size_t num_requested, size_t num_to_issue,
++                    uint8_t private_metadata);
++STACK_OF(TRUST_TOKEN) *voprf_pst1_unblind(
++    const TRUST_TOKEN_CLIENT_KEY *key,
++    const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++    uint32_t key_id);
++int voprf_pst1_read(const TRUST_TOKEN_ISSUER_KEY *key,
++                    uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
++                    uint8_t *out_private_metadata, const uint8_t *token,
++                    size_t token_len, int include_message, const uint8_t *msg,
++                    size_t msg_len);
++
+ 
+ // Trust Tokens internals.
+ 
+diff --git a/crypto/trust_token/pmbtoken.c b/crypto/trust_token/pmbtoken.c
+index 0e3d4bcb5..dcb94665d 100644
+--- a/crypto/trust_token/pmbtoken.c
++++ b/crypto/trust_token/pmbtoken.c
+@@ -1508,3 +1508,177 @@ int pmbtoken_exp2_get_h_for_testing(uint8_t out[97]) {
+          ec_point_to_bytes(pmbtoken_exp2_method.group, &h,
+                            POINT_CONVERSION_UNCOMPRESSED, out, 97) == 97;
+ }
++
++// PMBTokens PST v1.
++
++static int pmbtoken_pst1_hash_t(const EC_GROUP *group, EC_RAW_POINT *out,
++                                const uint8_t t[TRUST_TOKEN_NONCE_SIZE]) {
++  const uint8_t kHashTLabel[] = "PMBTokens PST V1 HashT";
++  return ec_hash_to_curve_p384_xmd_sha384_sswu(
++      group, out, kHashTLabel, sizeof(kHashTLabel), t, TRUST_TOKEN_NONCE_SIZE);
++}
++
++static int pmbtoken_pst1_hash_s(const EC_GROUP *group, EC_RAW_POINT *out,
++                                const EC_AFFINE *t,
++                                const uint8_t s[TRUST_TOKEN_NONCE_SIZE]) {
++  const uint8_t kHashSLabel[] = "PMBTokens PST V1 HashS";
++  int ret = 0;
++  CBB cbb;
++  uint8_t *buf = NULL;
++  size_t len;
++  if (!CBB_init(&cbb, 0) ||
++      !point_to_cbb(&cbb, group, t) ||
++      !CBB_add_bytes(&cbb, s, TRUST_TOKEN_NONCE_SIZE) ||
++      !CBB_finish(&cbb, &buf, &len) ||
++      !ec_hash_to_curve_p384_xmd_sha384_sswu(
++          group, out, kHashSLabel, sizeof(kHashSLabel), buf, len)) {
++    goto err;
++  }
++
++  ret = 1;
++
++err:
++  OPENSSL_free(buf);
++  CBB_cleanup(&cbb);
++  return ret;
++}
++
++static int pmbtoken_pst1_hash_c(const EC_GROUP *group, EC_SCALAR *out,
++                                uint8_t *buf, size_t len) {
++  const uint8_t kHashCLabel[] = "PMBTokens PST V1 HashC";
++  return ec_hash_to_scalar_p384_xmd_sha384(
++      group, out, kHashCLabel, sizeof(kHashCLabel), buf, len);
++}
++
++static int pmbtoken_pst1_hash_to_scalar(const EC_GROUP *group, EC_SCALAR *out,
++                                        uint8_t *buf, size_t len) {
++  const uint8_t kHashLabel[] = "PMBTokens PST V1 HashToScalar";
++  return ec_hash_to_scalar_p384_xmd_sha384(
++      group, out, kHashLabel, sizeof(kHashLabel), buf, len);
++}
++
++static int pmbtoken_pst1_ok = 0;
++static PMBTOKEN_METHOD pmbtoken_pst1_method;
++static CRYPTO_once_t pmbtoken_pst1_method_once = CRYPTO_ONCE_INIT;
++
++static void pmbtoken_pst1_init_method_impl(void) {
++  // This is the output of |ec_hash_to_scalar_p384_xmd_sha384| with DST
++  // "PMBTokens PST V1 HashH" and message "generator".
++  static const uint8_t kH[] = {
++      0x04, 0x4c, 0xfa, 0xd4, 0x33, 0x6d, 0x8c, 0x4e, 0x18, 0xce, 0x1a,
++      0x82, 0x7b, 0x53, 0x8c, 0xf8, 0x63, 0x18, 0xe5, 0xa3, 0x96, 0x0d,
++      0x05, 0xde, 0xf4, 0x83, 0xa7, 0xd8, 0xde, 0x9c, 0x50, 0x81, 0x38,
++      0xc9, 0x38, 0x25, 0xa3, 0x70, 0x97, 0xc1, 0x1c, 0x33, 0x2e, 0x83,
++      0x68, 0x64, 0x9c, 0x53, 0x73, 0xc3, 0x03, 0xc1, 0xa9, 0xd8, 0x92,
++      0xa2, 0x32, 0xf4, 0x22, 0x40, 0x07, 0x2d, 0x9b, 0x6f, 0xab, 0xff,
++      0x2a, 0x92, 0x03, 0xb1, 0x73, 0x09, 0x1a, 0x6a, 0x4a, 0xc2, 0x4c,
++      0xac, 0x13, 0x59, 0xf4, 0x28, 0x0e, 0x78, 0x69, 0xa5, 0xdf, 0x0d,
++      0x74, 0xeb, 0x14, 0xca, 0x8a, 0x32, 0xbb, 0xd3, 0x91
++  };
++
++  pmbtoken_pst1_ok = pmbtoken_init_method(
++      &pmbtoken_pst1_method, NID_secp384r1, kH, sizeof(kH),
++      pmbtoken_pst1_hash_t, pmbtoken_pst1_hash_s, pmbtoken_pst1_hash_c,
++      pmbtoken_pst1_hash_to_scalar, 0);
++}
++
++static int pmbtoken_pst1_init_method(void) {
++  CRYPTO_once(&pmbtoken_pst1_method_once, pmbtoken_pst1_init_method_impl);
++  if (!pmbtoken_pst1_ok) {
++    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_INTERNAL_ERROR);
++    return 0;
++  }
++  return 1;
++}
++
++int pmbtoken_pst1_generate_key(CBB *out_private, CBB *out_public) {
++  if (!pmbtoken_pst1_init_method()) {
++    return 0;
++  }
++
++  return pmbtoken_generate_key(&pmbtoken_pst1_method, out_private, out_public);
++}
++
++
++int pmbtoken_pst1_derive_key_from_secret(CBB *out_private, CBB *out_public,
++                                         const uint8_t *secret,
++                                         size_t secret_len) {
++  if (!pmbtoken_pst1_init_method()) {
++    return 0;
++  }
++
++  return pmbtoken_derive_key_from_secret(&pmbtoken_pst1_method, out_private,
++                                         out_public, secret, secret_len);
++}
++
++int pmbtoken_pst1_client_key_from_bytes(TRUST_TOKEN_CLIENT_KEY *key,
++                                        const uint8_t *in, size_t len) {
++  if (!pmbtoken_pst1_init_method()) {
++    return 0;
++  }
++  return pmbtoken_client_key_from_bytes(&pmbtoken_pst1_method, key, in, len);
++}
++
++int pmbtoken_pst1_issuer_key_from_bytes(TRUST_TOKEN_ISSUER_KEY *key,
++                                        const uint8_t *in, size_t len) {
++  if (!pmbtoken_pst1_init_method()) {
++    return 0;
++  }
++  return pmbtoken_issuer_key_from_bytes(&pmbtoken_pst1_method, key, in, len);
++}
++
++STACK_OF(TRUST_TOKEN_PRETOKEN) *pmbtoken_pst1_blind(CBB *cbb, size_t count,
++                                                    int include_message,
++                                                    const uint8_t *msg,
++                                                    size_t msg_len) {
++  if (!pmbtoken_pst1_init_method()) {
++    return NULL;
++  }
++  return pmbtoken_blind(&pmbtoken_pst1_method, cbb, count, include_message, msg,
++                        msg_len);
++}
++
++int pmbtoken_pst1_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
++                       size_t num_requested, size_t num_to_issue,
++                       uint8_t private_metadata) {
++  if (!pmbtoken_pst1_init_method()) {
++    return 0;
++  }
++  return pmbtoken_sign(&pmbtoken_pst1_method, key, cbb, cbs, num_requested,
++                       num_to_issue, private_metadata);
++}
++
++STACK_OF(TRUST_TOKEN) *pmbtoken_pst1_unblind(
++    const TRUST_TOKEN_CLIENT_KEY *key,
++    const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++    uint32_t key_id) {
++  if (!pmbtoken_pst1_init_method()) {
++    return NULL;
++  }
++  return pmbtoken_unblind(&pmbtoken_pst1_method, key, pretokens, cbs, count,
++                          key_id);
++}
++
++int pmbtoken_pst1_read(const TRUST_TOKEN_ISSUER_KEY *key,
++                       uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
++                       uint8_t *out_private_metadata, const uint8_t *token,
++                       size_t token_len, int include_message,
++                       const uint8_t *msg, size_t msg_len) {
++  if (!pmbtoken_pst1_init_method()) {
++    return 0;
++  }
++  return pmbtoken_read(&pmbtoken_pst1_method, key, out_nonce,
++                       out_private_metadata, token, token_len, include_message,
++                       msg, msg_len);
++}
++
++int pmbtoken_pst1_get_h_for_testing(uint8_t out[97]) {
++  if (!pmbtoken_pst1_init_method()) {
++    return 0;
++  }
++  EC_AFFINE h;
++  return ec_jacobian_to_affine(pmbtoken_pst1_method.group, &h,
++                               &pmbtoken_pst1_method.h) &&
++         ec_point_to_bytes(pmbtoken_pst1_method.group, &h,
++                           POINT_CONVERSION_UNCOMPRESSED, out, 97) == 97;
++}
+diff --git a/crypto/trust_token/trust_token.c b/crypto/trust_token/trust_token.c
+index 7cccf1afc..93172c37c 100644
+--- a/crypto/trust_token/trust_token.c
++++ b/crypto/trust_token/trust_token.c
+@@ -78,6 +78,41 @@ const TRUST_TOKEN_METHOD *TRUST_TOKEN_experiment_v2_pmb(void) {
+   return &kMethod;
+ }
+ 
++const TRUST_TOKEN_METHOD *TRUST_TOKEN_pst_v1_voprf(void) {
++  static const TRUST_TOKEN_METHOD kMethod = {
++      voprf_pst1_generate_key,
++      voprf_pst1_derive_key_from_secret,
++      voprf_pst1_client_key_from_bytes,
++      voprf_pst1_issuer_key_from_bytes,
++      voprf_pst1_blind,
++      voprf_pst1_sign,
++      voprf_pst1_unblind,
++      voprf_pst1_read,
++      0, /* has_private_metadata */
++      6, /* max_keys */
++      0, /* has_srr */
++  };
++  return &kMethod;
++}
++
++const TRUST_TOKEN_METHOD *TRUST_TOKEN_pst_v1_pmb(void) {
++  static const TRUST_TOKEN_METHOD kMethod = {
++      pmbtoken_pst1_generate_key,
++      pmbtoken_pst1_derive_key_from_secret,
++      pmbtoken_pst1_client_key_from_bytes,
++      pmbtoken_pst1_issuer_key_from_bytes,
++      pmbtoken_pst1_blind,
++      pmbtoken_pst1_sign,
++      pmbtoken_pst1_unblind,
++      pmbtoken_pst1_read,
++      1, /* has_private_metadata */
++      3, /* max_keys */
++      0, /* has_srr */
++  };
++  return &kMethod;
++}
++
++
+ void TRUST_TOKEN_PRETOKEN_free(TRUST_TOKEN_PRETOKEN *pretoken) {
+   OPENSSL_free(pretoken);
+ }
+diff --git a/crypto/trust_token/trust_token_test.cc b/crypto/trust_token/trust_token_test.cc
+index 6236f7e50..82893414f 100644
+--- a/crypto/trust_token/trust_token_test.cc
++++ b/crypto/trust_token/trust_token_test.cc
+@@ -292,11 +292,35 @@ TEST(TrustTokenTest, HExp2) {
+   EXPECT_EQ(Bytes(h), Bytes(expected_bytes, expected_len));
+ }
+ 
++// Test that H in |TRUST_TOKEN_pst_v1_pmb| was computed correctly.
++TEST(TrustTokenTest, HPST1) {
++  const EC_GROUP *group = EC_GROUP_new_by_curve_name(NID_secp384r1);
++  ASSERT_TRUE(group);
++
++  const uint8_t kHGen[] = "generator";
++  const uint8_t kHLabel[] = "PMBTokens PST V1 HashH";
++
++  bssl::UniquePtr<EC_POINT> expected_h(EC_POINT_new(group));
++  ASSERT_TRUE(expected_h);
++  ASSERT_TRUE(ec_hash_to_curve_p384_xmd_sha384_sswu(
++      group, &expected_h->raw, kHLabel, sizeof(kHLabel), kHGen, sizeof(kHGen)));
++  uint8_t expected_bytes[1 + 2 * EC_MAX_BYTES];
++  size_t expected_len =
++      EC_POINT_point2oct(group, expected_h.get(), POINT_CONVERSION_UNCOMPRESSED,
++                         expected_bytes, sizeof(expected_bytes), nullptr);
++
++  uint8_t h[97];
++  ASSERT_TRUE(pmbtoken_pst1_get_h_for_testing(h));
++  EXPECT_EQ(Bytes(h), Bytes(expected_bytes, expected_len));
++}
++
+ static std::vector<const TRUST_TOKEN_METHOD *> AllMethods() {
+   return {
+     TRUST_TOKEN_experiment_v1(),
+     TRUST_TOKEN_experiment_v2_voprf(),
+-    TRUST_TOKEN_experiment_v2_pmb()
++    TRUST_TOKEN_experiment_v2_pmb(),
++    TRUST_TOKEN_pst_v1_voprf(),
++    TRUST_TOKEN_pst_v1_pmb()
+   };
+ }
+ 
+@@ -773,7 +797,8 @@ TEST_P(TrustTokenMetadataTest, TruncatedProof) {
+   if (method() == TRUST_TOKEN_experiment_v1()) {
+     token_length += 4;
+   }
+-  if (method() == TRUST_TOKEN_experiment_v2_voprf()) {
++  if (method() == TRUST_TOKEN_experiment_v2_voprf() ||
++      method() == TRUST_TOKEN_pst_v1_voprf()) {
+     token_length = 1 + 2 * BN_num_bytes(&group->field);
+   }
+   for (size_t i = 0; i < count; i++) {
+@@ -841,7 +866,8 @@ TEST_P(TrustTokenMetadataTest, ExcessDataProof) {
+   if (method() == TRUST_TOKEN_experiment_v1()) {
+     token_length += 4;
+   }
+-  if (method() == TRUST_TOKEN_experiment_v2_voprf()) {
++  if (method() == TRUST_TOKEN_experiment_v2_voprf() ||
++      method() == TRUST_TOKEN_pst_v1_voprf()) {
+     token_length = 1 + 2 * BN_num_bytes(&group->field);
+   }
+   for (size_t i = 0; i < count; i++) {
+diff --git a/crypto/trust_token/voprf.c b/crypto/trust_token/voprf.c
+index 49a324ef2..d414bfd52 100644
+--- a/crypto/trust_token/voprf.c
++++ b/crypto/trust_token/voprf.c
+@@ -829,3 +829,116 @@ int voprf_exp2_read(const TRUST_TOKEN_ISSUER_KEY *key,
+   return voprf_read(&voprf_exp2_method, key, out_nonce, token, token_len,
+                     include_message, msg, msg_len);
+ }
++
++// VOPRF PST v1.
++
++static int voprf_pst1_hash_to_group(const EC_GROUP *group, EC_RAW_POINT *out,
++                                    const uint8_t t[TRUST_TOKEN_NONCE_SIZE]) {
++  const uint8_t kHashTLabel[] = "TrustToken VOPRF PST V1 HashToGroup";
++  return ec_hash_to_curve_p384_xmd_sha384_sswu(
++      group, out, kHashTLabel, sizeof(kHashTLabel), t, TRUST_TOKEN_NONCE_SIZE);
++}
++
++static int voprf_pst1_hash_to_scalar(const EC_GROUP *group, EC_SCALAR *out,
++                             uint8_t *buf, size_t len) {
++  const uint8_t kHashCLabel[] = "TrustToken VOPRF PST V1 HashToScalar";
++  return ec_hash_to_scalar_p384_xmd_sha384(
++      group, out, kHashCLabel, sizeof(kHashCLabel), buf, len);
++}
++
++static int voprf_pst1_ok = 0;
++static VOPRF_METHOD voprf_pst1_method;
++static CRYPTO_once_t voprf_pst1_method_once = CRYPTO_ONCE_INIT;
++
++static void voprf_pst1_init_method_impl(void) {
++  voprf_pst1_ok =
++      voprf_init_method(&voprf_pst1_method, NID_secp384r1,
++                        voprf_pst1_hash_to_group, voprf_pst1_hash_to_scalar);
++}
++
++static int voprf_pst1_init_method(void) {
++  CRYPTO_once(&voprf_pst1_method_once, voprf_pst1_init_method_impl);
++  if (!voprf_pst1_ok) {
++    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_INTERNAL_ERROR);
++    return 0;
++  }
++  return 1;
++}
++
++int voprf_pst1_generate_key(CBB *out_private, CBB *out_public) {
++  if (!voprf_pst1_init_method()) {
++    return 0;
++  }
++
++  return voprf_generate_key(&voprf_pst1_method, out_private, out_public);
++}
++
++int voprf_pst1_derive_key_from_secret(CBB *out_private, CBB *out_public,
++                                      const uint8_t *secret,
++                                      size_t secret_len) {
++  if (!voprf_pst1_init_method()) {
++    return 0;
++  }
++
++  return voprf_derive_key_from_secret(&voprf_pst1_method, out_private,
++                                      out_public, secret, secret_len);
++}
++
++int voprf_pst1_client_key_from_bytes(TRUST_TOKEN_CLIENT_KEY *key,
++                                     const uint8_t *in, size_t len) {
++  if (!voprf_pst1_init_method()) {
++    return 0;
++  }
++  return voprf_client_key_from_bytes(&voprf_pst1_method, key, in, len);
++}
++
++int voprf_pst1_issuer_key_from_bytes(TRUST_TOKEN_ISSUER_KEY *key,
++                                     const uint8_t *in, size_t len) {
++  if (!voprf_pst1_init_method()) {
++    return 0;
++  }
++  return voprf_issuer_key_from_bytes(&voprf_pst1_method, key, in, len);
++}
++
++STACK_OF(TRUST_TOKEN_PRETOKEN) *voprf_pst1_blind(CBB *cbb, size_t count,
++                                                 int include_message,
++                                                 const uint8_t *msg,
++                                                 size_t msg_len) {
++  if (!voprf_pst1_init_method()) {
++    return NULL;
++  }
++  return voprf_blind(&voprf_pst1_method, cbb, count, include_message, msg,
++                     msg_len);
++}
++
++int voprf_pst1_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
++                    size_t num_requested, size_t num_to_issue,
++                    uint8_t private_metadata) {
++  if (!voprf_pst1_init_method() || private_metadata != 0) {
++    return 0;
++  }
++  return voprf_sign(&voprf_pst1_method, key, cbb, cbs, num_requested,
++                    num_to_issue);
++}
++
++STACK_OF(TRUST_TOKEN) *voprf_pst1_unblind(
++    const TRUST_TOKEN_CLIENT_KEY *key,
++    const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++    uint32_t key_id) {
++  if (!voprf_pst1_init_method()) {
++    return NULL;
++  }
++  return voprf_unblind(&voprf_pst1_method, key, pretokens, cbs, count, key_id);
++}
++
++int voprf_pst1_read(const TRUST_TOKEN_ISSUER_KEY *key,
++                    uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
++                    uint8_t *out_private_metadata, const uint8_t *token,
++                    size_t token_len, int include_message, const uint8_t *msg,
++                    size_t msg_len) {
++  if (!voprf_pst1_init_method()) {
++    return 0;
++  }
++  return voprf_read(&voprf_pst1_method, key, out_nonce, token, token_len,
++                    include_message, msg, msg_len);
++}
+diff --git a/include/openssl/trust_token.h b/include/openssl/trust_token.h
+index 03ce4b820..b6aa6b34e 100644
+--- a/include/openssl/trust_token.h
++++ b/include/openssl/trust_token.h
+@@ -48,6 +48,14 @@ OPENSSL_EXPORT const TRUST_TOKEN_METHOD *TRUST_TOKEN_experiment_v2_voprf(void);
+ // PMBTokens and P-384 with up to 3 keys, without RR verification.
+ OPENSSL_EXPORT const TRUST_TOKEN_METHOD *TRUST_TOKEN_experiment_v2_pmb(void);
+ 
++// TRUST_TOKEN_pst_v1_voprf is an experimental Trust Tokens protocol
++// using VOPRFs and P-384 with up to 6 keys, without RR verification.
++OPENSSL_EXPORT const TRUST_TOKEN_METHOD *TRUST_TOKEN_pst_v1_voprf(void);
++
++// TRUST_TOKEN_pst_v1_pmb is an experimental Trust Tokens protocol using
++// PMBTokens and P-384 with up to 3 keys, without RR verification.
++OPENSSL_EXPORT const TRUST_TOKEN_METHOD *TRUST_TOKEN_pst_v1_pmb(void);
++
+ // trust_token_st represents a single-use token for the Trust Token protocol.
+ // For the client, this is the token and its corresponding signature. For the
+ // issuer, this is the token itself.

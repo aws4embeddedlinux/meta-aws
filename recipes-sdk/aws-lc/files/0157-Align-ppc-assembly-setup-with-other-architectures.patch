@@ -1,0 +1,57 @@
+From 9db98588b97078acdcda13d9f4b5b7be86e5b602 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 26 Jan 2023 18:18:27 -0500
+Subject: [PATCH] Align ppc assembly setup with other architectures
+
+The ppc assembly opened directly to STDOUT while all the other ones open
+to OUT and then reassign *STDOUT. I don't know why this makes a
+difference, but only the latter works on Windows.
+
+Bug: 542
+Change-Id: I5b21bcf11c356ea4f2b6bc124a4a300bbd13be43
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56386
+Auto-Submit: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 76a83aa4ae643a622646525b92cb132b74f95f3a)
+---
+ crypto/fipsmodule/aes/asm/aesp8-ppc.pl     | 4 +++-
+ crypto/fipsmodule/modes/asm/ghashp8-ppc.pl | 3 ++-
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/fipsmodule/aes/asm/aesp8-ppc.pl b/crypto/fipsmodule/aes/asm/aesp8-ppc.pl
+index 4608551d6..1a5ae9c1d 100644
+--- a/crypto/fipsmodule/aes/asm/aesp8-ppc.pl
++++ b/crypto/fipsmodule/aes/asm/aesp8-ppc.pl
+@@ -48,6 +48,7 @@ if ($#ARGV < 1) { die "Not enough arguments provided.
+   Two arguments are necessary: the flavour and the output file path."; }
+ 
+ $flavour = shift;
++$output = shift;
+ 
+ if ($flavour =~ /64/) {
+ 	$SIZE_T	=8;
+@@ -74,7 +75,8 @@ $0 =~ m/(.*[\/\\])[^\/\\]+$/; $dir=$1;
+ ( $xlate="${dir}../../../perlasm/ppc-xlate.pl" and -f $xlate) or
+ die "can't locate ppc-xlate.pl";
+ 
+-open STDOUT,"| $^X \"$xlate\" $flavour ".shift || die "can't call $xlate: $!";
++open OUT,"| $^X \"$xlate\" $flavour \"$output\"" || die "can't call $xlate: $!";
++*STDOUT=*OUT;
+ 
+ $FRAME=8*$SIZE_T;
+ $prefix="aes_hw";
+diff --git a/crypto/fipsmodule/modes/asm/ghashp8-ppc.pl b/crypto/fipsmodule/modes/asm/ghashp8-ppc.pl
+index 434952f6a..33bfcf40e 100644
+--- a/crypto/fipsmodule/modes/asm/ghashp8-ppc.pl
++++ b/crypto/fipsmodule/modes/asm/ghashp8-ppc.pl
+@@ -64,7 +64,8 @@ $0 =~ m/(.*[\/\\])[^\/\\]+$/; $dir=$1;
+ ( $xlate="${dir}../../../perlasm/ppc-xlate.pl" and -f $xlate) or
+ die "can't locate ppc-xlate.pl";
+ 
+-open STDOUT,"| $^X \"$xlate\" $flavour \"$output\"" || die "can't call $xlate: $!";
++open OUT,"| $^X \"$xlate\" $flavour \"$output\"" || die "can't call $xlate: $!";
++*STDOUT=*OUT;
+ 
+ my ($Xip,$Htbl,$inp,$len)=map("r$_",(3..6));	# argument block
+ 

@@ -1,0 +1,138 @@
+From 3445f4c81a4cdbf92b2ba9f0d6d6f701f8f11e72 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 14 Mar 2023 17:42:16 -0400
+Subject: [PATCH] Const-correct and document a few functions in x509v3.h.
+
+Change-Id: I59bcacf10a59ffdf9709785727f5f8b73c992f6e
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58026
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit 8c7aa6bfcd7573d7b904fde6acb4f3652a3ebecc)
+---
+ crypto/x509v3/v3_alt.c   | 17 ++++++++---------
+ crypto/x509v3/v3_genn.c  |  2 +-
+ include/openssl/x509v3.h | 18 ++++++++++++++----
+ 3 files changed, 23 insertions(+), 14 deletions(-)
+
+diff --git a/crypto/x509v3/v3_alt.c b/crypto/x509v3/v3_alt.c
+index 858ef4d13..ddd112a2e 100644
+--- a/crypto/x509v3/v3_alt.c
++++ b/crypto/x509v3/v3_alt.c
+@@ -97,11 +97,11 @@ const X509V3_EXT_METHOD v3_alt[] = {
+ };
+ 
+ STACK_OF(CONF_VALUE) *i2v_GENERAL_NAMES(const X509V3_EXT_METHOD *method,
+-                                        GENERAL_NAMES *gens,
++                                        const GENERAL_NAMES *gens,
+                                         STACK_OF(CONF_VALUE) *ret) {
+   int ret_was_null = ret == NULL;
+   for (size_t i = 0; i < sk_GENERAL_NAME_num(gens); i++) {
+-    GENERAL_NAME *gen = sk_GENERAL_NAME_value(gens, i);
++    const GENERAL_NAME *gen = sk_GENERAL_NAME_value(gens, i);
+     STACK_OF(CONF_VALUE) *tmp = i2v_GENERAL_NAME(method, gen, ret);
+     if (tmp == NULL) {
+       if (ret_was_null) {
+@@ -118,7 +118,7 @@ STACK_OF(CONF_VALUE) *i2v_GENERAL_NAMES(const X509V3_EXT_METHOD *method,
+ }
+ 
+ STACK_OF(CONF_VALUE) *i2v_GENERAL_NAME(const X509V3_EXT_METHOD *method,
+-                                       GENERAL_NAME *gen,
++                                       const GENERAL_NAME *gen,
+                                        STACK_OF(CONF_VALUE) *ret) {
+   // Note the error-handling for this function relies on there being at most
+   // one |X509V3_add_value| call. If there were two and the second failed, we
+@@ -207,9 +207,7 @@ STACK_OF(CONF_VALUE) *i2v_GENERAL_NAME(const X509V3_EXT_METHOD *method,
+   return ret;
+ }
+ 
+-int GENERAL_NAME_print(BIO *out, GENERAL_NAME *gen) {
+-  unsigned char *p;
+-  int i;
++int GENERAL_NAME_print(BIO *out, const GENERAL_NAME *gen) {
+   switch (gen->type) {
+     case GEN_OTHERNAME:
+       BIO_printf(out, "othername:<unsupported>");
+@@ -244,13 +242,13 @@ int GENERAL_NAME_print(BIO *out, GENERAL_NAME *gen) {
+       X509_NAME_print_ex(out, gen->d.dirn, 0, XN_FLAG_ONELINE);
+       break;
+ 
+-    case GEN_IPADD:
+-      p = gen->d.ip->data;
++    case GEN_IPADD: {
++      const unsigned char *p = gen->d.ip->data;
+       if (gen->d.ip->length == 4) {
+         BIO_printf(out, "IP Address:%d.%d.%d.%d", p[0], p[1], p[2], p[3]);
+       } else if (gen->d.ip->length == 16) {
+         BIO_printf(out, "IP Address");
+-        for (i = 0; i < 8; i++) {
++        for (int i = 0; i < 8; i++) {
+           uint16_t v = ((uint16_t)p[0] << 8) | p[1];
+           BIO_printf(out, ":%X", v);
+           p += 2;
+@@ -261,6 +259,7 @@ int GENERAL_NAME_print(BIO *out, GENERAL_NAME *gen) {
+         break;
+       }
+       break;
++    }
+ 
+     case GEN_RID:
+       BIO_printf(out, "Registered ID");
+diff --git a/crypto/x509v3/v3_genn.c b/crypto/x509v3/v3_genn.c
+index d593727b0..609c5dae4 100644
+--- a/crypto/x509v3/v3_genn.c
++++ b/crypto/x509v3/v3_genn.c
+@@ -124,7 +124,7 @@ static int edipartyname_cmp(const EDIPARTYNAME *a, const EDIPARTYNAME *b) {
+ }
+ 
+ // Returns 0 if they are equal, != 0 otherwise.
+-static int othername_cmp(OTHERNAME *a, OTHERNAME *b) {
++static int othername_cmp(const OTHERNAME *a, const OTHERNAME *b) {
+   int result = -1;
+ 
+   if (!a || !b) {
+diff --git a/include/openssl/x509v3.h b/include/openssl/x509v3.h
+index bab5ee998..73cdd7507 100644
+--- a/include/openssl/x509v3.h
++++ b/include/openssl/x509v3.h
+@@ -421,9 +421,15 @@ OPENSSL_EXPORT GENERAL_NAME *GENERAL_NAME_dup(GENERAL_NAME *a);
+ // human-readable print functions. If extracting a SAN list from a certificate,
+ // look at |gen| directly.
+ OPENSSL_EXPORT STACK_OF(CONF_VALUE) *i2v_GENERAL_NAME(
+-    const X509V3_EXT_METHOD *method, GENERAL_NAME *gen,
++    const X509V3_EXT_METHOD *method, const GENERAL_NAME *gen,
+     STACK_OF(CONF_VALUE) *ret);
+-OPENSSL_EXPORT int GENERAL_NAME_print(BIO *out, GENERAL_NAME *gen);
++
++// GENERAL_NAME_print prints a human-readable representation of |gen| to |out|.
++// It returns one on success and zero on error.
++//
++// TODO(davidben): Actually, it just returns one and doesn't check for I/O or
++// allocation errors. But it should return zero on error.
++OPENSSL_EXPORT int GENERAL_NAME_print(BIO *out, const GENERAL_NAME *gen);
+ 
+ // TODO(https://crbug.com/boringssl/407): This is not const because it contains
+ // an |X509_NAME|.
+@@ -439,7 +445,7 @@ DECLARE_ASN1_FUNCTIONS(GENERAL_NAMES)
+ // human-readable print functions. If extracting a SAN list from a certificate,
+ // look at |gen| directly.
+ OPENSSL_EXPORT STACK_OF(CONF_VALUE) *i2v_GENERAL_NAMES(
+-    const X509V3_EXT_METHOD *method, GENERAL_NAMES *gen,
++    const X509V3_EXT_METHOD *method, const GENERAL_NAMES *gen,
+     STACK_OF(CONF_VALUE) *extlist);
+ OPENSSL_EXPORT GENERAL_NAMES *v2i_GENERAL_NAMES(
+     const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx,
+@@ -457,8 +463,12 @@ OPENSSL_EXPORT int GENERAL_NAME_get0_otherName(const GENERAL_NAME *gen,
+                                                ASN1_OBJECT **poid,
+                                                ASN1_TYPE **pvalue);
+ 
++// i2s_ASN1_OCTET_STRING returns a human-readable representation of |oct| as a
++// newly-allocated, NUL-terminated string, or NULL on error. |method| is
++// ignored. The caller must release the result with |OPENSSL_free| when done.
+ OPENSSL_EXPORT char *i2s_ASN1_OCTET_STRING(const X509V3_EXT_METHOD *method,
+-                                           const ASN1_OCTET_STRING *ia5);
++                                           const ASN1_OCTET_STRING *oct);
++
+ OPENSSL_EXPORT ASN1_OCTET_STRING *s2i_ASN1_OCTET_STRING(
+     const X509V3_EXT_METHOD *method, const X509V3_CTX *ctx, const char *str);
+ 

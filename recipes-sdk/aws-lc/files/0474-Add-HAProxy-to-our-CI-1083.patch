@@ -1,0 +1,233 @@
+From 0e38c147b184a1904f166ffcb1cf47f8828c91b3 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Mon, 10 Jul 2023 15:34:34 -0700
+Subject: [PATCH] Add HAProxy to our CI (#1083)
+
+---
+ .../github_ci_integration_omnibus.yaml        | 30 +++++++++--
+ .../run_simple_target.yml}                    |  2 +-
+ .../integration/mariadb_integration.yml       |  9 ----
+ .../integration/mysql_integration.yml         | 13 -----
+ .../integration/openssh_integration.yml       | 13 -----
+ .../linux-x86/ubuntu-22.04_base/Dockerfile    |  2 +
+ .../ci/integration/run_haproxy_integration.sh | 52 +++++++++++++++++++
+ 7 files changed, 80 insertions(+), 41 deletions(-)
+ rename tests/ci/codebuild/{integration/s2n_integration.yml => common/run_simple_target.yml} (80%)
+ delete mode 100644 tests/ci/codebuild/integration/mariadb_integration.yml
+ delete mode 100644 tests/ci/codebuild/integration/mysql_integration.yml
+ delete mode 100644 tests/ci/codebuild/integration/openssh_integration.yml
+ create mode 100755 tests/ci/integration/run_haproxy_integration.sh
+
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+index e91895252..0442b0bbb 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+@@ -7,20 +7,25 @@ version: 0.2
+ batch:
+   build-list:
+     - identifier: s2n_integration
+-      buildspec: ./tests/ci/codebuild/integration/s2n_integration.yml
++      buildspec: tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_SMALL
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-9x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/integration/run_s2n_integration.sh"
++
+ 
+     - identifier: openssh_integration
+-      buildspec: ./tests/ci/codebuild/integration/openssh_integration.yml
++      buildspec: tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_SMALL
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_sanitizer_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/integration/run_openssh_integration.sh"
+ 
+     - identifier: postgres_integration
+       buildspec: ./tests/ci/codebuild/integration/postgres_integration.yml
+@@ -33,17 +38,32 @@ batch:
+     # Only runs the build for now, tests are disabled. MySQL build is bloated without any obvious build configurations we can
+     # use to speed up the build, so we use a larger instance here.
+     - identifier: mysql_integration
+-      buildspec: ./tests/ci/codebuild/integration/mysql_integration.yml
++      buildspec: tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_2XLARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/integration/run_mysql_integration.sh"
++
+ 
+     - identifier: mariadb_integration
+-      buildspec: ./tests/ci/codebuild/integration/mariadb_integration.yml
++      buildspec: tests/ci/codebuild/common/run_simple_target.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
+\ No newline at end of file
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/integration/run_mariadb_integration.sh"
++
++    - identifier: haproxy_integration
++      buildspec: tests/ci/codebuild/common/run_simple_target.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_MEDIUM
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/integration/run_haproxy_integration.sh"
+diff --git a/tests/ci/codebuild/integration/s2n_integration.yml b/tests/ci/codebuild/common/run_simple_target.yml
+similarity index 80%
+rename from tests/ci/codebuild/integration/s2n_integration.yml
+rename to tests/ci/codebuild/common/run_simple_target.yml
+index 4ed3be743..8009624d9 100644
+--- a/tests/ci/codebuild/integration/s2n_integration.yml
++++ b/tests/ci/codebuild/common/run_simple_target.yml
+@@ -10,4 +10,4 @@ env:
+ phases:
+   build:
+     commands:
+-      - ./tests/ci/integration/run_s2n_integration.sh
++      - "./${AWS_LC_CI_TARGET}"
+diff --git a/tests/ci/codebuild/integration/mariadb_integration.yml b/tests/ci/codebuild/integration/mariadb_integration.yml
+deleted file mode 100644
+index 63b6a9b43..000000000
+--- a/tests/ci/codebuild/integration/mariadb_integration.yml
++++ /dev/null
+@@ -1,9 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-phases:
+-  build:
+-    commands:
+-      - ./tests/ci/integration/run_mariadb_integration.sh
+diff --git a/tests/ci/codebuild/integration/mysql_integration.yml b/tests/ci/codebuild/integration/mysql_integration.yml
+deleted file mode 100644
+index 074d6f2ea..000000000
+--- a/tests/ci/codebuild/integration/mysql_integration.yml
++++ /dev/null
+@@ -1,13 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  build:
+-    commands:
+-      - ./tests/ci/integration/run_mysql_integration.sh
+diff --git a/tests/ci/codebuild/integration/openssh_integration.yml b/tests/ci/codebuild/integration/openssh_integration.yml
+deleted file mode 100644
+index 8502458d5..000000000
+--- a/tests/ci/codebuild/integration/openssh_integration.yml
++++ /dev/null
+@@ -1,13 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-env:
+-  variables:
+-    GOPROXY: https://proxy.golang.org,direct
+-
+-phases:
+-  build:
+-    commands:
+-      - ./tests/ci/integration/run_openssh_integration.sh
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+index 41f32fbc2..a7cd9c753 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+@@ -25,6 +25,7 @@ RUN set -ex && \
+     apt-get -y --no-install-recommends install \
+     software-properties-common \
+     cmake \
++    curl \
+     make \
+     ninja-build \
+     patch \
+@@ -39,6 +40,7 @@ RUN set -ex && \
+     llvm-dev \
+     libicu-dev \
+     libipc-run-perl \
++    libpcre2-dev \
+     libreadline-dev \
+     libudev-dev \
+     zlib1g-dev \
+diff --git a/tests/ci/integration/run_haproxy_integration.sh b/tests/ci/integration/run_haproxy_integration.sh
+new file mode 100755
+index 000000000..ac3753f8a
+--- /dev/null
++++ b/tests/ci/integration/run_haproxy_integration.sh
+@@ -0,0 +1,52 @@
++#!/bin/bash -exu
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++source tests/ci/common_posix_setup.sh
++
++# Set up environment.
++
++# SYS_ROOT
++#  |
++#  - SRC_ROOT(aws-lc)
++#  |
++#  - SCRATCH_FOLDER
++#    |
++#    - HAPROXY_SRC
++#    - AWS_LC_BUILD_FOLDER
++#    - AWS_LC_INSTALL_FOLDER
++
++# Assumes script is executed from the root of aws-lc directory
++SCRATCH_FOLDER=${SYS_ROOT}/"scratch"
++AWS_LC_BUILD_FOLDER="${SCRATCH_FOLDER}/aws-lc-build"
++AWS_LC_INSTALL_FOLDER="${SCRATCH_FOLDER}/aws-lc-install"
++HAPROXY_SRC="${SCRATCH_FOLDER}/haproxy"
++
++# Make script execution idempotent.
++mkdir -p ${SCRATCH_FOLDER}
++rm -rf ${SCRATCH_FOLDER}/*
++cd ${SCRATCH_FOLDER}
++
++mkdir -p ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER}
++git clone --depth 1 https://github.com/haproxy/haproxy.git
++ls
++
++aws_lc_build ${SRC_ROOT} ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER}
++
++cd ${HAPROXY_SRC}
++
++make CC="${CC}" -j ${NUM_CPU_THREADS} TARGET=generic USE_OPENSSL=1 SSL_INC="${AWS_LC_INSTALL_FOLDER}/include" SSL_LIB="${AWS_LC_INSTALL_FOLDER}/lib/"
++./scripts/build-vtest.sh
++export VTEST_PROGRAM=$(realpath ../vtest/vtest)
++
++# These tests pass when run local but are not supported in CodeBuild CryptoAlg-1965
++excluded_tests=("mcli_show_info.vtc" "mcli_start_progs.vtc" "tls_basic_sync.vtc" "tls_basic_sync_wo_stkt_backend.vtc" "acl_cli_spaces.vtc" "http_reuse_always.vtc")
++test_paths=""
++
++for test in reg-tests/**/*; do
++    if [[ "$test" == *.vtc ]] && [[ ! " ${excluded_tests[*]} " =~ $(basename "$test") ]]; then
++        test_paths+="$(realpath "$test") "
++    fi
++done
++
++./scripts/run-regtests.sh "$test_paths"

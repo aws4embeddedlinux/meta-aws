@@ -1,0 +1,22 @@
+From db63db2644d0941f8dfe5bb83ab650fee94ef83e Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Fri, 7 Apr 2023 02:31:52 -0700
+Subject: [PATCH] Add missing boringssl_prefix_symbols target (#931)
+
+---
+ CMakeLists.txt | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 05c78bfa0..cbaa1c6fd 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -163,6 +163,8 @@ elseif(BORINGSSL_PREFIX AND BORINGSSL_PREFIX_HEADERS)
+   endif()
+ 
+   include_directories(${BORINGSSL_PREFIX_HEADERS_PATH})
++
++  add_custom_target(boringssl_prefix_symbols)
+ elseif(BORINGSSL_PREFIX OR BORINGSSL_PREFIX_SYMBOLS)
+   message(FATAL_ERROR "Must specify both or neither of BORINGSSL_PREFIX and BORINGSSL_PREFIX_SYMBOLS")
+ elseif((BORINGSSL_PREFIX AND BORINGSSL_PREFIX_SYMBOLS) AND NOT GO_EXECUTABLE)

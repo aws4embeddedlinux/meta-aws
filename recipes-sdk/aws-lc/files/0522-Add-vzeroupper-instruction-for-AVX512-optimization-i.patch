@@ -1,0 +1,160 @@
+From d4cecff8b3dd4584e2ba04f55073a4bd3289046a Mon Sep 17 00:00:00 2001
+From: shirsing0712 <106692654+shirsing0712@users.noreply.github.com>
+Date: Tue, 8 Aug 2023 17:14:32 -0500
+Subject: [PATCH] Add vzeroupper instruction for AVX512 optimization in AES-XTS
+ (#1115)
+
+Adding `vzeroupper` instruction eliminates the potential
+performance penalties when switching between AVX512,
+AVX and SSE instructions.
+---
+ crypto/fipsmodule/aes/asm/aesni-xts-avx512.pl                 | 4 ++--
+ .../linux-x86_64/crypto/fipsmodule/aesni-xts-avx512.S         | 4 ++--
+ generated-src/mac-x86_64/crypto/fipsmodule/aesni-xts-avx512.S | 4 ++--
+ .../win-x86_64/crypto/fipsmodule/aesni-xts-avx512.asm         | 4 ++--
+ 4 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/crypto/fipsmodule/aes/asm/aesni-xts-avx512.pl b/crypto/fipsmodule/aes/asm/aesni-xts-avx512.pl
+index 804f88f28..3243674c1 100644
+--- a/crypto/fipsmodule/aes/asm/aesni-xts-avx512.pl
++++ b/crypto/fipsmodule/aes/asm/aesni-xts-avx512.pl
+@@ -1855,6 +1855,7 @@ ___
+   $code .= <<___;
+   mov 	 %rbp,%rsp
+   pop 	 %rbp
++  vzeroupper
+   ret
+ 
+   .L_less_than_128_bytes_${rndsuffix}:
+@@ -2053,7 +2054,6 @@ ___
+   and 	 \$0xf,$length
+   je 	 .L_ret_${rndsuffix}
+   jmp 	 .L_steal_cipher_next_${rndsuffix}
+-  ret
+   .cfi_endproc
+ ___
+   }
+@@ -2594,6 +2594,7 @@ ___
+   $code .= <<___;
+   mov 	 %rbp,%rsp
+   pop 	 %rbp
++  vzeroupper
+   ret
+ 
+   .L_less_than_128_bytes_${rndsuffix}:
+@@ -3006,7 +3007,6 @@ ___
+   add 	         \$0x10,$output
+   vmovdqa 	 %xmm1,%xmm8
+   jmp 	         .L_done_${rndsuffix}
+-  ret
+   .cfi_endproc
+ ___
+   }
+diff --git a/generated-src/linux-x86_64/crypto/fipsmodule/aesni-xts-avx512.S b/generated-src/linux-x86_64/crypto/fipsmodule/aesni-xts-avx512.S
+index 5812d16d6..eecc2989e 100644
+--- a/generated-src/linux-x86_64/crypto/fipsmodule/aesni-xts-avx512.S
++++ b/generated-src/linux-x86_64/crypto/fipsmodule/aesni-xts-avx512.S
+@@ -1036,6 +1036,7 @@ aes_hw_xts_encrypt_avx512:
+ 	movq	368(%rsp),%rbx
+ 	movq	%rbp,%rsp
+ 	popq	%rbp
++	vzeroupper
+ 	.byte	0xf3,0xc3
+ 
+ .L_less_than_128_bytes_hEgxyDlCngwrfFe:
+@@ -1937,7 +1938,6 @@ aes_hw_xts_encrypt_avx512:
+ 	andq	$0xf,%rdx
+ 	je	.L_ret_hEgxyDlCngwrfFe
+ 	jmp	.L_steal_cipher_next_hEgxyDlCngwrfFe
+-	.byte	0xf3,0xc3
+ .cfi_endproc	
+ .globl	aes_hw_xts_decrypt_avx512
+ .hidden aes_hw_xts_decrypt_avx512
+@@ -3562,6 +3562,7 @@ aes_hw_xts_decrypt_avx512:
+ 	movq	368(%rsp),%rbx
+ 	movq	%rbp,%rsp
+ 	popq	%rbp
++	vzeroupper
+ 	.byte	0xf3,0xc3
+ 
+ .L_less_than_128_bytes_amivrujEyduiFoi:
+@@ -5178,7 +5179,6 @@ aes_hw_xts_decrypt_avx512:
+ 	addq	$0x10,%rsi
+ 	vmovdqa	%xmm1,%xmm8
+ 	jmp	.L_done_amivrujEyduiFoi
+-	.byte	0xf3,0xc3
+ .cfi_endproc	
+ .section	.rodata
+ .align	16
+diff --git a/generated-src/mac-x86_64/crypto/fipsmodule/aesni-xts-avx512.S b/generated-src/mac-x86_64/crypto/fipsmodule/aesni-xts-avx512.S
+index f6349c6e1..e1aaa6274 100644
+--- a/generated-src/mac-x86_64/crypto/fipsmodule/aesni-xts-avx512.S
++++ b/generated-src/mac-x86_64/crypto/fipsmodule/aesni-xts-avx512.S
+@@ -1036,6 +1036,7 @@ L$_ret_hEgxyDlCngwrfFe:
+ 	movq	368(%rsp),%rbx
+ 	movq	%rbp,%rsp
+ 	popq	%rbp
++	vzeroupper
+ 	.byte	0xf3,0xc3
+ 
+ L$_less_than_128_bytes_hEgxyDlCngwrfFe:
+@@ -1937,7 +1938,6 @@ L$_num_blocks_is_1_hEgxyDlCngwrfFe:
+ 	andq	$0xf,%rdx
+ 	je	L$_ret_hEgxyDlCngwrfFe
+ 	jmp	L$_steal_cipher_next_hEgxyDlCngwrfFe
+-	.byte	0xf3,0xc3
+ 
+ .globl	_aes_hw_xts_decrypt_avx512
+ .private_extern _aes_hw_xts_decrypt_avx512
+@@ -3562,6 +3562,7 @@ L$_ret_amivrujEyduiFoi:
+ 	movq	368(%rsp),%rbx
+ 	movq	%rbp,%rsp
+ 	popq	%rbp
++	vzeroupper
+ 	.byte	0xf3,0xc3
+ 
+ L$_less_than_128_bytes_amivrujEyduiFoi:
+@@ -5178,7 +5179,6 @@ L$_done_1_amivrujEyduiFoi:
+ 	addq	$0x10,%rsi
+ 	vmovdqa	%xmm1,%xmm8
+ 	jmp	L$_done_amivrujEyduiFoi
+-	.byte	0xf3,0xc3
+ 
+ .section	__DATA,__const
+ .p2align	4
+diff --git a/generated-src/win-x86_64/crypto/fipsmodule/aesni-xts-avx512.asm b/generated-src/win-x86_64/crypto/fipsmodule/aesni-xts-avx512.asm
+index 887fd187c..43c91d8bd 100644
+--- a/generated-src/win-x86_64/crypto/fipsmodule/aesni-xts-avx512.asm
++++ b/generated-src/win-x86_64/crypto/fipsmodule/aesni-xts-avx512.asm
+@@ -1061,6 +1061,7 @@ $L$_ret_hEgxyDlCngwrfFe:
+ 	vmovdqa	xmm15,XMMWORD[((368 + 144))+rsp]
+ 	mov	rsp,rbp
+ 	pop	rbp
++	vzeroupper
+ 	DB	0F3h,0C3h		;repret
+ 
+ $L$_less_than_128_bytes_hEgxyDlCngwrfFe:
+@@ -1962,7 +1963,6 @@ $L$_num_blocks_is_1_hEgxyDlCngwrfFe:
+ 	and	r8,0xf
+ 	je	NEAR $L$_ret_hEgxyDlCngwrfFe
+ 	jmp	NEAR $L$_steal_cipher_next_hEgxyDlCngwrfFe
+-	DB	0F3h,0C3h		;repret
+ 
+ global	aes_hw_xts_decrypt_avx512
+ 
+@@ -3612,6 +3612,7 @@ $L$_ret_amivrujEyduiFoi:
+ 	vmovdqa	xmm15,XMMWORD[((368 + 144))+rsp]
+ 	mov	rsp,rbp
+ 	pop	rbp
++	vzeroupper
+ 	DB	0F3h,0C3h		;repret
+ 
+ $L$_less_than_128_bytes_amivrujEyduiFoi:
+@@ -5228,7 +5229,6 @@ $L$_done_1_amivrujEyduiFoi:
+ 	add	rdx,0x10
+ 	vmovdqa	xmm8,xmm1
+ 	jmp	NEAR $L$_done_amivrujEyduiFoi
+-	DB	0F3h,0C3h		;repret
+ 
+ section	.rdata rdata align=8
+ ALIGN	16

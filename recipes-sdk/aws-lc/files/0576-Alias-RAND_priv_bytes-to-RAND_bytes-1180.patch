@@ -1,0 +1,46 @@
+From 166687838b9a1e063cef02cd7119c64261a851ae Mon Sep 17 00:00:00 2001
+From: Gerardo Ravago <gcr@amazon.com>
+Date: Wed, 13 Sep 2023 11:40:39 -0400
+Subject: [PATCH] Alias RAND_priv_bytes to RAND_bytes (#1180)
+
+In OpenSSL, RAND_priv_bytes calls RAND_bytes using independently seeded
+values to mitigate against situations where the "public" DRBG gets
+compromised and random values can be predicted. It also defers to user
+specified random methods if specified. Arguably, AWS-LC is always using
+a user specified random method as it has a completely different
+implementation from OpenSSL so this change is in-line with the original.
+---
+ crypto/fipsmodule/rand/rand.c | 4 ++++
+ include/openssl/rand.h        | 4 ++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/crypto/fipsmodule/rand/rand.c b/crypto/fipsmodule/rand/rand.c
+index 797e51b43..f93b28cfa 100644
+--- a/crypto/fipsmodule/rand/rand.c
++++ b/crypto/fipsmodule/rand/rand.c
+@@ -545,6 +545,10 @@ int RAND_bytes(uint8_t *out, size_t out_len) {
+   return 1;
+ }
+ 
++int RAND_priv_bytes(uint8_t *out, size_t out_len) {
++    return RAND_bytes(out, out_len);
++}
++
+ int RAND_pseudo_bytes(uint8_t *buf, size_t len) {
+   return RAND_bytes(buf, len);
+ }
+diff --git a/include/openssl/rand.h b/include/openssl/rand.h
+index 3f678d572..22e38561e 100644
+--- a/include/openssl/rand.h
++++ b/include/openssl/rand.h
+@@ -29,6 +29,10 @@ extern "C" {
+ // event that sufficient random data can not be obtained, |abort| is called.
+ OPENSSL_EXPORT int RAND_bytes(uint8_t *buf, size_t len);
+ 
++// RAND_priv_bytes is a wrapper around |RAND_bytes| provided for compatibility.
++// Consumers should call |RAND_bytes| directly.
++OPENSSL_EXPORT int RAND_priv_bytes(uint8_t *buf, size_t len);
++
+ // RAND_get_system_entropy_for_custom_prng writes |len| bytes of random data
+ // from a system entropy source to |buf|. The maximum length of entropy which
+ // may be requested is 256 bytes. If more than 256 bytes of data is requested,

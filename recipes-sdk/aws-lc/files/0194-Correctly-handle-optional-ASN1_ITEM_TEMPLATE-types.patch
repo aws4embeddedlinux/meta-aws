@@ -1,0 +1,200 @@
+From 794f1f488d4d0f7044b9aab655189dfb7c6156cb Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sun, 4 Dec 2022 23:48:42 -0500
+Subject: [PATCH] Correctly handle optional ASN1_ITEM_TEMPLATE types.
+
+I didn't quite handle this case correctly in
+https://boringssl-review.googlesource.com/c/boringssl/+/49350, which
+made it impossible to express an OPTIONAL, doubly-tagged type in
+crypto/asn1.
+
+For some background, an ASN1_ITEM is a top-level type, while an
+ASN1_TEMPLATE is roughly a field in a SEQUENCE or SET. In ASN.1, types
+cannot be OPTIONAL or DEFAULT, only fields, so something like
+ASN1_TFLG_OPTIONAL is a flag an ASN1_TEMPLATE.
+
+However, there are many other type-level features that are applied as
+ASN1_TEMPLATE flags. SEQUENCE OF T and SET OF T are represented as an
+ASN1_TEMPLATE with the ASN1_TFLG_SEQUENCE_OF or ASN1_TFLG_SET_OF flag
+and an item of T. Tagging is also a feature of ASN1_TEMPLATE.
+
+But some top-level ASN.1 types may be SEQUENCE OF T or be tagged. So one
+of the types of ASN1_ITEM is ASN1_ITEM_TEMPLATE, which is an ASN1_ITEM
+that wraps an ASN1_TEMPLATE (which, in turn, wraps an ASN1_ITEM...).
+Such an ASN1_ITEM could then be placed in a SEQUENCE or SET, where it is
+OPTIONAL.
+
+We didn't correctly handle this case and instead lost the optional bit.
+Fix this and add a test. This is a little interesting because it means
+asn1_template_ex_i2d may get an optional bit from the caller, or it may
+get one from the template itself. (But it will never get both. An
+ASN1_ITEM_TEMPLATE cannot wrap an optional template because types are
+not optional.)
+
+This case doesn't actually come up, given it doesn't work today. But in
+my pending rewrite of tasn_enc.c, it made more sense to just make it
+work, so this CL fixes it and adds a test ahead of time.
+
+Bug: 548
+Change-Id: I0cf8c25386ddff992bafae029a5a60d026f124d0
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56185
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit 1df70cea5daa391e10f5df9057c60fd740b912ab)
+---
+ crypto/asn1/asn1_test.cc | 57 ++++++++++++++++++++++++++++++++++++++++
+ crypto/asn1/tasn_enc.c   | 28 +++++++++++++-------
+ 2 files changed, 76 insertions(+), 9 deletions(-)
+
+diff --git a/crypto/asn1/asn1_test.cc b/crypto/asn1/asn1_test.cc
+index 08ec243b0..0911718a1 100644
+--- a/crypto/asn1/asn1_test.cc
++++ b/crypto/asn1/asn1_test.cc
+@@ -2516,4 +2516,61 @@ TEST(ASN1Test, OptionalAndDefaultBooleans) {
+   // TODO(https://crbug.com/boringssl/354): Reject explicit DEFAULTs.
+ }
+ 
++// EXPLICIT_BOOLEAN is a [1] EXPLICIT BOOLEAN.
++ASN1_ITEM_TEMPLATE(EXPLICIT_BOOLEAN) = ASN1_EX_TEMPLATE_TYPE(ASN1_TFLG_EXPLICIT,
++                                                             1,
++                                                             EXPLICIT_BOOLEAN,
++                                                             ASN1_BOOLEAN)
++ASN1_ITEM_TEMPLATE_END(EXPLICIT_BOOLEAN)
++
++// EXPLICIT_OCTET_STRING is a [2] EXPLICIT OCTET STRING.
++ASN1_ITEM_TEMPLATE(EXPLICIT_OCTET_STRING) = ASN1_EX_TEMPLATE_TYPE(
++    ASN1_TFLG_EXPLICIT, 2, EXPLICIT_OCTET_STRING, ASN1_OCTET_STRING)
++ASN1_ITEM_TEMPLATE_END(EXPLICIT_OCTET_STRING)
++
++// DOUBLY_TAGGED is
++//   SEQUENCE {
++//     b   [3] EXPLICIT [1] EXPLICIT BOOLEAN OPTIONAL,
++//     oct [4] EXPLICIT [2] EXPLICIT OCTET STRING OPTIONAL }
++// with explicit tagging.
++struct DOUBLY_TAGGED {
++  ASN1_BOOLEAN b;
++  ASN1_OCTET_STRING *oct;
++};
++
++DECLARE_ASN1_FUNCTIONS(DOUBLY_TAGGED)
++ASN1_SEQUENCE(DOUBLY_TAGGED) = {
++    ASN1_EXP_OPT(DOUBLY_TAGGED, b, EXPLICIT_BOOLEAN, 3),
++    ASN1_EXP_OPT(DOUBLY_TAGGED, oct, EXPLICIT_OCTET_STRING, 4),
++} ASN1_SEQUENCE_END(DOUBLY_TAGGED)
++IMPLEMENT_ASN1_FUNCTIONS(DOUBLY_TAGGED)
++
++// Test that optional fields with two layers of explicit tagging are correctly
++// handled.
++TEST(ASN1Test, DoublyTagged) {
++  std::unique_ptr<DOUBLY_TAGGED, decltype(&DOUBLY_TAGGED_free)> obj(
++      nullptr, DOUBLY_TAGGED_free);
++
++  // Both fields missing.
++  static const uint8_t kOmitted[] = {0x30, 0x00};
++  const uint8_t *inp = kOmitted;
++  obj.reset(d2i_DOUBLY_TAGGED(nullptr, &inp, sizeof(kOmitted)));
++  ASSERT_TRUE(obj);
++  EXPECT_EQ(obj->b, -1);
++  EXPECT_FALSE(obj->oct);
++  TestSerialize(obj.get(), i2d_DOUBLY_TAGGED, kOmitted);
++
++  // Both fields present, true and the empty string.
++  static const uint8_t kTrueEmpty[] = {0x30, 0x0d, 0xa3, 0x05, 0xa1,
++                                       0x03, 0x01, 0x01, 0xff, 0xa4,
++                                       0x04, 0xa2, 0x02, 0x04, 0x00};
++  inp = kTrueEmpty;
++  obj.reset(d2i_DOUBLY_TAGGED(nullptr, &inp, sizeof(kTrueEmpty)));
++  ASSERT_TRUE(obj);
++  EXPECT_EQ(obj->b, 0xff);
++  ASSERT_TRUE(obj->oct);
++  EXPECT_EQ(ASN1_STRING_length(obj->oct), 0);
++  TestSerialize(obj.get(), i2d_DOUBLY_TAGGED, kTrueEmpty);
++}
++
+ #endif  // !WINDOWS || !SHARED_LIBRARY
+diff --git a/crypto/asn1/tasn_enc.c b/crypto/asn1/tasn_enc.c
+index afac17d67..0a0fdb09b 100644
+--- a/crypto/asn1/tasn_enc.c
++++ b/crypto/asn1/tasn_enc.c
+@@ -78,7 +78,8 @@ static int asn1_ex_i2c(ASN1_VALUE **pval, unsigned char *cont, int *out_omit,
+ static int asn1_set_seq_out(STACK_OF(ASN1_VALUE) *sk, unsigned char **out,
+                             int skcontlen, const ASN1_ITEM *item, int do_sort);
+ static int asn1_template_ex_i2d(ASN1_VALUE **pval, unsigned char **out,
+-                                const ASN1_TEMPLATE *tt, int tag, int aclass);
++                                const ASN1_TEMPLATE *tt, int tag, int aclass,
++                                int optional);
+ 
+ // Top level i2d equivalents
+ 
+@@ -144,11 +145,13 @@ int asn1_item_ex_i2d_opt(ASN1_VALUE **pval, unsigned char **out,
+   switch (it->itype) {
+     case ASN1_ITYPE_PRIMITIVE:
+       if (it->templates) {
++        // This is an |ASN1_ITEM_TEMPLATE|.
+         if (it->templates->flags & ASN1_TFLG_OPTIONAL) {
+           OPENSSL_PUT_ERROR(ASN1, ASN1_R_BAD_TEMPLATE);
+           return -1;
+         }
+-        return asn1_template_ex_i2d(pval, out, it->templates, tag, aclass);
++        return asn1_template_ex_i2d(pval, out, it->templates, tag, aclass,
++                                    optional);
+       }
+       return asn1_i2d_ex_primitive(pval, out, it, tag, aclass, optional);
+ 
+@@ -179,7 +182,7 @@ int asn1_item_ex_i2d_opt(ASN1_VALUE **pval, unsigned char **out,
+         return -1;
+       }
+       ASN1_VALUE **pchval = asn1_get_field_ptr(pval, chtt);
+-      return asn1_template_ex_i2d(pchval, out, chtt, -1, 0);
++      return asn1_template_ex_i2d(pchval, out, chtt, -1, 0, /*optional=*/0);
+     }
+ 
+     case ASN1_ITYPE_EXTERN: {
+@@ -223,7 +226,8 @@ int asn1_item_ex_i2d_opt(ASN1_VALUE **pval, unsigned char **out,
+           return -1;
+         }
+         pseqval = asn1_get_field_ptr(pval, seqtt);
+-        tmplen = asn1_template_ex_i2d(pseqval, NULL, seqtt, -1, 0);
++        tmplen =
++            asn1_template_ex_i2d(pseqval, NULL, seqtt, -1, 0, /*optional=*/0);
+         if (tmplen == -1 || (tmplen > INT_MAX - seqcontlen)) {
+           return -1;
+         }
+@@ -244,7 +248,8 @@ int asn1_item_ex_i2d_opt(ASN1_VALUE **pval, unsigned char **out,
+           return -1;
+         }
+         pseqval = asn1_get_field_ptr(pval, seqtt);
+-        if (asn1_template_ex_i2d(pseqval, out, seqtt, -1, 0) < 0) {
++        if (asn1_template_ex_i2d(pseqval, out, seqtt, -1, 0, /*optional=*/0) <
++            0) {
+           return -1;
+         }
+       }
+@@ -259,10 +264,10 @@ int asn1_item_ex_i2d_opt(ASN1_VALUE **pval, unsigned char **out,
+ 
+ // asn1_template_ex_i2d behaves like |asn1_item_ex_i2d_opt| but uses an
+ // |ASN1_TEMPLATE| instead of an |ASN1_ITEM|. An |ASN1_TEMPLATE| wraps an
+-// |ASN1_ITEM| with modifiers such as tagging, SEQUENCE or SET, etc. Instead of
+-// taking an |optional| parameter, it uses the |ASN1_TFLG_OPTIONAL| flag.
++// |ASN1_ITEM| with modifiers such as tagging, SEQUENCE or SET, etc.
+ static int asn1_template_ex_i2d(ASN1_VALUE **pval, unsigned char **out,
+-                                const ASN1_TEMPLATE *tt, int tag, int iclass) {
++                                const ASN1_TEMPLATE *tt, int tag, int iclass,
++                                int optional) {
+   int i, ret, ttag, tclass;
+   size_t j;
+   uint32_t flags = tt->flags;
+@@ -294,7 +299,12 @@ static int asn1_template_ex_i2d(ASN1_VALUE **pval, unsigned char **out,
+     tclass = 0;
+   }
+ 
+-  const int optional = (flags & ASN1_TFLG_OPTIONAL) != 0;
++  // The template may itself by marked as optional, or this may be the template
++  // of an |ASN1_ITEM_TEMPLATE| type which was contained inside an outer
++  // optional template. (They cannot both be true because the
++  // |ASN1_ITEM_TEMPLATE| codepath rejects optional templates.)
++  assert(!optional || (flags & ASN1_TFLG_OPTIONAL) == 0);
++  optional = optional || (flags & ASN1_TFLG_OPTIONAL) != 0;
+ 
+   // At this point 'ttag' contains the outer tag to use, and 'tclass' is the
+   // class.

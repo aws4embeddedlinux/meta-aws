@@ -1,0 +1,65 @@
+From e4b603c2c622e3d328599d39d7bfc54918037656 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 24 Feb 2023 09:07:36 -0500
+Subject: [PATCH] Run Go tests as part of run_tests
+
+This doesn't run them as part of CI yet, but I'll follow-up with a
+recipe change to read the same util/go_tests.txt file and run Go tests
+in there.
+
+Bug: 506
+Change-Id: Ifd527b1d00ec30896582360132249230fab7e7c0
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57645
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit f53ca9f6b6b23478cea72f6d78023f47a39d6187)
+---
+ CMakeLists.txt    | 9 +++++++++
+ util/go_tests.txt | 4 ++++
+ 2 files changed, 13 insertions(+)
+ create mode 100644 util/go_tests.txt
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 5cb5a6ab9..3b1b0ee05 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -908,6 +908,13 @@ if(BUILD_TESTING)
+       add_custom_target(fips_specific_tests_if_any)
+     endif()
+ 
++    # Read util/go_tests.txt into a CMake variable.
++    file(READ util/go_tests.txt GO_TESTS)
++    string(REPLACE "\n" ";" GO_TESTS "${GO_TESTS}")
++    list(REMOVE_ITEM GO_TESTS "")
++    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
++      util/go_tests.txt)
++
+     if(BUILD_LIBSSL)
+       add_custom_target(
+           run_ssl_runner_tests
+@@ -931,6 +938,7 @@ if(BUILD_TESTING)
+           run_tests
+           COMMAND ${GO_EXECUTABLE} run util/all_tests.go -build-dir
+                   ${PROJECT_BINARY_DIR}
++          COMMAND ${GO_EXECUTABLE} test ${GO_TESTS}
+           WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+           DEPENDS all_tests run_ssl_runner_tests
+           ${MAYBE_USES_TERMINAL})
+@@ -939,6 +947,7 @@ if(BUILD_TESTING)
+           run_tests
+           COMMAND ${GO_EXECUTABLE} run util/all_tests.go -build-dir
+                   ${PROJECT_BINARY_DIR} -ssl-tests=false
++          COMMAND ${GO_EXECUTABLE} test ${GO_TESTS}
+           WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+           DEPENDS all_tests fips_specific_tests_if_any
+           ${MAYBE_USES_TERMINAL}
+diff --git a/util/go_tests.txt b/util/go_tests.txt
+new file mode 100644
+index 000000000..0f43cf687
+--- /dev/null
++++ b/util/go_tests.txt
+@@ -0,0 +1,4 @@
++./ssl/test/runner/hpke
++./util/ar
++./util/fipstools/acvp/acvptool/testmodulewrapper
++./util/fipstools/delocate

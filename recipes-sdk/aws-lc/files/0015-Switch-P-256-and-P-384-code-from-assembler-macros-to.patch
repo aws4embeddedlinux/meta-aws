@@ -1,0 +1,951 @@
+From 774aecc82c4713707ff1d58cb7e5312e04dcf866 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Thu, 22 Jul 2021 20:35:18 -0700
+Subject: [PATCH] Switch P-256 and P-384 code from assembler macros to C
+ preprocessor
+
+This is a superficial but syntactically messy change to avoid use of
+the assembler .macro construct in the P-256 and P-384 functions, for
+both ARM and x86 (so now macros are only used in the "fastmul"
+functions), replaced by use of the C preprocessor. This is intended to
+ease a FIPS build of the code, but does have the side-effect that
+preprocessed code can now have multiple instructions per line
+separated by semicolons. This is unproblematic for gcc or the GNU
+assembler.
+
+Took the chance to make one trivial but semantically meaningful
+change, slightly tweaking x86/p384/bignum_tomont_p384.S in line with
+earlier changes to the Montgomery multiplication to shorten the code a
+bit and keep the identically-named "macros" the same.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/5c707a62fe60a4c3548a4701ef98479d3ea66b12
+---
+ arm/p384/bignum_bigendian_6.S  |  47 +++++----
+ arm/p384/bignum_deamont_p384.S |  65 ++++++------
+ arm/p384/bignum_demont_p384.S  |  65 ++++++------
+ arm/p384/bignum_mod_n384.S     |  18 ++--
+ arm/p384/bignum_mod_n384_6.S   |  18 ++--
+ arm/p384/bignum_montmul_p384.S | 178 ++++++++++++++++-----------------
+ arm/p384/bignum_montsqr_p384.S |  94 +++++++++--------
+ arm/p384/bignum_tomont_p384.S  |  83 ++++++++-------
+ 8 files changed, 278 insertions(+), 290 deletions(-)
+
+diff --git a/arm/p384/bignum_bigendian_6.S b/arm/p384/bignum_bigendian_6.S
+index 642aa3706..cfbffcffe 100644
+--- a/arm/p384/bignum_bigendian_6.S
++++ b/arm/p384/bignum_bigendian_6.S
+@@ -49,24 +49,23 @@
+ #define a x3
+ #define c x4
+ 
+-.macro accumdigit dest, i
+-        ldrb    dshort, [x, #8 * \i + 7]
+-        extr    \dest, d, xzr, #8
+-        ldrb    dshort, [x, #8 * \i + 6]
+-        extr    \dest, d, \dest, #8
+-        ldrb    dshort, [x, #8 * \i + 5]
+-        extr    \dest, d, \dest, #8
+-        ldrb    dshort, [x, #8 * \i + 4]
+-        extr    \dest, d, \dest, #8
+-        ldrb    dshort, [x, #8 * \i + 3]
+-        extr    \dest, d, \dest, #8
+-        ldrb    dshort, [x, #8 * \i + 2]
+-        extr    \dest, d, \dest, #8
+-        ldrb    dshort, [x, #8 * \i + 1]
+-        extr    \dest, d, \dest, #8
+-        ldrb    dshort, [x, #8 * \i + 0]
+-        extr    \dest, d, \dest, #8
+-.endm
++#define accumdigit(dest,i)                                                  \
++        ldrb    dshort, [x, #8*i+7];                                        \
++        extr    dest, d, xzr, #8;                                           \
++        ldrb    dshort, [x, #8*i+6];                                        \
++        extr    dest, d, dest, #8;                                          \
++        ldrb    dshort, [x, #8*i+5];                                        \
++        extr    dest, d, dest, #8;                                          \
++        ldrb    dshort, [x, #8*i+4];                                        \
++        extr    dest, d, dest, #8;                                          \
++        ldrb    dshort, [x, #8*i+3];                                        \
++        extr    dest, d, dest, #8;                                          \
++        ldrb    dshort, [x, #8*i+2];                                        \
++        extr    dest, d, dest, #8;                                          \
++        ldrb    dshort, [x, #8*i+1];                                        \
++        extr    dest, d, dest, #8;                                          \
++        ldrb    dshort, [x, #8*i+0];                                        \
++        extr    dest, d, dest, #8
+ 
+ // The reads and writes are organized in mirror-image pairs (0-5, 1-4, 2-3)
+ // to allow x and z to point to the same buffer without using more
+@@ -78,22 +77,22 @@ bignum_tobytes_6:
+ 
+ // 0 and 5 words
+ 
+-                accumdigit a, 0
+-                accumdigit c, 5
++                accumdigit (a, 0)
++                accumdigit (c, 5)
+                 str     a, [z, #8*5]
+                 str     c, [z, #8*0]
+ 
+ // 1 and 4 words
+ 
+-                accumdigit a, 1
+-                accumdigit c, 4
++                accumdigit (a, 1)
++                accumdigit (c, 4)
+                 str     a, [z, #8*4]
+                 str     c, [z, #8*1]
+ 
+ // 2 and 3 words
+ 
+-                accumdigit a, 2
+-                accumdigit c, 3
++                accumdigit (a, 2)
++                accumdigit (c, 3)
+                 str     a, [z, #8*3]
+                 str     c, [z, #8*2]
+ 
+diff --git a/arm/p384/bignum_deamont_p384.S b/arm/p384/bignum_deamont_p384.S
+index 7e491555f..0145e1112 100644
+--- a/arm/p384/bignum_deamont_p384.S
++++ b/arm/p384/bignum_deamont_p384.S
+@@ -39,33 +39,32 @@
+ // where w = [d0 + (d0<<32)] mod 2^64
+ // ---------------------------------------------------------------------------
+ 
+-.macro          montreds d6,d5,d4,d3,d2,d1,d0, t3,t2,t1
+-// Our correction multiplier is w = [d0 + (d0<<32)] mod 2^64
+-// Recycle d0 (which we know gets implicitly cancelled) to store it
+-                lsl     \t1, \d0, #32
+-                add     \d0, \t1, \d0
+-// Now let [t2;t1] = 2^64 * w - w + w_hi where w_hi = floor(w/2^32)
+-// We need to subtract 2^32 * this, and we can ignore its lower 32
+-// bits since by design it will cancel anyway; we only need the w_hi
+-// part to get the carry propagation going.
+-                lsr     \t1, \d0, #32
+-                subs    \t1, \t1, \d0
+-                sbc     \t2, \d0, xzr
+-// Now select in t1 the field to subtract from d1
+-                extr    \t1, \t2, \t1, #32
+-// And now get the terms to subtract from d2 and d3
+-                lsr     \t2, \t2, #32
+-                adds    \t2, \t2, \d0
+-                adc     \t3, xzr, xzr
+-// Do the subtraction of that portion
+-                subs    \d1, \d1, \t1
+-                sbcs    \d2, \d2, \t2
+-                sbcs    \d3, \d3, \t3
+-                sbcs    \d4, \d4, xzr
+-                sbcs    \d5, \d5, xzr
+-// Now effectively add 2^384 * w by taking d0 as the input for the last sbc
+-                sbc     \d6, \d0, xzr
+-.endm
++#define montreds(d6,d5,d4,d3,d2,d1,d0, t3,t2,t1)                            \
++/* Our correction multiplier is w = [d0 + (d0<<32)] mod 2^64            */  \
++/* Recycle d0 (which we know gets implicitly cancelled) to store it     */  \
++                lsl     t1, d0, 32;                                         \
++                add     d0, t1, d0;                                         \
++/* Now let [t2;t1] = 2^64 * w - w + w_hi where w_hi = floor(w/2^32)     */  \
++/* We need to subtract 2^32 * this, and we can ignore its lower 32      */  \
++/* bits since by design it will cancel anyway; we only need the w_hi    */  \
++/* part to get the carry propagation going.                             */  \
++                lsr     t1, d0, 32;                                         \
++                subs    t1, t1, d0;                                         \
++                sbc     t2, d0, xzr;                                        \
++/* Now select in t1 the field to subtract from d1                       */  \
++                extr    t1, t2, t1, 32;                                     \
++/* And now get the terms to subtract from d2 and d3                     */  \
++                lsr     t2, t2, 32;                                         \
++                adds    t2, t2, d0;                                         \
++                adc     t3, xzr, xzr;                                       \
++/* Do the subtraction of that portion                                   */  \
++                subs    d1, d1, t1;                                         \
++                sbcs    d2, d2, t2;                                         \
++                sbcs    d3, d3, t3;                                         \
++                sbcs    d4, d4, xzr;                                        \
++                sbcs    d5, d5, xzr;                                        \
++/* Now effectively add 2^384 * w by taking d0 as the input for last sbc */  \
++                sbc     d6, d0, xzr
+ 
+ // Input parameters
+ 
+@@ -97,17 +96,17 @@ bignum_deamont_p384:
+ 
+ // Systematically scroll left doing 1-step reductions
+ 
+-                montreds d0,d5,d4,d3,d2,d1,d0, u,v,w
++                montreds (d0,d5,d4,d3,d2,d1,d0, u,v,w)
+ 
+-                montreds d1,d0,d5,d4,d3,d2,d1, u,v,w
++                montreds (d1,d0,d5,d4,d3,d2,d1, u,v,w)
+ 
+-                montreds d2,d1,d0,d5,d4,d3,d2, u,v,w
++                montreds (d2,d1,d0,d5,d4,d3,d2, u,v,w)
+ 
+-                montreds d3,d2,d1,d0,d5,d4,d3, u,v,w
++                montreds (d3,d2,d1,d0,d5,d4,d3, u,v,w)
+ 
+-                montreds d4,d3,d2,d1,d0,d5,d4, u,v,w
++                montreds (d4,d3,d2,d1,d0,d5,d4, u,v,w)
+ 
+-                montreds d5,d4,d3,d2,d1,d0,d5, u,v,w
++                montreds (d5,d4,d3,d2,d1,d0,d5, u,v,w)
+ 
+ // Now compare end result in [d5;d4;d3;d2;d1;d0] = dd with p_384 by *adding*
+ // 2^384 - p_384 = [0;0;0;w;v;u]. This will set CF if
+diff --git a/arm/p384/bignum_demont_p384.S b/arm/p384/bignum_demont_p384.S
+index cb855b713..8e8e9d7f8 100644
+--- a/arm/p384/bignum_demont_p384.S
++++ b/arm/p384/bignum_demont_p384.S
+@@ -39,33 +39,32 @@
+ // where w = [d0 + (d0<<32)] mod 2^64
+ // ---------------------------------------------------------------------------
+ 
+-.macro          montreds d6,d5,d4,d3,d2,d1,d0, t3,t2,t1
+-// Our correction multiplier is w = [d0 + (d0<<32)] mod 2^64
+-// Recycle d0 (which we know gets implicitly cancelled) to store it
+-                lsl     \t1, \d0, #32
+-                add     \d0, \t1, \d0
+-// Now let [t2;t1] = 2^64 * w - w + w_hi where w_hi = floor(w/2^32)
+-// We need to subtract 2^32 * this, and we can ignore its lower 32
+-// bits since by design it will cancel anyway; we only need the w_hi
+-// part to get the carry propagation going.
+-                lsr     \t1, \d0, #32
+-                subs    \t1, \t1, \d0
+-                sbc     \t2, \d0, xzr
+-// Now select in t1 the field to subtract from d1
+-                extr    \t1, \t2, \t1, #32
+-// And now get the terms to subtract from d2 and d3
+-                lsr     \t2, \t2, #32
+-                adds    \t2, \t2, \d0
+-                adc     \t3, xzr, xzr
+-// Do the subtraction of that portion
+-                subs    \d1, \d1, \t1
+-                sbcs    \d2, \d2, \t2
+-                sbcs    \d3, \d3, \t3
+-                sbcs    \d4, \d4, xzr
+-                sbcs    \d5, \d5, xzr
+-// Now effectively add 2^384 * w by taking d0 as the input for the last sbc
+-                sbc     \d6, \d0, xzr
+-.endm
++#define montreds(d6,d5,d4,d3,d2,d1,d0, t3,t2,t1)                            \
++/* Our correction multiplier is w = [d0 + (d0<<32)] mod 2^64            */  \
++/* Recycle d0 (which we know gets implicitly cancelled) to store it     */  \
++                lsl     t1, d0, 32;                                         \
++                add     d0, t1, d0;                                         \
++/* Now let [t2;t1] = 2^64 * w - w + w_hi where w_hi = floor(w/2^32)     */  \
++/* We need to subtract 2^32 * this, and we can ignore its lower 32      */  \
++/* bits since by design it will cancel anyway; we only need the w_hi    */  \
++/* part to get the carry propagation going.                             */  \
++                lsr     t1, d0, 32;                                         \
++                subs    t1, t1, d0;                                         \
++                sbc     t2, d0, xzr;                                        \
++/* Now select in t1 the field to subtract from d1                       */  \
++                extr    t1, t2, t1, 32;                                     \
++/* And now get the terms to subtract from d2 and d3                     */  \
++                lsr     t2, t2, 32;                                         \
++                adds    t2, t2, d0;                                         \
++                adc     t3, xzr, xzr;                                       \
++/* Do the subtraction of that portion                                   */  \
++                subs    d1, d1, t1;                                         \
++                sbcs    d2, d2, t2;                                         \
++                sbcs    d3, d3, t3;                                         \
++                sbcs    d4, d4, xzr;                                        \
++                sbcs    d5, d5, xzr;                                        \
++/* Now effectively add 2^384 * w by taking d0 as the input for last sbc */  \
++                sbc     d6, d0, xzr
+ 
+ // Input parameters
+ 
+@@ -97,17 +96,17 @@ bignum_demont_p384:
+ 
+ // Systematically scroll left doing 1-step reductions
+ 
+-                montreds d0,d5,d4,d3,d2,d1,d0, u,v,w
++                montreds (d0,d5,d4,d3,d2,d1,d0, u,v,w)
+ 
+-                montreds d1,d0,d5,d4,d3,d2,d1, u,v,w
++                montreds (d1,d0,d5,d4,d3,d2,d1, u,v,w)
+ 
+-                montreds d2,d1,d0,d5,d4,d3,d2, u,v,w
++                montreds (d2,d1,d0,d5,d4,d3,d2, u,v,w)
+ 
+-                montreds d3,d2,d1,d0,d5,d4,d3, u,v,w
++                montreds (d3,d2,d1,d0,d5,d4,d3, u,v,w)
+ 
+-                montreds d4,d3,d2,d1,d0,d5,d4, u,v,w
++                montreds (d4,d3,d2,d1,d0,d5,d4, u,v,w)
+ 
+-                montreds d5,d4,d3,d2,d1,d0,d5, u,v,w
++                montreds (d5,d4,d3,d2,d1,d0,d5, u,v,w)
+ 
+ // This is already our answer with no correction needed
+ 
+diff --git a/arm/p384/bignum_mod_n384.S b/arm/p384/bignum_mod_n384.S
+index 7ea63cb5a..5fec1d91b 100644
+--- a/arm/p384/bignum_mod_n384.S
++++ b/arm/p384/bignum_mod_n384.S
+@@ -65,13 +65,11 @@
+ 
+ // Loading large constants
+ 
+-.macro movbig nn, n3, n2, n1, n0
+-                movz    \nn, \n0
+-                movk    \nn, \n1, lsl #16
+-                movk    \nn, \n2, lsl #32
+-                movk    \nn, \n3, lsl #48
+-.endm
+-
++#define movbig(nn,n3,n2,n1,n0)                                              \
++                movz    nn, n0;                                             \
++                movk    nn, n1, lsl #16;                                    \
++                movk    nn, n2, lsl #32;                                    \
++                movk    nn, n3, lsl #48
+ 
+ bignum_mod_n384:
+ 
+@@ -91,9 +89,9 @@ bignum_mod_n384:
+ 
+ // Load the complicated three words of 2^384 - n_384 = [0; 0; 0; n2; n1; n0]
+ 
+-                movbig  n0, #0x1313, #0xe695, #0x333a, #0xd68d
+-                movbig  n1, #0xa7e5, #0xf24d, #0xb74f, #0x5885
+-                movbig  n2, #0x389c, #0xb27e, #0x0bc8, #0xd220
++                movbig ( n0, #0x1313, #0xe695, #0x333a, #0xd68d)
++                movbig ( n1, #0xa7e5, #0xf24d, #0xb74f, #0x5885)
++                movbig ( n2, #0x389c, #0xb27e, #0x0bc8, #0xd220)
+ 
+ // Reduce the top 6 digits mod n_384 (a conditional subtraction of n_384)
+ 
+diff --git a/arm/p384/bignum_mod_n384_6.S b/arm/p384/bignum_mod_n384_6.S
+index 3bba98a51..0024981ba 100644
+--- a/arm/p384/bignum_mod_n384_6.S
++++ b/arm/p384/bignum_mod_n384_6.S
+@@ -45,21 +45,19 @@
+ #define d4 x12
+ #define d5 x13
+ 
+-.macro movbig x, n3, n2, n1, n0
+-                movz    \x, \n0
+-                movk    \x, \n1, lsl #16
+-                movk    \x, \n2, lsl #32
+-                movk    \x, \n3, lsl #48
+-.endm
+-
++#define movbig(nn,n3,n2,n1,n0)                                              \
++                movz    nn, n0;                                             \
++                movk    nn, n1, lsl #16;                                    \
++                movk    nn, n2, lsl #32;                                    \
++                movk    nn, n3, lsl #48
+ 
+ bignum_mod_n384_6:
+ 
+ // Load the complicated lower three words of n_384
+ 
+-                movbig  n0, #0xecec, #0x196a, #0xccc5, #0x2973
+-                movbig  n1, #0x581a, #0x0db2, #0x48b0, #0xa77a
+-                movbig  n2, #0xc763, #0x4d81, #0xf437, #0x2ddf
++                movbig ( n0, #0xecec, #0x196a, #0xccc5, #0x2973)
++                movbig ( n1, #0x581a, #0x0db2, #0x48b0, #0xa77a)
++                movbig ( n2, #0xc763, #0x4d81, #0xf437, #0x2ddf)
+ 
+ // Load the input number
+ 
+diff --git a/arm/p384/bignum_montmul_p384.S b/arm/p384/bignum_montmul_p384.S
+index 560679812..4a532309b 100644
+--- a/arm/p384/bignum_montmul_p384.S
++++ b/arm/p384/bignum_montmul_p384.S
+@@ -36,18 +36,17 @@
+ // t,h should not overlap w,z
+ // ---------------------------------------------------------------------------
+ 
+-.macro muldiffn c,h,l, t, x,y, w,z
+-        subs    \t, \x, \y
+-        cneg    \t, \t, cc
+-        csetm   \c, cc
+-        subs    \h, \w, \z
+-        cneg    \h, \h, cc
+-        mul     \l, \t, \h
+-        umulh   \h, \t, \h
+-        cinv    \c, \c, cc
+-        eor     \l, \l, \c
+-        eor     \h, \h, \c
+-.endm
++#define muldiffn(c,h,l, t, x,y, w,z)    \
++        subs    t, x, y;                \
++        cneg    t, t, cc;               \
++        csetm   c, cc;                  \
++        subs    h, w, z;                \
++        cneg    h, h, cc;               \
++        mul     l, t, h;                \
++        umulh   h, t, h;                \
++        cinv    c, c, cc;               \
++        eor     l, l, c;                \
++        eor     h, h, c
+ 
+ // ---------------------------------------------------------------------------
+ // Core one-step "short" Montgomery reduction macro. Takes input in
+@@ -59,33 +58,32 @@
+ // where w = [d0 + (d0<<32)] mod 2^64
+ // ---------------------------------------------------------------------------
+ 
+-.macro          montreds d6,d5,d4,d3,d2,d1,d0, t3,t2,t1
+-// Our correction multiplier is w = [d0 + (d0<<32)] mod 2^64
+-// Recycle d0 (which we know gets implicitly cancelled) to store it
+-                lsl     \t1, \d0, #32
+-                add     \d0, \t1, \d0
+-// Now let [t2;t1] = 2^64 * w - w + w_hi where w_hi = floor(w/2^32)
+-// We need to subtract 2^32 * this, and we can ignore its lower 32
+-// bits since by design it will cancel anyway; we only need the w_hi
+-// part to get the carry propagation going.
+-                lsr     \t1, \d0, #32
+-                subs    \t1, \t1, \d0
+-                sbc     \t2, \d0, xzr
+-// Now select in t1 the field to subtract from d1
+-                extr    \t1, \t2, \t1, #32
+-// And now get the terms to subtract from d2 and d3
+-                lsr     \t2, \t2, #32
+-                adds    \t2, \t2, \d0
+-                adc     \t3, xzr, xzr
+-// Do the subtraction of that portion
+-                subs    \d1, \d1, \t1
+-                sbcs    \d2, \d2, \t2
+-                sbcs    \d3, \d3, \t3
+-                sbcs    \d4, \d4, xzr
+-                sbcs    \d5, \d5, xzr
+-// Now effectively add 2^384 * w by taking d0 as the input for the last sbc
+-                sbc     \d6, \d0, xzr
+-.endm
++#define montreds(d6,d5,d4,d3,d2,d1,d0, t3,t2,t1)                            \
++/* Our correction multiplier is w = [d0 + (d0<<32)] mod 2^64            */  \
++/* Recycle d0 (which we know gets implicitly cancelled) to store it     */  \
++                lsl     t1, d0, 32;                                         \
++                add     d0, t1, d0;                                         \
++/* Now let [t2;t1] = 2^64 * w - w + w_hi where w_hi = floor(w/2^32)     */  \
++/* We need to subtract 2^32 * this, and we can ignore its lower 32      */  \
++/* bits since by design it will cancel anyway; we only need the w_hi    */  \
++/* part to get the carry propagation going.                             */  \
++                lsr     t1, d0, 32;                                         \
++                subs    t1, t1, d0;                                         \
++                sbc     t2, d0, xzr;                                        \
++/* Now select in t1 the field to subtract from d1                       */  \
++                extr    t1, t2, t1, 32;                                     \
++/* And now get the terms to subtract from d2 and d3                     */  \
++                lsr     t2, t2, 32;                                         \
++                adds    t2, t2, d0;                                         \
++                adc     t3, xzr, xzr;                                       \
++/* Do the subtraction of that portion                                   */  \
++                subs    d1, d1, t1;                                         \
++                sbcs    d2, d2, t2;                                         \
++                sbcs    d3, d3, t3;                                         \
++                sbcs    d4, d4, xzr;                                        \
++                sbcs    d5, d5, xzr;                                        \
++/* Now effectively add 2^384 * w by taking d0 as the input for last sbc */  \
++                sbc     d6, d0, xzr
+ 
+ #define a0 x3
+ #define a1 x4
+@@ -117,18 +115,18 @@ bignum_montmul_p384:
+ 
+ // Save some registers
+ 
+-                stp     x19, x20, [sp, #-16]!
+-                stp     x21, x22, [sp, #-16]!
+-                stp     x23, x24, [sp, #-16]!
++                stp     x19, x20, [sp, -16]!
++                stp     x21, x22, [sp, -16]!
++                stp     x23, x24, [sp, -16]!
+ 
+ // Load in all words of both inputs
+ 
+                 ldp     a0, a1, [x1]
+-                ldp     a2, a3, [x1, #16]
+-                ldp     a4, a5, [x1, #32]
++                ldp     a2, a3, [x1, 16]
++                ldp     a4, a5, [x1, 32]
+                 ldp     b0, b1, [x2]
+-                ldp     b2, b3, [x2, #16]
+-                ldp     b4, b5, [x2, #32]
++                ldp     b2, b3, [x2, 16]
++                ldp     b4, b5, [x2, 32]
+ 
+ // Multiply low halves with a 3x3->6 ADK multiplier as [s5;s4;s3;s2;s1;s0]
+ 
+@@ -153,23 +151,23 @@ bignum_montmul_p384:
+                 adcs    s4, s4, t4
+                 adc     s5, s5, xzr
+ 
+-                muldiffn t3,t2,t1, t4, a0,a1, b1,b0
+-                adds    xzr, t3, #1
++                muldiffn (t3,t2,t1, t4, a0,a1, b1,b0)
++                adds    xzr, t3, 1
+                 adcs    s1, s1, t1
+                 adcs    s2, s2, t2
+                 adcs    s3, s3, t3
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+-                muldiffn t3,t2,t1, t4, a0,a2, b2,b0
+-                adds    xzr, t3, #1
++                muldiffn (t3,t2,t1, t4, a0,a2, b2,b0)
++                adds    xzr, t3, 1
+                 adcs    s2, s2, t1
+                 adcs    s3, s3, t2
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+-                muldiffn t3,t2,t1, t4, a1,a2, b2,b1
+-                adds    xzr, t3, #1
++                muldiffn (t3,t2,t1, t4, a1,a2, b2,b1)
++                adds    xzr, t3, 1
+                 adcs    s3, s3, t1
+                 adcs    s4, s4, t2
+                 adc     s5, s5, t3
+@@ -180,15 +178,15 @@ bignum_montmul_p384:
+ // We could keep this in registers by directly adding to it in the next
+ // ADK block, but if anything that seems to be slightly slower
+ 
+-                montreds s0,s5,s4,s3,s2,s1,s0, t1,t2,t3
++                montreds (s0,s5,s4,s3,s2,s1,s0, t1,t2,t3)
+ 
+-                montreds s1,s0,s5,s4,s3,s2,s1, t1,t2,t3
++                montreds (s1,s0,s5,s4,s3,s2,s1, t1,t2,t3)
+ 
+-                montreds s2,s1,s0,s5,s4,s3,s2, t1,t2,t3
++                montreds (s2,s1,s0,s5,s4,s3,s2, t1,t2,t3)
+ 
+                 stp     s3, s4, [x0]
+-                stp     s5, s0, [x0, #16]
+-                stp     s1, s2, [x0, #32]
++                stp     s5, s0, [x0, 16]
++                stp     s1, s2, [x0, 32]
+ 
+ // Multiply high halves with a 3x3->6 ADK multiplier as [s5;s4;s3;s2;s1;s0]
+ 
+@@ -213,23 +211,23 @@ bignum_montmul_p384:
+                 adcs    s4, s4, t4
+                 adc     s5, s5, xzr
+ 
+-                muldiffn t3,t2,t1, t4, a3,a4, b4,b3
+-                adds    xzr, t3, #1
++                muldiffn (t3,t2,t1, t4, a3,a4, b4,b3)
++                adds    xzr, t3, 1
+                 adcs    s1, s1, t1
+                 adcs    s2, s2, t2
+                 adcs    s3, s3, t3
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+-                muldiffn t3,t2,t1, t4, a3,a5, b5,b3
+-                adds    xzr, t3, #1
++                muldiffn (t3,t2,t1, t4, a3,a5, b5,b3)
++                adds    xzr, t3, 1
+                 adcs    s2, s2, t1
+                 adcs    s3, s3, t2
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+-                muldiffn t3,t2,t1, t4, a4,a5, b5,b4
+-                adds    xzr, t3, #1
++                muldiffn (t3,t2,t1, t4, a4,a5, b5,b4)
++                adds    xzr, t3, 1
+                 adcs    s3, s3, t1
+                 adcs    s4, s4, t2
+                 adc     s5, s5, t3
+@@ -240,7 +238,7 @@ bignum_montmul_p384:
+                 sbcs    a4, a4, a1
+                 sbcs    a5, a5, a2
+                 sbc     a0, xzr, xzr
+-                adds    xzr, a0, #1
++                adds    xzr, a0, 1
+                 eor     a3, a3, a0
+                 adcs    a3, a3, xzr
+                 eor     a4, a4, a0
+@@ -255,7 +253,7 @@ bignum_montmul_p384:
+                 sbcs    b2, b2, b5
+                 sbc     b5, xzr, xzr
+ 
+-                adds    xzr, b5, #1
++                adds    xzr, b5, 1
+                 eor     b0, b0, b5
+                 adcs    b0, b0, xzr
+                 eor     b1, b1, b5
+@@ -273,16 +271,16 @@ bignum_montmul_p384:
+                 ldp     t1, t2, [x0]
+                 adds    s0, s0, t1
+                 adcs    s1, s1, t2
+-                ldp     t1, t2, [x0, #16]
++                ldp     t1, t2, [x0, 16]
+                 adcs    s2, s2, t1
+                 adcs    s3, s3, t2
+-                ldp     t1, t2, [x0, #32]
++                ldp     t1, t2, [x0, 32]
+                 adcs    s4, s4, t1
+                 adcs    s5, s5, t2
+                 adc     s6, xzr, xzr
+                 stp     s0, s1, [x0]
+-                stp     s2, s3, [x0, #16]
+-                stp     s4, s5, [x0, #32]
++                stp     s2, s3, [x0, 16]
++                stp     s4, s5, [x0, 32]
+ 
+ // Multiply with yet a third 3x3 ADK for the complex mid-term
+ 
+@@ -307,23 +305,23 @@ bignum_montmul_p384:
+                 adcs    s4, s4, t4
+                 adc     s5, s5, xzr
+ 
+-                muldiffn t3,t2,t1, t4, a3,a4, b1,b0
+-                adds    xzr, t3, #1
++                muldiffn (t3,t2,t1, t4, a3,a4, b1,b0)
++                adds    xzr, t3, 1
+                 adcs    s1, s1, t1
+                 adcs    s2, s2, t2
+                 adcs    s3, s3, t3
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+-                muldiffn t3,t2,t1, t4, a3,a5, b2,b0
+-                adds    xzr, t3, #1
++                muldiffn (t3,t2,t1, t4, a3,a5, b2,b0)
++                adds    xzr, t3, 1
+                 adcs    s2, s2, t1
+                 adcs    s3, s3, t2
+                 adcs    s4, s4, t3
+                 adc     s5, s5, t3
+ 
+-                muldiffn t3,t2,t1, t4, a4,a5, b2,b1
+-                adds    xzr, t3, #1
++                muldiffn (t3,t2,t1, t4, a4,a5, b2,b1)
++                adds    xzr, t3, 1
+                 adcs    s3, s3, t1
+                 adcs    s4, s4, t2
+                 adc     s5, s5, t3
+@@ -331,14 +329,14 @@ bignum_montmul_p384:
+ // Unstash the H + L' sum to add in twice
+ 
+                 ldp     a0, a1, [x0]
+-                ldp     a2, a3, [x0, #16]
+-                ldp     a4, a5, [x0, #32]
++                ldp     a2, a3, [x0, 16]
++                ldp     a4, a5, [x0, 32]
+ 
+ // Set up a sign-modified version of the mid-product in a long accumulator
+ // as [b3;b2;b1;b0;s5;s4;s3;s2;s1;s0], adding in the H + L' term once with
+ // zero offset as this signed value is created
+ 
+-                adds    xzr, b5, #1
++                adds    xzr, b5, 1
+                 eor     s0, s0, b5
+                 adcs    s0, s0, a0
+                 eor     s1, s1, b5
+@@ -368,9 +366,9 @@ bignum_montmul_p384:
+ 
+ // Do three more Montgomery steps on the composed term
+ 
+-                montreds s0,s5,s4,s3,s2,s1,s0, t1,t2,t3
+-                montreds s1,s0,s5,s4,s3,s2,s1, t1,t2,t3
+-                montreds s2,s1,s0,s5,s4,s3,s2, t1,t2,t3
++                montreds (s0,s5,s4,s3,s2,s1,s0, t1,t2,t3)
++                montreds (s1,s0,s5,s4,s3,s2,s1, t1,t2,t3)
++                montreds (s2,s1,s0,s5,s4,s3,s2, t1,t2,t3)
+ 
+                 adds    b0, b0, s0
+                 adcs    b1, b1, s1
+@@ -383,8 +381,8 @@ bignum_montmul_p384:
+ // elaborate final correction in the style of bignum_cmul_p384, just
+ // a little bit simpler because we know q is small.
+ 
+-                add     t2, b3, #1
+-                lsl     t1, t2, #32
++                add     t2, b3, 1
++                lsl     t1, t2, 32
+                 subs    t4, t2, t1
+                 sbc     t1, t1, xzr
+ 
+@@ -397,12 +395,12 @@ bignum_montmul_p384:
+ 
+                 csetm   t2, cc
+ 
+-                mov     t3, #0x00000000ffffffff
++                mov     t3, 0x00000000ffffffff
+                 and     t3, t3, t2
+                 adds    s3, s3, t3
+                 eor     t3, t3, t2
+                 adcs    s4, s4, t3
+-                mov     t3, #0xfffffffffffffffe
++                mov     t3, 0xfffffffffffffffe
+                 and     t3, t3, t2
+                 adcs    s5, s5, t3
+                 adcs    b0, b0, t2
+@@ -412,14 +410,14 @@ bignum_montmul_p384:
+ // Write back the result
+ 
+                 stp     s3, s4, [x0]
+-                stp     s5, b0, [x0, #16]
+-                stp     b1, b2, [x0, #32]
++                stp     s5, b0, [x0, 16]
++                stp     b1, b2, [x0, 32]
+ 
+ // Restore registers and return
+ 
+-                ldp     x23, x24, [sp], #16
+-                ldp     x21, x22, [sp], #16
+-                ldp     x19, x20, [sp], #16
++                ldp     x23, x24, [sp], 16
++                ldp     x21, x22, [sp], 16
++                ldp     x19, x20, [sp], 16
+ 
+                 ret
+ 
+diff --git a/arm/p384/bignum_montsqr_p384.S b/arm/p384/bignum_montsqr_p384.S
+index 0119580eb..16c78ab23 100644
+--- a/arm/p384/bignum_montsqr_p384.S
++++ b/arm/p384/bignum_montsqr_p384.S
+@@ -35,18 +35,17 @@
+ // t,h should not overlap w,z
+ // ---------------------------------------------------------------------------
+ 
+-.macro muldiffn c,h,l, t, x,y, w,z
+-        subs    \t, \x, \y
+-        cneg    \t, \t, cc
+-        csetm   \c, cc
+-        subs    \h, \w, \z
+-        cneg    \h, \h, cc
+-        mul     \l, \t, \h
+-        umulh   \h, \t, \h
+-        cinv    \c, \c, cc
+-        eor     \l, \l, \c
+-        eor     \h, \h, \c
+-.endm
++#define muldiffn(c,h,l, t, x,y, w,z)    \
++        subs    t, x, y;                \
++        cneg    t, t, cc;               \
++        csetm   c, cc;                  \
++        subs    h, w, z;                \
++        cneg    h, h, cc;               \
++        mul     l, t, h;                \
++        umulh   h, t, h;                \
++        cinv    c, c, cc;               \
++        eor     l, l, c;                \
++        eor     h, h, c
+ 
+ // ---------------------------------------------------------------------------
+ // Core one-step "short" Montgomery reduction macro. Takes input in
+@@ -58,33 +57,32 @@
+ // where w = [d0 + (d0<<32)] mod 2^64
+ // ---------------------------------------------------------------------------
+ 
+-.macro          montreds d6,d5,d4,d3,d2,d1,d0, t3,t2,t1
+-// Our correction multiplier is w = [d0 + (d0<<32)] mod 2^64
+-// Recycle d0 (which we know gets implicitly cancelled) to store it
+-                lsl     \t1, \d0, #32
+-                add     \d0, \t1, \d0
+-// Now let [t2;t1] = 2^64 * w - w + w_hi where w_hi = floor(w/2^32)
+-// We need to subtract 2^32 * this, and we can ignore its lower 32
+-// bits since by design it will cancel anyway; we only need the w_hi
+-// part to get the carry propagation going.
+-                lsr     \t1, \d0, #32
+-                subs    \t1, \t1, \d0
+-                sbc     \t2, \d0, xzr
+-// Now select in t1 the field to subtract from d1
+-                extr    \t1, \t2, \t1, #32
+-// And now get the terms to subtract from d2 and d3
+-                lsr     \t2, \t2, #32
+-                adds    \t2, \t2, \d0
+-                adc     \t3, xzr, xzr
+-// Do the subtraction of that portion
+-                subs    \d1, \d1, \t1
+-                sbcs    \d2, \d2, \t2
+-                sbcs    \d3, \d3, \t3
+-                sbcs    \d4, \d4, xzr
+-                sbcs    \d5, \d5, xzr
+-// Now effectively add 2^384 * w by taking d0 as the input for the last sbc
+-                sbc     \d6, \d0, xzr
+-.endm
++#define montreds(d6,d5,d4,d3,d2,d1,d0, t3,t2,t1)                            \
++/* Our correction multiplier is w = [d0 + (d0<<32)] mod 2^64            */  \
++/* Recycle d0 (which we know gets implicitly cancelled) to store it     */  \
++                lsl     t1, d0, 32;                                         \
++                add     d0, t1, d0;                                         \
++/* Now let [t2;t1] = 2^64 * w - w + w_hi where w_hi = floor(w/2^32)     */  \
++/* We need to subtract 2^32 * this, and we can ignore its lower 32      */  \
++/* bits since by design it will cancel anyway; we only need the w_hi    */  \
++/* part to get the carry propagation going.                             */  \
++                lsr     t1, d0, 32;                                         \
++                subs    t1, t1, d0;                                         \
++                sbc     t2, d0, xzr;                                        \
++/* Now select in t1 the field to subtract from d1                       */  \
++                extr    t1, t2, t1, 32;                                     \
++/* And now get the terms to subtract from d2 and d3                     */  \
++                lsr     t2, t2, 32;                                         \
++                adds    t2, t2, d0;                                         \
++                adc     t3, xzr, xzr;                                       \
++/* Do the subtraction of that portion                                   */  \
++                subs    d1, d1, t1;                                         \
++                sbcs    d2, d2, t2;                                         \
++                sbcs    d3, d3, t3;                                         \
++                sbcs    d4, d4, xzr;                                        \
++                sbcs    d5, d5, xzr;                                        \
++/* Now effectively add 2^384 * w by taking d0 as the input for last sbc */  \
++                sbc     d6, d0, xzr
+ 
+ #define a0 x2
+ #define a1 x3
+@@ -148,11 +146,11 @@ bignum_montsqr_p384:
+ // This shifts it to an offset compatible with middle product
+ // Stash the result temporarily in the output buffer (to avoid more registers)
+ 
+-                montreds c0,c5,c4,c3,c2,c1,c0, d1,d2,d3
++                montreds (c0,c5,c4,c3,c2,c1,c0, d1,d2,d3)
+ 
+-                montreds c1,c0,c5,c4,c3,c2,c1, d1,d2,d3
++                montreds (c1,c0,c5,c4,c3,c2,c1, d1,d2,d3)
+ 
+-                montreds c2,c1,c0,c5,c4,c3,c2, d1,d2,d3
++                montreds (c2,c1,c0,c5,c4,c3,c2, d1,d2,d3)
+ 
+                 stp     c3, c4, [x0]
+                 stp     c5, c0, [x0, #16]
+@@ -206,7 +204,7 @@ bignum_montsqr_p384:
+                 adcs    s4, s4, h1
+                 adc     s5, h2, xzr
+ 
+-                muldiffn c,h,l, t, a0,a1, a4,a3
++                muldiffn (c,h,l, t, a0,a1, a4,a3)
+                 adds    xzr, c, #1
+                 adcs    s1, s1, l
+                 adcs    s2, s2, h
+@@ -214,14 +212,14 @@ bignum_montsqr_p384:
+                 adcs    s4, s4, c
+                 adc     s5, s5, c
+ 
+-                muldiffn c,h,l, t, a0,a2, a5,a3
++                muldiffn (c,h,l, t, a0,a2, a5,a3)
+                 adds    xzr, c, #1
+                 adcs    s2, s2, l
+                 adcs    s3, s3, h
+                 adcs    s4, s4, c
+                 adc     s5, s5, c
+ 
+-                muldiffn c,h,l, t, a1,a2, a5,a4
++                muldiffn (c,h,l, t, a1,a2, a5,a4)
+                 adds    xzr, c, #1
+                 adcs    s3, s3, l
+                 adcs    s4, s4, h
+@@ -250,11 +248,11 @@ bignum_montsqr_p384:
+ 
+ // Montgomery-reduce the combined low and middle term another thrice
+ 
+-                montreds s0,s5,s4,s3,s2,s1,s0, a0,a1,a2
++                montreds (s0,s5,s4,s3,s2,s1,s0, a0,a1,a2)
+ 
+-                montreds s1,s0,s5,s4,s3,s2,s1, a0,a1,a2
++                montreds (s1,s0,s5,s4,s3,s2,s1, a0,a1,a2)
+ 
+-                montreds s2,s1,s0,s5,s4,s3,s2, a0,a1,a2
++                montreds (s2,s1,s0,s5,s4,s3,s2, a0,a1,a2)
+ 
+                 adds    s6, s6, s0
+                 adcs    s0, s1, xzr
+diff --git a/arm/p384/bignum_tomont_p384.S b/arm/p384/bignum_tomont_p384.S
+index d7d690820..2bb05552d 100644
+--- a/arm/p384/bignum_tomont_p384.S
++++ b/arm/p384/bignum_tomont_p384.S
+@@ -32,42 +32,41 @@
+ // using d6 as well as t1, t2, t3 as temporaries.
+ // ----------------------------------------------------------------------------
+ 
+-.macro modstep_p384 d6,d5,d4,d3,d2,d1,d0, t1,t2,t3
+-// Initial quotient approximation q = min (h + 1) (2^64 - 1)
+-                adds    \d6, \d6, #1
+-                csetm   \t3, cs
+-                add     \d6, \d6, \t3
+-                orn     \t3, xzr, \t3
+-                sub     \t2, \d6, #1
+-                sub     \t1, xzr, \d6
+-// Correction term [d6;t2;t1;d0] = q * (2^384 - p_384)
+-                lsl     \d0, \t1, #32
+-                extr    \t1, \t2, \t1, #32
+-                lsr     \t2, \t2, #32
+-                adds    \d0, \d0, \d6
+-                adcs    \t1, \t1, xzr
+-                adcs    \t2, \t2, \d6
+-                adc     \d6, xzr, xzr
+-// Addition to the initial value
+-                adds    \d1, \d1, \t1
+-                adcs    \d2, \d2, \t2
+-                adcs    \d3, \d3, \d6
+-                adcs    \d4, \d4, xzr
+-                adcs    \d5, \d5, xzr
+-                adc     \t3, \t3, xzr
+-// Use net top of the 7-word answer in t3 for masked correction
+-                mov     \t1, #0x00000000ffffffff
+-                and     \t1, \t1, \t3
+-                adds    \d0, \d0, \t1
+-                eor     \t1, \t1, \t3
+-                adcs    \d1, \d1, \t1
+-                mov     \t1, #0xfffffffffffffffe
+-                and     \t1, \t1, \t3
+-                adcs    \d2, \d2, \t1
+-                adcs    \d3, \d3, \t3
+-                adcs    \d4, \d4, \t3
+-                adc     \d5, \d5, \t3
+-.endm
++#define modstep_p384(d6,d5,d4,d3,d2,d1,d0, t1,t2,t3)                        \
++/* Initial quotient approximation q = min (h + 1) (2^64 - 1) */             \
++                adds    d6, d6, #1;                                         \
++                csetm   t3, cs;                                             \
++                add     d6, d6, t3;                                         \
++                orn     t3, xzr, t3;                                        \
++                sub     t2, d6, #1;                                         \
++                sub     t1, xzr, d6;                                        \
++/* Correction term [d6;t2;t1;d0] = q * (2^384 - p_384) */                   \
++                lsl     d0, t1, #32;                                        \
++                extr    t1, t2, t1, #32;                                    \
++                lsr     t2, t2, #32;                                        \
++                adds    d0, d0, d6;                                         \
++                adcs    t1, t1, xzr;                                        \
++                adcs    t2, t2, d6;                                         \
++                adc     d6, xzr, xzr;                                       \
++/* Addition to the initial value */                                         \
++                adds    d1, d1, t1;                                         \
++                adcs    d2, d2, t2;                                         \
++                adcs    d3, d3, d6;                                         \
++                adcs    d4, d4, xzr;                                        \
++                adcs    d5, d5, xzr;                                        \
++                adc     t3, t3, xzr;                                        \
++/* Use net top of the 7-word answer in t3 for masked correction */          \
++                mov     t1, #0x00000000ffffffff;                            \
++                and     t1, t1, t3;                                         \
++                adds    d0, d0, t1;                                         \
++                eor     t1, t1, t3;                                         \
++                adcs    d1, d1, t1;                                         \
++                mov     t1, #0xfffffffffffffffe;                            \
++                and     t1, t1, t3;                                         \
++                adcs    d2, d2, t1;                                         \
++                adcs    d3, d3, t3;                                         \
++                adcs    d4, d4, t3;                                         \
++                adc     d5, d5, t3
+ 
+ bignum_tomont_p384:
+ 
+@@ -118,12 +117,12 @@ bignum_tomont_p384:
+ 
+ // Successively multiply by 2^64 and reduce
+ 
+-                modstep_p384 d5,d4,d3,d2,d1,d0,d6, t1,t2,t3
+-                modstep_p384 d4,d3,d2,d1,d0,d6,d5, t1,t2,t3
+-                modstep_p384 d3,d2,d1,d0,d6,d5,d4, t1,t2,t3
+-                modstep_p384 d2,d1,d0,d6,d5,d4,d3, t1,t2,t3
+-                modstep_p384 d1,d0,d6,d5,d4,d3,d2, t1,t2,t3
+-                modstep_p384 d0,d6,d5,d4,d3,d2,d1, t1,t2,t3
++                modstep_p384 (d5,d4,d3,d2,d1,d0,d6, t1,t2,t3)
++                modstep_p384 (d4,d3,d2,d1,d0,d6,d5, t1,t2,t3)
++                modstep_p384 (d3,d2,d1,d0,d6,d5,d4, t1,t2,t3)
++                modstep_p384 (d2,d1,d0,d6,d5,d4,d3, t1,t2,t3)
++                modstep_p384 (d1,d0,d6,d5,d4,d3,d2, t1,t2,t3)
++                modstep_p384 (d0,d6,d5,d4,d3,d2,d1, t1,t2,t3)
+ 
+ // Store the result and return
+ 

@@ -1,0 +1,60 @@
+From 715f282fd3631c220c8daaba03e09db9054ca4b7 Mon Sep 17 00:00:00 2001
+From: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+Date: Fri, 15 Sep 2023 09:21:00 -0400
+Subject: [PATCH] Disable XTS use of AVX512 on Windows (#1195)
+
+---
+ crypto/fipsmodule/aes/internal.h |  2 +-
+ crypto/fipsmodule/modes/gcm.c    |  1 +
+ crypto/impl_dispatch_test.cc     | 13 ++++++++++---
+ 3 files changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/crypto/fipsmodule/aes/internal.h b/crypto/fipsmodule/aes/internal.h
+index 8c808c32b..97d260f9b 100644
+--- a/crypto/fipsmodule/aes/internal.h
++++ b/crypto/fipsmodule/aes/internal.h
+@@ -161,7 +161,7 @@ OPENSSL_EXPORT int aes_hw_xts_cipher(const uint8_t *in, uint8_t *out, size_t len
+                                       const AES_KEY *key1, const AES_KEY *key2,
+                                       const uint8_t iv[16], int enc);
+ 
+-#if defined(OPENSSL_X86_64) && !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX)
++#if defined(OPENSSL_X86_64) && !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX) && !defined(OPENSSL_WINDOWS)
+ #define AES_XTS_X86_64_AVX512
+ void aes_hw_xts_encrypt_avx512(const uint8_t *in, uint8_t *out, size_t length,
+                                const AES_KEY *key1, const AES_KEY *key2,
+diff --git a/crypto/fipsmodule/modes/gcm.c b/crypto/fipsmodule/modes/gcm.c
+index 38fb84f65..a862757e6 100644
+--- a/crypto/fipsmodule/modes/gcm.c
++++ b/crypto/fipsmodule/modes/gcm.c
+@@ -829,6 +829,7 @@ int crypto_gcm_clmul_enabled(void) {
+ }
+ 
+ int crypto_gcm_avx512_enabled(void) {
++  // This must align with ImplDispatchTest.AEAD_AES_GCM
+ #if defined(GHASH_ASM_X86_64) && \
+     !defined(OPENSSL_WINDOWS) && \
+     !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX)
+diff --git a/crypto/impl_dispatch_test.cc b/crypto/impl_dispatch_test.cc
+index e0d6e6aa0..0d6fc893a 100644
+--- a/crypto/impl_dispatch_test.cc
++++ b/crypto/impl_dispatch_test.cc
+@@ -40,9 +40,16 @@ class ImplDispatchTest : public ::testing::Test {
+     avx_movbe_ = CRYPTO_is_AVX_capable() && CRYPTO_is_MOVBE_capable();
+     aes_vpaes_ = CRYPTO_is_SSSE3_capable();
+     sha_ext_ = CRYPTO_is_SHAEXT_capable();
+-    vaes_vpclmulqdq_ = CRYPTO_is_AVX512_capable() && 
+-                        CRYPTO_is_VAES_capable() &&
+-                        CRYPTO_is_VPCLMULQDQ_capable();
++    vaes_vpclmulqdq_ =
++#if !defined(OPENSSL_WINDOWS)
++  // crypto_gcm_avx512_enabled excludes Windows
++        CRYPTO_is_AVX512_capable() &&
++        CRYPTO_is_VAES_capable() &&
++        CRYPTO_is_VPCLMULQDQ_capable();
++#else
++        false;
++#endif
++
+     is_x86_64_ =
+ #if defined(OPENSSL_X86_64)
+         true;

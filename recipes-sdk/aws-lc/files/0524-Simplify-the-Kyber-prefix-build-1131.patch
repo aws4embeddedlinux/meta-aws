@@ -1,0 +1,176 @@
+From 754a12470569b3bde2221c910638064fc3511764 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Wed, 9 Aug 2023 14:29:11 -0700
+Subject: [PATCH] Simplify the Kyber prefix build (#1131)
+
+Use the same symbol prefixing process as the rest of AWS-LC. This does not change how s2n-bignum gets handled.
+---
+ CMakeLists.txt                                |  3 -
+ .../kyber/pqcrystals_kyber_ref_common/api.h   | 93 -------------------
+ .../pqcrystals_kyber_ref_common/fips202.h     |  5 -
+ .../pqcrystals_kyber_ref_common/params.h      |  6 +-
+ 4 files changed, 1 insertion(+), 106 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index da8c3bd5b..8b694d441 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -154,9 +154,6 @@ if(BORINGSSL_PREFIX AND BORINGSSL_PREFIX_SYMBOLS AND GO_EXECUTABLE)
+            symbol_prefix_include/boringssl_prefix_symbols_nasm.inc
+     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include
+     COMMAND ${GO_EXECUTABLE} run ${CMAKE_CURRENT_SOURCE_DIR}/util/make_prefix_headers.go -out ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include ${BORINGSSL_PREFIX_SYMBOLS_PATH}
+-    # Temporary exclude all Kyber symbols.
+-    # TODO(dkostic): fix the prefix build to work with Kyber source code.
+-    COMMAND sed -i.bak '/pqcrystals/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/boringssl_prefix_symbols.h
+     COMMAND sed -i.bak '/ bignum_/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/boringssl_prefix_symbols.h
+     COMMAND sed -i.bak '/ bignum_/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/boringssl_prefix_symbols_asm.h
+     COMMAND sed -i.bak '/ bignum_/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/boringssl_prefix_symbols_nasm.inc
+diff --git a/crypto/kyber/pqcrystals_kyber_ref_common/api.h b/crypto/kyber/pqcrystals_kyber_ref_common/api.h
+index 6cdab76d2..5c4ffbea7 100644
+--- a/crypto/kyber/pqcrystals_kyber_ref_common/api.h
++++ b/crypto/kyber/pqcrystals_kyber_ref_common/api.h
+@@ -4,109 +4,16 @@
+ #include <stdint.h>
+ #include "openssl/base.h"
+ 
+-#define pqcrystals_kyber512_SECRETKEYBYTES 1632
+-#define pqcrystals_kyber512_PUBLICKEYBYTES 800
+-#define pqcrystals_kyber512_CIPHERTEXTBYTES 768
+-#define pqcrystals_kyber512_BYTES 32
+-
+-#define pqcrystals_kyber512_ref_SECRETKEYBYTES pqcrystals_kyber512_SECRETKEYBYTES
+-#define pqcrystals_kyber512_ref_PUBLICKEYBYTES pqcrystals_kyber512_PUBLICKEYBYTES
+-#define pqcrystals_kyber512_ref_CIPHERTEXTBYTES pqcrystals_kyber512_CIPHERTEXTBYTES
+-#define pqcrystals_kyber512_ref_BYTES pqcrystals_kyber512_BYTES
+-
+-#ifdef BORINGSSL_PREFIX
+-#define pqcrystals_kyber512_ref_keypair BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber512_ref_keypair)
+-#define pqcrystals_kyber512_ref_enc BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber512_ref_enc)
+-#define pqcrystals_kyber512_ref_dec BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber512_ref_dec)
+-#endif
+-
+ int pqcrystals_kyber512_ref_keypair(uint8_t *pk, uint8_t *sk);
+ int pqcrystals_kyber512_ref_enc(uint8_t *ct, uint8_t *ss, const uint8_t *pk);
+ int pqcrystals_kyber512_ref_dec(uint8_t *ss, const uint8_t *ct, const uint8_t *sk);
+ 
+-#define pqcrystals_kyber512_90s_ref_SECRETKEYBYTES pqcrystals_kyber512_SECRETKEYBYTES
+-#define pqcrystals_kyber512_90s_ref_PUBLICKEYBYTES pqcrystals_kyber512_PUBLICKEYBYTES
+-#define pqcrystals_kyber512_90s_ref_CIPHERTEXTBYTES pqcrystals_kyber512_CIPHERTEXTBYTES
+-#define pqcrystals_kyber512_90s_ref_BYTES pqcrystals_kyber512_BYTES
+-
+-#ifdef BORINGSSL_PREFIX
+-#define pqcrystals_kyber512_90s_ref_keypair BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber512_90s_ref_keypair)
+-#define pqcrystals_kyber512_90s_ref_enc BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber512_90s_ref_enc)
+-#define pqcrystals_kyber512_90s_ref_dec BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber512_90s_ref_dec)
+-#endif
+-
+-int pqcrystals_kyber512_90s_ref_keypair(uint8_t *pk, uint8_t *sk);
+-int pqcrystals_kyber512_90s_ref_enc(uint8_t *ct, uint8_t *ss, const uint8_t *pk);
+-int pqcrystals_kyber512_90s_ref_dec(uint8_t *ss, const uint8_t *ct, const uint8_t *sk);
+-
+-#define pqcrystals_kyber768_SECRETKEYBYTES 2400
+-#define pqcrystals_kyber768_PUBLICKEYBYTES 1184
+-#define pqcrystals_kyber768_CIPHERTEXTBYTES 1088
+-#define pqcrystals_kyber768_BYTES 32
+-
+-#define pqcrystals_kyber768_ref_SECRETKEYBYTES pqcrystals_kyber768_SECRETKEYBYTES
+-#define pqcrystals_kyber768_ref_PUBLICKEYBYTES pqcrystals_kyber768_PUBLICKEYBYTES
+-#define pqcrystals_kyber768_ref_CIPHERTEXTBYTES pqcrystals_kyber768_CIPHERTEXTBYTES
+-#define pqcrystals_kyber768_ref_BYTES pqcrystals_kyber768_BYTES
+-
+-#ifdef BORINGSSL_PREFIX
+-#define pqcrystals_kyber768_ref_keypair BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber768_ref_keypair)
+-#define pqcrystals_kyber768_ref_enc BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber768_ref_enc)
+-#define pqcrystals_kyber768_ref_dec BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber768_ref_dec)
+-#endif
+-
+ int pqcrystals_kyber768_ref_keypair(uint8_t *pk, uint8_t *sk);
+ int pqcrystals_kyber768_ref_enc(uint8_t *ct, uint8_t *ss, const uint8_t *pk);
+ int pqcrystals_kyber768_ref_dec(uint8_t *ss, const uint8_t *ct, const uint8_t *sk);
+ 
+-#define pqcrystals_kyber768_90s_ref_SECRETKEYBYTES pqcrystals_kyber768_SECRETKEYBYTES
+-#define pqcrystals_kyber768_90s_ref_PUBLICKEYBYTES pqcrystals_kyber768_PUBLICKEYBYTES
+-#define pqcrystals_kyber768_90s_ref_CIPHERTEXTBYTES pqcrystals_kyber768_CIPHERTEXTBYTES
+-#define pqcrystals_kyber768_90s_ref_BYTES pqcrystals_kyber768_BYTES
+-
+-#ifdef BORINGSSL_PREFIX
+-#define pqcrystals_kyber768_90s_ref_keypair BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber768_90s_ref_keypair)
+-#define pqcrystals_kyber768_90s_ref_enc BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber768_90s_ref_enc)
+-#define pqcrystals_kyber768_90s_ref_dec BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber768_90s_ref_dec)
+-#endif
+-
+-int pqcrystals_kyber768_90s_ref_keypair(uint8_t *pk, uint8_t *sk);
+-int pqcrystals_kyber768_90s_ref_enc(uint8_t *ct, uint8_t *ss, const uint8_t *pk);
+-int pqcrystals_kyber768_90s_ref_dec(uint8_t *ss, const uint8_t *ct, const uint8_t *sk);
+-
+-#define pqcrystals_kyber1024_SECRETKEYBYTES 3168
+-#define pqcrystals_kyber1024_PUBLICKEYBYTES 1568
+-#define pqcrystals_kyber1024_CIPHERTEXTBYTES 1568
+-#define pqcrystals_kyber1024_BYTES 32
+-
+-#define pqcrystals_kyber1024_ref_SECRETKEYBYTES pqcrystals_kyber1024_SECRETKEYBYTES
+-#define pqcrystals_kyber1024_ref_PUBLICKEYBYTES pqcrystals_kyber1024_PUBLICKEYBYTES
+-#define pqcrystals_kyber1024_ref_CIPHERTEXTBYTES pqcrystals_kyber1024_CIPHERTEXTBYTES
+-#define pqcrystals_kyber1024_ref_BYTES pqcrystals_kyber1024_BYTES
+-
+-#ifdef BORINGSSL_PREFIX
+-#define pqcrystals_kyber1024_ref_keypair BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber1024_ref_keypair)
+-#define pqcrystals_kyber1024_ref_enc BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber1024_ref_enc)
+-#define pqcrystals_kyber1024_ref_dec BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber1024_ref_dec)
+-#endif
+-
+ int pqcrystals_kyber1024_ref_keypair(uint8_t *pk, uint8_t *sk);
+ int pqcrystals_kyber1024_ref_enc(uint8_t *ct, uint8_t *ss, const uint8_t *pk);
+ int pqcrystals_kyber1024_ref_dec(uint8_t *ss, const uint8_t *ct, const uint8_t *sk);
+ 
+-#define pqcrystals_kyber1024_90s_ref_SECRETKEYBYTES pqcrystals_kyber1024_SECRETKEYBYTES
+-#define pqcrystals_kyber1024_90s_ref_PUBLICKEYBYTES pqcrystals_kyber1024_PUBLICKEYBYTES
+-#define pqcrystals_kyber1024_90s_ref_CIPHERTEXTBYTES pqcrystals_kyber1024_CIPHERTEXTBYTES
+-#define pqcrystals_kyber1024_90s_ref_BYTES pqcrystals_kyber1024_BYTES
+-
+-#ifdef BORINGSSL_PREFIX
+-#define pqcrystals_kyber1024_90s_ref_keypair BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber1024_90s_ref_keypair)
+-#define pqcrystals_kyber1024_90s_ref_enc BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber1024_90s_ref_enc)
+-#define pqcrystals_kyber1024_90s_ref_dec BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, pqcrystals_kyber1024_90s_ref_dec)
+-#endif
+-
+-int pqcrystals_kyber1024_90s_ref_keypair(uint8_t *pk, uint8_t *sk);
+-int pqcrystals_kyber1024_90s_ref_enc(uint8_t *ct, uint8_t *ss, const uint8_t *pk);
+-int pqcrystals_kyber1024_90s_ref_dec(uint8_t *ss, const uint8_t *ct, const uint8_t *sk);
+-
+ #endif
+diff --git a/crypto/kyber/pqcrystals_kyber_ref_common/fips202.h b/crypto/kyber/pqcrystals_kyber_ref_common/fips202.h
+index 7be8dfe1f..65e59a1ad 100644
+--- a/crypto/kyber/pqcrystals_kyber_ref_common/fips202.h
++++ b/crypto/kyber/pqcrystals_kyber_ref_common/fips202.h
+@@ -11,12 +11,7 @@
+ #define SHA3_512_RATE 72
+ 
+ #define FIPS202_PREFIX(s) pqcrystals_kyber_fips202_ref_ ## s
+-
+-#ifdef BORINGSSL_PREFIX
+-#define FIPS202_NAMESPACE(s) BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, FIPS202_PREFIX(s))
+-#else
+ #define FIPS202_NAMESPACE(s) FIPS202_PREFIX(s)
+-#endif
+ 
+ typedef struct {
+   uint64_t s[25];
+diff --git a/crypto/kyber/pqcrystals_kyber_ref_common/params.h b/crypto/kyber/pqcrystals_kyber_ref_common/params.h
+index 698ea7500..fcd64490f 100644
+--- a/crypto/kyber/pqcrystals_kyber_ref_common/params.h
++++ b/crypto/kyber/pqcrystals_kyber_ref_common/params.h
+@@ -28,12 +28,8 @@
+ #error "KYBER_K must be in {2,3,4}"
+ #endif
+ 
+-#ifdef BORINGSSL_PREFIX
+-#define KYBER_NAMESPACE(s) \
+-  BORINGSSL_ADD_PREFIX(BORINGSSL_PREFIX, KYBER_VARIANT(s))
+-#else
++
+ #define KYBER_NAMESPACE(s) KYBER_VARIANT(s)
+-#endif
+ 
+ 
+ #define KYBER_N 256

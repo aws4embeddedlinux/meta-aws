@@ -1,0 +1,1091 @@
+From f2e2b3c90b56b8e59c3543b951d1d0fa35e34130 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Wed, 5 Jul 2023 22:17:07 -0700
+Subject: [PATCH] Add back custom extension support for libssl (#1071)
+
+* Revert "Remove custom extensions support."
+
+This reverts commit 0a3e07ac1d139eb92b775190d0d1bc88b9da6167.
+
+* Update custom extension tests to use new 0-RTT configuration from e580e9ded3bff859a0d021ca383087b241b6df74
+---
+ include/openssl/ssl.h                         |  89 +++++-
+ ssl/CMakeLists.txt                            |   1 +
+ ssl/custom_extensions.cc                      | 265 +++++++++++++++++
+ ssl/extensions.cc                             |  30 +-
+ ssl/handshake.cc                              |   1 +
+ ssl/internal.h                                |  48 +++
+ ssl/ssl_lib.cc                                |   6 +
+ ssl/test/runner/runner.go                     | 275 +++++++++++++++++-
+ .../runner/ssl_transfer/test_case_names.txt   |   7 +
+ ssl/test/test_config.cc                       |  78 ++++-
+ ssl/test/test_config.h                        |   4 +
+ ssl/tls13_client.cc                           |   4 +
+ ssl/tls13_server.cc                           |   2 +
+ 13 files changed, 801 insertions(+), 9 deletions(-)
+ create mode 100644 ssl/custom_extensions.cc
+
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index 555d3e3c6..2ef8cf598 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -1746,6 +1746,92 @@ OPENSSL_EXPORT int SSL_export_keying_material(
+     const uint8_t *context, size_t context_len, int use_context);
+ 
+ 
++// Custom extensions.
++//
++// The custom extension functions allow TLS extensions to be added to
++// ClientHello and ServerHello messages.
++
++// SSL_custom_ext_add_cb is a callback function that is called when the
++// ClientHello (for clients) or ServerHello (for servers) is constructed. In
++// the case of a server, this callback will only be called for a given
++// extension if the ClientHello contained that extension – it's not possible to
++// inject extensions into a ServerHello that the client didn't request.
++//
++// When called, |extension_value| will contain the extension number that is
++// being considered for addition (so that a single callback can handle multiple
++// extensions). If the callback wishes to include the extension, it must set
++// |*out| to point to |*out_len| bytes of extension contents and return one. In
++// this case, the corresponding |SSL_custom_ext_free_cb| callback will later be
++// called with the value of |*out| once that data has been copied.
++//
++// If the callback does not wish to add an extension it must return zero.
++//
++// Alternatively, the callback can abort the connection by setting
++// |*out_alert_value| to a TLS alert number and returning -1.
++typedef int (*SSL_custom_ext_add_cb)(SSL *ssl, unsigned extension_value,
++                                     const uint8_t **out, size_t *out_len,
++                                     int *out_alert_value, void *add_arg);
++
++// SSL_custom_ext_free_cb is a callback function that is called by AWS-LC iff
++// an |SSL_custom_ext_add_cb| callback previously returned one. In that case,
++// this callback is called and passed the |out| pointer that was returned by
++// the add callback. This is to free any dynamically allocated data created by
++// the add callback.
++typedef void (*SSL_custom_ext_free_cb)(SSL *ssl, unsigned extension_value,
++                                       const uint8_t *out, void *add_arg);
++
++// SSL_custom_ext_parse_cb is a callback function that is called by AWS-LC to
++// parse an extension from the peer: that is from the ServerHello for a client
++// and from the ClientHello for a server.
++//
++// When called, |extension_value| will contain the extension number and the
++// contents of the extension are |contents_len| bytes at |contents|.
++//
++// The callback must return one to continue the handshake. Otherwise, if it
++// returns zero, a fatal alert with value |*out_alert_value| is sent and the
++// handshake is aborted.
++typedef int (*SSL_custom_ext_parse_cb)(SSL *ssl, unsigned extension_value,
++                                       const uint8_t *contents,
++                                       size_t contents_len,
++                                       int *out_alert_value, void *parse_arg);
++
++// SSL_extension_supported returns one iff AWS-LC internally handles
++// extensions of type |extension_value|. This can be used to avoid registering
++// custom extension handlers for extensions that a future version of AWS-LC
++// may handle internally.
++OPENSSL_EXPORT int SSL_extension_supported(unsigned extension_value);
++
++// SSL_CTX_add_client_custom_ext registers callback functions for handling
++// custom TLS extensions for client connections.
++//
++// If |add_cb| is NULL then an empty extension will be added in each
++// ClientHello. Otherwise, see the comment for |SSL_custom_ext_add_cb| about
++// this callback.
++//
++// The |free_cb| may be NULL if |add_cb| doesn't dynamically allocate data that
++// needs to be freed.
++//
++// It returns one on success or zero on error. It's always an error to register
++// callbacks for the same extension twice, or to register callbacks for an
++// extension that AWS-LC handles internally. See |SSL_extension_supported| to
++// discover, at runtime, which extensions AWS-LC handles internally.
++OPENSSL_EXPORT int SSL_CTX_add_client_custom_ext(
++    SSL_CTX *ctx, unsigned extension_value, SSL_custom_ext_add_cb add_cb,
++    SSL_custom_ext_free_cb free_cb, void *add_arg,
++    SSL_custom_ext_parse_cb parse_cb, void *parse_arg);
++
++// SSL_CTX_add_server_custom_ext is the same as
++// |SSL_CTX_add_client_custom_ext|, but for server connections.
++//
++// Unlike on the client side, if |add_cb| is NULL no extension will be added.
++// The |add_cb|, if any, will only be called if the ClientHello contained a
++// matching extension.
++OPENSSL_EXPORT int SSL_CTX_add_server_custom_ext(
++    SSL_CTX *ctx, unsigned extension_value, SSL_custom_ext_add_cb add_cb,
++    SSL_custom_ext_free_cb free_cb, void *add_arg,
++    SSL_custom_ext_parse_cb parse_cb, void *parse_arg);
++
++
+ // Sessions.
+ //
+ // An |SSL_SESSION| represents an SSL session that may be resumed in an
+@@ -3785,7 +3871,8 @@ enum ssl_early_data_reason_t BORINGSSL_ENUM_INT {
+   // The application settings did not match the session.
+   ssl_early_data_alps_mismatch = 14,
+   // The value of the largest entry.
+-  ssl_early_data_reason_max_value = ssl_early_data_alps_mismatch,
++  ssl_early_data_unsupported_with_custom_extension = 15,
++  ssl_early_data_reason_max_value = ssl_early_data_unsupported_with_custom_extension,
+ };
+ 
+ // SSL_get_early_data_reason returns details why 0-RTT was accepted or rejected
+diff --git a/ssl/CMakeLists.txt b/ssl/CMakeLists.txt
+index d5fb222ef..b13e08e31 100644
+--- a/ssl/CMakeLists.txt
++++ b/ssl/CMakeLists.txt
+@@ -2,6 +2,7 @@ add_library(
+   ssl
+ 
+   bio_ssl.cc
++  custom_extensions.cc
+   d1_both.cc
+   d1_lib.cc
+   d1_pkt.cc
+diff --git a/ssl/custom_extensions.cc b/ssl/custom_extensions.cc
+new file mode 100644
+index 000000000..cf9435cd9
+--- /dev/null
++++ b/ssl/custom_extensions.cc
+@@ -0,0 +1,265 @@
++/* Copyright (c) 2014, Google Inc.
++ *
++ * Permission to use, copy, modify, and/or distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
++ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
++ * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
++ * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
++
++#include <openssl/ssl.h>
++
++#include <assert.h>
++#include <string.h>
++
++#include <openssl/bytestring.h>
++#include <openssl/err.h>
++#include <openssl/mem.h>
++#include <openssl/stack.h>
++
++#include "internal.h"
++
++
++BSSL_NAMESPACE_BEGIN
++
++void SSL_CUSTOM_EXTENSION_free(SSL_CUSTOM_EXTENSION *custom_extension) {
++  OPENSSL_free(custom_extension);
++}
++
++static const SSL_CUSTOM_EXTENSION *custom_ext_find(
++    STACK_OF(SSL_CUSTOM_EXTENSION) *stack,
++    unsigned *out_index, uint16_t value) {
++  for (size_t i = 0; i < sk_SSL_CUSTOM_EXTENSION_num(stack); i++) {
++    const SSL_CUSTOM_EXTENSION *ext = sk_SSL_CUSTOM_EXTENSION_value(stack, i);
++    if (ext->value == value) {
++      if (out_index != NULL) {
++        *out_index = i;
++      }
++      return ext;
++    }
++  }
++
++  return NULL;
++}
++
++// default_add_callback is used as the |add_callback| when the user doesn't
++// provide one. For servers, it does nothing while, for clients, it causes an
++// empty extension to be included.
++static int default_add_callback(SSL *ssl, unsigned extension_value,
++                                const uint8_t **out, size_t *out_len,
++                                int *out_alert_value, void *add_arg) {
++  if (ssl->server) {
++    return 0;
++  }
++  *out_len = 0;
++  return 1;
++}
++
++static int custom_ext_add_hello(SSL_HANDSHAKE *hs, CBB *extensions) {
++  SSL *const ssl = hs->ssl;
++  STACK_OF(SSL_CUSTOM_EXTENSION) *stack = ssl->ctx->client_custom_extensions;
++  if (ssl->server) {
++    stack = ssl->ctx->server_custom_extensions;
++  }
++
++  if (stack == NULL) {
++    return 1;
++  }
++
++  for (size_t i = 0; i < sk_SSL_CUSTOM_EXTENSION_num(stack); i++) {
++    const SSL_CUSTOM_EXTENSION *ext = sk_SSL_CUSTOM_EXTENSION_value(stack, i);
++
++    if (ssl->server &&
++        !(hs->custom_extensions.received & (1u << i))) {
++      // Servers cannot echo extensions that the client didn't send.
++      continue;
++    }
++
++    const uint8_t *contents;
++    size_t contents_len;
++    int alert = SSL_AD_DECODE_ERROR;
++    CBB contents_cbb;
++
++    switch (ext->add_callback(ssl, ext->value, &contents, &contents_len, &alert,
++                              ext->add_arg)) {
++      case 1:
++        if (!CBB_add_u16(extensions, ext->value) ||
++            !CBB_add_u16_length_prefixed(extensions, &contents_cbb) ||
++            !CBB_add_bytes(&contents_cbb, contents, contents_len) ||
++            !CBB_flush(extensions)) {
++          OPENSSL_PUT_ERROR(SSL, ERR_R_INTERNAL_ERROR);
++          ERR_add_error_dataf("extension %u", (unsigned) ext->value);
++          if (ext->free_callback && 0 < contents_len) {
++            ext->free_callback(ssl, ext->value, contents, ext->add_arg);
++          }
++          return 0;
++        }
++
++        if (ext->free_callback && 0 < contents_len) {
++          ext->free_callback(ssl, ext->value, contents, ext->add_arg);
++        }
++
++        if (!ssl->server) {
++          assert((hs->custom_extensions.sent & (1u << i)) == 0);
++          hs->custom_extensions.sent |= (1u << i);
++        }
++        break;
++
++      case 0:
++        break;
++
++      default:
++        ssl_send_alert(ssl, SSL3_AL_FATAL, alert);
++        OPENSSL_PUT_ERROR(SSL, SSL_R_CUSTOM_EXTENSION_ERROR);
++        ERR_add_error_dataf("extension %u", (unsigned) ext->value);
++        return 0;
++    }
++  }
++
++  return 1;
++}
++
++int custom_ext_add_clienthello(SSL_HANDSHAKE *hs, CBB *extensions) {
++  return custom_ext_add_hello(hs, extensions);
++}
++
++int custom_ext_parse_serverhello(SSL_HANDSHAKE *hs, int *out_alert,
++                                 uint16_t value, const CBS *extension) {
++  SSL *const ssl = hs->ssl;
++  unsigned index;
++  const SSL_CUSTOM_EXTENSION *ext =
++      custom_ext_find(ssl->ctx->client_custom_extensions, &index, value);
++
++  if (// Unknown extensions are not allowed in a ServerHello.
++      ext == NULL ||
++      // Also, if we didn't send the extension, that's also unacceptable.
++      !(hs->custom_extensions.sent & (1u << index))) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_UNEXPECTED_EXTENSION);
++    ERR_add_error_dataf("extension %u", (unsigned)value);
++    *out_alert = SSL_AD_UNSUPPORTED_EXTENSION;
++    return 0;
++  }
++
++  if (ext->parse_callback != NULL &&
++      !ext->parse_callback(ssl, value, CBS_data(extension), CBS_len(extension),
++                           out_alert, ext->parse_arg)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_CUSTOM_EXTENSION_ERROR);
++    ERR_add_error_dataf("extension %u", (unsigned)ext->value);
++    return 0;
++  }
++
++  return 1;
++}
++
++int custom_ext_parse_clienthello(SSL_HANDSHAKE *hs, int *out_alert,
++                                 uint16_t value, const CBS *extension) {
++  SSL *const ssl = hs->ssl;
++  unsigned index;
++  const SSL_CUSTOM_EXTENSION *ext =
++      custom_ext_find(ssl->ctx->server_custom_extensions, &index, value);
++
++  if (ext == NULL) {
++    return 1;
++  }
++
++  assert((hs->custom_extensions.received & (1u << index)) == 0);
++  hs->custom_extensions.received |= (1u << index);
++
++  if (ext->parse_callback &&
++      !ext->parse_callback(ssl, value, CBS_data(extension), CBS_len(extension),
++                           out_alert, ext->parse_arg)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_CUSTOM_EXTENSION_ERROR);
++    ERR_add_error_dataf("extension %u", (unsigned)ext->value);
++    return 0;
++  }
++
++  return 1;
++}
++
++int custom_ext_add_serverhello(SSL_HANDSHAKE *hs, CBB *extensions) {
++  return custom_ext_add_hello(hs, extensions);
++}
++
++// MAX_NUM_CUSTOM_EXTENSIONS is the maximum number of custom extensions that
++// can be set on an |SSL_CTX|. It's determined by the size of the bitset used
++// to track when an extension has been sent.
++#define MAX_NUM_CUSTOM_EXTENSIONS \
++  (sizeof(((SSL_HANDSHAKE *)NULL)->custom_extensions.sent) * 8)
++
++static int custom_ext_append(STACK_OF(SSL_CUSTOM_EXTENSION) **stack,
++                             unsigned extension_value,
++                             SSL_custom_ext_add_cb add_cb,
++                             SSL_custom_ext_free_cb free_cb, void *add_arg,
++                             SSL_custom_ext_parse_cb parse_cb,
++                             void *parse_arg) {
++  if (add_cb == NULL ||
++      0xffff < extension_value ||
++      SSL_extension_supported(extension_value) ||
++      // Specifying a free callback without an add callback is nonsensical
++      // and an error.
++      (*stack != NULL &&
++       (MAX_NUM_CUSTOM_EXTENSIONS <= sk_SSL_CUSTOM_EXTENSION_num(*stack) ||
++        custom_ext_find(*stack, NULL, extension_value) != NULL))) {
++    return 0;
++  }
++
++  SSL_CUSTOM_EXTENSION *ext =
++      (SSL_CUSTOM_EXTENSION *)OPENSSL_malloc(sizeof(SSL_CUSTOM_EXTENSION));
++  if (ext == NULL) {
++    return 0;
++  }
++  ext->add_callback = add_cb;
++  ext->add_arg = add_arg;
++  ext->free_callback = free_cb;
++  ext->parse_callback = parse_cb;
++  ext->parse_arg = parse_arg;
++  ext->value = extension_value;
++
++  if (*stack == NULL) {
++    *stack = sk_SSL_CUSTOM_EXTENSION_new_null();
++    if (*stack == NULL) {
++      SSL_CUSTOM_EXTENSION_free(ext);
++      return 0;
++    }
++  }
++
++  if (!sk_SSL_CUSTOM_EXTENSION_push(*stack, ext)) {
++    SSL_CUSTOM_EXTENSION_free(ext);
++    if (sk_SSL_CUSTOM_EXTENSION_num(*stack) == 0) {
++      sk_SSL_CUSTOM_EXTENSION_free(*stack);
++      *stack = NULL;
++    }
++    return 0;
++  }
++
++  return 1;
++}
++
++BSSL_NAMESPACE_END
++
++using namespace bssl;
++
++int SSL_CTX_add_client_custom_ext(SSL_CTX *ctx, unsigned extension_value,
++                                  SSL_custom_ext_add_cb add_cb,
++                                  SSL_custom_ext_free_cb free_cb, void *add_arg,
++                                  SSL_custom_ext_parse_cb parse_cb,
++                                  void *parse_arg) {
++  return custom_ext_append(&ctx->client_custom_extensions, extension_value,
++                           add_cb ? add_cb : default_add_callback, free_cb,
++                           add_arg, parse_cb, parse_arg);
++}
++
++int SSL_CTX_add_server_custom_ext(SSL_CTX *ctx, unsigned extension_value,
++                                  SSL_custom_ext_add_cb add_cb,
++                                  SSL_custom_ext_free_cb free_cb, void *add_arg,
++                                  SSL_custom_ext_parse_cb parse_cb,
++                                  void *parse_arg) {
++  return custom_ext_append(&ctx->server_custom_extensions, extension_value,
++                           add_cb ? add_cb : default_add_callback, free_cb,
++                           add_arg, parse_cb, parse_arg);
++}
+diff --git a/ssl/extensions.cc b/ssl/extensions.cc
+index 52eab7b99..df441a358 100644
+--- a/ssl/extensions.cc
++++ b/ssl/extensions.cc
+@@ -3452,6 +3452,7 @@ bool ssl_add_clienthello_tlsext(SSL_HANDSHAKE *hs, CBB *out, CBB *out_encoded,
+   // 1.3 HelloRetryRequest. For the latter, the extensions may change, so it is
+   // important to reset this value.
+   hs->extensions.sent = 0;
++  hs->custom_extensions.sent = 0;
+ 
+   // Add a fake empty extension. See RFC 8701.
+   if (ssl->ctx->grease_enabled &&
+@@ -3481,6 +3482,11 @@ bool ssl_add_clienthello_tlsext(SSL_HANDSHAKE *hs, CBB *out, CBB *out_encoded,
+     last_was_empty = (bytes_written == 4);
+   }
+ 
++  if (!custom_ext_add_clienthello(hs, &extensions)) {
++    OPENSSL_PUT_ERROR(SSL, ERR_R_INTERNAL_ERROR);
++    return 0;
++  }
++
+   if (ssl->ctx->grease_enabled) {
+     // Add a fake non-empty extension. See RFC 8701.
+     if (!add_padding_extension(
+@@ -3575,6 +3581,10 @@ bool ssl_add_serverhello_tlsext(SSL_HANDSHAKE *hs, CBB *out) {
+     }
+   }
+ 
++  if (!custom_ext_add_serverhello(hs, &extensions)) {
++    goto err;
++  }
++
+   // Discard empty extensions blocks before TLS 1.3.
+   if (ssl_protocol_version(ssl) < TLS1_3_VERSION &&
+       CBB_len(&extensions) == 0) {
+@@ -3592,6 +3602,7 @@ static bool ssl_scan_clienthello_tlsext(SSL_HANDSHAKE *hs,
+                                         const SSL_CLIENT_HELLO *client_hello,
+                                         int *out_alert) {
+   hs->extensions.received = 0;
++  hs->custom_extensions.received = 0;
+   CBS extensions;
+   CBS_init(&extensions, client_hello->extensions, client_hello->extensions_len);
+   while (CBS_len(&extensions) != 0) {
+@@ -3609,6 +3620,10 @@ static bool ssl_scan_clienthello_tlsext(SSL_HANDSHAKE *hs,
+     const struct tls_extension *const ext =
+         tls_extension_find(&ext_index, type);
+     if (ext == NULL) {
++      if (!custom_ext_parse_clienthello(hs, out_alert, type, &extension)) {
++        OPENSSL_PUT_ERROR(SSL, SSL_R_ERROR_PARSING_EXTENSION);
++        return 0;
++      }
+       continue;
+     }
+ 
+@@ -3696,10 +3711,11 @@ static bool ssl_scan_serverhello_tlsext(SSL_HANDSHAKE *hs, const CBS *cbs,
+         tls_extension_find(&ext_index, type);
+ 
+     if (ext == NULL) {
+-      OPENSSL_PUT_ERROR(SSL, SSL_R_UNEXPECTED_EXTENSION);
+-      ERR_add_error_dataf("extension %u", (unsigned)type);
+-      *out_alert = SSL_AD_UNSUPPORTED_EXTENSION;
+-      return false;
++      hs->received_custom_extension = true;
++      if (!custom_ext_parse_serverhello(hs, out_alert, type, &extension)) {
++        return 0;
++      }
++      continue;
+     }
+ 
+     static_assert(kNumExtensions <= sizeof(hs->extensions.sent) * 8,
+@@ -4347,3 +4363,9 @@ int SSL_early_callback_ctx_extension_get(const SSL_CLIENT_HELLO *client_hello,
+   *out_len = CBS_len(&cbs);
+   return 1;
+ }
++
++int SSL_extension_supported(unsigned extension_value) {
++  uint32_t index;
++  return extension_value == TLSEXT_TYPE_padding ||
++         tls_extension_find(&index, extension_value) != NULL;
++}
+diff --git a/ssl/handshake.cc b/ssl/handshake.cc
+index 8d5a23872..18874ae84 100644
+--- a/ssl/handshake.cc
++++ b/ssl/handshake.cc
+@@ -129,6 +129,7 @@ SSL_HANDSHAKE::SSL_HANDSHAKE(SSL *ssl_arg)
+       ech_is_inner(false),
+       ech_authenticated_reject(false),
+       scts_requested(false),
++      received_custom_extension(false),
+       handshake_finalized(false),
+       accept_psk_mode(false),
+       cert_request(false),
+diff --git a/ssl/internal.h b/ssl/internal.h
+index 704f4a49a..68b2b5c11 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -1077,6 +1077,36 @@ bool ssl_public_key_verify(SSL *ssl, Span<const uint8_t> signature,
+                            Span<const uint8_t> in);
+ 
+ 
++// Custom extensions
++
++BSSL_NAMESPACE_END
++
++// |SSL_CUSTOM_EXTENSION| is a structure that contains information about
++// custom-extension callbacks. It is defined unnamespaced for compatibility with
++// |STACK_OF(SSL_CUSTOM_EXTENSION)|.
++typedef struct ssl_custom_extension {
++  SSL_custom_ext_add_cb add_callback;
++  void *add_arg;
++  SSL_custom_ext_free_cb free_callback;
++  SSL_custom_ext_parse_cb parse_callback;
++  void *parse_arg;
++  uint16_t value;
++} SSL_CUSTOM_EXTENSION;
++
++DEFINE_STACK_OF(SSL_CUSTOM_EXTENSION)
++
++BSSL_NAMESPACE_BEGIN
++
++void SSL_CUSTOM_EXTENSION_free(SSL_CUSTOM_EXTENSION *custom_extension);
++
++int custom_ext_add_clienthello(SSL_HANDSHAKE *hs, CBB *extensions);
++int custom_ext_parse_serverhello(SSL_HANDSHAKE *hs, int *out_alert,
++                                 uint16_t value, const CBS *extension);
++int custom_ext_parse_clienthello(SSL_HANDSHAKE *hs, int *out_alert,
++                                 uint16_t value, const CBS *extension);
++int custom_ext_add_serverhello(SSL_HANDSHAKE *hs, CBB *extensions);
++
++
+ // Key shares.
+ 
+ // SSLKeyShare abstracts over Diffie-Hellman-like key exchanges.
+@@ -1838,6 +1868,17 @@ struct SSL_HANDSHAKE {
+   // the ClientHelloInner.
+   uint32_t inner_extensions_sent = 0;
+ 
++  union {
++    // sent is a bitset where the bits correspond to elements of
++    // |client_custom_extensions| in the |SSL_CTX|. Each bit is set if that
++    // extension was sent in a ClientHello. It's not used by servers.
++    uint16_t sent = 0;
++    // received is a bitset, like |sent|, but is used by servers to record
++    // which custom extensions were received from a client. The bits here
++    // correspond to |server_custom_extensions|.
++    uint16_t received;
++  } custom_extensions;
++
+   // error, if |wait| is |ssl_hs_error|, is the error the handshake failed on.
+   UniquePtr<ERR_SAVE_STATE> error;
+ 
+@@ -1988,6 +2029,8 @@ struct SSL_HANDSHAKE {
+   // scts_requested is true if the SCT extension is in the ClientHello.
+   bool scts_requested : 1;
+ 
++  bool received_custom_extension : 1;
++
+   // handshake_finalized is true once the handshake has completed, at which
+   // point accessors should use the established state.
+   bool handshake_finalized : 1;
+@@ -3595,6 +3638,11 @@ struct ssl_ctx_st {
+ 
+   CRYPTO_EX_DATA ex_data;
+ 
++  // custom_*_extensions stores any callback sets for custom extensions. Note
++  // that these pointers will be NULL if the stack would otherwise be empty.
++  STACK_OF(SSL_CUSTOM_EXTENSION) *client_custom_extensions = nullptr;
++  STACK_OF(SSL_CUSTOM_EXTENSION) *server_custom_extensions = nullptr;
++
+   // Default values used when no per-SSL value is defined follow
+ 
+   void (*info_callback)(const SSL *ssl, int type, int value) = nullptr;
+diff --git a/ssl/ssl_lib.cc b/ssl/ssl_lib.cc
+index 845042635..9e17ef910 100644
+--- a/ssl/ssl_lib.cc
++++ b/ssl/ssl_lib.cc
+@@ -556,6 +556,10 @@ ssl_ctx_st::~ssl_ctx_st() {
+ 
+   CRYPTO_MUTEX_cleanup(&lock);
+   lh_SSL_SESSION_free(sessions);
++  sk_SSL_CUSTOM_EXTENSION_pop_free(client_custom_extensions,
++                                   SSL_CUSTOM_EXTENSION_free);
++  sk_SSL_CUSTOM_EXTENSION_pop_free(server_custom_extensions,
++                                   SSL_CUSTOM_EXTENSION_free);
+   x509_method->ssl_ctx_free(this);
+ }
+ 
+@@ -1320,6 +1324,8 @@ const char *SSL_early_data_reason_string(enum ssl_early_data_reason_t reason) {
+       return "quic_parameter_mismatch";
+     case ssl_early_data_alps_mismatch:
+       return "alps_mismatch";
++    case ssl_early_data_unsupported_with_custom_extension:
++      return "custom_extension_not_permitted";
+   }
+ 
+   return nullptr;
+diff --git a/ssl/test/runner/runner.go b/ssl/test/runner/runner.go
+index 0c2cb3655..a588cdd09 100644
+--- a/ssl/test/runner/runner.go
++++ b/ssl/test/runner/runner.go
+@@ -11374,6 +11374,275 @@ func addTLSUniqueTests() {
+ }
+ 
+ func addCustomExtensionTests() {
++	expectedContents := "custom extension"
++	emptyString := ""
++
++	for _, isClient := range []bool{false, true} {
++		suffix := "Server"
++		flag := "-enable-server-custom-extension"
++		testType := serverTest
++		if isClient {
++			suffix = "Client"
++			flag = "-enable-client-custom-extension"
++			testType = clientTest
++		}
++
++		testCases = append(testCases, testCase{
++			testType: testType,
++			name:     "CustomExtensions-" + suffix,
++			config: Config{
++				MaxVersion: VersionTLS12,
++				Bugs: ProtocolBugs{
++					CustomExtension:         expectedContents,
++					ExpectedCustomExtension: &expectedContents,
++				},
++			},
++			flags: []string{flag},
++		})
++		testCases = append(testCases, testCase{
++			testType: testType,
++			name:     "CustomExtensions-" + suffix + "-TLS13",
++			config: Config{
++				MaxVersion: VersionTLS13,
++				Bugs: ProtocolBugs{
++					CustomExtension:         expectedContents,
++					ExpectedCustomExtension: &expectedContents,
++				},
++			},
++			flags: []string{flag},
++		})
++
++		// If the parse callback fails, the handshake should also fail.
++		testCases = append(testCases, testCase{
++			testType: testType,
++			name:     "CustomExtensions-ParseError-" + suffix,
++			config: Config{
++				MaxVersion: VersionTLS12,
++				Bugs: ProtocolBugs{
++					CustomExtension:         expectedContents + "foo",
++					ExpectedCustomExtension: &expectedContents,
++				},
++			},
++			flags:         []string{flag},
++			shouldFail:    true,
++			expectedError: ":CUSTOM_EXTENSION_ERROR:",
++		})
++		testCases = append(testCases, testCase{
++			testType: testType,
++			name:     "CustomExtensions-ParseError-" + suffix + "-TLS13",
++			config: Config{
++				MaxVersion: VersionTLS13,
++				Bugs: ProtocolBugs{
++					CustomExtension:         expectedContents + "foo",
++					ExpectedCustomExtension: &expectedContents,
++				},
++			},
++			flags:         []string{flag},
++			shouldFail:    true,
++			expectedError: ":CUSTOM_EXTENSION_ERROR:",
++		})
++
++		// If the add callback fails, the handshake should also fail.
++		testCases = append(testCases, testCase{
++			testType: testType,
++			name:     "CustomExtensions-FailAdd-" + suffix,
++			config: Config{
++				MaxVersion: VersionTLS12,
++				Bugs: ProtocolBugs{
++					CustomExtension:         expectedContents,
++					ExpectedCustomExtension: &expectedContents,
++				},
++			},
++			flags:         []string{flag, "-custom-extension-fail-add"},
++			shouldFail:    true,
++			expectedError: ":CUSTOM_EXTENSION_ERROR:",
++		})
++		testCases = append(testCases, testCase{
++			testType: testType,
++			name:     "CustomExtensions-FailAdd-" + suffix + "-TLS13",
++			config: Config{
++				MaxVersion: VersionTLS13,
++				Bugs: ProtocolBugs{
++					CustomExtension:         expectedContents,
++					ExpectedCustomExtension: &expectedContents,
++				},
++			},
++			flags:         []string{flag, "-custom-extension-fail-add"},
++			shouldFail:    true,
++			expectedError: ":CUSTOM_EXTENSION_ERROR:",
++		})
++
++		// If the add callback returns zero, no extension should be
++		// added.
++		skipCustomExtension := expectedContents
++		if isClient {
++			// For the case where the client skips sending the
++			// custom extension, the server must not “echo” it.
++			skipCustomExtension = ""
++		}
++		testCases = append(testCases, testCase{
++			testType: testType,
++			name:     "CustomExtensions-Skip-" + suffix,
++			config: Config{
++				MaxVersion: VersionTLS12,
++				Bugs: ProtocolBugs{
++					CustomExtension:         skipCustomExtension,
++					ExpectedCustomExtension: &emptyString,
++				},
++			},
++			flags: []string{flag, "-custom-extension-skip"},
++		})
++		testCases = append(testCases, testCase{
++			testType: testType,
++			name:     "CustomExtensions-Skip-" + suffix + "-TLS13",
++			config: Config{
++				MaxVersion: VersionTLS13,
++				Bugs: ProtocolBugs{
++					CustomExtension:         skipCustomExtension,
++					ExpectedCustomExtension: &emptyString,
++				},
++			},
++			flags: []string{flag, "-custom-extension-skip"},
++		})
++	}
++
++	// If the client sends both early data and custom extension, the handshake
++	// should succeed as long as both the extensions aren't returned by the
++	// server.
++	testCases = append(testCases, testCase{
++		testType: clientTest,
++		name:     "CustomExtensions-Client-EarlyData-None",
++		config: Config{
++			MaxVersion:       VersionTLS13,
++			MaxEarlyDataSize: 16384,
++			Bugs: ProtocolBugs{
++				ExpectedCustomExtension: &expectedContents,
++				AlwaysRejectEarlyData:   true,
++			},
++		},
++		resumeSession: true,
++		earlyData: true,
++		expectEarlyDataRejected: true,
++		flags: []string{
++			"-enable-client-custom-extension",
++		},
++	})
++
++	testCases = append(testCases, testCase{
++		testType: clientTest,
++		name:     "CustomExtensions-Client-EarlyData-EarlyDataAccepted",
++		config: Config{
++			MaxVersion:       VersionTLS13,
++			MaxEarlyDataSize: 16384,
++			Bugs: ProtocolBugs{
++				ExpectedCustomExtension: &expectedContents,
++			},
++		},
++		resumeSession: true,
++		earlyData: true,
++		flags: []string{
++			"-enable-client-custom-extension",
++		},
++	})
++
++	testCases = append(testCases, testCase{
++		testType: clientTest,
++		name:     "CustomExtensions-Client-EarlyData-CustomExtensionAccepted",
++		config: Config{
++			MaxVersion:       VersionTLS13,
++			MaxEarlyDataSize: 16384,
++			Bugs: ProtocolBugs{
++				AlwaysRejectEarlyData:   true,
++				CustomExtension:         expectedContents,
++				ExpectedCustomExtension: &expectedContents,
++			},
++		},
++		resumeSession: true,
++		earlyData: true,
++		expectEarlyDataRejected: true,
++		flags: []string{
++			"-enable-client-custom-extension",
++		},
++	})
++
++	testCases = append(testCases, testCase{
++		testType: clientTest,
++		name:     "CustomExtensions-Client-EarlyDataAndCustomExtensions",
++		config: Config{
++			MaxVersion:       VersionTLS13,
++			MaxEarlyDataSize: 16384,
++			Bugs: ProtocolBugs{
++				CustomExtension:         expectedContents,
++				ExpectedCustomExtension: &expectedContents,
++			},
++		},
++		resumeConfig: &Config{
++			MaxVersion:       VersionTLS13,
++			MaxEarlyDataSize: 16384,
++			Bugs: ProtocolBugs{
++				CustomExtension:         expectedContents,
++				ExpectedCustomExtension: &expectedContents,
++				SendEarlyDataExtension:  true,
++			},
++		},
++		resumeSession: true,
++		shouldFail:    true,
++		expectedError: ":UNEXPECTED_EXTENSION_ON_EARLY_DATA:",
++		flags: []string{
++			"-enable-client-custom-extension",
++			"-enable-early-data",
++			"-expect-ticket-supports-early-data",
++		},
++	})
++
++	// If the server receives both early data and custom extension, only the
++	// custom extension should be accepted.
++	testCases = append(testCases, testCase{
++		testType: serverTest,
++		name:     "CustomExtensions-Server-EarlyDataOffered",
++		config: Config{
++			MaxVersion: VersionTLS13,
++			Bugs: ProtocolBugs{
++				SendEarlyData:           [][]byte{{1, 2, 3, 4}},
++				CustomExtension:         expectedContents,
++				ExpectedCustomExtension: &expectedContents,
++				ExpectEarlyDataAccepted: false,
++			},
++		},
++		resumeSession: true,
++		earlyData:     true,
++		expectEarlyDataRejected: true,
++		flags: []string{
++			"-enable-server-custom-extension",
++		},
++	})
++
++	// The custom extension add callback should not be called if the client
++	// doesn't send the extension.
++	testCases = append(testCases, testCase{
++		testType: serverTest,
++		name:     "CustomExtensions-NotCalled-Server",
++		config: Config{
++			MaxVersion: VersionTLS12,
++			Bugs: ProtocolBugs{
++				ExpectedCustomExtension: &emptyString,
++			},
++		},
++		flags: []string{"-enable-server-custom-extension", "-custom-extension-fail-add"},
++	})
++
++	testCases = append(testCases, testCase{
++		testType: serverTest,
++		name:     "CustomExtensions-NotCalled-Server-TLS13",
++		config: Config{
++			MaxVersion: VersionTLS13,
++			Bugs: ProtocolBugs{
++				ExpectedCustomExtension: &emptyString,
++			},
++		},
++		flags: []string{"-enable-server-custom-extension", "-custom-extension-fail-add"},
++	})
++
+ 	// Test an unknown extension from the server.
+ 	testCases = append(testCases, testCase{
+ 		testType: clientTest,
+@@ -11381,7 +11650,7 @@ func addCustomExtensionTests() {
+ 		config: Config{
+ 			MaxVersion: VersionTLS12,
+ 			Bugs: ProtocolBugs{
+-				CustomExtension: "custom extension",
++				CustomExtension: expectedContents,
+ 			},
+ 		},
+ 		shouldFail:         true,
+@@ -11394,7 +11663,7 @@ func addCustomExtensionTests() {
+ 		config: Config{
+ 			MaxVersion: VersionTLS13,
+ 			Bugs: ProtocolBugs{
+-				CustomExtension: "custom extension",
++				CustomExtension: expectedContents,
+ 			},
+ 		},
+ 		shouldFail:         true,
+@@ -11407,7 +11676,7 @@ func addCustomExtensionTests() {
+ 		config: Config{
+ 			MaxVersion: VersionTLS13,
+ 			Bugs: ProtocolBugs{
+-				CustomUnencryptedExtension: "custom extension",
++				CustomUnencryptedExtension: expectedContents,
+ 			},
+ 		},
+ 		shouldFail:    true,
+diff --git a/ssl/test/runner/ssl_transfer/test_case_names.txt b/ssl/test/runner/ssl_transfer/test_case_names.txt
+index abca8471a..ef15f9a67 100644
+--- a/ssl/test/runner/ssl_transfer/test_case_names.txt
++++ b/ssl/test/runner/ssl_transfer/test_case_names.txt
+@@ -246,6 +246,13 @@ CurveTest-Server-P-521-TLS12
+ CurveTest-Server-P-521-TLS13
+ CurveTest-Server-X25519-TLS12
+ CurveTest-Server-X25519-TLS13
++CustomExtensions-NotCalled-Server
++CustomExtensions-NotCalled-Server-TLS13
++CustomExtensions-Server
++CustomExtensions-Server-EarlyDataOffered
++CustomExtensions-Server-TLS13
++CustomExtensions-Skip-Server
++CustomExtensions-Skip-Server-TLS13
+ DelegatedCredentials-Basic
+ DelegatedCredentials-NoClientSupport
+ DelegatedCredentials-SigAlgoMissing
+diff --git a/ssl/test/test_config.cc b/ssl/test/test_config.cc
+index 387a9d1a1..b548d8708 100644
+--- a/ssl/test/test_config.cc
++++ b/ssl/test/test_config.cc
+@@ -61,7 +61,6 @@ template <typename T>
+ bool StringToInt(T *out, const char *str) {
+   static_assert(std::is_integral<T>::value, "not an integral type");
+   static_assert(sizeof(T) <= sizeof(long long), "type too large for long long");
+-
+   // |strtoull| allows leading '-' with wraparound. Additionally, both
+   // functions accept empty strings and leading whitespace.
+   if (!OPENSSL_isdigit(static_cast<unsigned char>(*str)) &&
+@@ -290,6 +289,10 @@ std::vector<Flag> SortedFlags() {
+       BoolFlag("-use-ticket-callback", &TestConfig::use_ticket_callback),
+       BoolFlag("-renew-ticket", &TestConfig::renew_ticket),
+       BoolFlag("-enable-early-data", &TestConfig::enable_early_data),
++      BoolFlag("-enable-client-custom-extension", &TestConfig::enable_client_custom_extension),
++      BoolFlag("-enable-server-custom-extension", &TestConfig::enable_server_custom_extension),
++      BoolFlag("-custom-extension-skip", &TestConfig::custom_extension_skip),
++      BoolFlag("-custom-extension-fail-add", &TestConfig::custom_extension_fail_add),
+       Base64Flag("-ocsp-response", &TestConfig::ocsp_response),
+       Base64Flag("-expect-ocsp-response", &TestConfig::expect_ocsp_response),
+       BoolFlag("-check-close-notify", &TestConfig::check_close_notify),
+@@ -541,6 +544,63 @@ static int LegacyOCSPCallback(SSL *ssl, void *arg) {
+   return SSL_TLSEXT_ERR_OK;
+ }
+ 
++// kCustomExtensionValue is the extension value that the custom extension
++// callbacks will add.
++static const uint16_t kCustomExtensionValue = 1234;
++static void *const kCustomExtensionAddArg =
++    reinterpret_cast<void *>(kCustomExtensionValue);
++static void *const kCustomExtensionParseArg =
++    reinterpret_cast<void *>(kCustomExtensionValue + 1);
++static const char kCustomExtensionContents[] = "custom extension";
++
++static int CustomExtensionAddCallback(SSL *ssl, unsigned extension_value,
++                                      const uint8_t **out, size_t *out_len,
++                                      int *out_alert_value, void *add_arg) {
++  if (extension_value != kCustomExtensionValue ||
++      add_arg != kCustomExtensionAddArg) {
++    abort();
++  }
++
++  if (GetTestConfig(ssl)->custom_extension_skip) {
++    return 0;
++  }
++  if (GetTestConfig(ssl)->custom_extension_fail_add) {
++    return -1;
++  }
++
++  *out = reinterpret_cast<const uint8_t *>(kCustomExtensionContents);
++  *out_len = sizeof(kCustomExtensionContents) - 1;
++
++  return 1;
++}
++
++static void CustomExtensionFreeCallback(SSL *ssl, unsigned extension_value,
++                                        const uint8_t *out, void *add_arg) {
++  if (extension_value != kCustomExtensionValue ||
++      add_arg != kCustomExtensionAddArg ||
++      out != reinterpret_cast<const uint8_t *>(kCustomExtensionContents)) {
++    abort();
++  }
++}
++
++static int CustomExtensionParseCallback(SSL *ssl, unsigned extension_value,
++                                        const uint8_t *contents,
++                                        size_t contents_len,
++                                        int *out_alert_value, void *parse_arg) {
++  if (extension_value != kCustomExtensionValue ||
++      parse_arg != kCustomExtensionParseArg) {
++    abort();
++  }
++
++  if (contents_len != sizeof(kCustomExtensionContents) - 1 ||
++      OPENSSL_memcmp(contents, kCustomExtensionContents, contents_len) != 0) {
++    *out_alert_value = SSL_AD_DECODE_ERROR;
++    return 0;
++  }
++
++  return 1;
++}
++
+ static int ServerNameCallback(SSL *ssl, int *out_alert, void *arg) {
+   // SNI must be accessible from the SNI callback.
+   const TestConfig *config = GetTestConfig(ssl);
+@@ -1441,6 +1501,22 @@ bssl::UniquePtr<SSL_CTX> TestConfig::SetupCtx(SSL_CTX *old_ctx) const {
+     SSL_CTX_set_tlsext_ticket_key_cb(ssl_ctx.get(), TicketKeyCallback);
+   }
+ 
++  if (enable_client_custom_extension &&
++      !SSL_CTX_add_client_custom_ext(
++          ssl_ctx.get(), kCustomExtensionValue, CustomExtensionAddCallback,
++          CustomExtensionFreeCallback, kCustomExtensionAddArg,
++          CustomExtensionParseCallback, kCustomExtensionParseArg)) {
++    return nullptr;
++  }
++
++  if (enable_server_custom_extension &&
++      !SSL_CTX_add_server_custom_ext(
++          ssl_ctx.get(), kCustomExtensionValue, CustomExtensionAddCallback,
++          CustomExtensionFreeCallback, kCustomExtensionAddArg,
++          CustomExtensionParseCallback, kCustomExtensionParseArg)) {
++    return nullptr;
++  }
++
+   if (!use_custom_verify_callback) {
+     SSL_CTX_set_cert_verify_callback(ssl_ctx.get(), CertVerifyCallback, NULL);
+   }
+diff --git a/ssl/test/test_config.h b/ssl/test/test_config.h
+index 36348df6f..c698c93d7 100644
+--- a/ssl/test/test_config.h
++++ b/ssl/test/test_config.h
+@@ -119,6 +119,10 @@ struct TestConfig {
+   bool use_ticket_callback = false;
+   bool renew_ticket = false;
+   bool enable_early_data = false;
++  bool enable_client_custom_extension = false;
++  bool enable_server_custom_extension = false;
++  bool custom_extension_skip = false;
++  bool custom_extension_fail_add = false;
+   std::string ocsp_response;
+   bool check_close_notify = false;
+   bool shim_shuts_down = false;
+diff --git a/ssl/tls13_client.cc b/ssl/tls13_client.cc
+index db894481a..70a254834 100644
+--- a/ssl/tls13_client.cc
++++ b/ssl/tls13_client.cc
+@@ -591,6 +591,10 @@ static enum ssl_hs_wait_t do_read_encrypted_extensions(SSL_HANDSHAKE *hs) {
+       ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
+       return ssl_hs_error;
+     }
++    if (hs->received_custom_extension) {
++      OPENSSL_PUT_ERROR(SSL, SSL_R_UNEXPECTED_EXTENSION_ON_EARLY_DATA);
++      return ssl_hs_error;
++    }
+   }
+ 
+   // Store the negotiated ALPN in the session.
+diff --git a/ssl/tls13_server.cc b/ssl/tls13_server.cc
+index fb358ffdf..e9f48b4ad 100644
+--- a/ssl/tls13_server.cc
++++ b/ssl/tls13_server.cc
+@@ -471,6 +471,8 @@ static enum ssl_hs_wait_t do_select_session(SSL_HANDSHAKE *hs) {
+     ssl->s3->early_data_reason = ssl_early_data_quic_parameter_mismatch;
+   } else if (!found_key_share) {
+     ssl->s3->early_data_reason = ssl_early_data_hello_retry_request;
++  } else if (hs->custom_extensions.received) {
++    ssl->s3->early_data_reason = ssl_early_data_unsupported_with_custom_extension;
+   } else {
+     // |ssl_session_is_resumable| forbids cross-cipher resumptions even if the
+     // PRF hashes match.

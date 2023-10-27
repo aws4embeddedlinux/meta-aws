@@ -1,0 +1,64 @@
+From de4952fbb250ad6485a6e311a26887338741ec00 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 24 Jan 2023 18:08:09 -0500
+Subject: [PATCH] Unexport BN_MONT_CTX_set_locked.
+
+The only callers of this function were reaching into RSA internals.
+We cannot fix all the issues with RSA state management when callers do
+this. Those have since been fixed, so unexport this function.
+
+Update-Note: This removes a function that can only be used by accessing
+one of BoringSSL's private locks.
+
+Change-Id: I0f067b5650ead38d2dbb7302bad4ddd0b2512458
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56286
+Reviewed-by: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit eefe6cf27cad9f8303743208f3886cc3f128de53)
+---
+ crypto/fipsmodule/bn/internal.h | 9 +++++++++
+ include/openssl/bn.h            | 9 ---------
+ 2 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/crypto/fipsmodule/bn/internal.h b/crypto/fipsmodule/bn/internal.h
+index 016664b82..356496030 100644
+--- a/crypto/fipsmodule/bn/internal.h
++++ b/crypto/fipsmodule/bn/internal.h
+@@ -652,6 +652,15 @@ int bn_mod_inverse_prime(BIGNUM *out, const BIGNUM *a, const BIGNUM *p,
+ int bn_mod_inverse_secret_prime(BIGNUM *out, const BIGNUM *a, const BIGNUM *p,
+                                 BN_CTX *ctx, const BN_MONT_CTX *mont_p);
+ 
++// BN_MONT_CTX_set_locked takes |lock| and checks whether |*pmont| is NULL. If
++// so, it creates a new |BN_MONT_CTX| and sets the modulus for it to |mod|. It
++// then stores it as |*pmont|. It returns one on success and zero on error. Note
++// this function assumes |mod| is public.
++//
++// If |*pmont| is already non-NULL then it does nothing and returns one.
++int BN_MONT_CTX_set_locked(BN_MONT_CTX **pmont, CRYPTO_MUTEX *lock,
++                           const BIGNUM *mod, BN_CTX *bn_ctx);
++
+ 
+ // Low-level operations for small numbers.
+ //
+diff --git a/include/openssl/bn.h b/include/openssl/bn.h
+index 41aa98dd5..54a8cc275 100644
+--- a/include/openssl/bn.h
++++ b/include/openssl/bn.h
+@@ -865,15 +865,6 @@ OPENSSL_EXPORT void BN_MONT_CTX_free(BN_MONT_CTX *mont);
+ OPENSSL_EXPORT BN_MONT_CTX *BN_MONT_CTX_copy(BN_MONT_CTX *to,
+                                              const BN_MONT_CTX *from);
+ 
+-// BN_MONT_CTX_set_locked takes |lock| and checks whether |*pmont| is NULL. If
+-// so, it creates a new |BN_MONT_CTX| and sets the modulus for it to |mod|. It
+-// then stores it as |*pmont|. It returns one on success and zero on error. Note
+-// this function assumes |mod| is public.
+-//
+-// If |*pmont| is already non-NULL then it does nothing and returns one.
+-int BN_MONT_CTX_set_locked(BN_MONT_CTX **pmont, CRYPTO_MUTEX *lock,
+-                           const BIGNUM *mod, BN_CTX *bn_ctx);
+-
+ // BN_to_montgomery sets |ret| equal to |a| in the Montgomery domain. |a| is
+ // assumed to be in the range [0, n), where |n| is the Montgomery modulus. It
+ // returns one on success or zero on error.

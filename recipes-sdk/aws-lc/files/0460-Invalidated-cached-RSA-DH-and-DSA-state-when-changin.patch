@@ -1,0 +1,450 @@
+From e69e9f1b42f01e00e88e021eae22f5ed032a2795 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 26 Apr 2023 17:38:31 -0400
+Subject: [PATCH] Invalidated cached RSA, DH, and DSA state when changing keys
+
+As part of getting a handle on RSA state, I would like for RSA keys
+created from parsing to come pre-"frozen". This reduces some contention
+on first use. But that potentially breaks an existing use case: today,
+you're allowed to parse a private key and then override one field
+without problems, because none of the cached state has materialized yet.
+
+If the caller modified the RSA key by reaching into the struct, it's
+hopeless. If they used the setters, we actually can handle it correctly,
+so go ahead and make this work.
+
+DH and DSA aren't of particular interest to us, but fix them while I'm
+at it.
+
+This also avoids having to later document that something doesn't work,
+just that it's a terrible API.
+
+Bug: 316
+Change-Id: Idf02c777b932a62df9396e21de459381455950e0
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59385
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit 9939e14cffc66f9b9f3374fb52c97bd8bfb0bfbe)
+---
+ crypto/dh_extra/dh_test.cc       | 61 ++++++++++++++++++++++
+ crypto/dsa/dsa.c                 |  4 ++
+ crypto/dsa/dsa_test.cc           | 74 ++++++++++++++++++++++++++
+ crypto/fipsmodule/dh/dh.c        |  3 ++
+ crypto/fipsmodule/rsa/internal.h |  7 +++
+ crypto/fipsmodule/rsa/rsa.c      | 18 ++-----
+ crypto/fipsmodule/rsa/rsa_impl.c | 31 +++++++++++
+ crypto/rsa_extra/rsa_test.cc     | 89 ++++++++++++++++++++++++++++++++
+ 8 files changed, 273 insertions(+), 14 deletions(-)
+
+diff --git a/crypto/dh_extra/dh_test.cc b/crypto/dh_extra/dh_test.cc
+index 5f0216e54..cfd9d8c37 100644
+--- a/crypto/dh_extra/dh_test.cc
++++ b/crypto/dh_extra/dh_test.cc
+@@ -550,3 +550,64 @@ TEST(DHTest, LeadingZeros) {
+   ASSERT_GT(len, 0);
+   EXPECT_EQ(Bytes(buf.data(), len), Bytes(padded));
+ }
++
++TEST(DHTest, Overwrite) {
++  // Generate a DH key with the 1536-bit MODP group.
++  bssl::UniquePtr<BIGNUM> p(BN_get_rfc3526_prime_1536(nullptr));
++  ASSERT_TRUE(p);
++  bssl::UniquePtr<BIGNUM> g(BN_new());
++  ASSERT_TRUE(g);
++  ASSERT_TRUE(BN_set_word(g.get(), 2));
++
++  bssl::UniquePtr<DH> key1(DH_new());
++  ASSERT_TRUE(key1);
++  ASSERT_TRUE(DH_set0_pqg(key1.get(), p.get(), /*q=*/nullptr, g.get()));
++  p.release();
++  g.release();
++  ASSERT_TRUE(DH_generate_key(key1.get()));
++
++  bssl::UniquePtr<BIGNUM> peer_key(BN_new());
++  ASSERT_TRUE(peer_key);
++  ASSERT_TRUE(BN_set_word(peer_key.get(), 42));
++
++  // Use the key to fill in cached values.
++  std::vector<uint8_t> buf1(DH_size(key1.get()));
++  ASSERT_GT(DH_compute_key_padded(buf1.data(), peer_key.get(), key1.get()), 0);
++
++  // Generate a different key with a different group.
++  p.reset(BN_get_rfc3526_prime_2048(nullptr));
++  ASSERT_TRUE(p);
++  g.reset(BN_new());
++  ASSERT_TRUE(g);
++  ASSERT_TRUE(BN_set_word(g.get(), 2));
++
++  bssl::UniquePtr<DH> key2(DH_new());
++  ASSERT_TRUE(key2);
++  ASSERT_TRUE(DH_set0_pqg(key2.get(), p.get(), /*q=*/nullptr, g.get()));
++  p.release();
++  g.release();
++  ASSERT_TRUE(DH_generate_key(key2.get()));
++
++  // Overwrite |key1|'s contents with |key2|.
++  p.reset(BN_dup(DH_get0_p(key2.get())));
++  ASSERT_TRUE(p);
++  g.reset(BN_dup(DH_get0_g(key2.get())));
++  ASSERT_TRUE(g);
++  bssl::UniquePtr<BIGNUM> pub(BN_dup(DH_get0_pub_key(key2.get())));
++  ASSERT_TRUE(pub);
++  bssl::UniquePtr<BIGNUM> priv(BN_dup(DH_get0_priv_key(key2.get())));
++  ASSERT_TRUE(priv);
++  ASSERT_TRUE(DH_set0_pqg(key1.get(), p.get(), /*q=*/nullptr, g.get()));
++  p.release();
++  g.release();
++  ASSERT_TRUE(DH_set0_key(key1.get(), pub.get(), priv.get()));
++  pub.release();
++  priv.release();
++
++  // Verify that |key1| and |key2| behave equivalently.
++  buf1.resize(DH_size(key1.get()));
++  ASSERT_GT(DH_compute_key_padded(buf1.data(), peer_key.get(), key1.get()), 0);
++  std::vector<uint8_t> buf2(DH_size(key2.get()));
++  ASSERT_GT(DH_compute_key_padded(buf2.data(), peer_key.get(), key2.get()), 0);
++  EXPECT_EQ(Bytes(buf1), Bytes(buf2));
++}
+diff --git a/crypto/dsa/dsa.c b/crypto/dsa/dsa.c
+index f7e6b7e57..a230801de 100644
+--- a/crypto/dsa/dsa.c
++++ b/crypto/dsa/dsa.c
+@@ -202,6 +202,10 @@ int DSA_set0_pqg(DSA *dsa, BIGNUM *p, BIGNUM *q, BIGNUM *g) {
+     dsa->g = g;
+   }
+ 
++  BN_MONT_CTX_free(dsa->method_mont_p);
++  dsa->method_mont_p = NULL;
++  BN_MONT_CTX_free(dsa->method_mont_q);
++  dsa->method_mont_q = NULL;
+   return 1;
+ }
+ 
+diff --git a/crypto/dsa/dsa_test.cc b/crypto/dsa/dsa_test.cc
+index cc02782a3..611b00347 100644
+--- a/crypto/dsa/dsa_test.cc
++++ b/crypto/dsa/dsa_test.cc
+@@ -336,3 +336,77 @@ Epvg
+   EXPECT_FALSE(DSA_sign(0, fips_digest, sizeof(fips_digest), sig.data(),
+                         &sig_len, dsa.get()));
+ }
++
++TEST(DSATest, Overwrite) {
++  // Load an arbitrary DSA private key and use it.
++  static const char kPEM[] = R"(
++-----BEGIN DSA PRIVATE KEY-----
++MIIDTgIBAAKCAQEAyH68EuravtF+7PTFBtWJkwjmp0YJmh8e2Cdpu8ci3dZf87rk
++GwXzfqYkAEkW5H4Hp0cxdICKFiqfxjSaiEauOrNV+nXWZS634hZ9H47I8HnAVS0p
++5MmSmPJ7NNUowymMpyB6M6hfqHl/1pZd7avbTmnzb2SZ0kw0WLWJo6vMekepYWv9
++3o1Xove4ci00hnkr7Qo9Bh/+z84jgeT2/MTdsCVtbuMv/mbcYLhCKVWPBozDZr/D
++qwhGTlomsTRvP3WIbem3b5eYhQaPuMsKiAzntcinoxQXWrIoZB+xJyF/sI013uBI
++i9ePSxY3704U4QGxVM0aR/6fzORz5kh8ZjhhywIdAI9YBUR6eoGevUaLq++qXiYW
++TgXBXlyqE32ESbkCggEBAL/c5GerO5g25D0QsfgVIJtlZHQOwYauuWoUudaQiyf6
++VhWLBNNTAGldkFGdtxsA42uqqZSXCki25LvN6PscGGvFy8oPWaa9TGt+l9Z5ZZiV
++ShNpg71V9YuImsPB3BrQ4L6nZLfhBt6InzJ6KqjDNdg7u6lgnFKue7l6khzqNxbM
++RgxHWMq7PkhMcl+RzpqbiGcxSHqraxldutqCWsnZzhKh4d4GdunuRY8GiFo0Axkb
++Kn0Il3zm81ewv08F/ocu+IZQEzxTyR8YRQ99MLVbnwhVxndEdLjjetCX82l+/uEY
++5fdUy0thR8odcDsvUc/tT57I+yhnno80HbpUUNw2+/sCggEAdh1wp/9CifYIp6T8
++P/rIus6KberZ2Pv/n0bl+Gv8AoToA0zhZXIfY2l0TtanKmdLqPIvjqkN0v6zGSs+
+++ahR1QzMQnK718mcsQmB4X6iP5LKgJ/t0g8LrDOxc/cNycmHq76MmF9RN5NEBz4+
++PAnRIftm/b0UQflP6uy3gRQP2X7P8ZebCytOPKTZC4oLyCtvPevSkCiiauq/RGjL
++k6xqRgLxMtmuyhT+dcVbtllV1p1xd9Bppnk17/kR5VCefo/e/7DHu163izRDW8tx
++SrEmiVyVkRijY3bVZii7LPfMz5eEAWEDJRuFwyNv3i6j7CKeZw2d/hzu370Ua28F
++s2lmkAIcLIFUDFrbC2nViaB5ATM9ARKk6F2QwnCfGCyZ6A==
++-----END DSA PRIVATE KEY-----
++)";
++  bssl::UniquePtr<BIO> bio(BIO_new_mem_buf(kPEM, sizeof(kPEM)));
++  ASSERT_TRUE(bio);
++  bssl::UniquePtr<DSA> dsa(
++      PEM_read_bio_DSAPrivateKey(bio.get(), nullptr, nullptr, nullptr));
++  ASSERT_TRUE(dsa);
++
++  std::vector<uint8_t> sig(DSA_size(dsa.get()));
++  unsigned sig_len;
++  ASSERT_TRUE(DSA_sign(0, fips_digest, sizeof(fips_digest), sig.data(),
++                       &sig_len, dsa.get()));
++  sig.resize(sig_len);
++  EXPECT_EQ(1, DSA_verify(0, fips_digest, sizeof(fips_digest), sig.data(),
++                          sig.size(), dsa.get()));
++
++  // Overwrite it with the sample key.
++  bssl::UniquePtr<BIGNUM> p(BN_bin2bn(fips_p, sizeof(fips_p), nullptr));
++  ASSERT_TRUE(p);
++  bssl::UniquePtr<BIGNUM> q(BN_bin2bn(fips_q, sizeof(fips_q), nullptr));
++  ASSERT_TRUE(q);
++  bssl::UniquePtr<BIGNUM> g(BN_bin2bn(fips_g, sizeof(fips_g), nullptr));
++  ASSERT_TRUE(g);
++  ASSERT_TRUE(DSA_set0_pqg(dsa.get(), p.get(), q.get(), g.get()));
++  // |DSA_set0_pqg| takes ownership on success.
++  p.release();
++  q.release();
++  g.release();
++  bssl::UniquePtr<BIGNUM> pub_key(BN_bin2bn(fips_y, sizeof(fips_y), nullptr));
++  ASSERT_TRUE(pub_key);
++  bssl::UniquePtr<BIGNUM> priv_key(BN_bin2bn(fips_x, sizeof(fips_x), nullptr));
++  ASSERT_TRUE(priv_key);
++  ASSERT_TRUE(DSA_set0_key(dsa.get(), pub_key.get(), priv_key.get()));
++  // |DSA_set0_key| takes ownership on success.
++  pub_key.release();
++  priv_key.release();
++
++  // The key should now work correctly for the new parameters.
++  EXPECT_EQ(1, DSA_verify(0, fips_digest, sizeof(fips_digest), fips_sig,
++                          sizeof(fips_sig), dsa.get()));
++
++  // Test signing by verifying it round-trips through the real key.
++  sig.resize(DSA_size(dsa.get()));
++  ASSERT_TRUE(DSA_sign(0, fips_digest, sizeof(fips_digest), sig.data(),
++                       &sig_len, dsa.get()));
++  sig.resize(sig_len);
++  dsa = GetFIPSDSA();
++  ASSERT_TRUE(dsa);
++  EXPECT_EQ(1, DSA_verify(0, fips_digest, sizeof(fips_digest), sig.data(),
++                          sig.size(), dsa.get()));
++}
+diff --git a/crypto/fipsmodule/dh/dh.c b/crypto/fipsmodule/dh/dh.c
+index 14cf20b9e..9d7084961 100644
+--- a/crypto/fipsmodule/dh/dh.c
++++ b/crypto/fipsmodule/dh/dh.c
+@@ -193,6 +193,9 @@ int DH_set0_pqg(DH *dh, BIGNUM *p, BIGNUM *q, BIGNUM *g) {
+     dh->g = g;
+   }
+ 
++  // Invalidate the cached Montgomery parameters.
++  BN_MONT_CTX_free(dh->method_mont_p);
++  dh->method_mont_p = NULL;
+   return 1;
+ }
+ 
+diff --git a/crypto/fipsmodule/rsa/internal.h b/crypto/fipsmodule/rsa/internal.h
+index 9d16d15c7..8a1313cbe 100644
+--- a/crypto/fipsmodule/rsa/internal.h
++++ b/crypto/fipsmodule/rsa/internal.h
+@@ -60,6 +60,7 @@
+ #include <openssl/base.h>
+ 
+ #include <openssl/bn.h>
++#include <openssl/rsa.h>
+ 
+ 
+ #if defined(__cplusplus)
+@@ -123,6 +124,12 @@ int rsa_check_public_key(const RSA *rsa, rsa_asn1_key_encoding_t key_enc_type);
+ int RSA_private_transform(RSA *rsa, uint8_t *out, const uint8_t *in,
+                           size_t len);
+ 
++// rsa_invalidate_key is called after |rsa| has been mutated, to invalidate
++// fields derived from the original structure. This function assumes exclusive
++// access to |rsa|. In particular, no other thread may be concurrently signing,
++// etc., with |rsa|.
++void rsa_invalidate_key(RSA *rsa);
++
+ 
+ // This constant is exported for test purposes.
+ extern const BN_ULONG kBoringSSLRSASqrtTwo[];
+diff --git a/crypto/fipsmodule/rsa/rsa.c b/crypto/fipsmodule/rsa/rsa.c
+index 35bcd55f3..99db2d42e 100644
+--- a/crypto/fipsmodule/rsa/rsa.c
++++ b/crypto/fipsmodule/rsa/rsa.c
+@@ -120,8 +120,6 @@ RSA *RSA_new_method(const ENGINE *engine) {
+ }
+ 
+ void RSA_free(RSA *rsa) {
+-  unsigned u;
+-
+   if (rsa == NULL) {
+     return;
+   }
+@@ -146,18 +144,7 @@ void RSA_free(RSA *rsa) {
+   BN_free(rsa->dmq1);
+   BN_free(rsa->iqmp);
+   RSASSA_PSS_PARAMS_free(rsa->pss);
+-  BN_MONT_CTX_free(rsa->mont_n);
+-  BN_MONT_CTX_free(rsa->mont_p);
+-  BN_MONT_CTX_free(rsa->mont_q);
+-  BN_free(rsa->d_fixed);
+-  BN_free(rsa->dmp1_fixed);
+-  BN_free(rsa->dmq1_fixed);
+-  BN_free(rsa->inv_small_mod_large_mont);
+-  for (u = 0; u < rsa->num_blindings; u++) {
+-    BN_BLINDING_free(rsa->blindings[u]);
+-  }
+-  OPENSSL_free(rsa->blindings);
+-  OPENSSL_free(rsa->blindings_inuse);
++  rsa_invalidate_key(rsa);
+   CRYPTO_MUTEX_cleanup(&rsa->lock);
+   OPENSSL_free(rsa);
+ }
+@@ -246,6 +233,7 @@ int RSA_set0_key(RSA *rsa, BIGNUM *n, BIGNUM *e, BIGNUM *d) {
+     rsa->d = d;
+   }
+ 
++  rsa_invalidate_key(rsa);
+   return 1;
+ }
+ 
+@@ -264,6 +252,7 @@ int RSA_set0_factors(RSA *rsa, BIGNUM *p, BIGNUM *q) {
+     rsa->q = q;
+   }
+ 
++  rsa_invalidate_key(rsa);
+   return 1;
+ }
+ 
+@@ -287,6 +276,7 @@ int RSA_set0_crt_params(RSA *rsa, BIGNUM *dmp1, BIGNUM *dmq1, BIGNUM *iqmp) {
+     rsa->iqmp = iqmp;
+   }
+ 
++  rsa_invalidate_key(rsa);
+   return 1;
+ }
+ 
+diff --git a/crypto/fipsmodule/rsa/rsa_impl.c b/crypto/fipsmodule/rsa/rsa_impl.c
+index a9efaf559..29529d3ef 100644
+--- a/crypto/fipsmodule/rsa/rsa_impl.c
++++ b/crypto/fipsmodule/rsa/rsa_impl.c
+@@ -271,6 +271,36 @@ err:
+   return ret;
+ }
+ 
++void rsa_invalidate_key(RSA *rsa) {
++  rsa->private_key_frozen = 0;
++
++  BN_MONT_CTX_free(rsa->mont_n);
++  rsa->mont_n = NULL;
++  BN_MONT_CTX_free(rsa->mont_p);
++  rsa->mont_p = NULL;
++  BN_MONT_CTX_free(rsa->mont_q);
++  rsa->mont_q = NULL;
++
++  BN_free(rsa->d_fixed);
++  rsa->d_fixed = NULL;
++  BN_free(rsa->dmp1_fixed);
++  rsa->dmp1_fixed = NULL;
++  BN_free(rsa->dmq1_fixed);
++  rsa->dmq1_fixed = NULL;
++  BN_free(rsa->inv_small_mod_large_mont);
++  rsa->inv_small_mod_large_mont = NULL;
++
++  for (size_t i = 0; i < rsa->num_blindings; i++) {
++    BN_BLINDING_free(rsa->blindings[i]);
++  }
++  OPENSSL_free(rsa->blindings);
++  rsa->blindings = NULL;
++  rsa->num_blindings = 0;
++  OPENSSL_free(rsa->blindings_inuse);
++  rsa->blindings_inuse = NULL;
++  rsa->blinding_fork_generation = 0;
++}
++
+ size_t rsa_default_size(const RSA *rsa) {
+   return BN_num_bytes(rsa->n);
+ }
+@@ -1397,6 +1427,7 @@ static int RSA_generate_key_ex_maybe_fips(RSA *rsa, int bits,
+     goto out;
+   }
+ 
++  rsa_invalidate_key(rsa);
+   replace_bignum(&rsa->n, &tmp->n);
+   replace_bignum(&rsa->e, &tmp->e);
+   replace_bignum(&rsa->d, &tmp->d);
+diff --git a/crypto/rsa_extra/rsa_test.cc b/crypto/rsa_extra/rsa_test.cc
+index 8e28fcafb..4b958ad70 100644
+--- a/crypto/rsa_extra/rsa_test.cc
++++ b/crypto/rsa_extra/rsa_test.cc
+@@ -1303,6 +1303,95 @@ TEST(RSATest, OldCallback) {
+   EXPECT_NE(new_callback_call_count, 0);
+ }
+ 
++// Test that, after a key has been used, it can still be modified into another
++// key.
++TEST(RSATest, OverwriteKey) {
++  // Make a key and perform public and private key operations with it, so that
++  // all derived values are filled in.
++  bssl::UniquePtr<RSA> key1(
++      RSA_private_key_from_bytes(kKey1, sizeof(kKey1) - 1));
++  ASSERT_TRUE(key1);
++
++  ASSERT_TRUE(RSA_check_key(key1.get()));
++  size_t len;
++  std::vector<uint8_t> ciphertext(RSA_size(key1.get()));
++  ASSERT_TRUE(RSA_encrypt(key1.get(), &len, ciphertext.data(),
++                          ciphertext.size(), kPlaintext, kPlaintextLen,
++                          RSA_PKCS1_OAEP_PADDING));
++  ciphertext.resize(len);
++
++  std::vector<uint8_t> plaintext(RSA_size(key1.get()));
++  ASSERT_TRUE(RSA_decrypt(key1.get(), &len, plaintext.data(),
++                          plaintext.size(), ciphertext.data(), ciphertext.size(),
++                          RSA_PKCS1_OAEP_PADDING));
++  plaintext.resize(len);
++  EXPECT_EQ(Bytes(plaintext), Bytes(kPlaintext, kPlaintextLen));
++
++  // Overwrite |key1| with the contents of |key2|.
++  bssl::UniquePtr<RSA> key2(
++      RSA_private_key_from_bytes(kKey2, sizeof(kKey2) - 1));
++  ASSERT_TRUE(key2);
++
++  auto copy_rsa_fields = [](RSA *dst, const RSA *src) {
++    bssl::UniquePtr<BIGNUM> n(BN_dup(RSA_get0_n(src)));
++    ASSERT_TRUE(n);
++    bssl::UniquePtr<BIGNUM> e(BN_dup(RSA_get0_e(src)));
++    ASSERT_TRUE(e);
++    bssl::UniquePtr<BIGNUM> d(BN_dup(RSA_get0_d(src)));
++    ASSERT_TRUE(d);
++    bssl::UniquePtr<BIGNUM> p(BN_dup(RSA_get0_p(src)));
++    ASSERT_TRUE(p);
++    bssl::UniquePtr<BIGNUM> q(BN_dup(RSA_get0_q(src)));
++    ASSERT_TRUE(q);
++    bssl::UniquePtr<BIGNUM> dmp1(BN_dup(RSA_get0_dmp1(src)));
++    ASSERT_TRUE(dmp1);
++    bssl::UniquePtr<BIGNUM> dmq1(BN_dup(RSA_get0_dmq1(src)));
++    ASSERT_TRUE(dmq1);
++    bssl::UniquePtr<BIGNUM> iqmp(BN_dup(RSA_get0_iqmp(src)));
++    ASSERT_TRUE(iqmp);
++    ASSERT_TRUE(RSA_set0_key(dst, n.release(), e.release(), d.release()));
++    ASSERT_TRUE(RSA_set0_factors(dst, p.release(), q.release()));
++    ASSERT_TRUE(RSA_set0_crt_params(dst, dmp1.release(), dmq1.release(),
++                                    iqmp.release()));
++  };
++  ASSERT_NO_FATAL_FAILURE(copy_rsa_fields(key1.get(), key2.get()));
++
++  auto check_rsa_compatible = [&](RSA *enc, RSA *dec) {
++    ciphertext.resize(RSA_size(enc));
++    ASSERT_TRUE(RSA_encrypt(enc, &len, ciphertext.data(),
++                            ciphertext.size(), kPlaintext, kPlaintextLen,
++                            RSA_PKCS1_OAEP_PADDING));
++    ciphertext.resize(len);
++
++    plaintext.resize(RSA_size(dec));
++    ASSERT_TRUE(RSA_decrypt(dec, &len, plaintext.data(),
++                            plaintext.size(), ciphertext.data(),
++                            ciphertext.size(), RSA_PKCS1_OAEP_PADDING));
++    plaintext.resize(len);
++    EXPECT_EQ(Bytes(plaintext), Bytes(kPlaintext, kPlaintextLen));
++  };
++
++  ASSERT_NO_FATAL_FAILURE(
++      check_rsa_compatible(/*enc=*/key1.get(), /*dec=*/key2.get()));
++  ASSERT_NO_FATAL_FAILURE(
++      check_rsa_compatible(/*enc=*/key2.get(), /*dec=*/key1.get()));
++
++  // If we generate a new key on top of |key1|, it should be usable and
++  // self-consistent. We test this by making a new key with the same parameters
++  // and checking they behave the same.
++  ASSERT_TRUE(
++      RSA_generate_key_ex(key1.get(), 1024, RSA_get0_e(key2.get()), nullptr));
++  EXPECT_NE(0, BN_cmp(RSA_get0_n(key1.get()), RSA_get0_n(key2.get())));
++
++  key2.reset(RSA_new());
++  ASSERT_TRUE(key2);
++  ASSERT_NO_FATAL_FAILURE(copy_rsa_fields(key2.get(), key1.get()));
++  ASSERT_NO_FATAL_FAILURE(
++      check_rsa_compatible(/*enc=*/key1.get(), /*dec=*/key2.get()));
++  ASSERT_NO_FATAL_FAILURE(
++      check_rsa_compatible(/*enc=*/key2.get(), /*dec=*/key1.get()));
++}
++
+ #if !defined(BORINGSSL_SHARED_LIBRARY)
+ TEST(RSATest, SqrtTwo) {
+   bssl::UniquePtr<BIGNUM> sqrt(BN_new()), pow2(BN_new());

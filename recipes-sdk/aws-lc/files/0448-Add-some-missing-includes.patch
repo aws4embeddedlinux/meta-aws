@@ -1,0 +1,42 @@
+From c5ef1079b605acac1068ac362a7008f30fd8c100 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 25 Apr 2023 21:36:35 -0400
+Subject: [PATCH] Add some missing includes
+
+When building BCM sources individually, this gets missed.
+
+Change-Id: I58858da441daaeffc5e54b653f5436fe817c4178
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59306
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit a0afd6ae2cbfcdfc56a355f4b53a6c2583414634)
+---
+ crypto/fipsmodule/self_check/self_check.c | 1 +
+ crypto/fipsmodule/tls/kdf.c               | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/crypto/fipsmodule/self_check/self_check.c b/crypto/fipsmodule/self_check/self_check.c
+index ee674d438..be564bded 100644
+--- a/crypto/fipsmodule/self_check/self_check.c
++++ b/crypto/fipsmodule/self_check/self_check.c
+@@ -26,6 +26,7 @@
+ #include <openssl/ec.h>
+ #include <openssl/ecdsa.h>
+ #include <openssl/ec_key.h>
++#include <openssl/hkdf.h>
+ #include <openssl/hmac.h>
+ #include <openssl/kdf.h>
+ #include <openssl/nid.h>
+diff --git a/crypto/fipsmodule/tls/kdf.c b/crypto/fipsmodule/tls/kdf.c
+index 2be29d6a5..ec1f39f7c 100644
+--- a/crypto/fipsmodule/tls/kdf.c
++++ b/crypto/fipsmodule/tls/kdf.c
+@@ -53,6 +53,7 @@
+ #include <assert.h>
+ 
+ #include <openssl/digest.h>
++#include <openssl/hkdf.h>
+ #include <openssl/hmac.h>
+ #include <openssl/mem.h>
+ 

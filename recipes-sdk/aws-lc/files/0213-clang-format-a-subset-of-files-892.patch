@@ -1,0 +1,3460 @@
+From 67e8b052455732c3281982eeeb15bc75ad963741 Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Tue, 21 Mar 2023 09:54:02 -0700
+Subject: [PATCH] clang-format a subset of files (#892)
+
+---
+ crypto/cipher_extra/e_aesctrhmac.c       |  11 +-
+ crypto/cipher_extra/e_aesgcmsiv.c        |  39 +-
+ crypto/cipher_extra/e_chacha20poly1305.c |  29 +-
+ crypto/cipher_extra/e_tls.c              |  18 +-
+ crypto/fipsmodule/cipher/aead.c          |  24 +-
+ crypto/fipsmodule/cipher/e_aes.c         | 120 +++---
+ crypto/fipsmodule/cipher/internal.h      |  18 +-
+ include/openssl/aead.h                   |  20 +-
+ include/openssl/ssl.h                    | 132 +++---
+ ssl/internal.h                           |  70 ++--
+ ssl/ssl_aead_ctx.cc                      |   5 +-
+ ssl/ssl_lib.cc                           | 125 +++---
+ ssl/ssl_test.cc                          | 487 ++++++++++++-----------
+ ssl/ssl_transfer_asn1.cc                 | 228 ++++++-----
+ ssl/test/bssl_shim.cc                    | 106 ++---
+ ssl/test/runner/mock_quic_transport.go   |  18 +-
+ ssl/test/runner/runner.go                |  44 +-
+ 17 files changed, 734 insertions(+), 760 deletions(-)
+
+diff --git a/crypto/cipher_extra/e_aesctrhmac.c b/crypto/cipher_extra/e_aesctrhmac.c
+index 3b6d15bef..1f9a2d076 100644
+--- a/crypto/cipher_extra/e_aesctrhmac.c
++++ b/crypto/cipher_extra/e_aesctrhmac.c
+@@ -129,7 +129,7 @@ static void hmac_calculate(uint8_t out[SHA256_DIGEST_LENGTH],
+ 
+   // Pad with zeros to the end of the SHA-256 block.
+   const unsigned num_padding =
+-      (SHA256_CBLOCK - ((sizeof(uint64_t)*2 +
++      (SHA256_CBLOCK - ((sizeof(uint64_t) * 2 +
+                          EVP_AEAD_AES_CTR_HMAC_SHA256_NONCE_LEN + ad_len) %
+                         SHA256_CBLOCK)) %
+       SHA256_CBLOCK;
+@@ -177,11 +177,11 @@ static int aead_aes_ctr_hmac_sha256_seal_scatter(
+     size_t nonce_len, const uint8_t *in, size_t in_len, const uint8_t *extra_in,
+     size_t extra_in_len, const uint8_t *ad, size_t ad_len) {
+   const struct aead_aes_ctr_hmac_sha256_ctx *aes_ctx =
+-      (struct aead_aes_ctr_hmac_sha256_ctx *) &ctx->state;
++      (struct aead_aes_ctr_hmac_sha256_ctx *)&ctx->state;
+   const uint64_t in_len_64 = in_len;
+ 
+   if (in_len_64 >= (UINT64_C(1) << 32) * AES_BLOCK_SIZE) {
+-     // This input is so large it would overflow the 32-bit block counter.
++    // This input is so large it would overflow the 32-bit block counter.
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_TOO_LARGE);
+     return 0;
+   }
+@@ -212,7 +212,7 @@ static int aead_aes_ctr_hmac_sha256_open_gather(
+     size_t nonce_len, const uint8_t *in, size_t in_len, const uint8_t *in_tag,
+     size_t in_tag_len, const uint8_t *ad, size_t ad_len) {
+   const struct aead_aes_ctr_hmac_sha256_ctx *aes_ctx =
+-      (struct aead_aes_ctr_hmac_sha256_ctx *) &ctx->state;
++      (struct aead_aes_ctr_hmac_sha256_ctx *)&ctx->state;
+ 
+   if (in_tag_len != ctx->tag_len) {
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_BAD_DECRYPT);
+@@ -226,8 +226,7 @@ static int aead_aes_ctr_hmac_sha256_open_gather(
+ 
+   uint8_t hmac_result[SHA256_DIGEST_LENGTH];
+   hmac_calculate(hmac_result, &aes_ctx->inner_init_state,
+-                 &aes_ctx->outer_init_state, ad, ad_len, nonce, in,
+-                 in_len);
++                 &aes_ctx->outer_init_state, ad, ad_len, nonce, in, in_len);
+   if (CRYPTO_memcmp(hmac_result, in_tag, ctx->tag_len) != 0) {
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_BAD_DECRYPT);
+     return 0;
+diff --git a/crypto/cipher_extra/e_aesgcmsiv.c b/crypto/cipher_extra/e_aesgcmsiv.c
+index d5936463b..407095c5b 100644
+--- a/crypto/cipher_extra/e_aesgcmsiv.c
++++ b/crypto/cipher_extra/e_aesgcmsiv.c
+@@ -36,7 +36,7 @@
+ // Optimised AES-GCM-SIV
+ 
+ struct aead_aes_gcm_siv_asm_ctx {
+-  alignas(16) uint8_t key[16*15];
++  alignas(16) uint8_t key[16 * 15];
+   int is_128_bit;
+ };
+ 
+@@ -59,13 +59,13 @@ static struct aead_aes_gcm_siv_asm_ctx *asm_ctx_from_ctx(
+ 
+ // aes128gcmsiv_aes_ks writes an AES-128 key schedule for |key| to
+ // |out_expanded_key|.
+-extern void aes128gcmsiv_aes_ks(
+-    const uint8_t key[16], uint8_t out_expanded_key[16*15]);
++extern void aes128gcmsiv_aes_ks(const uint8_t key[16],
++                                uint8_t out_expanded_key[16 * 15]);
+ 
+ // aes256gcmsiv_aes_ks writes an AES-256 key schedule for |key| to
+ // |out_expanded_key|.
+-extern void aes256gcmsiv_aes_ks(
+-    const uint8_t key[32], uint8_t out_expanded_key[16*15]);
++extern void aes256gcmsiv_aes_ks(const uint8_t key[32],
++                                uint8_t out_expanded_key[16 * 15]);
+ 
+ static int aead_aes_gcm_siv_asm_init(EVP_AEAD_CTX *ctx, const uint8_t *key,
+                                      size_t key_len, size_t tag_len) {
+@@ -228,7 +228,7 @@ static void gcm_siv_asm_polyval(uint8_t out_tag[16], const uint8_t *in,
+   const size_t ad_blocks = ad_len / 16;
+   const size_t in_blocks = in_len / 16;
+   int htable_init = 0;
+-  alignas(16) uint8_t htable[16*8];
++  alignas(16) uint8_t htable[16 * 8];
+ 
+   if (ad_blocks > 8 || in_blocks > 8) {
+     htable_init = 1;
+@@ -335,8 +335,7 @@ static int aead_aes_gcm_siv_asm_seal_scatter(
+   const uint64_t in_len_64 = in_len;
+   const uint64_t ad_len_64 = ad_len;
+ 
+-  if (in_len_64 > (UINT64_C(1) << 36) ||
+-      ad_len_64 >= (UINT64_C(1) << 61)) {
++  if (in_len_64 > (UINT64_C(1) << 36) || ad_len_64 >= (UINT64_C(1) << 61)) {
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_TOO_LARGE);
+     return 0;
+   }
+@@ -435,9 +434,9 @@ static int aead_aes_gcm_siv_asm_open(const EVP_AEAD_CTX *ctx, uint8_t *out,
+ 
+   struct aead_aes_gcm_siv_asm_ctx expanded_key;
+   if (gcm_siv_ctx->is_128_bit) {
+-    aes128gcmsiv_aes_ks((const uint8_t *) record_enc_key, &expanded_key.key[0]);
++    aes128gcmsiv_aes_ks((const uint8_t *)record_enc_key, &expanded_key.key[0]);
+   } else {
+-    aes256gcmsiv_aes_ks((const uint8_t *) record_enc_key, &expanded_key.key[0]);
++    aes256gcmsiv_aes_ks((const uint8_t *)record_enc_key, &expanded_key.key[0]);
+   }
+   // calculated_tag is 16*8 bytes, rather than 16 bytes, because
+   // aes[128|256]gcmsiv_dec uses the extra as scratch space.
+@@ -547,7 +546,7 @@ struct aead_aes_gcm_siv_ctx {
+     AES_KEY ks;
+   } ks;
+   block128_f kgk_block;
+-  unsigned is_256:1;
++  unsigned is_256 : 1;
+ };
+ 
+ OPENSSL_STATIC_ASSERT(sizeof(((EVP_AEAD_CTX *)NULL)->state) >=
+@@ -671,10 +670,9 @@ struct gcm_siv_record_keys {
+ 
+ // gcm_siv_keys calculates the keys for a specific GCM-SIV record with the
+ // given nonce and writes them to |*out_keys|.
+-static void gcm_siv_keys(
+-    const struct aead_aes_gcm_siv_ctx *gcm_siv_ctx,
+-    struct gcm_siv_record_keys *out_keys,
+-    const uint8_t nonce[EVP_AEAD_AES_GCM_SIV_NONCE_LEN]) {
++static void gcm_siv_keys(const struct aead_aes_gcm_siv_ctx *gcm_siv_ctx,
++                         struct gcm_siv_record_keys *out_keys,
++                         const uint8_t nonce[EVP_AEAD_AES_GCM_SIV_NONCE_LEN]) {
+   const AES_KEY *const key = &gcm_siv_ctx->ks.ks;
+   uint8_t key_material[(128 /* POLYVAL key */ + 256 /* max AES key */) / 8];
+   const size_t blocks_needed = gcm_siv_ctx->is_256 ? 6 : 4;
+@@ -715,8 +713,7 @@ static int aead_aes_gcm_siv_seal_scatter(
+   const uint64_t ad_len_64 = ad_len;
+ 
+   if (in_len + EVP_AEAD_AES_GCM_SIV_TAG_LEN < in_len ||
+-      in_len_64 > (UINT64_C(1) << 36) ||
+-      ad_len_64 >= (UINT64_C(1) << 61)) {
++      in_len_64 > (UINT64_C(1) << 36) || ad_len_64 >= (UINT64_C(1) << 61)) {
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_TOO_LARGE);
+     return 0;
+   }
+@@ -842,12 +839,8 @@ const EVP_AEAD *EVP_aead_aes_256_gcm_siv(void) {
+ 
+ #else
+ 
+-const EVP_AEAD *EVP_aead_aes_128_gcm_siv(void) {
+-  return &aead_aes_128_gcm_siv;
+-}
++const EVP_AEAD *EVP_aead_aes_128_gcm_siv(void) { return &aead_aes_128_gcm_siv; }
+ 
+-const EVP_AEAD *EVP_aead_aes_256_gcm_siv(void) {
+-  return &aead_aes_256_gcm_siv;
+-}
++const EVP_AEAD *EVP_aead_aes_256_gcm_siv(void) { return &aead_aes_256_gcm_siv; }
+ 
+ #endif  // AES_GCM_SIV_ASM
+diff --git a/crypto/cipher_extra/e_chacha20poly1305.c b/crypto/cipher_extra/e_chacha20poly1305.c
+index b45e97a21..1ad6ffb9a 100644
+--- a/crypto/cipher_extra/e_chacha20poly1305.c
++++ b/crypto/cipher_extra/e_chacha20poly1305.c
+@@ -23,10 +23,10 @@
+ #include <openssl/poly1305.h>
+ #include <openssl/type_check.h>
+ 
+-#include "internal.h"
+ #include "../chacha/internal.h"
+ #include "../fipsmodule/cipher/internal.h"
+ #include "../internal.h"
++#include "internal.h"
+ 
+ struct aead_chacha20_poly1305_ctx {
+   uint8_t key[32];
+@@ -87,7 +87,7 @@ static void calc_tag(uint8_t tag[POLY1305_TAG_LEN], const uint8_t *key,
+   CRYPTO_chacha_20(poly1305_key, poly1305_key, sizeof(poly1305_key), key, nonce,
+                    0);
+ 
+-  static const uint8_t padding[16] = { 0 };  // Padding is all zeros.
++  static const uint8_t padding[16] = {0};  // Padding is all zeros.
+   poly1305_state ctx;
+   CRYPTO_poly1305_init(&ctx, poly1305_key);
+   CRYPTO_poly1305_update(&ctx, ad, ad_len);
+@@ -107,9 +107,9 @@ static void calc_tag(uint8_t tag[POLY1305_TAG_LEN], const uint8_t *key,
+ }
+ 
+ static int chacha20_poly1305_seal_scatter(
+-    const uint8_t *key, uint8_t *out, uint8_t *out_tag,
+-    size_t *out_tag_len, size_t max_out_tag_len, const uint8_t *nonce,
+-    size_t nonce_len, const uint8_t *in, size_t in_len, const uint8_t *extra_in,
++    const uint8_t *key, uint8_t *out, uint8_t *out_tag, size_t *out_tag_len,
++    size_t max_out_tag_len, const uint8_t *nonce, size_t nonce_len,
++    const uint8_t *in, size_t in_len, const uint8_t *extra_in,
+     size_t extra_in_len, const uint8_t *ad, size_t ad_len, size_t tag_len) {
+   if (extra_in_len + tag_len < tag_len) {
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_TOO_LARGE);
+@@ -151,8 +151,7 @@ static int chacha20_poly1305_seal_scatter(
+ 
+     for (size_t done = 0; done < extra_in_len; block_counter++) {
+       memset(block, 0, sizeof(block));
+-      CRYPTO_chacha_20(block, block, sizeof(block), key, nonce,
+-                       block_counter);
++      CRYPTO_chacha_20(block, block, sizeof(block), key, nonce, block_counter);
+       for (size_t i = offset; i < sizeof(block) && done < extra_in_len;
+            i++, done++) {
+         out_tag[done] = extra_in[done] ^ block[i];
+@@ -213,15 +212,17 @@ static int aead_xchacha20_poly1305_seal_scatter(
+   OPENSSL_memcpy(&derived_nonce[4], &nonce[16], 8);
+ 
+   return chacha20_poly1305_seal_scatter(
+-      derived_key, out, out_tag, out_tag_len, max_out_tag_len,
+-      derived_nonce, sizeof(derived_nonce), in, in_len, extra_in, extra_in_len,
+-      ad, ad_len, ctx->tag_len);
++      derived_key, out, out_tag, out_tag_len, max_out_tag_len, derived_nonce,
++      sizeof(derived_nonce), in, in_len, extra_in, extra_in_len, ad, ad_len,
++      ctx->tag_len);
+ }
+ 
+-static int chacha20_poly1305_open_gather(
+-    const uint8_t *key, uint8_t *out, const uint8_t *nonce,
+-    size_t nonce_len, const uint8_t *in, size_t in_len, const uint8_t *in_tag,
+-    size_t in_tag_len, const uint8_t *ad, size_t ad_len, size_t tag_len) {
++static int chacha20_poly1305_open_gather(const uint8_t *key, uint8_t *out,
++                                         const uint8_t *nonce, size_t nonce_len,
++                                         const uint8_t *in, size_t in_len,
++                                         const uint8_t *in_tag,
++                                         size_t in_tag_len, const uint8_t *ad,
++                                         size_t ad_len, size_t tag_len) {
+   if (nonce_len != 12) {
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_UNSUPPORTED_NONCE_SIZE);
+     return 0;
+diff --git a/crypto/cipher_extra/e_tls.c b/crypto/cipher_extra/e_tls.c
+index bb115109f..3557450fb 100644
+--- a/crypto/cipher_extra/e_tls.c
++++ b/crypto/cipher_extra/e_tls.c
+@@ -57,8 +57,7 @@ static int aead_tls_init(EVP_AEAD_CTX *ctx, const uint8_t *key, size_t key_len,
+                          size_t tag_len, enum evp_aead_direction_t dir,
+                          const EVP_CIPHER *cipher, const EVP_MD *md,
+                          char implicit_iv) {
+-  if (tag_len != EVP_AEAD_DEFAULT_TAG_LENGTH &&
+-      tag_len != EVP_MD_size(md)) {
++  if (tag_len != EVP_AEAD_DEFAULT_TAG_LENGTH && tag_len != EVP_MD_size(md)) {
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_UNSUPPORTED_TAG_SIZE);
+     return 0;
+   }
+@@ -71,14 +70,15 @@ static int aead_tls_init(EVP_AEAD_CTX *ctx, const uint8_t *key, size_t key_len,
+   size_t mac_key_len = EVP_MD_size(md);
+   size_t enc_key_len = EVP_CIPHER_key_length(cipher);
+   assert(mac_key_len + enc_key_len +
+-         (implicit_iv ? EVP_CIPHER_iv_length(cipher) : 0) == key_len);
++             (implicit_iv ? EVP_CIPHER_iv_length(cipher) : 0) ==
++         key_len);
+ 
+   AEAD_TLS_CTX *tls_ctx = OPENSSL_malloc(sizeof(AEAD_TLS_CTX));
+   if (tls_ctx == NULL) {
+     OPENSSL_PUT_ERROR(CRYPTO, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+-  ctx->state.ptr = (void*)tls_ctx;
++  ctx->state.ptr = (void *)tls_ctx;
+ 
+   EVP_CIPHER_CTX_init(&tls_ctx->cipher_ctx);
+   HMAC_CTX_init(&tls_ctx->hmac_ctx);
+@@ -192,7 +192,8 @@ static int aead_tls_seal_scatter(const EVP_AEAD_CTX *ctx, uint8_t *out,
+   // block from encrypting the input and split the result between |out| and
+   // |out_tag|. Then feed the rest.
+ 
+-  const size_t early_mac_len = (block_size - (in_len % block_size)) % block_size;
++  const size_t early_mac_len =
++      (block_size - (in_len % block_size)) % block_size;
+   if (early_mac_len != 0) {
+     assert(len + block_size - early_mac_len == in_len);
+     uint8_t buf[EVP_MAX_BLOCK_LENGTH];
+@@ -419,9 +420,10 @@ static int aead_aes_256_cbc_sha1_tls_implicit_iv_init(
+                        EVP_sha1(), 1);
+ }
+ 
+-static int aead_aes_128_cbc_sha256_tls_init(EVP_AEAD_CTX *ctx, const uint8_t *key,
+-                                          size_t key_len, size_t tag_len,
+-                                          enum evp_aead_direction_t dir) {
++static int aead_aes_128_cbc_sha256_tls_init(EVP_AEAD_CTX *ctx,
++                                            const uint8_t *key, size_t key_len,
++                                            size_t tag_len,
++                                            enum evp_aead_direction_t dir) {
+   return aead_tls_init(ctx, key, key_len, tag_len, dir, EVP_aes_128_cbc(),
+                        EVP_sha256(), 0);
+ }
+diff --git a/crypto/fipsmodule/cipher/aead.c b/crypto/fipsmodule/cipher/aead.c
+index 6eddf530a..86d744434 100644
+--- a/crypto/fipsmodule/cipher/aead.c
++++ b/crypto/fipsmodule/cipher/aead.c
+@@ -21,8 +21,8 @@
+ #include <openssl/err.h>
+ #include <openssl/mem.h>
+ 
+-#include "internal.h"
+ #include "../../internal.h"
++#include "internal.h"
+ 
+ 
+ size_t EVP_AEAD_key_length(const EVP_AEAD *aead) { return aead->key_len; }
+@@ -150,11 +150,13 @@ error:
+   return 0;
+ }
+ 
+-int EVP_AEAD_CTX_seal_scatter(
+-    const EVP_AEAD_CTX *ctx, uint8_t *out, uint8_t *out_tag, size_t
+-    *out_tag_len, size_t max_out_tag_len, const uint8_t *nonce, size_t
+-    nonce_len, const uint8_t *in, size_t in_len, const uint8_t *extra_in,
+-    size_t extra_in_len, const uint8_t *ad, size_t ad_len) {
++int EVP_AEAD_CTX_seal_scatter(const EVP_AEAD_CTX *ctx, uint8_t *out,
++                              uint8_t *out_tag, size_t *out_tag_len,
++                              size_t max_out_tag_len, const uint8_t *nonce,
++                              size_t nonce_len, const uint8_t *in,
++                              size_t in_len, const uint8_t *extra_in,
++                              size_t extra_in_len, const uint8_t *ad,
++                              size_t ad_len) {
+   // |in| and |out| may alias exactly, |out_tag| may not alias.
+   if (!check_alias(in, in_len, out, in_len) ||
+       buffers_alias(out, in_len, out_tag, max_out_tag_len) ||
+@@ -194,7 +196,7 @@ int EVP_AEAD_CTX_open(const EVP_AEAD_CTX *ctx, uint8_t *out, size_t *out_len,
+ 
+   if (ctx->aead->open) {
+     if (!ctx->aead->open(ctx, out, out_len, max_out_len, nonce, nonce_len, in,
+-                        in_len, ad, ad_len)) {
++                         in_len, ad, ad_len)) {
+       goto error;
+     }
+     return 1;
+@@ -290,15 +292,15 @@ int EVP_AEAD_CTX_tag_len(const EVP_AEAD_CTX *ctx, size_t *out_tag_len,
+ // NIST SP 800-38D, built from an IPv4 address and the number of nanoseconds
+ // since boot, writing it to |out_iv|. It returns one on success or zero for
+ // error.
+-int EVP_AEAD_get_iv_from_ipv4_nanosecs(const uint32_t ipv4_address,
+-    const uint64_t nanosecs, uint8_t out_iv[FIPS_AES_GCM_NONCE_LENGTH]) {
++int EVP_AEAD_get_iv_from_ipv4_nanosecs(
++    const uint32_t ipv4_address, const uint64_t nanosecs,
++    uint8_t out_iv[FIPS_AES_GCM_NONCE_LENGTH]) {
+   if (out_iv == NULL) {
+     return 0;
+   }
+ 
+   OPENSSL_memcpy(out_iv, &ipv4_address, sizeof(ipv4_address));
+-  OPENSSL_memcpy(out_iv + sizeof(ipv4_address), &nanosecs,
+-                 sizeof(nanosecs));
++  OPENSSL_memcpy(out_iv + sizeof(ipv4_address), &nanosecs, sizeof(nanosecs));
+ 
+   return 1;
+ }
+diff --git a/crypto/fipsmodule/cipher/e_aes.c b/crypto/fipsmodule/cipher/e_aes.c
+index 087ec65ea..4cea97376 100644
+--- a/crypto/fipsmodule/cipher/e_aes.c
++++ b/crypto/fipsmodule/cipher/e_aes.c
+@@ -58,16 +58,16 @@
+ #include <openssl/nid.h>
+ #include <openssl/rand.h>
+ 
+-#include "internal.h"
+-#include "../cpucap/internal.h"
++#include "../../internal.h"
+ #include "../aes/internal.h"
+-#include "../modes/internal.h"
++#include "../cpucap/internal.h"
+ #include "../delocate.h"
+-#include "../../internal.h"
++#include "../modes/internal.h"
++#include "internal.h"
+ 
+ 
+ OPENSSL_MSVC_PRAGMA(warning(push))
+-OPENSSL_MSVC_PRAGMA(warning(disable: 4702))  // Unreachable code.
++OPENSSL_MSVC_PRAGMA(warning(disable : 4702))  // Unreachable code.
+ 
+ #define AES_GCM_NONCE_LENGTH 12
+ 
+@@ -131,9 +131,9 @@ typedef struct {
+   int key_set;  // Set if key initialised
+   int iv_set;   // Set if an iv is set
+   uint8_t *iv;  // Temporary IV store
+-  int ivlen;         // IV length
++  int ivlen;    // IV length
+   int taglen;
+-  int iv_gen;      // It is OK to generate IVs
++  int iv_gen;  // It is OK to generate IVs
+   ctr128_f ctr;
+ } EVP_AES_GCM_CTX;
+ 
+@@ -332,7 +332,7 @@ ctr128_f aes_ctr_set_key(AES_KEY *aes_key, GCM128_KEY *gcm_key,
+ }
+ 
+ #if defined(OPENSSL_32_BIT)
+-#define EVP_AES_GCM_CTX_PADDING (4+8)
++#define EVP_AES_GCM_CTX_PADDING (4 + 8)
+ #else
+ #define EVP_AES_GCM_CTX_PADDING 8
+ #endif
+@@ -484,8 +484,9 @@ static int aes_gcm_ctrl(EVP_CIPHER_CTX *c, int type, int arg, void *ptr) {
+       if (arg) {
+         OPENSSL_memcpy(gctx->iv, ptr, arg);
+       }
+-      // |RAND_bytes| calls within the fipsmodule should be wrapped with state lock
+-      // functions to avoid updating the service indicator with the DRBG functions.
++      // |RAND_bytes| calls within the fipsmodule should be wrapped with state
++      // lock functions to avoid updating the service indicator with the DRBG
++      // functions.
+       FIPS_service_indicator_lock_state();
+       if (c->encrypt && !RAND_bytes(gctx->iv + arg, gctx->ivlen - arg)) {
+         FIPS_service_indicator_unlock_state();
+@@ -646,8 +647,8 @@ static int aes_xts_init_key(EVP_CIPHER_CTX *ctx, const uint8_t *key,
+       xctx->xts.block1 = AES_decrypt;
+     }
+ 
+-    AES_set_encrypt_key(key + ctx->key_len / 2,
+-                        ctx->key_len * 4, &xctx->ks2.ks);
++    AES_set_encrypt_key(key + ctx->key_len / 2, ctx->key_len * 4,
++                        &xctx->ks2.ks);
+     xctx->xts.block2 = AES_encrypt;
+     xctx->xts.key1 = &xctx->ks1.ks;
+   }
+@@ -660,13 +661,10 @@ static int aes_xts_init_key(EVP_CIPHER_CTX *ctx, const uint8_t *key,
+   return 1;
+ }
+ 
+-static int aes_xts_cipher(EVP_CIPHER_CTX *ctx, uint8_t *out,
+-                          const uint8_t *in, size_t len) {
++static int aes_xts_cipher(EVP_CIPHER_CTX *ctx, uint8_t *out, const uint8_t *in,
++                          size_t len) {
+   EVP_AES_XTS_CTX *xctx = ctx->cipher_data;
+-  if (!xctx->xts.key1 ||
+-      !xctx->xts.key2 ||
+-      !out ||
+-      !in ||
++  if (!xctx->xts.key1 || !xctx->xts.key2 || !out || !in ||
+       len < AES_BLOCK_SIZE) {
+     return 0;
+   }
+@@ -684,7 +682,8 @@ static int aes_xts_cipher(EVP_CIPHER_CTX *ctx, uint8_t *out,
+     return aes_hw_xts_cipher(in, out, len, xctx->xts.key1, xctx->xts.key2,
+                              ctx->iv, ctx->encrypt);
+   } else {
+-    return CRYPTO_xts128_encrypt(&xctx->xts, ctx->iv, in, out, len, ctx->encrypt);
++    return CRYPTO_xts128_encrypt(&xctx->xts, ctx->iv, in, out, len,
++                                 ctx->encrypt);
+   }
+ }
+ 
+@@ -1063,7 +1062,7 @@ OPENSSL_STATIC_ASSERT(alignof(union evp_aead_ctx_st_state) >=
+ 
+ static int aead_aes_gcm_init(EVP_AEAD_CTX *ctx, const uint8_t *key,
+                              size_t key_len, size_t requested_tag_len) {
+-  struct aead_aes_gcm_ctx *gcm_ctx = (struct aead_aes_gcm_ctx *) &ctx->state;
++  struct aead_aes_gcm_ctx *gcm_ctx = (struct aead_aes_gcm_ctx *)&ctx->state;
+ 
+   size_t actual_tag_len;
+   if (!aead_aes_gcm_init_impl(gcm_ctx, &actual_tag_len, key, key_len,
+@@ -1078,13 +1077,10 @@ static int aead_aes_gcm_init(EVP_AEAD_CTX *ctx, const uint8_t *key,
+ static void aead_aes_gcm_cleanup(EVP_AEAD_CTX *ctx) {}
+ 
+ static int aead_aes_gcm_seal_scatter_impl(
+-    const struct aead_aes_gcm_ctx *gcm_ctx,
+-    uint8_t *out, uint8_t *out_tag, size_t *out_tag_len, size_t max_out_tag_len,
+-    const uint8_t *nonce, size_t nonce_len,
+-    const uint8_t *in, size_t in_len,
+-    const uint8_t *extra_in, size_t extra_in_len,
+-    const uint8_t *ad, size_t ad_len,
+-    size_t tag_len) {
++    const struct aead_aes_gcm_ctx *gcm_ctx, uint8_t *out, uint8_t *out_tag,
++    size_t *out_tag_len, size_t max_out_tag_len, const uint8_t *nonce,
++    size_t nonce_len, const uint8_t *in, size_t in_len, const uint8_t *extra_in,
++    size_t extra_in_len, const uint8_t *ad, size_t ad_len, size_t tag_len) {
+   if (extra_in_len + tag_len < tag_len) {
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_TOO_LARGE);
+     return 0;
+@@ -1139,14 +1135,11 @@ static int aead_aes_gcm_seal_scatter_impl(
+   return 1;
+ }
+ 
+-static int aead_aes_gcm_seal_scatter(const EVP_AEAD_CTX *ctx, uint8_t *out,
+-                                     uint8_t *out_tag, size_t *out_tag_len,
+-                                     size_t max_out_tag_len,
+-                                     const uint8_t *nonce, size_t nonce_len,
+-                                     const uint8_t *in, size_t in_len,
+-                                     const uint8_t *extra_in,
+-                                     size_t extra_in_len,
+-                                     const uint8_t *ad, size_t ad_len) {
++static int aead_aes_gcm_seal_scatter(
++    const EVP_AEAD_CTX *ctx, uint8_t *out, uint8_t *out_tag,
++    size_t *out_tag_len, size_t max_out_tag_len, const uint8_t *nonce,
++    size_t nonce_len, const uint8_t *in, size_t in_len, const uint8_t *extra_in,
++    size_t extra_in_len, const uint8_t *ad, size_t ad_len) {
+   const struct aead_aes_gcm_ctx *gcm_ctx =
+       (const struct aead_aes_gcm_ctx *)&ctx->state;
+   return aead_aes_gcm_seal_scatter_impl(
+@@ -1155,13 +1148,11 @@ static int aead_aes_gcm_seal_scatter(const EVP_AEAD_CTX *ctx, uint8_t *out,
+ }
+ 
+ static int aead_aes_gcm_open_gather_impl(const struct aead_aes_gcm_ctx *gcm_ctx,
+-                                         uint8_t *out,
+-                                         const uint8_t *nonce, size_t nonce_len,
+-                                         const uint8_t *in, size_t in_len,
+-                                         const uint8_t *in_tag,
+-                                         size_t in_tag_len,
+-                                         const uint8_t *ad, size_t ad_len,
+-                                         size_t tag_len) {
++                                         uint8_t *out, const uint8_t *nonce,
++                                         size_t nonce_len, const uint8_t *in,
++                                         size_t in_len, const uint8_t *in_tag,
++                                         size_t in_tag_len, const uint8_t *ad,
++                                         size_t ad_len, size_t tag_len) {
+   uint8_t tag[EVP_AEAD_AES_GCM_TAG_LEN];
+ 
+   if (nonce_len == 0) {
+@@ -1286,12 +1277,11 @@ static int aead_aes_gcm_init_randnonce(EVP_AEAD_CTX *ctx, const uint8_t *key,
+ }
+ 
+ static int aead_aes_gcm_seal_scatter_randnonce(
+-    const EVP_AEAD_CTX *ctx,
+-    uint8_t *out, uint8_t *out_tag, size_t *out_tag_len, size_t max_out_tag_len,
+-    const uint8_t *external_nonce, size_t external_nonce_len,
+-    const uint8_t *in, size_t in_len,
+-    const uint8_t *extra_in, size_t extra_in_len,
+-    const uint8_t *ad, size_t ad_len) {
++    const EVP_AEAD_CTX *ctx, uint8_t *out, uint8_t *out_tag,
++    size_t *out_tag_len, size_t max_out_tag_len, const uint8_t *external_nonce,
++    size_t external_nonce_len, const uint8_t *in, size_t in_len,
++    const uint8_t *extra_in, size_t extra_in_len, const uint8_t *ad,
++    size_t ad_len) {
+   if (external_nonce_len != 0) {
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_INVALID_NONCE_SIZE);
+     return 0;
+@@ -1326,11 +1316,10 @@ static int aead_aes_gcm_seal_scatter_randnonce(
+ }
+ 
+ static int aead_aes_gcm_open_gather_randnonce(
+-    const EVP_AEAD_CTX *ctx, uint8_t *out,
+-    const uint8_t *external_nonce, size_t external_nonce_len,
+-    const uint8_t *in, size_t in_len,
+-    const uint8_t *in_tag, size_t in_tag_len,
+-    const uint8_t *ad, size_t ad_len) {
++    const EVP_AEAD_CTX *ctx, uint8_t *out, const uint8_t *external_nonce,
++    size_t external_nonce_len, const uint8_t *in, size_t in_len,
++    const uint8_t *in_tag, size_t in_tag_len, const uint8_t *ad,
++    size_t ad_len) {
+   if (external_nonce_len != 0) {
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_INVALID_NONCE_SIZE);
+     return 0;
+@@ -1350,7 +1339,7 @@ static int aead_aes_gcm_open_gather_randnonce(
+       in_tag_len - AES_GCM_NONCE_LENGTH, ad, ad_len,
+       ctx->tag_len - AES_GCM_NONCE_LENGTH);
+   // Only internal IV for AES-GCM is approved.
+-  if(ret) {
++  if (ret) {
+     AEAD_GCM_verify_service_indicator(ctx);
+   }
+   return ret;
+@@ -1401,7 +1390,7 @@ OPENSSL_STATIC_ASSERT(alignof(union evp_aead_ctx_st_state) >=
+ static int aead_aes_gcm_tls12_init(EVP_AEAD_CTX *ctx, const uint8_t *key,
+                                    size_t key_len, size_t requested_tag_len) {
+   struct aead_aes_gcm_tls12_ctx *gcm_ctx =
+-      (struct aead_aes_gcm_tls12_ctx *) &ctx->state;
++      (struct aead_aes_gcm_tls12_ctx *)&ctx->state;
+ 
+   gcm_ctx->min_next_nonce = 0;
+ 
+@@ -1421,7 +1410,7 @@ static int aead_aes_gcm_tls12_seal_scatter(
+     size_t nonce_len, const uint8_t *in, size_t in_len, const uint8_t *extra_in,
+     size_t extra_in_len, const uint8_t *ad, size_t ad_len) {
+   struct aead_aes_gcm_tls12_ctx *gcm_ctx =
+-      (struct aead_aes_gcm_tls12_ctx *) &ctx->state;
++      (struct aead_aes_gcm_tls12_ctx *)&ctx->state;
+ 
+   if (nonce_len != AES_GCM_NONCE_LENGTH) {
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_UNSUPPORTED_NONCE_SIZE);
+@@ -1438,9 +1427,9 @@ static int aead_aes_gcm_tls12_seal_scatter(
+ 
+   gcm_ctx->min_next_nonce = given_counter + 1;
+ 
+-  if(aead_aes_gcm_seal_scatter(ctx, out, out_tag, out_tag_len,
+-                                   max_out_tag_len, nonce, nonce_len, in,
+-                                   in_len, extra_in, extra_in_len, ad, ad_len)) {
++  if (aead_aes_gcm_seal_scatter(ctx, out, out_tag, out_tag_len, max_out_tag_len,
++                                nonce, nonce_len, in, in_len, extra_in,
++                                extra_in_len, ad, ad_len)) {
+     AEAD_GCM_verify_service_indicator(ctx);
+     return 1;
+   }
+@@ -1494,7 +1483,7 @@ OPENSSL_STATIC_ASSERT(alignof(union evp_aead_ctx_st_state) >=
+ static int aead_aes_gcm_tls13_init(EVP_AEAD_CTX *ctx, const uint8_t *key,
+                                    size_t key_len, size_t requested_tag_len) {
+   struct aead_aes_gcm_tls13_ctx *gcm_ctx =
+-      (struct aead_aes_gcm_tls13_ctx *) &ctx->state;
++      (struct aead_aes_gcm_tls13_ctx *)&ctx->state;
+ 
+   gcm_ctx->min_next_nonce = 0;
+   gcm_ctx->first = 1;
+@@ -1515,7 +1504,7 @@ static int aead_aes_gcm_tls13_seal_scatter(
+     size_t nonce_len, const uint8_t *in, size_t in_len, const uint8_t *extra_in,
+     size_t extra_in_len, const uint8_t *ad, size_t ad_len) {
+   struct aead_aes_gcm_tls13_ctx *gcm_ctx =
+-      (struct aead_aes_gcm_tls13_ctx *) &ctx->state;
++      (struct aead_aes_gcm_tls13_ctx *)&ctx->state;
+ 
+   if (nonce_len != AES_GCM_NONCE_LENGTH) {
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_UNSUPPORTED_NONCE_SIZE);
+@@ -1536,17 +1525,16 @@ static int aead_aes_gcm_tls13_seal_scatter(
+   }
+   given_counter ^= gcm_ctx->mask;
+ 
+-  if (given_counter == UINT64_MAX ||
+-      given_counter < gcm_ctx->min_next_nonce) {
++  if (given_counter == UINT64_MAX || given_counter < gcm_ctx->min_next_nonce) {
+     OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_INVALID_NONCE);
+     return 0;
+   }
+ 
+   gcm_ctx->min_next_nonce = given_counter + 1;
+ 
+-  if(aead_aes_gcm_seal_scatter(ctx, out, out_tag, out_tag_len,
+-                                   max_out_tag_len, nonce, nonce_len, in,
+-                                   in_len, extra_in, extra_in_len, ad, ad_len)) {
++  if (aead_aes_gcm_seal_scatter(ctx, out, out_tag, out_tag_len, max_out_tag_len,
++                                nonce, nonce_len, in, in_len, extra_in,
++                                extra_in_len, ad, ad_len)) {
+     AEAD_GCM_verify_service_indicator(ctx);
+     return 1;
+   }
+diff --git a/crypto/fipsmodule/cipher/internal.h b/crypto/fipsmodule/cipher/internal.h
+index 30292975e..0edfdd5df 100644
+--- a/crypto/fipsmodule/cipher/internal.h
++++ b/crypto/fipsmodule/cipher/internal.h
+@@ -160,15 +160,15 @@ ctr128_f aes_ctr_set_key(AES_KEY *aes_key, GCM128_KEY *gcm_key,
+                          block128_f *out_block, const uint8_t *key,
+                          size_t key_bytes);
+ 
+-// AES_cfb1_encrypt calls |CRYPTO_cfb128_1_encrypt| using the block |AES_encrypt|.
+-void AES_cfb1_encrypt(const uint8_t *in, uint8_t *out,
+-                      size_t bits, const AES_KEY *key,
+-                      uint8_t *ivec, int *num, int enc);
+-
+-// AES_cfb8_encrypt calls |CRYPTO_cfb128_8_encrypt| using the block |AES_encrypt|.
+-void AES_cfb8_encrypt(const uint8_t *in, uint8_t *out,
+-                      size_t len, const AES_KEY *key,
+-                      uint8_t *ivec, int *num, int enc);
++// AES_cfb1_encrypt calls |CRYPTO_cfb128_1_encrypt| using the block
++// |AES_encrypt|.
++void AES_cfb1_encrypt(const uint8_t *in, uint8_t *out, size_t bits,
++                      const AES_KEY *key, uint8_t *ivec, int *num, int enc);
++
++// AES_cfb8_encrypt calls |CRYPTO_cfb128_8_encrypt| using the block
++// |AES_encrypt|.
++void AES_cfb8_encrypt(const uint8_t *in, uint8_t *out, size_t len,
++                      const AES_KEY *key, uint8_t *ivec, int *num, int enc);
+ 
+ #if defined(__cplusplus)
+ }  // extern C
+diff --git a/include/openssl/aead.h b/include/openssl/aead.h
+index b29550f7c..62a7dc039 100644
+--- a/include/openssl/aead.h
++++ b/include/openssl/aead.h
+@@ -214,7 +214,7 @@ OPENSSL_EXPORT size_t EVP_AEAD_max_tag_len(const EVP_AEAD *aead);
+ union evp_aead_ctx_st_state {
+   uint8_t opaque[580];
+   uint64_t alignment;
+-  void* ptr;
++  void *ptr;
+ };
+ 
+ // An evp_aead_ctx_st (typedefed as |EVP_AEAD_CTX| in base.h) represents an AEAD
+@@ -359,12 +359,10 @@ OPENSSL_EXPORT int EVP_AEAD_CTX_open(const EVP_AEAD_CTX *ctx, uint8_t *out,
+ // If |in| and |out| alias then |out| must be == |in|. |out_tag| may not alias
+ // any other argument.
+ OPENSSL_EXPORT int EVP_AEAD_CTX_seal_scatter(
+-    const EVP_AEAD_CTX *ctx, uint8_t *out,
+-    uint8_t *out_tag, size_t *out_tag_len, size_t max_out_tag_len,
+-    const uint8_t *nonce, size_t nonce_len,
+-    const uint8_t *in, size_t in_len,
+-    const uint8_t *extra_in, size_t extra_in_len,
+-    const uint8_t *ad, size_t ad_len);
++    const EVP_AEAD_CTX *ctx, uint8_t *out, uint8_t *out_tag,
++    size_t *out_tag_len, size_t max_out_tag_len, const uint8_t *nonce,
++    size_t nonce_len, const uint8_t *in, size_t in_len, const uint8_t *extra_in,
++    size_t extra_in_len, const uint8_t *ad, size_t ad_len);
+ 
+ // EVP_AEAD_CTX_open_gather decrypts and authenticates |in_len| bytes from |in|
+ // and authenticates |ad_len| bytes from |ad| using |in_tag_len| bytes of
+@@ -407,7 +405,8 @@ OPENSSL_EXPORT const EVP_AEAD *EVP_aead_aes_256_cbc_sha1_tls(void);
+ OPENSSL_EXPORT const EVP_AEAD *EVP_aead_aes_256_cbc_sha1_tls_implicit_iv(void);
+ 
+ OPENSSL_EXPORT const EVP_AEAD *EVP_aead_aes_128_cbc_sha256_tls(void);
+-OPENSSL_EXPORT const EVP_AEAD *EVP_aead_aes_128_cbc_sha256_tls_implicit_iv(void);
++OPENSSL_EXPORT const EVP_AEAD *EVP_aead_aes_128_cbc_sha256_tls_implicit_iv(
++    void);
+ 
+ OPENSSL_EXPORT const EVP_AEAD *EVP_aead_des_ede3_cbc_sha1_tls(void);
+ OPENSSL_EXPORT const EVP_AEAD *EVP_aead_des_ede3_cbc_sha1_tls_implicit_iv(void);
+@@ -472,8 +471,9 @@ OPENSSL_EXPORT int EVP_AEAD_CTX_tag_len(const EVP_AEAD_CTX *ctx,
+ // specifically know you need to use this.
+ #define FIPS_AES_GCM_NONCE_LENGTH 12
+ 
+-OPENSSL_EXPORT int EVP_AEAD_get_iv_from_ipv4_nanosecs(const uint32_t ipv4_address,
+-    const uint64_t nanosecs, uint8_t out_iv[FIPS_AES_GCM_NONCE_LENGTH]);
++OPENSSL_EXPORT int EVP_AEAD_get_iv_from_ipv4_nanosecs(
++    const uint32_t ipv4_address, const uint64_t nanosecs,
++    uint8_t out_iv[FIPS_AES_GCM_NONCE_LENGTH]);
+ 
+ #if defined(__cplusplus)
+ }  // extern C
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index 6c858af07..b8dba95fe 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -1004,9 +1004,8 @@ SSL_get0_peer_verify_algorithms(const SSL *ssl, const uint16_t **out_sigalgs);
+ // The behavior of this function is undefined except during the callbacks set by
+ // by |SSL_CTX_set_cert_cb| and |SSL_CTX_set_client_cert_cb| or when the
+ // handshake is paused because of them.
+-OPENSSL_EXPORT size_t
+-SSL_get0_peer_delegation_algorithms(const SSL *ssl,
+-                                    const uint16_t **out_sigalgs);
++OPENSSL_EXPORT size_t SSL_get0_peer_delegation_algorithms(
++    const SSL *ssl, const uint16_t **out_sigalgs);
+ 
+ // SSL_certs_clear resets the private key, leaf certificate, and certificate
+ // chain of |ssl|.
+@@ -1076,8 +1075,7 @@ OPENSSL_EXPORT int SSL_CTX_set_ocsp_response(SSL_CTX *ctx,
+ // SSL_set_ocsp_response sets the OCSP response that is sent to clients which
+ // request it. It returns one on success and zero on error. The caller retains
+ // ownership of |response|.
+-OPENSSL_EXPORT int SSL_set_ocsp_response(SSL *ssl,
+-                                         const uint8_t *response,
++OPENSSL_EXPORT int SSL_set_ocsp_response(SSL *ssl, const uint8_t *response,
+                                          size_t response_len);
+ 
+ // SSL_SIGN_* are signature algorithm values as defined in TLS 1.3.
+@@ -1164,8 +1162,8 @@ OPENSSL_EXPORT int SSL_set_chain_and_key(
+ //
+ // There is no |SSL*| version of this function because connections discard
+ // configuration after handshaking, thus making it of questionable utility.
+-OPENSSL_EXPORT const STACK_OF(CRYPTO_BUFFER)*
+-    SSL_CTX_get0_chain(const SSL_CTX *ctx);
++OPENSSL_EXPORT const STACK_OF(CRYPTO_BUFFER) *SSL_CTX_get0_chain(
++    const SSL_CTX *ctx);
+ 
+ // SSL_CTX_use_RSAPrivateKey sets |ctx|'s private key to |rsa|. It returns one
+ // on success and zero on failure.
+@@ -1205,8 +1203,7 @@ OPENSSL_EXPORT int SSL_use_RSAPrivateKey_ASN1(SSL *ssl, const uint8_t *der,
+ #define SSL_FILETYPE_ASN1 2
+ 
+ OPENSSL_EXPORT int SSL_CTX_use_RSAPrivateKey_file(SSL_CTX *ctx,
+-                                                  const char *file,
+-                                                  int type);
++                                                  const char *file, int type);
+ OPENSSL_EXPORT int SSL_use_RSAPrivateKey_file(SSL *ssl, const char *file,
+                                               int type);
+ 
+@@ -1542,8 +1539,9 @@ OPENSSL_EXPORT int SSL_CTX_set_cipher_list(SSL_CTX *ctx, const char *str);
+ // meaningless. It returns one on success and zero on failure.
+ OPENSSL_EXPORT int SSL_set_strict_cipher_list(SSL *ssl, const char *str);
+ 
+-// SSL_CTX_set_ciphersuites configure the available TLSv1.3 ciphersuites for |ctx|,
+-// evaluating |str| as a cipher string. It returns one on success and zero on failure.
++// SSL_CTX_set_ciphersuites configure the available TLSv1.3 ciphersuites for
++// |ctx|, evaluating |str| as a cipher string. It returns one on success and
++// zero on failure.
+ OPENSSL_EXPORT int SSL_CTX_set_ciphersuites(SSL_CTX *ctx, const char *str);
+ 
+ // SSL_set_cipher_list configures the cipher list for |ssl|, evaluating |str| as
+@@ -1617,8 +1615,8 @@ OPENSSL_EXPORT STACK_OF(X509) *SSL_get_peer_full_cert_chain(const SSL *ssl);
+ // verification. The caller does not take ownership of the result.
+ //
+ // This is the |CRYPTO_BUFFER| variant of |SSL_get_peer_full_cert_chain|.
+-OPENSSL_EXPORT const STACK_OF(CRYPTO_BUFFER) *
+-    SSL_get0_peer_certificates(const SSL *ssl);
++OPENSSL_EXPORT const STACK_OF(CRYPTO_BUFFER) *SSL_get0_peer_certificates(
++    const SSL *ssl);
+ 
+ // SSL_get0_signed_cert_timestamp_list sets |*out| and |*out_len| to point to
+ // |*out_len| bytes of SCT information from the server. This is only valid if
+@@ -1732,8 +1730,9 @@ OPENSSL_EXPORT int SSL_SESSION_to_bytes_for_ticket(const SSL_SESSION *in,
+ 
+ // SSL_SESSION_from_bytes parses |in_len| bytes from |in| as an SSL_SESSION. It
+ // returns a newly-allocated |SSL_SESSION| on success or NULL on error.
+-OPENSSL_EXPORT SSL_SESSION *SSL_SESSION_from_bytes(
+-    const uint8_t *in, size_t in_len, const SSL_CTX *ctx);
++OPENSSL_EXPORT SSL_SESSION *SSL_SESSION_from_bytes(const uint8_t *in,
++                                                   size_t in_len,
++                                                   const SSL_CTX *ctx);
+ 
+ // SSL_SESSION_get_version returns a string describing the TLS or DTLS version
+ // |session| was established at. For example, "TLSv1.2" or "DTLSv1".
+@@ -1795,7 +1794,7 @@ OPENSSL_EXPORT X509 *SSL_SESSION_get0_peer(const SSL_SESSION *session);
+ // unverified list of certificates as sent by the peer, not the final chain
+ // built during verification. The caller does not take ownership of the result.
+ OPENSSL_EXPORT const STACK_OF(CRYPTO_BUFFER) *
+-    SSL_SESSION_get0_peer_certificates(const SSL_SESSION *session);
++SSL_SESSION_get0_peer_certificates(const SSL_SESSION *session);
+ 
+ // SSL_SESSION_get0_signed_cert_timestamp_list sets |*out| and |*out_len| to
+ // point to |*out_len| bytes of SCT information stored in |session|. This is
+@@ -1983,7 +1982,7 @@ OPENSSL_EXPORT void SSL_SESSION_get0_peer_sha256(const SSL_SESSION *session,
+ // SSL_SESS_CACHE_NO_INTERNAL, on a server, disables the internal session
+ // cache.
+ #define SSL_SESS_CACHE_NO_INTERNAL \
+-    (SSL_SESS_CACHE_NO_INTERNAL_LOOKUP | SSL_SESS_CACHE_NO_INTERNAL_STORE)
++  (SSL_SESS_CACHE_NO_INTERNAL_LOOKUP | SSL_SESS_CACHE_NO_INTERNAL_STORE)
+ 
+ // SSL_CTX_set_session_cache_mode sets the session cache mode bits for |ctx| to
+ // |mode|. It returns the previous value.
+@@ -2240,9 +2239,9 @@ OPENSSL_EXPORT int SSL_CTX_set_tlsext_ticket_keys(SSL_CTX *ctx, const void *in,
+ // WARNING: |callback| wildly breaks the usual return value convention and is
+ // called in two different modes.
+ OPENSSL_EXPORT int SSL_CTX_set_tlsext_ticket_key_cb(
+-    SSL_CTX *ctx, int (*callback)(SSL *ssl, uint8_t *key_name, uint8_t *iv,
+-                                  EVP_CIPHER_CTX *ctx, HMAC_CTX *hmac_ctx,
+-                                  int encrypt));
++    SSL_CTX *ctx,
++    int (*callback)(SSL *ssl, uint8_t *key_name, uint8_t *iv,
++                    EVP_CIPHER_CTX *ctx, HMAC_CTX *hmac_ctx, int encrypt));
+ 
+ // ssl_ticket_aead_result_t enumerates the possible results from decrypting a
+ // ticket with an |SSL_TICKET_AEAD_METHOD|.
+@@ -2401,11 +2400,12 @@ OPENSSL_EXPORT const char *SSL_get_curve_name(uint16_t curve_id);
+ //
+ // WARNING: Currently only works with TLS 1.2 after handshake finished.
+ // WARNING: Currently only supports |SSL| as server.
+-// WARNING: CRYPTO_EX_DATA |ssl->ex_data| is not encoded. Remember set |ex_data| back after decode.
+-// WARNING: BIO |ssl->rbio| and |ssl->wbio| are not encoded.
++// WARNING: CRYPTO_EX_DATA |ssl->ex_data| is not encoded. Remember set |ex_data|
++// back after decode. WARNING: BIO |ssl->rbio| and |ssl->wbio| are not encoded.
+ //
+ // Initial implementation of this API is made by Evgeny Potemkin.
+-OPENSSL_EXPORT int SSL_to_bytes(const SSL *in, uint8_t **out_data, size_t *out_len);
++OPENSSL_EXPORT int SSL_to_bytes(const SSL *in, uint8_t **out_data,
++                                size_t *out_len);
+ 
+ // SSL_from_bytes parses |in_len| bytes from |in| as an SSL. It
+ // returns a newly-allocated |SSL| on success or NULL on error.
+@@ -2420,7 +2420,8 @@ OPENSSL_EXPORT int SSL_to_bytes(const SSL *in, uint8_t **out_data, size_t *out_l
+ // WARNING: To ensure behavior unchange, |ctx| setting should be the same.
+ //
+ // Initial implementation of this API is made by Evgeny Potemkin.
+-OPENSSL_EXPORT SSL *SSL_from_bytes(const uint8_t *in, size_t in_len, SSL_CTX *ctx);
++OPENSSL_EXPORT SSL *SSL_from_bytes(const uint8_t *in, size_t in_len,
++                                   SSL_CTX *ctx);
+ 
+ // SSL_CTX_set1_groups calls |SSL_CTX_set1_curves|.
+ OPENSSL_EXPORT int SSL_CTX_set1_groups(SSL_CTX *ctx, const int *groups,
+@@ -2588,8 +2589,7 @@ OPENSSL_EXPORT int SSL_CTX_set1_param(SSL_CTX *ctx,
+ 
+ // SSL_set1_param sets verification parameters from |param|. It returns one on
+ // success and zero on failure. The caller retains ownership of |param|.
+-OPENSSL_EXPORT int SSL_set1_param(SSL *ssl,
+-                                  const X509_VERIFY_PARAM *param);
++OPENSSL_EXPORT int SSL_set1_param(SSL *ssl, const X509_VERIFY_PARAM *param);
+ 
+ // SSL_CTX_get0_param returns |ctx|'s |X509_VERIFY_PARAM| for certificate
+ // verification. The caller must not release the returned pointer but may call
+@@ -2787,12 +2787,12 @@ OPENSSL_EXPORT STACK_OF(X509_NAME) *SSL_get_client_CA_list(const SSL *ssl);
+ //
+ // The returned stack is owned by |ssl|, as are its contents. It should not be
+ // used past the point where the handshake is restarted after the callback.
+-OPENSSL_EXPORT const STACK_OF(CRYPTO_BUFFER) *
+-    SSL_get0_server_requested_CAs(const SSL *ssl);
++OPENSSL_EXPORT const STACK_OF(CRYPTO_BUFFER) *SSL_get0_server_requested_CAs(
++    const SSL *ssl);
+ 
+ // SSL_CTX_get_client_CA_list returns |ctx|'s client certificate CA list.
+-OPENSSL_EXPORT STACK_OF(X509_NAME) *
+-    SSL_CTX_get_client_CA_list(const SSL_CTX *ctx);
++OPENSSL_EXPORT STACK_OF(X509_NAME) *SSL_CTX_get_client_CA_list(
++    const SSL_CTX *ctx);
+ 
+ // SSL_add_client_CA appends |x509|'s subject to the client certificate CA list.
+ // It returns one on success or zero on error. The caller retains ownership of
+@@ -2946,8 +2946,9 @@ OPENSSL_EXPORT int SSL_set_alpn_protos(SSL *ssl, const uint8_t *protos,
+ // |SSL_get_pending_cipher| to query the cipher suite. This may be used to
+ // implement HTTP/2's cipher suite constraints.
+ OPENSSL_EXPORT void SSL_CTX_set_alpn_select_cb(
+-    SSL_CTX *ctx, int (*cb)(SSL *ssl, const uint8_t **out, uint8_t *out_len,
+-                            const uint8_t *in, unsigned in_len, void *arg),
++    SSL_CTX *ctx,
++    int (*cb)(SSL *ssl, const uint8_t **out, uint8_t *out_len,
++              const uint8_t *in, unsigned in_len, void *arg),
+     void *arg);
+ 
+ // SSL_get0_alpn_selected gets the selected ALPN protocol (if any) from |ssl|.
+@@ -3088,8 +3089,9 @@ OPENSSL_EXPORT void SSL_CTX_set_next_protos_advertised_cb(
+ //
+ // Configuring this callback enables NPN on a client.
+ OPENSSL_EXPORT void SSL_CTX_set_next_proto_select_cb(
+-    SSL_CTX *ctx, int (*cb)(SSL *ssl, uint8_t **out, uint8_t *out_len,
+-                            const uint8_t *in, unsigned in_len, void *arg),
++    SSL_CTX *ctx,
++    int (*cb)(SSL *ssl, uint8_t **out, uint8_t *out_len, const uint8_t *in,
++              unsigned in_len, void *arg),
+     void *arg);
+ 
+ // SSL_get0_next_proto_negotiated sets |*out_data| and |*out_len| to point to
+@@ -3181,10 +3183,10 @@ DEFINE_CONST_STACK_OF(SRTP_PROTECTION_PROFILE)
+ #define SRTP_AES128_CM_SHA1_32 0x0002
+ #define SRTP_AES128_F8_SHA1_80 0x0003
+ #define SRTP_AES128_F8_SHA1_32 0x0004
+-#define SRTP_NULL_SHA1_80      0x0005
+-#define SRTP_NULL_SHA1_32      0x0006
+-#define SRTP_AEAD_AES_128_GCM  0x0007
+-#define SRTP_AEAD_AES_256_GCM  0x0008
++#define SRTP_NULL_SHA1_80 0x0005
++#define SRTP_NULL_SHA1_32 0x0006
++#define SRTP_AEAD_AES_128_GCM 0x0007
++#define SRTP_AEAD_AES_256_GCM 0x0008
+ 
+ // SSL_CTX_set_srtp_profiles enables SRTP for all SSL objects created from
+ // |ctx|. |profile| contains a colon-separated list of profile names. It returns
+@@ -4173,8 +4175,9 @@ OPENSSL_EXPORT void SSL_set_msg_callback_arg(SSL *ssl, void *arg);
+ //
+ // The format is described in
+ // https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format.
+-OPENSSL_EXPORT void SSL_CTX_set_keylog_callback(
+-    SSL_CTX *ctx, void (*cb)(const SSL *ssl, const char *line));
++OPENSSL_EXPORT void SSL_CTX_set_keylog_callback(SSL_CTX *ctx,
++                                                void (*cb)(const SSL *ssl,
++                                                           const char *line));
+ 
+ // SSL_CTX_get_keylog_callback returns the callback configured by
+ // |SSL_CTX_set_keylog_callback|.
+@@ -4477,8 +4480,9 @@ OPENSSL_EXPORT int SSL_was_key_usage_invalid(const SSL *ssl);
+ // a server (respectively, client) handshake completes, fails, or is paused.
+ // The |value| argument is one if the handshake succeeded and <= 0
+ // otherwise.
+-OPENSSL_EXPORT void SSL_CTX_set_info_callback(
+-    SSL_CTX *ctx, void (*cb)(const SSL *ssl, int type, int value));
++OPENSSL_EXPORT void SSL_CTX_set_info_callback(SSL_CTX *ctx,
++                                              void (*cb)(const SSL *ssl,
++                                                         int type, int value));
+ 
+ // SSL_CTX_get_info_callback returns the callback set by
+ // |SSL_CTX_set_info_callback|.
+@@ -4488,8 +4492,9 @@ OPENSSL_EXPORT void (*SSL_CTX_get_info_callback(SSL_CTX *ctx))(const SSL *ssl,
+ 
+ // SSL_set_info_callback configures a callback to be run at various events
+ // during a connection's lifetime. See |SSL_CTX_set_info_callback|.
+-OPENSSL_EXPORT void SSL_set_info_callback(
+-    SSL *ssl, void (*cb)(const SSL *ssl, int type, int value));
++OPENSSL_EXPORT void SSL_set_info_callback(SSL *ssl,
++                                          void (*cb)(const SSL *ssl, int type,
++                                                     int value));
+ 
+ // SSL_get_info_callback returns the callback set by |SSL_set_info_callback|.
+ OPENSSL_EXPORT void (*SSL_get_info_callback(const SSL *ssl))(const SSL *ssl,
+@@ -4894,16 +4899,16 @@ OPENSSL_EXPORT int SSL_set1_sigalgs_list(SSL *ssl, const char *str);
+ 
+ #define SSL_get_cipher(ssl) SSL_CIPHER_get_name(SSL_get_current_cipher(ssl))
+ #define SSL_get_cipher_bits(ssl, out_alg_bits) \
+-    SSL_CIPHER_get_bits(SSL_get_current_cipher(ssl), out_alg_bits)
++  SSL_CIPHER_get_bits(SSL_get_current_cipher(ssl), out_alg_bits)
+ #define SSL_get_cipher_version(ssl) \
+-    SSL_CIPHER_get_version(SSL_get_current_cipher(ssl))
++  SSL_CIPHER_get_version(SSL_get_current_cipher(ssl))
+ #define SSL_get_cipher_name(ssl) \
+-    SSL_CIPHER_get_name(SSL_get_current_cipher(ssl))
++  SSL_CIPHER_get_name(SSL_get_current_cipher(ssl))
+ #define SSL_get_time(session) SSL_SESSION_get_time(session)
+ #define SSL_set_time(session, time) SSL_SESSION_set_time((session), (time))
+ #define SSL_get_timeout(session) SSL_SESSION_get_timeout(session)
+ #define SSL_set_timeout(session, timeout) \
+-    SSL_SESSION_set_timeout((session), (timeout))
++  SSL_SESSION_set_timeout((session), (timeout))
+ 
+ struct ssl_comp_st {
+   int id;
+@@ -4989,19 +4994,19 @@ OPENSSL_EXPORT int SSL_want(const SSL *ssl);
+ #define SSL_want_read(ssl) (SSL_want(ssl) == SSL_READING)
+ #define SSL_want_write(ssl) (SSL_want(ssl) == SSL_WRITING)
+ 
+- // SSL_get_finished writes up to |count| bytes of the Finished message sent by
+- // |ssl| to |buf|. It returns the total untruncated length or zero if none has
+- // been sent yet. At TLS 1.3 and later, it returns zero.
+- //
+- // Use |SSL_get_tls_unique| instead.
++// SSL_get_finished writes up to |count| bytes of the Finished message sent by
++// |ssl| to |buf|. It returns the total untruncated length or zero if none has
++// been sent yet. At TLS 1.3 and later, it returns zero.
++//
++// Use |SSL_get_tls_unique| instead.
+ OPENSSL_EXPORT size_t SSL_get_finished(const SSL *ssl, void *buf, size_t count);
+ 
+- // SSL_get_peer_finished writes up to |count| bytes of the Finished message
+- // received from |ssl|'s peer to |buf|. It returns the total untruncated length
+- // or zero if none has been received yet. At TLS 1.3 and later, it returns
+- // zero.
+- //
+- // Use |SSL_get_tls_unique| instead.
++// SSL_get_peer_finished writes up to |count| bytes of the Finished message
++// received from |ssl|'s peer to |buf|. It returns the total untruncated length
++// or zero if none has been received yet. At TLS 1.3 and later, it returns
++// zero.
++//
++// Use |SSL_get_tls_unique| instead.
+ OPENSSL_EXPORT size_t SSL_get_peer_finished(const SSL *ssl, void *buf,
+                                             size_t count);
+ 
+@@ -5352,7 +5357,7 @@ OPENSSL_EXPORT uint16_t SSL_CIPHER_get_value(const SSL_CIPHER *cipher);
+ #define SSL_CTX_set_session_cache_mode SSL_CTX_set_session_cache_mode
+ #define SSL_CTX_set_tlsext_servername_arg SSL_CTX_set_tlsext_servername_arg
+ #define SSL_CTX_set_tlsext_servername_callback \
+-    SSL_CTX_set_tlsext_servername_callback
++  SSL_CTX_set_tlsext_servername_callback
+ #define SSL_CTX_set_tlsext_ticket_key_cb SSL_CTX_set_tlsext_ticket_key_cb
+ #define SSL_CTX_set_tlsext_ticket_keys SSL_CTX_set_tlsext_ticket_keys
+ #define SSL_CTX_set_tmp_dh SSL_CTX_set_tmp_dh
+@@ -5369,7 +5374,7 @@ OPENSSL_EXPORT uint16_t SSL_CIPHER_get_value(const SSL_CIPHER *cipher);
+ #define SSL_get_mode SSL_get_mode
+ #define SSL_get_options SSL_get_options
+ #define SSL_get_secure_renegotiation_support \
+-    SSL_get_secure_renegotiation_support
++  SSL_get_secure_renegotiation_support
+ #define SSL_need_tmp_RSA SSL_need_tmp_RSA
+ #define SSL_num_renegotiations SSL_num_renegotiations
+ #define SSL_session_reused SSL_session_reused
+@@ -5388,7 +5393,7 @@ OPENSSL_EXPORT uint16_t SSL_CIPHER_get_value(const SSL_CIPHER *cipher);
+ #define SSL_set_tmp_rsa SSL_set_tmp_rsa
+ #define SSL_total_renegotiations SSL_total_renegotiations
+ 
+-#endif // !defined(BORINGSSL_PREFIX)
++#endif  // !defined(BORINGSSL_PREFIX)
+ 
+ 
+ #if defined(__cplusplus)
+@@ -5487,7 +5492,8 @@ BSSL_NAMESPACE_END
+ 
+ // See CryptoAlg-954.
+ #define SSL_R_NO_PROTOCOLS_AVAILABLE (SSL_R_BACKWARDS_COMPATABILITY_OFFSET + 1)
+-#define SSL_R_BAD_PROTOCOL_VERSION_NUMBER (SSL_R_BACKWARDS_COMPATABILITY_OFFSET + 2)
++#define SSL_R_BAD_PROTOCOL_VERSION_NUMBER \
++  (SSL_R_BACKWARDS_COMPATABILITY_OFFSET + 2)
+ #define SSL_R_UNSUPPORTED_SSL_VERSION (SSL_R_BACKWARDS_COMPATABILITY_OFFSET + 3)
+ #define SSL_R_VERSION_TOO_HIGH (SSL_R_BACKWARDS_COMPATABILITY_OFFSET + 4)
+ #define SSL_R_VERSION_TOO_LOW (SSL_R_BACKWARDS_COMPATABILITY_OFFSET + 5)
+diff --git a/ssl/internal.h b/ssl/internal.h
+index 41140a019..9c409790f 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -192,7 +192,7 @@ struct SSL_X509_METHOD;
+ //
+ // Note: unlike |new|, this does not support non-public constructors.
+ template <typename T, typename... Args>
+-T *New(Args &&... args) {
++T *New(Args &&...args) {
+   void *t = OPENSSL_malloc(sizeof(T));
+   if (t == nullptr) {
+     OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+@@ -224,7 +224,7 @@ struct DeleterImpl<T, typename std::enable_if<T::kAllowUniquePtr>::type> {
+ // MakeUnique behaves like |std::make_unique| but returns nullptr on allocation
+ // error.
+ template <typename T, typename... Args>
+-UniquePtr<T> MakeUnique(Args &&... args) {
++UniquePtr<T> MakeUnique(Args &&...args) {
+   return UniquePtr<T>(New<T>(std::forward<Args>(args)...));
+ }
+ 
+@@ -534,7 +534,8 @@ struct ssl_cipher_st {
+ 
+ // tls_print_all_supported_cipher_suites prints all supported cipher suites for
+ // all TLS versions to stdout.
+-OPENSSL_EXPORT bool tls_print_all_supported_cipher_suites(bool use_openssl_name);
++OPENSSL_EXPORT bool tls_print_all_supported_cipher_suites(
++    bool use_openssl_name);
+ 
+ BSSL_NAMESPACE_BEGIN
+ 
+@@ -646,12 +647,14 @@ const EVP_MD *ssl_get_handshake_digest(uint16_t version,
+ // ssl_create_cipher_list evaluates |rule_str|. It sets |*out_cipher_list| to a
+ // newly-allocated |SSLCipherPreferenceList| containing the result. It returns
+ // true on success and false on failure. If |strict| is true, nonsense will be
+-// rejected. If false, nonsense will be silently ignored. If |config_tls13| is true,
+-// only TLS 1.3 ciphers are considered in |ssl_cipher_collect_ciphers|. If false,
+-// TLS 1.2 and below ciphers participate in |ssl_cipher_collect_ciphers|. An empty
+-// result is considered an error regardless of |strict| or |config_tls13|.
++// rejected. If false, nonsense will be silently ignored. If |config_tls13| is
++// true, only TLS 1.3 ciphers are considered in |ssl_cipher_collect_ciphers|. If
++// false, TLS 1.2 and below ciphers participate in |ssl_cipher_collect_ciphers|.
++// An empty result is considered an error regardless of |strict| or
++// |config_tls13|.
+ bool ssl_create_cipher_list(UniquePtr<SSLCipherPreferenceList> *out_cipher_list,
+-                            const char *rule_str, bool strict, bool config_tls13);
++                            const char *rule_str, bool strict,
++                            bool config_tls13);
+ 
+ // ssl_cipher_auth_mask_for_key returns the mask of cipher |algorithm_auth|
+ // values suitable for use with |key| in TLS 1.2 and below.
+@@ -675,10 +678,11 @@ size_t ssl_cipher_get_record_split_len(const SSL_CIPHER *cipher);
+ 
+ // ssl_choose_tls13_cipher returns an |SSL_CIPHER| corresponding with the best
+ // available from |cipher_suites| compatible with |version|, |group_id| and
+-// configured |tls13_ciphers|. It returns NULL if there isn't a compatible cipher.
+-const SSL_CIPHER *ssl_choose_tls13_cipher(CBS cipher_suites, uint16_t version,
+-                                          uint16_t group_id,
+-                                          const STACK_OF(SSL_CIPHER) *tls13_ciphers);
++// configured |tls13_ciphers|. It returns NULL if there isn't a compatible
++// cipher.
++const SSL_CIPHER *ssl_choose_tls13_cipher(
++    CBS cipher_suites, uint16_t version, uint16_t group_id,
++    const STACK_OF(SSL_CIPHER) *tls13_ciphers);
+ 
+ 
+ // Transcript layer.
+@@ -1278,7 +1282,8 @@ class SSLBuffer {
+   // buf_allocated_ is true if |buf_| points to allocated data and must be freed
+   // or false if it points into |inline_buf_|.
+   bool buf_allocated_ = false;
+-  // buf_size_ is how much memory allocated for |buf_|. This is needed by |DoSerialization|.
++  // buf_size_ is how much memory allocated for |buf_|. This is needed by
++  // |DoSerialization|.
+   size_t buf_size_ = 0;
+ };
+ 
+@@ -1368,7 +1373,7 @@ bool ssl_add_client_CA_list(SSL_HANDSHAKE *hs, CBB *cbb);
+ // a server's leaf certificate for |hs|. Otherwise, it returns zero and pushes
+ // an error on the error queue.
+ bool ssl_check_leaf_certificate(SSL_HANDSHAKE *hs, EVP_PKEY *pkey,
+-                               const CRYPTO_BUFFER *leaf);
++                                const CRYPTO_BUFFER *leaf);
+ 
+ // ssl_on_certificate_selected is called once the certificate has been selected.
+ // It finalizes the certificate and initializes |hs->local_pubkey|. It returns
+@@ -1611,7 +1616,7 @@ struct DC {
+   UniquePtr<EVP_PKEY> pkey;
+ 
+  private:
+-  friend DC* New<DC>();
++  friend DC *New<DC>();
+   DC();
+ };
+ 
+@@ -3159,7 +3164,7 @@ bool ssl_is_key_type_supported(int key_type);
+ // counterpart to |privkey|. Otherwise it returns false and pushes a helpful
+ // message on the error queue.
+ bool ssl_compare_public_and_private_key(const EVP_PKEY *pubkey,
+-                                       const EVP_PKEY *privkey);
++                                        const EVP_PKEY *privkey);
+ bool ssl_cert_check_private_key(const CERT *cert, const EVP_PKEY *privkey);
+ bool ssl_get_new_session(SSL_HANDSHAKE *hs);
+ int ssl_encrypt_ticket(SSL_HANDSHAKE *hs, CBB *out, const SSL_SESSION *session);
+@@ -3497,7 +3502,8 @@ struct ssl_ctx_st {
+   const SSL_QUIC_METHOD *quic_method = nullptr;
+ 
+   // Currently, cipher_list holds the tls1.2 and below ciphersuites.
+-  // TODO: move |tls13_cipher_list| to |cipher_list| during cipher configuration.
++  // TODO: move |tls13_cipher_list| to |cipher_list| during cipher
++  // configuration.
+   bssl::UniquePtr<bssl::SSLCipherPreferenceList> cipher_list;
+ 
+   // tls13_cipher_list holds the tls1.3 and above ciphersuites.
+@@ -3543,21 +3549,21 @@ struct ssl_ctx_st {
+                                  int *copy) = nullptr;
+ 
+   struct {
+-    int sess_connect = 0;             // SSL new conn - started
+-    int sess_connect_renegotiate = 0; // SSL reneg - requested
+-    int sess_connect_good = 0;        // SSL new conne/reneg - finished
+-    int sess_accept = 0;              // SSL new accept - started
+-    int sess_accept_good = 0;         // SSL accept/reneg - finished
+-    int sess_miss = 0;                // session lookup misses
+-    int sess_timeout = 0;             // reuse attempt on timeouted session
+-    int sess_cache_full = 0;          // session removed due to full cache
+-    int sess_hit = 0;                 // session reuse actually done
+-    int sess_cb_hit = 0;              // session-id that was not
+-                                      // in the cache was
+-                                      // passed back via the callback. This
+-                                      // indicates that the application is
+-                                      // supplying session-id's from other
+-                                      // processes - spooky :-)
++    int sess_connect = 0;              // SSL new conn - started
++    int sess_connect_renegotiate = 0;  // SSL reneg - requested
++    int sess_connect_good = 0;         // SSL new conne/reneg - finished
++    int sess_accept = 0;               // SSL new accept - started
++    int sess_accept_good = 0;          // SSL accept/reneg - finished
++    int sess_miss = 0;                 // session lookup misses
++    int sess_timeout = 0;              // reuse attempt on timeouted session
++    int sess_cache_full = 0;           // session removed due to full cache
++    int sess_hit = 0;                  // session reuse actually done
++    int sess_cb_hit = 0;               // session-id that was not
++                                       // in the cache was
++                                       // passed back via the callback. This
++                                       // indicates that the application is
++                                       // supplying session-id's from other
++                                       // processes - spooky :-)
+   } stats;
+ 
+   CRYPTO_refcount_t references = 1;
+diff --git a/ssl/ssl_aead_ctx.cc b/ssl/ssl_aead_ctx.cc
+index 0bad2661a..2138de961 100644
+--- a/ssl/ssl_aead_ctx.cc
++++ b/ssl/ssl_aead_ctx.cc
+@@ -159,7 +159,7 @@ void SSLAEADContext::SetVersionIfNullCipher(uint16_t version) {
+ 
+ uint16_t SSLAEADContext::ProtocolVersion() const {
+   uint16_t protocol_version;
+-  if(!ssl_protocol_version_from_wire(&protocol_version, version_)) {
++  if (!ssl_protocol_version_from_wire(&protocol_version, version_)) {
+     assert(false);
+     return 0;
+   }
+@@ -376,8 +376,7 @@ bool SSLAEADContext::SealScatter(uint8_t *out_prefix, uint8_t *out,
+       OPENSSL_PUT_ERROR(SSL, SSL_R_OUTPUT_ALIASES_INPUT);
+       return false;
+     }
+-    OPENSSL_memcpy(out_prefix, nonce + fixed_nonce_len_,
+-                   variable_nonce_len_);
++    OPENSSL_memcpy(out_prefix, nonce + fixed_nonce_len_, variable_nonce_len_);
+   }
+ 
+   // XOR the fixed nonce, if necessary.
+diff --git a/ssl/ssl_lib.cc b/ssl/ssl_lib.cc
+index fe32402c9..8a981161a 100644
+--- a/ssl/ssl_lib.cc
++++ b/ssl/ssl_lib.cc
+@@ -154,8 +154,8 @@
+ #include <openssl/mem.h>
+ #include <openssl/rand.h>
+ 
+-#include "internal.h"
+ #include "../crypto/internal.h"
++#include "internal.h"
+ 
+ #if defined(OPENSSL_WINDOWS)
+ #include <sys/timeb.h>
+@@ -209,7 +209,7 @@ void ssl_reset_error_state(SSL *ssl) {
+   ERR_clear_system_error();
+ }
+ 
+-void ssl_set_read_error(SSL* ssl) {
++void ssl_set_read_error(SSL *ssl) {
+   ssl->s3->read_shutdown = ssl_shutdown_error;
+   ssl->s3->read_error.reset(ERR_save_state());
+ }
+@@ -305,8 +305,7 @@ bool ssl_log_secret(const SSL *ssl, const char *label,
+                      strlen(label)) ||
+       !CBB_add_u8(cbb.get(), ' ') ||
+       !cbb_add_hex(cbb.get(), ssl->s3->client_random) ||
+-      !CBB_add_u8(cbb.get(), ' ') ||
+-      !cbb_add_hex(cbb.get(), secret) ||
++      !CBB_add_u8(cbb.get(), ' ') || !cbb_add_hex(cbb.get(), secret) ||
+       !CBB_add_u8(cbb.get(), 0 /* NUL */) ||
+       !CBBFinishArray(cbb.get(), &line)) {
+     return false;
+@@ -406,17 +405,14 @@ void ssl_ctx_get_current_time(const SSL_CTX *ctx,
+ #endif
+ }
+ 
+-void SSL_CTX_set_handoff_mode(SSL_CTX *ctx, bool on) {
+-  ctx->handoff = on;
+-}
++void SSL_CTX_set_handoff_mode(SSL_CTX *ctx, bool on) { ctx->handoff = on; }
+ 
+ static bool ssl_can_renegotiate(const SSL *ssl) {
+   if (ssl->server || SSL_is_dtls(ssl)) {
+     return false;
+   }
+ 
+-  if (ssl->s3->have_version &&
+-      ssl_protocol_version(ssl) >= TLS1_3_VERSION) {
++  if (ssl->s3->have_version && ssl_protocol_version(ssl) >= TLS1_3_VERSION) {
+     return false;
+   }
+ 
+@@ -442,10 +438,8 @@ static bool ssl_can_renegotiate(const SSL *ssl) {
+ }
+ 
+ static void ssl_maybe_shed_handshake_config(SSL *ssl) {
+-  if (ssl->s3->hs != nullptr ||
+-      ssl->config == nullptr ||
+-      !ssl->config->shed_handshake_config ||
+-      ssl_can_renegotiate(ssl)) {
++  if (ssl->s3->hs != nullptr || ssl->config == nullptr ||
++      !ssl->config->shed_handshake_config || ssl_can_renegotiate(ssl)) {
+     return;
+   }
+ 
+@@ -566,10 +560,8 @@ SSL_CTX *SSL_CTX_new(const SSL_METHOD *method) {
+   ret->cert = MakeUnique<CERT>(method->x509_method);
+   ret->sessions = lh_SSL_SESSION_new(ssl_session_hash, ssl_session_cmp);
+   ret->client_CA.reset(sk_CRYPTO_BUFFER_new_null());
+-  if (ret->cert == nullptr ||
+-      ret->sessions == nullptr ||
+-      ret->client_CA == nullptr ||
+-      !ret->x509_method->ssl_ctx_new(ret.get())) {
++  if (ret->cert == nullptr || ret->sessions == nullptr ||
++      ret->client_CA == nullptr || !ret->x509_method->ssl_ctx_new(ret.get())) {
+     return nullptr;
+   }
+ 
+@@ -591,8 +583,7 @@ int SSL_CTX_up_ref(SSL_CTX *ctx) {
+ }
+ 
+ void SSL_CTX_free(SSL_CTX *ctx) {
+-  if (ctx == NULL ||
+-      !CRYPTO_refcount_dec_and_test_zero(&ctx->references)) {
++  if (ctx == NULL || !CRYPTO_refcount_dec_and_test_zero(&ctx->references)) {
+     return;
+   }
+ 
+@@ -711,9 +702,7 @@ SSL_CONFIG::~SSL_CONFIG() {
+   }
+ }
+ 
+-void SSL_free(SSL *ssl) {
+-  Delete(ssl);
+-}
++void SSL_free(SSL *ssl) { Delete(ssl); }
+ 
+ void SSL_set_connect_state(SSL *ssl) {
+   ssl->server = false;
+@@ -725,13 +714,9 @@ void SSL_set_accept_state(SSL *ssl) {
+   ssl->do_handshake = ssl_server_handshake;
+ }
+ 
+-void SSL_set0_rbio(SSL *ssl, BIO *rbio) {
+-  ssl->rbio.reset(rbio);
+-}
++void SSL_set0_rbio(SSL *ssl, BIO *rbio) { ssl->rbio.reset(rbio); }
+ 
+-void SSL_set0_wbio(SSL *ssl, BIO *wbio) {
+-  ssl->wbio.reset(wbio);
+-}
++void SSL_set0_wbio(SSL *ssl, BIO *wbio) { ssl->wbio.reset(wbio); }
+ 
+ void SSL_set_bio(SSL *ssl, BIO *rbio, BIO *wbio) {
+   // For historical reasons, this function has many different cases in ownership
+@@ -794,8 +779,8 @@ size_t SSL_quic_max_handshake_flight_len(const SSL *ssl,
+       } else {
+         // Clients may receive both Certificate message and a CertificateRequest
+         // message.
+-        if (2*ssl->max_cert_list > kDefaultLimit) {
+-          return 2*ssl->max_cert_list;
++        if (2 * ssl->max_cert_list > kDefaultLimit) {
++          return 2 * ssl->max_cert_list;
+         }
+       }
+       return kDefaultLimit;
+@@ -1245,8 +1230,7 @@ int SSL_early_data_accepted(const SSL *ssl) {
+ 
+ void SSL_reset_early_data_reject(SSL *ssl) {
+   SSL_HANDSHAKE *hs = ssl->s3->hs.get();
+-  if (hs == NULL ||
+-      hs->wait != ssl_hs_early_data_rejected) {
++  if (hs == NULL || hs->wait != ssl_hs_early_data_rejected) {
+     abort();
+   }
+ 
+@@ -1526,7 +1510,7 @@ int SSL_get_tls_unique(const SSL *ssl, uint8_t *out, size_t *out_len,
+ }
+ 
+ static int set_session_id_context(CERT *cert, const uint8_t *sid_ctx,
+-                                   size_t sid_ctx_len) {
++                                  size_t sid_ctx_len) {
+   if (sid_ctx_len > sizeof(cert->sid_ctx)) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_SSL_SESSION_ID_CONTEXT_TOO_LONG);
+     return 0;
+@@ -1802,9 +1786,7 @@ void SSL_CTX_set_max_cert_list(SSL_CTX *ctx, size_t max_cert_list) {
+   ctx->max_cert_list = (uint32_t)max_cert_list;
+ }
+ 
+-size_t SSL_get_max_cert_list(const SSL *ssl) {
+-  return ssl->max_cert_list;
+-}
++size_t SSL_get_max_cert_list(const SSL *ssl) { return ssl->max_cert_list; }
+ 
+ void SSL_set_max_cert_list(SSL *ssl, size_t max_cert_list) {
+   if (max_cert_list > kMaxHandshakeSize) {
+@@ -1927,9 +1909,9 @@ int SSL_CTX_set_tlsext_ticket_keys(SSL_CTX *ctx, const void *in, size_t len) {
+ }
+ 
+ int SSL_CTX_set_tlsext_ticket_key_cb(
+-    SSL_CTX *ctx, int (*callback)(SSL *ssl, uint8_t *key_name, uint8_t *iv,
+-                                  EVP_CIPHER_CTX *ctx, HMAC_CTX *hmac_ctx,
+-                                  int encrypt)) {
++    SSL_CTX *ctx,
++    int (*callback)(SSL *ssl, uint8_t *key_name, uint8_t *iv,
++                    EVP_CIPHER_CTX *ctx, HMAC_CTX *hmac_ctx, int encrypt)) {
+   ctx->ticket_key_cb = callback;
+   return 1;
+ }
+@@ -1983,13 +1965,9 @@ uint16_t SSL_get_curve_id(const SSL *ssl) {
+   return session->group_id;
+ }
+ 
+-int SSL_CTX_set_tmp_dh(SSL_CTX *ctx, const DH *dh) {
+-  return 1;
+-}
++int SSL_CTX_set_tmp_dh(SSL_CTX *ctx, const DH *dh) { return 1; }
+ 
+-int SSL_set_tmp_dh(SSL *ssl, const DH *dh) {
+-  return 1;
+-}
++int SSL_set_tmp_dh(SSL *ssl, const DH *dh) { return 1; }
+ 
+ STACK_OF(SSL_CIPHER) *SSL_CTX_get_ciphers(const SSL_CTX *ctx) {
+   return ctx->cipher_list->ciphers.get();
+@@ -2012,7 +1990,7 @@ STACK_OF(SSL_CIPHER) *SSL_get_ciphers(const SSL *ssl) {
+   }
+ 
+   return ssl->config->cipher_list ? ssl->config->cipher_list->ciphers.get()
+-      : ssl->ctx->cipher_list->ciphers.get();
++                                  : ssl->ctx->cipher_list->ciphers.get();
+ }
+ 
+ const char *SSL_get_cipher_list(const SSL *ssl, int n) {
+@@ -2053,7 +2031,8 @@ int SSL_set_cipher_list(SSL *ssl, const char *str) {
+ }
+ 
+ int SSL_CTX_set_ciphersuites(SSL_CTX *ctx, const char *str) {
+-  return ssl_create_cipher_list(&ctx->tls13_cipher_list, str, false /* not strict */,
++  return ssl_create_cipher_list(&ctx->tls13_cipher_list, str,
++                                false /* not strict */,
+                                 true /* only configure TLSv1.3 ciphers */);
+ }
+ 
+@@ -2231,10 +2210,12 @@ void SSL_CTX_set_next_protos_advertised_cb(
+   ctx->next_protos_advertised_cb_arg = arg;
+ }
+ 
+-void SSL_CTX_set_next_proto_select_cb(
+-    SSL_CTX *ctx, int (*cb)(SSL *ssl, uint8_t **out, uint8_t *out_len,
+-                            const uint8_t *in, unsigned in_len, void *arg),
+-    void *arg) {
++void SSL_CTX_set_next_proto_select_cb(SSL_CTX *ctx,
++                                      int (*cb)(SSL *ssl, uint8_t **out,
++                                                uint8_t *out_len,
++                                                const uint8_t *in,
++                                                unsigned in_len, void *arg),
++                                      void *arg) {
+   ctx->next_proto_select_cb = cb;
+   ctx->next_proto_select_cb_arg = arg;
+ }
+@@ -2361,9 +2342,8 @@ int SSL_enable_tls_channel_id(SSL *ssl) {
+ 
+ static int is_p256_key(EVP_PKEY *private_key) {
+   const EC_KEY *ec_key = EVP_PKEY_get0_EC_KEY(private_key);
+-  return ec_key != NULL &&
+-         EC_GROUP_get_curve_name(EC_KEY_get0_group(ec_key)) ==
+-             NID_X9_62_prime256v1;
++  return ec_key != NULL && EC_GROUP_get_curve_name(EC_KEY_get0_group(ec_key)) ==
++                               NID_X9_62_prime256v1;
+ }
+ 
+ int SSL_CTX_set1_tls_channel_id(SSL_CTX *ctx, EVP_PKEY *private_key) {
+@@ -2417,7 +2397,7 @@ size_t SSL_get0_peer_verify_algorithms(const SSL *ssl,
+ }
+ 
+ size_t SSL_get0_peer_delegation_algorithms(const SSL *ssl,
+-                                           const uint16_t **out_sigalgs){
++                                           const uint16_t **out_sigalgs) {
+   Span<const uint16_t> sigalgs;
+   if (ssl->s3->hs != nullptr) {
+     sigalgs = ssl->s3->hs->peer_delegated_credential_sigalgs;
+@@ -2547,7 +2527,7 @@ int SSL_state(const SSL *ssl) {
+   return SSL_in_init(ssl) ? SSL_ST_INIT : SSL_ST_OK;
+ }
+ 
+-void SSL_set_state(SSL *ssl, int state) { }
++void SSL_set_state(SSL *ssl, int state) {}
+ 
+ char *SSL_get_shared_ciphers(const SSL *ssl, char *buf, int len) {
+   if (len <= 0) {
+@@ -2711,9 +2691,10 @@ void SSL_CTX_set_psk_client_callback(
+   ctx->psk_client_callback = cb;
+ }
+ 
+-void SSL_set_psk_server_callback(
+-    SSL *ssl, unsigned (*cb)(SSL *ssl, const char *identity, uint8_t *psk,
+-                             unsigned max_psk_len)) {
++void SSL_set_psk_server_callback(SSL *ssl,
++                                 unsigned (*cb)(SSL *ssl, const char *identity,
++                                                uint8_t *psk,
++                                                unsigned max_psk_len)) {
+   if (!ssl->config) {
+     return;
+   }
+@@ -2721,8 +2702,8 @@ void SSL_set_psk_server_callback(
+ }
+ 
+ void SSL_CTX_set_psk_server_callback(
+-    SSL_CTX *ctx, unsigned (*cb)(SSL *ssl, const char *identity,
+-                                 uint8_t *psk, unsigned max_psk_len)) {
++    SSL_CTX *ctx, unsigned (*cb)(SSL *ssl, const char *identity, uint8_t *psk,
++                                 unsigned max_psk_len)) {
+   ctx->psk_server_callback = cb;
+ }
+ 
+@@ -2775,9 +2756,7 @@ int SSL_can_release_private_key(const SSL *ssl) {
+   return !ssl->s3->hs || ssl->s3->hs->can_release_private_key;
+ }
+ 
+-int SSL_is_init_finished(const SSL *ssl) {
+-  return !SSL_in_init(ssl);
+-}
++int SSL_is_init_finished(const SSL *ssl) { return !SSL_in_init(ssl); }
+ 
+ int SSL_in_init(const SSL *ssl) {
+   // This returns false once all the handshake state has been finalized, to
+@@ -2794,9 +2773,7 @@ int SSL_in_false_start(const SSL *ssl) {
+   return ssl->s3->hs->in_false_start;
+ }
+ 
+-int SSL_cutthrough_complete(const SSL *ssl) {
+-  return SSL_in_false_start(ssl);
+-}
++int SSL_cutthrough_complete(const SSL *ssl) { return SSL_in_false_start(ssl); }
+ 
+ int SSL_is_server(const SSL *ssl) { return ssl->server; }
+ 
+@@ -3020,9 +2997,7 @@ int SSL_CTX_sess_accept(const SSL_CTX *ctx) {
+   return ssl_read_counter(ctx, ctx->stats.sess_accept);
+ }
+ 
+-int SSL_CTX_sess_accept_renegotiate(const SSL_CTX *ctx) {
+-  return 0;
+-}
++int SSL_CTX_sess_accept_renegotiate(const SSL_CTX *ctx) { return 0; }
+ 
+ int SSL_CTX_sess_accept_good(const SSL_CTX *ctx) {
+   return ssl_read_counter(ctx, ctx->stats.sess_accept_good);
+@@ -3085,8 +3060,7 @@ void SSL_CTX_set_ticket_aead_method(SSL_CTX *ctx,
+ 
+ SSL_SESSION *SSL_process_tls13_new_session_ticket(SSL *ssl, const uint8_t *buf,
+                                                   size_t buf_len) {
+-  if (SSL_in_init(ssl) ||
+-      ssl_protocol_version(ssl) != TLS1_3_VERSION ||
++  if (SSL_in_init(ssl) || ssl_protocol_version(ssl) != TLS1_3_VERSION ||
+       ssl->server) {
+     // Only TLS 1.3 clients are supported.
+     OPENSSL_PUT_ERROR(SSL, ERR_R_SHOULD_NOT_HAVE_BEEN_CALLED);
+@@ -3096,8 +3070,7 @@ SSL_SESSION *SSL_process_tls13_new_session_ticket(SSL *ssl, const uint8_t *buf,
+   CBS cbs, body;
+   CBS_init(&cbs, buf, buf_len);
+   uint8_t type;
+-  if (!CBS_get_u8(&cbs, &type) ||
+-      !CBS_get_u24_length_prefixed(&cbs, &body) ||
++  if (!CBS_get_u8(&cbs, &type) || !CBS_get_u24_length_prefixed(&cbs, &body) ||
+       CBS_len(&cbs) != 0) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_DECODE_ERROR);
+     return nullptr;
+@@ -3132,8 +3105,8 @@ int SSL_get_tlsext_status_type(const SSL *ssl) {
+   if (ssl->server) {
+     SSL_HANDSHAKE *hs = ssl->s3->hs.get();
+     return hs != nullptr && hs->ocsp_stapling_requested
+-        ? TLSEXT_STATUSTYPE_ocsp
+-        : TLSEXT_STATUSTYPE_nothing;
++               ? TLSEXT_STATUSTYPE_ocsp
++               : TLSEXT_STATUSTYPE_nothing;
+   }
+ 
+   return ssl->config != nullptr && ssl->config->ocsp_stapling_enabled
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index bb189f493..9c5755ffb 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -26,8 +26,8 @@
+ 
+ #include <openssl/aead.h>
+ #include <openssl/base64.h>
+-#include <openssl/bytestring.h>
+ #include <openssl/bio.h>
++#include <openssl/bytestring.h>
+ #include <openssl/cipher.h>
+ #include <openssl/crypto.h>
+ #include <openssl/curve25519.h>
+@@ -35,15 +35,15 @@
+ #include <openssl/hmac.h>
+ #include <openssl/hpke.h>
+ #include <openssl/pem.h>
++#include <openssl/rand.h>
+ #include <openssl/sha.h>
+ #include <openssl/ssl.h>
+-#include <openssl/rand.h>
+ #include <openssl/x509.h>
+ #include <openssl/x509v3.h>
+ 
+-#include "internal.h"
+ #include "../crypto/internal.h"
+ #include "../crypto/test/test_util.h"
++#include "internal.h"
+ 
+ #if defined(OPENSSL_WINDOWS)
+ // Windows defines struct timeval in winsock2.h.
+@@ -75,25 +75,25 @@ namespace {
+ struct VersionParam {
+   uint16_t version;
+   enum { is_tls, is_dtls } ssl_method;
+-  // This field is used to generate custom test name suffixes 
++  // This field is used to generate custom test name suffixes
+   // based on the test parameters.
+   const char name[20];
+-  // SSL transfer: the sever SSL is encoded into bytes, and then decoded to another SSL.
+-  // After transfer, the encoded SSL is freed. The decoded one is used to exchange data.
+-  // This flag is to replay existing tests with the transferred SSL.
+-  // If false, the tests use the original server SSL.
+-  // If true, the tests are replayed with the transferred server SSL.
+-  // Note: SSL transfer works only with TLS 1.2 after handshake finished.
++  // SSL transfer: the sever SSL is encoded into bytes, and then decoded to
++  // another SSL. After transfer, the encoded SSL is freed. The decoded one is
++  // used to exchange data. This flag is to replay existing tests with the
++  // transferred SSL. If false, the tests use the original server SSL. If true,
++  // the tests are replayed with the transferred server SSL. Note: SSL transfer
++  // works only with TLS 1.2 after handshake finished.
+   bool transfer_ssl;
+ };
+ 
+ struct SSLTestParam {
+-  // SSL transfer: the sever SSL is encoded into bytes, and then decoded to another SSL.
+-  // After transfer, the encoded SSL is freed. The decoded one is used to exchange data.
+-  // This flag is to replay existing tests with the transferred SSL.
+-  // If false, the tests use the original server SSL.
+-  // If true, the tests are replayed with the transferred server SSL.
+-  // Note: SSL transfer works only with TLS 1.2 after handshake finished.
++  // SSL transfer: the sever SSL is encoded into bytes, and then decoded to
++  // another SSL. After transfer, the encoded SSL is freed. The decoded one is
++  // used to exchange data. This flag is to replay existing tests with the
++  // transferred SSL. If false, the tests use the original server SSL. If true,
++  // the tests are replayed with the transferred server SSL. Note: SSL transfer
++  // works only with TLS 1.2 after handshake finished.
+   bool transfer_ssl;
+ };
+ 
+@@ -119,8 +119,7 @@ static const SSLTestParam kSSLTestParams[] = {
+ 
+ class SSLTest : public testing::TestWithParam<SSLTestParam> {};
+ 
+-INSTANTIATE_TEST_SUITE_P(SSLTests, SSLTest,
+-                         testing::ValuesIn(kSSLTestParams),
++INSTANTIATE_TEST_SUITE_P(SSLTests, SSLTest, testing::ValuesIn(kSSLTestParams),
+                          [](const testing::TestParamInfo<SSLTestParam> &i) {
+                            if (i.param.transfer_ssl) {
+                              return "SSL_Transfer";
+@@ -386,7 +385,8 @@ static const CipherTest kCipherTests[] = {
+     },
+     // Spaces, semi-colons and commas are separators.
+     {
+-        "AES128-SHA: ECDHE-RSA-AES128-GCM-SHA256 AES256-SHA ,ECDHE-ECDSA-AES128-GCM-SHA256 ; AES128-GCM-SHA256",
++        "AES128-SHA: ECDHE-RSA-AES128-GCM-SHA256 AES256-SHA "
++        ",ECDHE-ECDSA-AES128-GCM-SHA256 ; AES128-GCM-SHA256",
+         {
+             {TLS1_CK_RSA_WITH_AES_128_SHA, 0},
+             {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+@@ -499,91 +499,83 @@ static const CipherTest kTLSv13CipherTests[] = {
+ };
+ 
+ static const char *kBadRules[] = {
+-  // Invalid brackets.
+-  "[ECDHE-RSA-CHACHA20-POLY1305|ECDHE-RSA-AES128-GCM-SHA256",
+-  "RSA]",
+-  "[[RSA]]",
+-  // Operators inside brackets.
+-  "[+RSA]",
+-  // Unknown directive.
+-  "@BOGUS",
+-  // Empty cipher lists error at SSL_CTX_set_cipher_list.
+-  "",
+-  "BOGUS",
+-  // COMPLEMENTOFDEFAULT is empty.
+-  "COMPLEMENTOFDEFAULT",
+-  // Invalid command.
+-  "?BAR",
+-  // Special operators are not allowed if groups are used.
+-  "[ECDHE-RSA-CHACHA20-POLY1305|ECDHE-RSA-AES128-GCM-SHA256]:+FOO",
+-  "[ECDHE-RSA-CHACHA20-POLY1305|ECDHE-RSA-AES128-GCM-SHA256]:!FOO",
+-  "[ECDHE-RSA-CHACHA20-POLY1305|ECDHE-RSA-AES128-GCM-SHA256]:-FOO",
+-  "[ECDHE-RSA-CHACHA20-POLY1305|ECDHE-RSA-AES128-GCM-SHA256]:@STRENGTH",
+-  // Opcode supplied, but missing selector.
+-  "+",
+-  // Spaces are forbidden in equal-preference groups.
+-  "[AES128-SHA | AES128-SHA256]",
++    // Invalid brackets.
++    "[ECDHE-RSA-CHACHA20-POLY1305|ECDHE-RSA-AES128-GCM-SHA256",
++    "RSA]",
++    "[[RSA]]",
++    // Operators inside brackets.
++    "[+RSA]",
++    // Unknown directive.
++    "@BOGUS",
++    // Empty cipher lists error at SSL_CTX_set_cipher_list.
++    "",
++    "BOGUS",
++    // COMPLEMENTOFDEFAULT is empty.
++    "COMPLEMENTOFDEFAULT",
++    // Invalid command.
++    "?BAR",
++    // Special operators are not allowed if groups are used.
++    "[ECDHE-RSA-CHACHA20-POLY1305|ECDHE-RSA-AES128-GCM-SHA256]:+FOO",
++    "[ECDHE-RSA-CHACHA20-POLY1305|ECDHE-RSA-AES128-GCM-SHA256]:!FOO",
++    "[ECDHE-RSA-CHACHA20-POLY1305|ECDHE-RSA-AES128-GCM-SHA256]:-FOO",
++    "[ECDHE-RSA-CHACHA20-POLY1305|ECDHE-RSA-AES128-GCM-SHA256]:@STRENGTH",
++    // Opcode supplied, but missing selector.
++    "+",
++    // Spaces are forbidden in equal-preference groups.
++    "[AES128-SHA | AES128-SHA256]",
+ };
+ 
+ static const char *kMustNotIncludeNull[] = {
+-  "ALL",
+-  "DEFAULT",
+-  "HIGH",
+-  "FIPS",
+-  "SHA",
+-  "SHA1",
+-  "RSA",
+-  "SSLv3",
+-  "TLSv1",
+-  "TLSv1.2",
++    "ALL",  "DEFAULT", "HIGH",  "FIPS",  "SHA",
++    "SHA1", "RSA",     "SSLv3", "TLSv1", "TLSv1.2",
+ };
+ 
+ static const char *kTLSv13MustNotIncludeNull[] = {
+-  "ALL",
+-  "DEFAULT",
+-  "HIGH",
+-  "FIPS",
++    "ALL",
++    "DEFAULT",
++    "HIGH",
++    "FIPS",
+ };
+ 
+ static const CurveTest kCurveTests[] = {
+-  {
+-    "P-256",
+-    { SSL_CURVE_SECP256R1 },
+-  },
+-  {
+-    "P-256:CECPQ2",
+-    { SSL_CURVE_SECP256R1, SSL_CURVE_CECPQ2 },
+-  },
++    {
++        "P-256",
++        {SSL_CURVE_SECP256R1},
++    },
++    {
++        "P-256:CECPQ2",
++        {SSL_CURVE_SECP256R1, SSL_CURVE_CECPQ2},
++    },
+ 
+-  {
+-    "P-256:P-384:P-521:X25519",
+     {
+-      SSL_CURVE_SECP256R1,
+-      SSL_CURVE_SECP384R1,
+-      SSL_CURVE_SECP521R1,
+-      SSL_CURVE_X25519,
++        "P-256:P-384:P-521:X25519",
++        {
++            SSL_CURVE_SECP256R1,
++            SSL_CURVE_SECP384R1,
++            SSL_CURVE_SECP521R1,
++            SSL_CURVE_X25519,
++        },
+     },
+-  },
+-  {
+-    "prime256v1:secp384r1:secp521r1:x25519",
+     {
+-      SSL_CURVE_SECP256R1,
+-      SSL_CURVE_SECP384R1,
+-      SSL_CURVE_SECP521R1,
+-      SSL_CURVE_X25519,
++        "prime256v1:secp384r1:secp521r1:x25519",
++        {
++            SSL_CURVE_SECP256R1,
++            SSL_CURVE_SECP384R1,
++            SSL_CURVE_SECP521R1,
++            SSL_CURVE_X25519,
++        },
+     },
+-  },
+ };
+ 
+ static const char *kBadCurvesLists[] = {
+-  "",
+-  ":",
+-  "::",
+-  "P-256::X25519",
+-  "RSA:P-256",
+-  "P-256:RSA",
+-  "X25519:P-256:",
+-  ":X25519:P-256",
++    "",
++    ":",
++    "::",
++    "P-256::X25519",
++    "RSA:P-256",
++    "P-256:RSA",
++    "X25519:P-256:",
++    ":X25519:P-256",
+ };
+ 
+ static STACK_OF(SSL_CIPHER) *tls13_ciphers(const SSL_CTX *ctx) {
+@@ -605,8 +597,8 @@ static int cipher_in_group(const SSL_CTX *ctx, size_t i, bool tlsv13_ciphers) {
+ static std::string CipherListToString(SSL_CTX *ctx, bool tlsv13_ciphers) {
+   bool in_group = false;
+   std::string ret;
+-  const STACK_OF(SSL_CIPHER) *ciphers = tlsv13_ciphers ? 
+-    tls13_ciphers(ctx) : SSL_CTX_get_ciphers(ctx);
++  const STACK_OF(SSL_CIPHER) *ciphers =
++      tlsv13_ciphers ? tls13_ciphers(ctx) : SSL_CTX_get_ciphers(ctx);
+   for (size_t i = 0; i < sk_SSL_CIPHER_num(ciphers); i++) {
+     const SSL_CIPHER *cipher = sk_SSL_CIPHER_value(ciphers, i);
+     if (!in_group && cipher_in_group(ctx, i, tlsv13_ciphers)) {
+@@ -630,8 +622,8 @@ static std::string CipherListToString(SSL_CTX *ctx, bool tlsv13_ciphers) {
+ static bool CipherListsEqual(SSL_CTX *ctx,
+                              const std::vector<ExpectedCipher> &expected,
+                              bool tlsv13_ciphers) {
+-  STACK_OF(SSL_CIPHER) *ciphers = tlsv13_ciphers ? 
+-    tls13_ciphers(ctx) : SSL_CTX_get_ciphers(ctx);
++  STACK_OF(SSL_CIPHER) *ciphers =
++      tlsv13_ciphers ? tls13_ciphers(ctx) : SSL_CTX_get_ciphers(ctx);
+   if (sk_SSL_CIPHER_num(ciphers) != expected.size()) {
+     return false;
+   }
+@@ -639,7 +631,8 @@ static bool CipherListsEqual(SSL_CTX *ctx,
+   for (size_t i = 0; i < expected.size(); i++) {
+     const SSL_CIPHER *cipher = sk_SSL_CIPHER_value(ciphers, i);
+     if (expected[i].id != SSL_CIPHER_get_id(cipher) ||
+-        expected[i].in_group_flag != !!cipher_in_group(ctx, i, tlsv13_ciphers)) {
++        expected[i].in_group_flag !=
++            !!cipher_in_group(ctx, i, tlsv13_ciphers)) {
+       return false;
+     }
+   }
+@@ -648,39 +641,37 @@ static bool CipherListsEqual(SSL_CTX *ctx,
+ }
+ 
+ // Functions used by SSL encode/decode tests.
+-static void EncodeAndDecodeSSL(SSL *in, SSL_CTX *ctx, bssl::UniquePtr<SSL> *out) {
++static void EncodeAndDecodeSSL(SSL *in, SSL_CTX *ctx,
++                               bssl::UniquePtr<SSL> *out) {
+   // Encoding SSL to bytes.
+   size_t encoded_len;
+   bssl::UniquePtr<uint8_t> encoded;
+   uint8_t *encoded_raw;
+   ASSERT_TRUE(SSL_to_bytes(in, &encoded_raw, &encoded_len));
+-  ASSERT_TRUE(encoded_len)
+-      << "SSL_to_bytes failed. Error code: "
+-      << ERR_reason_error_string(ERR_get_error());
++  ASSERT_TRUE(encoded_len) << "SSL_to_bytes failed. Error code: "
++                           << ERR_reason_error_string(ERR_get_error());
+   encoded.reset(encoded_raw);
+   // Decoding SSL from the bytes.
+   const uint8_t *ptr2 = encoded.get();
+   SSL *server2_ = SSL_from_bytes(ptr2, encoded_len, ctx);
+-  ASSERT_TRUE(server2_)
+-      << "SSL_from_bytes failed. Error code: "
+-      << ERR_reason_error_string(ERR_get_error());
++  ASSERT_TRUE(server2_) << "SSL_from_bytes failed. Error code: "
++                        << ERR_reason_error_string(ERR_get_error());
+   out->reset(server2_);
+ }
+ 
+-static void TransferBIOs(bssl::UniquePtr<SSL> *from, SSL* to) {
++static void TransferBIOs(bssl::UniquePtr<SSL> *from, SSL *to) {
+   // Fetch the bio.
+   BIO *rbio = SSL_get_rbio(from->get());
+-  ASSERT_TRUE(rbio)
+-      << "rbio is not set"
+-      << ERR_reason_error_string(ERR_get_error());
++  ASSERT_TRUE(rbio) << "rbio is not set"
++                    << ERR_reason_error_string(ERR_get_error());
+   BIO *wbio = SSL_get_wbio(from->get());
+-  ASSERT_TRUE(wbio)
+-      << "wbio is not set"
+-      << ERR_reason_error_string(ERR_get_error());
++  ASSERT_TRUE(wbio) << "wbio is not set"
++                    << ERR_reason_error_string(ERR_get_error());
+   // Move the bio.
+   // Increase ref count of |rbio|.
+-  // |SSL_set_bio(to, rbio, wbio)| only increments the references of |rbio| by 1 when |rbio == wbio|.
+-  // But |SSL_free| decreases the reference of |rbio| and |wbio|.
++  // |SSL_set_bio(to, rbio, wbio)| only increments the references of |rbio| by 1
++  // when |rbio == wbio|. But |SSL_free| decreases the reference of |rbio| and
++  // |wbio|.
+   if (rbio == wbio) {
+     BIO_up_ref(rbio);
+   }
+@@ -697,7 +688,8 @@ static void TransferBIOs(bssl::UniquePtr<SSL> *from, SSL* to) {
+ // 3. Free the SSL of |in|.
+ // 4. If |out| is not nullptr, |out| will hold the decoded SSL.
+ //    Else, |in| will get reset to hold the decoded SSL.
+-static void TransferSSL(bssl::UniquePtr<SSL> *in, SSL_CTX *in_ctx, bssl::UniquePtr<SSL> *out) {
++static void TransferSSL(bssl::UniquePtr<SSL> *in, SSL_CTX *in_ctx,
++                        bssl::UniquePtr<SSL> *out) {
+   bssl::UniquePtr<SSL> decoded_ssl;
+   EncodeAndDecodeSSL(in->get(), in_ctx, &decoded_ssl);
+   if (!decoded_ssl) {
+@@ -788,7 +780,8 @@ TEST(SSLTest, CipherRules) {
+ 
+     // Test lax mode.
+     ASSERT_TRUE(SSL_CTX_set_cipher_list(ctx.get(), t.rule));
+-    EXPECT_TRUE(CipherListsEqual(ctx.get(), t.expected, false /* not TLSv1.3 only */))
++    EXPECT_TRUE(
++        CipherListsEqual(ctx.get(), t.expected, false /* not TLSv1.3 only */))
+         << "Cipher rule evaluated to:\n"
+         << CipherListToString(ctx.get(), false /* not TLSv1.3 only */);
+ 
+@@ -797,7 +790,8 @@ TEST(SSLTest, CipherRules) {
+       EXPECT_FALSE(SSL_CTX_set_strict_cipher_list(ctx.get(), t.rule));
+     } else {
+       ASSERT_TRUE(SSL_CTX_set_strict_cipher_list(ctx.get(), t.rule));
+-      EXPECT_TRUE(CipherListsEqual(ctx.get(), t.expected, false /* not TLSv1.3 only */))
++      EXPECT_TRUE(
++          CipherListsEqual(ctx.get(), t.expected, false /* not TLSv1.3 only */))
+           << "Cipher rule evaluated to:\n"
+           << CipherListToString(ctx.get(), false /* not TLSv1.3 only */);
+     }
+@@ -814,8 +808,9 @@ TEST(SSLTest, CipherRules) {
+ 
+   // kTLSv13RuleOnly are valid test cases for |SSL_CTX_set_ciphersuites|,
+   // which configures only TLSv1.3 ciphers.
+-  // |SSL_CTX_set_cipher_list| only supports TLSv1.2 and below ciphers configuration.
+-  // Accordingly, kTLSv13RuleOnly result in |SSL_R_NO_CIPHER_MATCH|.
++  // |SSL_CTX_set_cipher_list| only supports TLSv1.2 and below ciphers
++  // configuration. Accordingly, kTLSv13RuleOnly result in
++  // |SSL_R_NO_CIPHER_MATCH|.
+   for (const CipherTest &t : kTLSv13RuleOnly) {
+     SCOPED_TRACE(t.rule);
+     bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
+@@ -838,8 +833,10 @@ TEST(SSLTest, CipherRules) {
+   }
+ }
+ 
+-static std::vector<CipherTest> combine_tests(const CipherTest *c1, size_t size_1,
+-  const CipherTest *c2, size_t size_2) {
++static std::vector<CipherTest> combine_tests(const CipherTest *c1,
++                                             size_t size_1,
++                                             const CipherTest *c2,
++                                             size_t size_2) {
+   std::vector<CipherTest> ret(size_1 + size_2);
+   size_t j = 0;
+   for (size_t i = 0; i < size_1; i++) {
+@@ -852,8 +849,9 @@ static std::vector<CipherTest> combine_tests(const CipherTest *c1, size_t size_1
+ }
+ 
+ TEST(SSLTest, TLSv13CipherRules) {
+-  std::vector<CipherTest> cipherRules = combine_tests(kTLSv13RuleOnly,
+-    OPENSSL_ARRAY_SIZE(kTLSv13RuleOnly), kTLSv13CipherTests, OPENSSL_ARRAY_SIZE(kTLSv13CipherTests));
++  std::vector<CipherTest> cipherRules =
++      combine_tests(kTLSv13RuleOnly, OPENSSL_ARRAY_SIZE(kTLSv13RuleOnly),
++                    kTLSv13CipherTests, OPENSSL_ARRAY_SIZE(kTLSv13CipherTests));
+   for (const CipherTest &t : cipherRules) {
+     SCOPED_TRACE(t.rule);
+     bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
+@@ -861,7 +859,8 @@ TEST(SSLTest, TLSv13CipherRules) {
+ 
+     // Test lax mode.
+     ASSERT_TRUE(SSL_CTX_set_ciphersuites(ctx.get(), t.rule));
+-    EXPECT_TRUE(CipherListsEqual(ctx.get(), t.expected, true /* TLSv1.3 only */))
++    EXPECT_TRUE(
++        CipherListsEqual(ctx.get(), t.expected, true /* TLSv1.3 only */))
+         << "Cipher rule evaluated to:\n"
+         << CipherListToString(ctx.get(), true /* TLSv1.3 only */);
+ 
+@@ -1075,8 +1074,9 @@ static const char kBoringSSLSession[] =
+     "g6JqyzYRnOhIZqNtf7gT1Ef+i1pcc/yu2RsyGTirlzQUqpbS66McFAhJtrvlke+D"
+     "NusdVm/K2rxzY5Dkf3s+Iss9B+1fOHSc4wNQTqGvmO5h8oQ/Eg==";
+ 
+-// kBadSessionExtraField is a custom serialized SSL_SESSION generated by replacing
+-// the final (optional) element of |kCustomSession| with tag number 99.
++// kBadSessionExtraField is a custom serialized SSL_SESSION generated by
++// replacing the final (optional) element of |kCustomSession| with tag
++// number 99.
+ static const char kBadSessionExtraField[] =
+     "MIIBdgIBAQICAwMEAsAvBCAG5Q1ndq4Yfmbeo1zwLkNRKmCXGdNgWvGT3cskV0yQ"
+     "kAQwJlrlzkAWBOWiLj/jJ76D7l+UXoizP2KI2C7I2FccqMmIfFmmkUy32nIJ0mZH"
+@@ -1402,8 +1402,7 @@ static bssl::UniquePtr<SSL_SESSION> CreateSessionWithTicket(uint16_t version,
+   std::vector<uint8_t> ticket(ticket_len, 'a');
+   bssl::UniquePtr<SSL_SESSION> session(
+       SSL_SESSION_from_bytes(der.data(), der.size(), ssl_ctx.get()));
+-  if (!session ||
+-      !SSL_SESSION_set_protocol_version(session.get(), version) ||
++  if (!session || !SSL_SESSION_set_protocol_version(session.get(), version) ||
+       !SSL_SESSION_set_ticket(session.get(), ticket.data(), ticket.size())) {
+     return nullptr;
+   }
+@@ -1635,8 +1634,7 @@ static bssl::UniquePtr<CRYPTO_BUFFER> BufferFromPEM(const char *pem) {
+   char *name, *header;
+   uint8_t *data;
+   long data_len;
+-  if (!PEM_read_bio(bio.get(), &name, &header, &data,
+-                    &data_len)) {
++  if (!PEM_read_bio(bio.get(), &name, &header, &data, &data_len)) {
+     return nullptr;
+   }
+   OPENSSL_free(name);
+@@ -1749,8 +1747,7 @@ static bool CompleteHandshakes(SSL *client, SSL *server) {
+   for (;;) {
+     int client_ret = SSL_do_handshake(client);
+     int client_err = SSL_get_error(client, client_ret);
+-    if (client_err != SSL_ERROR_NONE &&
+-        client_err != SSL_ERROR_WANT_READ &&
++    if (client_err != SSL_ERROR_NONE && client_err != SSL_ERROR_WANT_READ &&
+         client_err != SSL_ERROR_WANT_WRITE &&
+         client_err != SSL_ERROR_PENDING_TICKET) {
+       fprintf(stderr, "Client error: %s\n", SSL_error_description(client_err));
+@@ -1759,8 +1756,7 @@ static bool CompleteHandshakes(SSL *client, SSL *server) {
+ 
+     int server_ret = SSL_do_handshake(server);
+     int server_err = SSL_get_error(server, server_ret);
+-    if (server_err != SSL_ERROR_NONE &&
+-        server_err != SSL_ERROR_WANT_READ &&
++    if (server_err != SSL_ERROR_NONE && server_err != SSL_ERROR_WANT_READ &&
+         server_err != SSL_ERROR_WANT_WRITE &&
+         server_err != SSL_ERROR_PENDING_TICKET) {
+       fprintf(stderr, "Server error: %s\n", SSL_error_description(server_err));
+@@ -1987,8 +1983,7 @@ struct ECHConfigParams {
+ 
+ // MakeECHConfig serializes an ECHConfig from |params| and writes it to
+ // |*out|.
+-bool MakeECHConfig(std::vector<uint8_t> *out,
+-                         const ECHConfigParams &params) {
++bool MakeECHConfig(std::vector<uint8_t> *out, const ECHConfigParams &params) {
+   uint16_t kem_id = params.kem_id == 0
+                         ? EVP_HPKE_KEM_id(EVP_HPKE_KEY_kem(params.key))
+                         : params.kem_id;
+@@ -2005,8 +2000,7 @@ bool MakeECHConfig(std::vector<uint8_t> *out,
+ 
+   bssl::ScopedCBB cbb;
+   CBB contents, child;
+-  if (!CBB_init(cbb.get(), 64) ||
+-      !CBB_add_u16(cbb.get(), params.version) ||
++  if (!CBB_init(cbb.get(), 64) || !CBB_add_u16(cbb.get(), params.version) ||
+       !CBB_add_u16_length_prefixed(cbb.get(), &contents) ||
+       !CBB_add_u8(&contents, params.config_id) ||
+       !CBB_add_u16(&contents, kem_id) ||
+@@ -2207,7 +2201,8 @@ TEST(SSLTest, ECHKeyConsistency) {
+   truncated.public_key.assign(public_key, public_key + public_key_len - 1);
+   ASSERT_TRUE(MakeECHConfig(&ech_config, truncated));
+   EXPECT_FALSE(SSL_ECH_KEYS_add(keys.get(), /*is_retry_config=*/1,
+-                                ech_config.data(), ech_config.size(), key.get()));
++                                ech_config.data(), ech_config.size(),
++                                key.get()));
+ 
+   // Adding an ECHConfig with the right public key, but wrong KEM ID, is an
+   // error.
+@@ -2451,10 +2446,10 @@ TEST(SSLTest, ECHPublicName) {
+   EXPECT_FALSE(ssl_is_valid_ech_public_name(str_to_span("www.example-.com")));
+   EXPECT_FALSE(
+       ssl_is_valid_ech_public_name(str_to_span("no_underscores.example")));
+-  EXPECT_FALSE(ssl_is_valid_ech_public_name(
+-      str_to_span("invalid_chars.\x01.example")));
+-  EXPECT_FALSE(ssl_is_valid_ech_public_name(
+-      str_to_span("invalid_chars.\xff.example")));
++  EXPECT_FALSE(
++      ssl_is_valid_ech_public_name(str_to_span("invalid_chars.\x01.example")));
++  EXPECT_FALSE(
++      ssl_is_valid_ech_public_name(str_to_span("invalid_chars.\xff.example")));
+   static const uint8_t kWithNUL[] = {'t', 'e', 's', 't', 0};
+   EXPECT_FALSE(ssl_is_valid_ech_public_name(kWithNUL));
+ 
+@@ -2481,12 +2476,11 @@ TEST(SSLTest, ECHPublicName) {
+       str_to_span("example.0x0123456789abcdefABCDEF")));
+   // Adding a non-digit or non-hex character makes it a valid DNS name again.
+   // Single-component numbers are rejected.
+-  EXPECT_TRUE(ssl_is_valid_ech_public_name(
+-      str_to_span("example.1234567890a")));
+-  EXPECT_TRUE(ssl_is_valid_ech_public_name(
+-      str_to_span("example.01234567890a")));
+-  EXPECT_TRUE(ssl_is_valid_ech_public_name(
+-      str_to_span("example.0x123456789abcdefg")));
++  EXPECT_TRUE(ssl_is_valid_ech_public_name(str_to_span("example.1234567890a")));
++  EXPECT_TRUE(
++      ssl_is_valid_ech_public_name(str_to_span("example.01234567890a")));
++  EXPECT_TRUE(
++      ssl_is_valid_ech_public_name(str_to_span("example.0x123456789abcdefg")));
+   EXPECT_FALSE(ssl_is_valid_ech_public_name(str_to_span("1")));
+   EXPECT_FALSE(ssl_is_valid_ech_public_name(str_to_span("01")));
+   EXPECT_FALSE(ssl_is_valid_ech_public_name(str_to_span("0x01")));
+@@ -2781,15 +2775,15 @@ TEST(SSLTest, TLS13ExporterAvailability) {
+ }
+ 
+ static void AppendSession(SSL_SESSION *session, void *arg) {
+-  std::vector<SSL_SESSION*> *out =
+-      reinterpret_cast<std::vector<SSL_SESSION*>*>(arg);
++  std::vector<SSL_SESSION *> *out =
++      reinterpret_cast<std::vector<SSL_SESSION *> *>(arg);
+   out->push_back(session);
+ }
+ 
+ // CacheEquals returns true if |ctx|'s session cache consists of |expected|, in
+ // order.
+ static bool CacheEquals(SSL_CTX *ctx,
+-                        const std::vector<SSL_SESSION*> &expected) {
++                        const std::vector<SSL_SESSION *> &expected) {
+   // Check the linked list.
+   SSL_SESSION *ptr = ctx->session_cache_head;
+   for (SSL_SESSION *session : expected) {
+@@ -2809,7 +2803,7 @@ static bool CacheEquals(SSL_CTX *ctx,
+   }
+ 
+   // Check the hash table.
+-  std::vector<SSL_SESSION*> actual, expected_copy;
++  std::vector<SSL_SESSION *> actual, expected_copy;
+   lh_SSL_SESSION_doall_arg(ctx->sessions, AppendSession, &actual);
+   expected_copy = expected;
+ 
+@@ -2941,9 +2935,9 @@ class SSLVersionTest : public ::testing::TestWithParam<VersionParam> {
+   }
+ 
+   bool Connect(const ClientConfig &config = ClientConfig()) {
+-    bool connected = ConnectClientAndServer(&client_, &server_, client_ctx_.get(),
+-                                  server_ctx_.get(), config,
+-                                  shed_handshake_config_);
++    bool connected = ConnectClientAndServer(
++        &client_, &server_, client_ctx_.get(), server_ctx_.get(), config,
++        shed_handshake_config_);
+     if (connected) {
+       TransferServerSSL();
+     }
+@@ -3185,8 +3179,7 @@ TEST_P(SSLVersionTest, WriteAfterHandshakeSentFatalAlert) {
+     } else {
+       invalid = {'i', 'n', 'v', 'a', 'l', 'i', 'd'};
+     }
+-    bssl::UniquePtr<BIO> rbio(
+-        BIO_new_mem_buf(invalid.data(), invalid.size()));
++    bssl::UniquePtr<BIO> rbio(BIO_new_mem_buf(invalid.data(), invalid.size()));
+     ASSERT_TRUE(rbio);
+     SSL_set0_rbio(ssl.get(), rbio.release());
+ 
+@@ -3542,39 +3535,39 @@ TEST(SSLTest, ClientHello) {
+     uint16_t max_version;
+     std::vector<uint8_t> expected;
+   } kTests[] = {
+-    {TLS1_VERSION,
+-     {0x16, 0x03, 0x01, 0x00, 0x5a, 0x01, 0x00, 0x00, 0x56, 0x03, 0x01, 0x00,
+-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0xc0, 0x09,
+-      0xc0, 0x13, 0xc0, 0x0a, 0xc0, 0x14, 0x00, 0x2f, 0x00, 0x35, 0x00, 0x0a,
+-      0x01, 0x00, 0x00, 0x1f, 0x00, 0x17, 0x00, 0x00, 0xff, 0x01, 0x00, 0x01,
+-      0x00, 0x00, 0x0a, 0x00, 0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00,
+-      0x18, 0x00, 0x0b, 0x00, 0x02, 0x01, 0x00, 0x00, 0x23, 0x00, 0x00}},
+-    {TLS1_1_VERSION,
+-     {0x16, 0x03, 0x01, 0x00, 0x5a, 0x01, 0x00, 0x00, 0x56, 0x03, 0x02, 0x00,
+-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0xc0, 0x09,
+-      0xc0, 0x13, 0xc0, 0x0a, 0xc0, 0x14, 0x00, 0x2f, 0x00, 0x35, 0x00, 0x0a,
+-      0x01, 0x00, 0x00, 0x1f, 0x00, 0x17, 0x00, 0x00, 0xff, 0x01, 0x00, 0x01,
+-      0x00, 0x00, 0x0a, 0x00, 0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00,
+-      0x18, 0x00, 0x0b, 0x00, 0x02, 0x01, 0x00, 0x00, 0x23, 0x00, 0x00}},
+-    {TLS1_2_VERSION,
+-     {0x16, 0x03, 0x01, 0x00, 0x86, 0x01, 0x00, 0x00, 0x82, 0x03, 0x03, 0x00,
+-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x22, 0xcc, 0xa9,
+-      0xcc, 0xa8, 0xc0, 0x2b, 0xc0, 0x2f, 0xc0, 0x2c, 0xc0, 0x30, 0xc0, 0x09,
+-      0xc0, 0x13, 0xc0, 0x27, 0xc0, 0x0a, 0xc0, 0x14, 0x00, 0x9c, 0x00, 0x9d,
+-      0x00, 0x2f, 0x00, 0x3c, 0x00, 0x35, 0x00, 0x0a, 0x01, 0x00, 0x00, 0x37,
+-      0x00, 0x17, 0x00, 0x00, 0xff, 0x01, 0x00, 0x01, 0x00, 0x00, 0x0a, 0x00,
+-      0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00, 0x18, 0x00, 0x0b, 0x00,
+-      0x02, 0x01, 0x00, 0x00, 0x23, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x14, 0x00,
+-      0x12, 0x04, 0x03, 0x08, 0x04, 0x04, 0x01, 0x05, 0x03, 0x08, 0x05, 0x05,
+-      0x01, 0x08, 0x06, 0x06, 0x01, 0x02, 0x01}},
+-    // TODO(davidben): Add a change detector for TLS 1.3 once the spec and our
+-    // implementation has settled enough that it won't change.
++      {TLS1_VERSION,
++       {0x16, 0x03, 0x01, 0x00, 0x5a, 0x01, 0x00, 0x00, 0x56, 0x03, 0x01, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0xc0, 0x09,
++        0xc0, 0x13, 0xc0, 0x0a, 0xc0, 0x14, 0x00, 0x2f, 0x00, 0x35, 0x00, 0x0a,
++        0x01, 0x00, 0x00, 0x1f, 0x00, 0x17, 0x00, 0x00, 0xff, 0x01, 0x00, 0x01,
++        0x00, 0x00, 0x0a, 0x00, 0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00,
++        0x18, 0x00, 0x0b, 0x00, 0x02, 0x01, 0x00, 0x00, 0x23, 0x00, 0x00}},
++      {TLS1_1_VERSION,
++       {0x16, 0x03, 0x01, 0x00, 0x5a, 0x01, 0x00, 0x00, 0x56, 0x03, 0x02, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0xc0, 0x09,
++        0xc0, 0x13, 0xc0, 0x0a, 0xc0, 0x14, 0x00, 0x2f, 0x00, 0x35, 0x00, 0x0a,
++        0x01, 0x00, 0x00, 0x1f, 0x00, 0x17, 0x00, 0x00, 0xff, 0x01, 0x00, 0x01,
++        0x00, 0x00, 0x0a, 0x00, 0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00,
++        0x18, 0x00, 0x0b, 0x00, 0x02, 0x01, 0x00, 0x00, 0x23, 0x00, 0x00}},
++      {TLS1_2_VERSION,
++       {0x16, 0x03, 0x01, 0x00, 0x86, 0x01, 0x00, 0x00, 0x82, 0x03, 0x03, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x22, 0xcc, 0xa9,
++        0xcc, 0xa8, 0xc0, 0x2b, 0xc0, 0x2f, 0xc0, 0x2c, 0xc0, 0x30, 0xc0, 0x09,
++        0xc0, 0x13, 0xc0, 0x27, 0xc0, 0x0a, 0xc0, 0x14, 0x00, 0x9c, 0x00, 0x9d,
++        0x00, 0x2f, 0x00, 0x3c, 0x00, 0x35, 0x00, 0x0a, 0x01, 0x00, 0x00, 0x37,
++        0x00, 0x17, 0x00, 0x00, 0xff, 0x01, 0x00, 0x01, 0x00, 0x00, 0x0a, 0x00,
++        0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00, 0x18, 0x00, 0x0b, 0x00,
++        0x02, 0x01, 0x00, 0x00, 0x23, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x14, 0x00,
++        0x12, 0x04, 0x03, 0x08, 0x04, 0x04, 0x01, 0x05, 0x03, 0x08, 0x05, 0x05,
++        0x01, 0x08, 0x06, 0x06, 0x01, 0x02, 0x01}},
++      // TODO(davidben): Add a change detector for TLS 1.3 once the spec and our
++      // implementation has settled enough that it won't change.
+   };
+ 
+   for (const auto &t : kTests) {
+@@ -4289,7 +4282,7 @@ TEST_P(SSLVersionTest, SSLClearFailsWithShedding) {
+   ASSERT_FALSE(SSL_clear(server_.get()));
+ }
+ 
+-static bool ChainsEqual(STACK_OF(X509) * chain,
++static bool ChainsEqual(STACK_OF(X509) *chain,
+                         const std::vector<X509 *> &expected) {
+   if (sk_X509_num(chain) != expected.size()) {
+     return false;
+@@ -4786,7 +4779,7 @@ TEST(SSLTest, SetChainAndKeyMismatch) {
+   ASSERT_TRUE(key);
+   bssl::UniquePtr<CRYPTO_BUFFER> leaf = GetChainTestCertificateBuffer();
+   ASSERT_TRUE(leaf);
+-  std::vector<CRYPTO_BUFFER*> chain = {
++  std::vector<CRYPTO_BUFFER *> chain = {
+       leaf.get(),
+   };
+ 
+@@ -4811,8 +4804,9 @@ TEST(SSLTest, SetChainAndKey) {
+   bssl::UniquePtr<CRYPTO_BUFFER> intermediate =
+       GetChainTestIntermediateBuffer();
+   ASSERT_TRUE(intermediate);
+-  std::vector<CRYPTO_BUFFER*> chain = {
+-      leaf.get(), intermediate.get(),
++  std::vector<CRYPTO_BUFFER *> chain = {
++      leaf.get(),
++      intermediate.get(),
+   };
+   ASSERT_TRUE(SSL_CTX_set_chain_and_key(server_ctx.get(), &chain[0],
+                                         chain.size(), key.get(), nullptr));
+@@ -4841,7 +4835,7 @@ TEST(SSLTest, BuffersFailWithoutCustomVerify) {
+   ASSERT_TRUE(key);
+   bssl::UniquePtr<CRYPTO_BUFFER> leaf = GetChainTestCertificateBuffer();
+   ASSERT_TRUE(leaf);
+-  std::vector<CRYPTO_BUFFER*> chain = { leaf.get() };
++  std::vector<CRYPTO_BUFFER *> chain = {leaf.get()};
+   ASSERT_TRUE(SSL_CTX_set_chain_and_key(server_ctx.get(), &chain[0],
+                                         chain.size(), key.get(), nullptr));
+ 
+@@ -4871,7 +4865,7 @@ TEST(SSLTest, CustomVerify) {
+   ASSERT_TRUE(key);
+   bssl::UniquePtr<CRYPTO_BUFFER> leaf = GetChainTestCertificateBuffer();
+   ASSERT_TRUE(leaf);
+-  std::vector<CRYPTO_BUFFER*> chain = { leaf.get() };
++  std::vector<CRYPTO_BUFFER *> chain = {leaf.get()};
+   ASSERT_TRUE(SSL_CTX_set_chain_and_key(server_ctx.get(), &chain[0],
+                                         chain.size(), key.get(), nullptr));
+ 
+@@ -5015,7 +5009,7 @@ static int ssl_test_ticket_aead_ex_index_dup(CRYPTO_EX_DATA *to,
+ static void ssl_test_ticket_aead_ex_index_free(void *parent, void *ptr,
+                                                CRYPTO_EX_DATA *ad, int index,
+                                                long argl, void *argp) {
+-  auto state = reinterpret_cast<ssl_test_ticket_aead_state*>(ptr);
++  auto state = reinterpret_cast<ssl_test_ticket_aead_state *>(ptr);
+   if (state == nullptr) {
+     return;
+   }
+@@ -5035,9 +5029,7 @@ static int ssl_test_ticket_aead_get_ex_index() {
+   return g_ssl_test_ticket_aead_ex_index;
+ }
+ 
+-static size_t ssl_test_ticket_aead_max_overhead(SSL *ssl) {
+-  return 1;
+-}
++static size_t ssl_test_ticket_aead_max_overhead(SSL *ssl) { return 1; }
+ 
+ static int ssl_test_ticket_aead_seal(SSL *ssl, uint8_t *out, size_t *out_len,
+                                      size_t max_out_len, const uint8_t *in,
+@@ -5096,9 +5088,9 @@ static ssl_ticket_aead_result_t ssl_test_ticket_aead_open(
+ }
+ 
+ static const SSL_TICKET_AEAD_METHOD kSSLTestTicketMethod = {
+-  ssl_test_ticket_aead_max_overhead,
+-  ssl_test_ticket_aead_seal,
+-  ssl_test_ticket_aead_open,
++    ssl_test_ticket_aead_max_overhead,
++    ssl_test_ticket_aead_seal,
++    ssl_test_ticket_aead_open,
+ };
+ 
+ static void ConnectClientAndServerWithTicketMethod(
+@@ -5158,7 +5150,8 @@ TEST_P(TicketAEADMethodTest, Resume) {
+       testing::get<2>(GetParam());
+   const bool transfer_ssl = testing::get<3>(GetParam());
+   if (transfer_ssl && (version == TLS1_3_VERSION)) {
+-    // TODO: remove this condition when TLS1_3 is supported by SSL encode/decode.
++    // TODO: remove this condition when TLS1_3 is supported by SSL
++    // encode/decode.
+     return;
+   }
+ 
+@@ -5179,7 +5172,8 @@ TEST_P(TicketAEADMethodTest, Resume) {
+   ConnectClientAndServerWithTicketMethod(&client, &server, client_ctx.get(),
+                                          server_ctx.get(), retry_count,
+                                          failure_mode, nullptr);
+-  // Only transfer when the code is to test SSL transfer and the connection is finished successuflly.
++  // Only transfer when the code is to test SSL transfer and the connection is
++  // finished successuflly.
+   if (transfer_ssl && server) {
+     // |server| is reset to hold the transferred SSL.
+     TransferSSL(&server, server_ctx.get(), nullptr);
+@@ -5203,7 +5197,8 @@ TEST_P(TicketAEADMethodTest, Resume) {
+                                          server_ctx.get(), retry_count,
+                                          failure_mode, session.get());
+   // Do SSL transfer again.
+-  // Only transfer when the code is to test SSL transfer and the connection is finished successuflly.
++  // Only transfer when the code is to test SSL transfer and the connection is
++  // finished successuflly.
+   if (transfer_ssl && server) {
+     // |server| is reset to hold the transferred SSL.
+     TransferSSL(&server, server_ctx.get(), nullptr);
+@@ -5695,7 +5690,7 @@ static std::string SigAlgsToString(Span<const uint16_t> sigalgs) {
+ 
+     char buf[8];
+     snprintf(buf, sizeof(buf) - 1, "0x%02x", v);
+-    buf[sizeof(buf)-1] = 0;
++    buf[sizeof(buf) - 1] = 0;
+     ret += std::string(buf);
+   }
+ 
+@@ -5901,23 +5896,31 @@ TEST(SSLTest, ApplyHandoffRemovesUnsupportedCurves) {
+ TEST(SSLTest, EncodeAndDecodeKAT) {
+   bssl::UniquePtr<SSL_CTX> server_ctx(SSL_CTX_new(TLS_method()));
+   // In runner.go, the test case "Basic-Server-TLS-Sync-SSL_Transfer" is used to
+-  // generate below bytes by adding print statement on the output of |SSL_to_bytes|
+-  // in bssl_shim.cc.
++  // generate below bytes by adding print statement on the output of
++  // |SSL_to_bytes| in bssl_shim.cc.
+   const std::string data =
+-    "308201173082011302010102020303020240003081fa020101040800000000000000010408000000"
+-    "00000000010420000004d29e62f41ded4bb33d0faa6ffada380e2c489dfbfb444f574e4752440104"
+-    "20cf3926d1ec5a562a642935a8050222b0aed93ffd9d1cac682274d942e99e42a604020000020100"
+-    "020103040cb9b409f5129440622f87f84402010c040c1f49e2e989c66a263e9c227502010c020100"
+-    "020100020100a05b3059020101020203030402cca80400043085668dcf9f0921094ebd7f91bf2a8c"
+-    "60d276e4c279fd85a989402f678682324fd8098dc19d900b856d0a77e048e3ced2a104020204d2a2"
+-    "0402021c20a4020400b1030101ffb20302011da206040474657374a7030101ff020108020100a003"
+-    "0101ff";
++      "308201173082011302010102020303020240003081fa0201010408000000000000000104"
++      "08000000"
++      "00000000010420000004d29e62f41ded4bb33d0faa6ffada380e2c489dfbfb444f574e47"
++      "52440104"
++      "20cf3926d1ec5a562a642935a8050222b0aed93ffd9d1cac682274d942e99e42a6040200"
++      "00020100"
++      "020103040cb9b409f5129440622f87f84402010c040c1f49e2e989c66a263e9c22750201"
++      "0c020100"
++      "020100020100a05b3059020101020203030402cca80400043085668dcf9f0921094ebd7f"
++      "91bf2a8c"
++      "60d276e4c279fd85a989402f678682324fd8098dc19d900b856d0a77e048e3ced2a10402"
++      "0204d2a2"
++      "0402021c20a4020400b1030101ffb20302011da206040474657374a7030101ff02010802"
++      "0100a003"
++      "0101ff";
+ 
+   std::vector<uint8_t> bytes;
+   ASSERT_TRUE(DecodeHex(&bytes, data));
+ 
+   // Check the bytes are decoded successfully.
+-  bssl::UniquePtr<SSL> ssl(SSL_from_bytes(bytes.data(), bytes.size(), server_ctx.get()));
++  bssl::UniquePtr<SSL> ssl(
++      SSL_from_bytes(bytes.data(), bytes.size(), server_ctx.get()));
+   ASSERT_TRUE(ssl);
+   // Check the ssl can be encoded successfully.
+   size_t encoded_len;
+@@ -5966,12 +5969,13 @@ TEST_P(SSLVersionTest, VerifyBeforeCertRequest) {
+       [](SSL *ssl, uint8_t *out_alert) { return ssl_verify_invalid; });
+ 
+   // cert_cb should not be called. Verification should fail first.
+-  SSL_CTX_set_cert_cb(client_ctx_.get(),
+-                      [](SSL *ssl, void *arg) {
+-                        ADD_FAILURE() << "cert_cb unexpectedly called";
+-                        return 0;
+-                      },
+-                      nullptr);
++  SSL_CTX_set_cert_cb(
++      client_ctx_.get(),
++      [](SSL *ssl, void *arg) {
++        ADD_FAILURE() << "cert_cb unexpectedly called";
++        return 0;
++      },
++      nullptr);
+ 
+   bssl::UniquePtr<SSL> client, server;
+   EXPECT_FALSE(ConnectClientAndServer(&client, &server, client_ctx_.get(),
+@@ -6262,13 +6266,13 @@ TEST_P(SSLVersionTest, SessionMissCache) {
+   static const int kNumConnections = 2;
+   config.session = expired_session.get();
+   EXPECT_TRUE(ConnectClientAndServer(&client, &server, client_ctx_.get(),
+-                                       server_ctx_.get(), config));
++                                     server_ctx_.get(), config));
+   EXPECT_TRUE(ConnectClientAndServer(&client, &server, client_ctx_.get(),
+-                                       server_ctx_.get(), config));
++                                     server_ctx_.get(), config));
+ 
+   // First connection is not an |sess_miss|, but failed to connect successfully.
+   // Subsequent connections will all be both timeouts and misses.
+-  EXPECT_EQ(SSL_CTX_sess_misses(server_ctx_.get()), kNumConnections-1);
++  EXPECT_EQ(SSL_CTX_sess_misses(server_ctx_.get()), kNumConnections - 1);
+   EXPECT_EQ(SSL_CTX_sess_timeouts(server_ctx_.get()), kNumConnections);
+ }
+ 
+@@ -6280,7 +6284,7 @@ TEST_P(SSLVersionTest, SessionMissCache) {
+ static bssl::UniquePtr<SSL_SESSION> ssl_session;
+ static SSL_SESSION *get_session(SSL *ssl, const unsigned char *id, int idlen,
+                                 int *do_copy) {
+-    return ssl_session.release();
++  return ssl_session.release();
+ }
+ 
+ TEST_P(SSLVersionTest, SessionExternalCacheHit) {
+@@ -6292,20 +6296,20 @@ TEST_P(SSLVersionTest, SessionExternalCacheHit) {
+ 
+   SSL_CTX_set_options(server_ctx_.get(), SSL_OP_NO_TICKET);
+   SSL_CTX_set_session_cache_mode(client_ctx_.get(), SSL_SESS_CACHE_BOTH);
+-  SSL_CTX_set_session_cache_mode(server_ctx_.get(),
+-                             SSL_SESS_CACHE_BOTH | SSL_SESS_CACHE_NO_INTERNAL);
++  SSL_CTX_set_session_cache_mode(
++      server_ctx_.get(), SSL_SESS_CACHE_BOTH | SSL_SESS_CACHE_NO_INTERNAL);
+   SSL_CTX_sess_set_get_cb(server_ctx_.get(), get_session);
+ 
+   ClientConfig config;
+   bssl::UniquePtr<SSL> client, server;
+   bssl::UniquePtr<SSL_SESSION> session =
+-        CreateClientSession(client_ctx_.get(), server_ctx_.get());
++      CreateClientSession(client_ctx_.get(), server_ctx_.get());
+ 
+   static const int kNumConnections = 2;
+   config.session = session.get();
+   for (int i = 0; i < kNumConnections; i++) {
+-        ssl_session.reset(session.get());
+-        EXPECT_TRUE(ConnectClientAndServer(&client, &server, client_ctx_.get(),
++    ssl_session.reset(session.get());
++    EXPECT_TRUE(ConnectClientAndServer(&client, &server, client_ctx_.get(),
+                                        server_ctx_.get(), config));
+   }
+   EXPECT_EQ(SSL_CTX_sess_cb_hits(server_ctx_.get()), kNumConnections);
+@@ -6551,8 +6555,7 @@ class MockQUICTransportPair {
+   bool SecretsMatch(ssl_encryption_level_t level) const {
+     // We only need to check |HasReadSecret| and |HasWriteSecret| on |client_|.
+     // |PeerSecretsMatch| checks that |server_| is analogously configured.
+-    return client_.PeerSecretsMatch(level) &&
+-           client_.HasWriteSecret(level) &&
++    return client_.PeerSecretsMatch(level) && client_.HasWriteSecret(level) &&
+            (level == ssl_encryption_early_data || client_.HasReadSecret(level));
+   }
+ 
+@@ -6604,9 +6607,7 @@ class QUICMethodTest : public testing::Test {
+            SSL_provide_quic_data(ssl, level, data.data(), data.size());
+   }
+ 
+-  void AllowOutOfOrderWrites() {
+-    allow_out_of_order_writes_ = true;
+-  }
++  void AllowOutOfOrderWrites() { allow_out_of_order_writes_ = true; }
+ 
+   bool CreateClientAndServer() {
+     client_.reset(SSL_new(client_ctx_.get()));
+@@ -6703,8 +6704,7 @@ class QUICMethodTest : public testing::Test {
+   bssl::UniquePtr<SSL_SESSION> CreateClientSessionForQUIC() {
+     g_last_session = nullptr;
+     SSL_CTX_sess_set_new_cb(client_ctx_.get(), SaveLastSession);
+-    if (!CreateClientAndServer() ||
+-        !CompleteHandshakesForQUIC()) {
++    if (!CreateClientAndServer() || !CompleteHandshakesForQUIC()) {
+       return nullptr;
+     }
+ 
+@@ -7182,11 +7182,12 @@ TEST_F(QUICMethodTest, Async) {
+ 
+   // Install an asynchronous certificate callback.
+   bool cert_cb_ok = false;
+-  SSL_set_cert_cb(server_.get(),
+-                  [](SSL *, void *arg) -> int {
+-                    return *static_cast<bool *>(arg) ? 1 : -1;
+-                  },
+-                  &cert_cb_ok);
++  SSL_set_cert_cb(
++      server_.get(),
++      [](SSL *, void *arg) -> int {
++        return *static_cast<bool *>(arg) ? 1 : -1;
++      },
++      &cert_cb_ok);
+ 
+   for (;;) {
+     int client_ret = SSL_do_handshake(client_.get());
+@@ -7883,7 +7884,7 @@ TEST_P(SSLVersionTest, UnrelatedServerNoResume) {
+   EXPECT_FALSE(SSL_session_reused(server.get()));
+ }
+ 
+-Span<const uint8_t> SessionIDOf(const SSL* ssl) {
++Span<const uint8_t> SessionIDOf(const SSL *ssl) {
+   const SSL_SESSION *session = SSL_get_session(ssl);
+   unsigned len;
+   const uint8_t *data = SSL_SESSION_get_id(session, &len);
+@@ -8127,7 +8128,7 @@ TEST(SSLTest, CopyWithoutEarlyData) {
+   // The client should attempt early data with |session|.
+   bssl::UniquePtr<SSL> client, server;
+   ASSERT_TRUE(CreateClientAndServer(&client, &server, client_ctx.get(),
+-                                     server_ctx.get()));
++                                    server_ctx.get()));
+   SSL_set_session(client.get(), session.get());
+   SSL_set_early_data_enabled(client.get(), 1);
+   ASSERT_EQ(1, SSL_do_handshake(client.get()));
+@@ -8813,7 +8814,7 @@ xNCwyMX9mtdXdQicOfNjIGUCD5OLV5PgHFPRKiHHioBAhg==
+ 
+     bssl::UniquePtr<STACK_OF(X509_NAME)> stack(sk_X509_NAME_new_null());
+     ASSERT_TRUE(stack);
+-    for (const auto& name : t.existing) {
++    for (const auto &name : t.existing) {
+       const uint8_t *inp = name.data();
+       bssl::UniquePtr<X509_NAME> name_obj(
+           d2i_X509_NAME(nullptr, &inp, name.size()));
+diff --git a/ssl/ssl_transfer_asn1.cc b/ssl/ssl_transfer_asn1.cc
+index 47efbf75a..f5e73f04f 100644
+--- a/ssl/ssl_transfer_asn1.cc
++++ b/ssl/ssl_transfer_asn1.cc
+@@ -18,26 +18,22 @@ bool ssl_transfer_supported(const SSL *in) {
+     return false;
+   }
+ 
+-  // An SSL connection can't be serialized by current implementation under some conditions
+-  // 0) It's not server SSL.
+-  // 1) It's a DTLS connection.
+-  // 2) It uses QUIC
+-  // 3) Its SSL_SESSION isn't serializable.
+-  // 4) Handshake hasn't finished yet.
+-  // 5) TLS version is not supported(currently, only TLS 1.2 is supported).
+-  // 6) Write is not in clean state(|SSL_write| should finish the |in| write, no pending writes).
+-  // 7) ssl shutdown state is not ssl_shutdown_none.
++  // An SSL connection can't be serialized by current implementation under some
++  // conditions 0) It's not server SSL. 1) It's a DTLS connection. 2) It uses
++  // QUIC 3) Its SSL_SESSION isn't serializable. 4) Handshake hasn't finished
++  // yet. 5) TLS version is not supported(currently, only TLS 1.2 is supported).
++  // 6) Write is not in clean state(|SSL_write| should finish the |in| write, no
++  // pending writes). 7) ssl shutdown state is not ssl_shutdown_none.
+   //    TODO: support TLS 1.3 and TLS 1.1.
+-  if (!SSL_is_server(in) ||                                     // (0)
+-      SSL_is_dtls(in) ||                                        // (1)
+-      in->quic_method != nullptr ||                             // (2)
+-      !in->s3 ||                                                // (3)
+-      !in->s3->established_session ||
+-      SSL_in_init(in) ||                                        // (4)
+-      in->version != TLS1_2_VERSION ||                          // (5)
+-      in->s3->unreported_bytes_written > 0 ||                   // (6)
++  if (!SSL_is_server(in) ||                               // (0)
++      SSL_is_dtls(in) ||                                  // (1)
++      in->quic_method != nullptr ||                       // (2)
++      !in->s3 ||                                          // (3)
++      !in->s3->established_session || SSL_in_init(in) ||  // (4)
++      in->version != TLS1_2_VERSION ||                    // (5)
++      in->s3->unreported_bytes_written > 0 ||             // (6)
+       in->s3->pending_write.size() > 0 ||
+-      in->s3->read_shutdown != ssl_shutdown_none ||             // (7)
++      in->s3->read_shutdown != ssl_shutdown_none ||  // (7)
+       in->s3->write_shutdown != ssl_shutdown_none) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_UNSUPPORTED);
+     return false;
+@@ -54,7 +50,7 @@ using namespace bssl;
+ // tagged with |tag| from |cbs| and stows it in |*out|. It returns one on
+ // success, whether or not the element was found, and zero on decode error.
+ static bool SSL3_STATE_parse_octet_string(CBS *cbs, Array<uint8_t> *out,
+-                               unsigned tag) {
++                                          unsigned tag) {
+   CBS value;
+   if (!CBS_get_optional_asn1_octet_string(cbs, &value, NULL, tag)) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
+@@ -67,7 +63,8 @@ static bool SSL3_STATE_parse_octet_string(CBS *cbs, Array<uint8_t> *out,
+ // tagged with |tag| from |cbs| and saves it in |*out|. If the element was not
+ // found, it sets |*out| to NULL. It returns one on success, whether or not the
+ // element was found, and zero on decode error.
+-static int parse_optional_string(CBS *cbs, UniquePtr<char> *out, unsigned tag, int reason) {
++static int parse_optional_string(CBS *cbs, UniquePtr<char> *out, unsigned tag,
++                                 int reason) {
+   CBS value;
+   int present;
+   if (!CBS_get_optional_asn1_octet_string(cbs, &value, &present, tag)) {
+@@ -123,25 +120,26 @@ static const unsigned kS3SessionReusedTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 1;
+ static const unsigned kS3HostNameTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 2;
+-static const unsigned kS3ALPNSelectedTag = 
++static const unsigned kS3ALPNSelectedTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 3;
+-static const unsigned kS3NextProtoNegotiatedTag = 
++static const unsigned kS3NextProtoNegotiatedTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 4;
+-static const unsigned kS3ChannelIdValidTag = 
++static const unsigned kS3ChannelIdValidTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 5;
+-static const unsigned kS3ChannelIdTag = 
++static const unsigned kS3ChannelIdTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 6;
+-static const unsigned kS3SendConnectionBindingTag = 
++static const unsigned kS3SendConnectionBindingTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 7;
+-static const unsigned kS3PendingAppDataTag = 
++static const unsigned kS3PendingAppDataTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 8;
+-static const unsigned kS3ReadBufferTag = 
++static const unsigned kS3ReadBufferTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 9;
+-static const unsigned kS3NotResumableTag = 
++static const unsigned kS3NotResumableTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 10;
+ 
+ // *** EXPERIMENTAL — DO NOT USE WITHOUT CHECKING ***
+-// These SSL3_STATE serialization functions are developed to support SSL transfer.
++// These SSL3_STATE serialization functions are developed to support SSL
++// transfer.
+ 
+ // ssl3_state_to_bytes serializes |in| to bytes stored in |cbb|.
+ // It returns one on success and zero on failure.
+@@ -149,16 +147,12 @@ static const unsigned kS3NotResumableTag =
+ // An SSL3_STATE is serialized as the following ASN.1 structure:
+ //
+ // SSL3State ::= SEQUENCE {
+-//    version                           INTEGER (1),  -- SSL3_STATE structure version
+-//    readSequence                      OCTET STRING,
+-//    writeSequence                     OCTET STRING,
+-//    serverRandom                      OCTET STRING,
+-//    clientRandom                      OCTET STRING,
+-//    sendAlert                         OCTET STRING,
+-//    rwstate                           INTEGER,
+-//    earlyDataReason                   INTEGER,
+-//    previousClientFinished            OCTET STRING,
+-//    previousClientFinishedLen         INTEGER,
++//    version                           INTEGER (1),  -- SSL3_STATE structure
++//    version readSequence                      OCTET STRING, writeSequence
++//    OCTET STRING, serverRandom                      OCTET STRING, clientRandom
++//    OCTET STRING, sendAlert                         OCTET STRING, rwstate
++//    INTEGER, earlyDataReason                   INTEGER, previousClientFinished
++//    OCTET STRING, previousClientFinishedLen         INTEGER,
+ //    previousServerFinished            OCTET STRING,
+ //    previousServerFinishedLen         INTEGER,
+ //    emptyRecordCount                  INTEGER,
+@@ -175,7 +169,8 @@ static const unsigned kS3NotResumableTag =
+ //    pendingAppData                    [8] SEQUENCE OPTIONAL,
+ //                                          -- see Span ASN1.
+ //    readBuffer                        [9] SEQUENCE OPTIONAL,
+-//                                          -- see ASN1 struct in the comment of |DoSerialization|.
++//                                          -- see ASN1 struct in the comment of
++//                                          |DoSerialization|.
+ //    notResumable                      [10] BOOLEAN OPTIONAL,
+ // }
+ //
+@@ -198,9 +193,11 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, CBB *cbb) {
+       !CBB_add_asn1_octet_string(&s3, in->send_alert, SSL3_SEND_ALERT_SIZE) ||
+       !CBB_add_asn1_int64(&s3, in->rwstate) ||
+       !CBB_add_asn1_int64(&s3, in->early_data_reason) ||
+-      !CBB_add_asn1_octet_string(&s3, in->previous_client_finished, PREV_FINISHED_MAX_SIZE) ||
++      !CBB_add_asn1_octet_string(&s3, in->previous_client_finished,
++                                 PREV_FINISHED_MAX_SIZE) ||
+       !CBB_add_asn1_uint64(&s3, in->previous_client_finished_len) ||
+-      !CBB_add_asn1_octet_string(&s3, in->previous_server_finished, PREV_FINISHED_MAX_SIZE) ||
++      !CBB_add_asn1_octet_string(&s3, in->previous_server_finished,
++                                 PREV_FINISHED_MAX_SIZE) ||
+       !CBB_add_asn1_uint64(&s3, in->previous_server_finished_len) ||
+       !CBB_add_asn1_uint64(&s3, in->empty_record_count) ||
+       !CBB_add_asn1_uint64(&s3, in->warning_alert_count) ||
+@@ -258,7 +255,8 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, CBB *cbb) {
+       return 0;
+     }
+     if (!CBB_add_asn1(&s3, &child, kS3ChannelIdTag) ||
+-        !CBB_add_asn1_octet_string(&child, in->channel_id, SSL3_CHANNEL_ID_SIZE)) {
++        !CBB_add_asn1_octet_string(&child, in->channel_id,
++                                   SSL3_CHANNEL_ID_SIZE)) {
+       OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+       return 0;
+     }
+@@ -273,8 +271,10 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, CBB *cbb) {
+   }
+ 
+   if (!in->pending_app_data.empty()) {
+-    // This should never happen because pending_app_data is just a span and points to read_buffer.
+-    if (!in->read_buffer.buf_ptr() || in->read_buffer.buf_ptr() > in->pending_app_data.data()) {
++    // This should never happen because pending_app_data is just a span and
++    // points to read_buffer.
++    if (!in->read_buffer.buf_ptr() ||
++        in->read_buffer.buf_ptr() > in->pending_app_data.data()) {
+       OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
+       return 0;
+     }
+@@ -288,8 +288,7 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, CBB *cbb) {
+     }
+   }
+ 
+-  if (!in->pending_app_data.empty() ||
+-      !in->read_buffer.empty()) {
++  if (!in->pending_app_data.empty() || !in->read_buffer.empty()) {
+     if (!CBB_add_asn1(&s3, &child, kS3ReadBufferTag) ||
+         !in->read_buffer.DoSerialization(&child)) {
+       return 0;
+@@ -307,7 +306,8 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, CBB *cbb) {
+   return CBB_flush(cbb);
+ }
+ 
+-static int SSL3_STATE_parse_session(CBS *cbs, UniquePtr<SSL_SESSION> *out, const SSL_CTX *ctx) {
++static int SSL3_STATE_parse_session(CBS *cbs, UniquePtr<SSL_SESSION> *out,
++                                    const SSL_CTX *ctx) {
+   CBS value;
+   int present;
+   if (!CBS_get_optional_asn1(cbs, &value, &present, kS3EstablishedSessionTag)) {
+@@ -316,14 +316,15 @@ static int SSL3_STATE_parse_session(CBS *cbs, UniquePtr<SSL_SESSION> *out, const
+   }
+   if (present) {
+     UniquePtr<SSL_SESSION> ptr =
+-      SSL_SESSION_parse(&value, ctx->x509_method, ctx->pool);
++        SSL_SESSION_parse(&value, ctx->x509_method, ctx->pool);
+     if (!ptr) {
+       return 0;
+     }
+     out->reset(ptr.release());
+     return 1;
+   } else {
+-    // session should exist because ssl transfer only supports SSL completes handshake.
++    // session should exist because ssl transfer only supports SSL completes
++    // handshake.
+     OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
+     out->reset();
+     return 0;
+@@ -331,19 +332,21 @@ static int SSL3_STATE_parse_session(CBS *cbs, UniquePtr<SSL_SESSION> *out, const
+ }
+ 
+ // SSL3_STATE_from_bytes recovers SSL3_STATE from |cbs|.
+-// |ssl| is used because |tls1_configure_aead| is used to recover |aead_read_ctx| and |aead_write_ctx|.
++// |ssl| is used because |tls1_configure_aead| is used to recover
++// |aead_read_ctx| and |aead_write_ctx|.
+ static int SSL3_STATE_from_bytes(SSL *ssl, CBS *cbs, const SSL_CTX *ctx) {
+   SSL3_STATE *out = ssl->s3;
+-  CBS s3, read_seq, write_seq, server_random, client_random, send_alert, pending_app_data, read_buffer;
++  CBS s3, read_seq, write_seq, server_random, client_random, send_alert,
++      pending_app_data, read_buffer;
+   CBS previous_client_finished, previous_server_finished;
+   int session_reused, channel_id_valid, send_connection_binding, not_resumable;
+-  uint64_t version, early_data_reason, previous_client_finished_len, previous_server_finished_len;
++  uint64_t version, early_data_reason, previous_client_finished_len,
++      previous_server_finished_len;
+   uint64_t empty_record_count, warning_alert_count, total_renegotiations;
+   int64_t rwstate;
+   int pending_app_data_present, read_buffer_present;
+   if (!CBS_get_asn1(cbs, &s3, CBS_ASN1_SEQUENCE) ||
+-      !CBS_get_asn1_uint64(&s3, &version) ||
+-      version != kS3Version ||
++      !CBS_get_asn1_uint64(&s3, &version) || version != kS3Version ||
+       !CBS_get_asn1(&s3, &read_seq, CBS_ASN1_OCTETSTRING) ||
+       CBS_len(&read_seq) != TLS_SEQ_NUM_SIZE ||
+       !CBS_get_asn1(&s3, &write_seq, CBS_ASN1_OCTETSTRING) ||
+@@ -369,21 +372,33 @@ static int SSL3_STATE_from_bytes(SSL *ssl, CBS *cbs, const SSL_CTX *ctx) {
+       !CBS_get_asn1_uint64(&s3, &warning_alert_count) ||
+       !CBS_get_asn1_uint64(&s3, &total_renegotiations) ||
+       !SSL3_STATE_parse_session(&s3, &(out->established_session), ctx) ||
+-      !CBS_get_optional_asn1_bool(&s3, &session_reused, kS3SessionReusedTag, 0 /* default to false */) ||
+-      !parse_optional_string(&s3, &(out->hostname), kS3HostNameTag, SSL_R_SERIALIZATION_INVALID_SSL3_STATE) ||
+-      !SSL3_STATE_parse_octet_string(&s3, &(out->alpn_selected), kS3ALPNSelectedTag) ||
+-      !SSL3_STATE_parse_octet_string(&s3, &(out->next_proto_negotiated), kS3NextProtoNegotiatedTag) ||
+-      !CBS_get_optional_asn1_bool(&s3, &channel_id_valid, kS3ChannelIdValidTag, 0 /* default to false */) ||
+-      !SSL3_STATE_get_optional_octet_string(&s3, out->channel_id, kS3ChannelIdTag, SSL3_CHANNEL_ID_SIZE) ||
+-      !CBS_get_optional_asn1_bool(&s3, &send_connection_binding, kS3SendConnectionBindingTag, 0 /* default to false */) ||
+-      !CBS_get_optional_asn1(&s3, &pending_app_data, &pending_app_data_present, kS3PendingAppDataTag) ||
+-      !CBS_get_optional_asn1(&s3, &read_buffer, &read_buffer_present, kS3ReadBufferTag) ||
+-      !CBS_get_optional_asn1_bool(&s3, &not_resumable, kS3NotResumableTag, 0 /* default to false */) ||
++      !CBS_get_optional_asn1_bool(&s3, &session_reused, kS3SessionReusedTag,
++                                  0 /* default to false */) ||
++      !parse_optional_string(&s3, &(out->hostname), kS3HostNameTag,
++                             SSL_R_SERIALIZATION_INVALID_SSL3_STATE) ||
++      !SSL3_STATE_parse_octet_string(&s3, &(out->alpn_selected),
++                                     kS3ALPNSelectedTag) ||
++      !SSL3_STATE_parse_octet_string(&s3, &(out->next_proto_negotiated),
++                                     kS3NextProtoNegotiatedTag) ||
++      !CBS_get_optional_asn1_bool(&s3, &channel_id_valid, kS3ChannelIdValidTag,
++                                  0 /* default to false */) ||
++      !SSL3_STATE_get_optional_octet_string(
++          &s3, out->channel_id, kS3ChannelIdTag, SSL3_CHANNEL_ID_SIZE) ||
++      !CBS_get_optional_asn1_bool(&s3, &send_connection_binding,
++                                  kS3SendConnectionBindingTag,
++                                  0 /* default to false */) ||
++      !CBS_get_optional_asn1(&s3, &pending_app_data, &pending_app_data_present,
++                             kS3PendingAppDataTag) ||
++      !CBS_get_optional_asn1(&s3, &read_buffer, &read_buffer_present,
++                             kS3ReadBufferTag) ||
++      !CBS_get_optional_asn1_bool(&s3, &not_resumable, kS3NotResumableTag,
++                                  0 /* default to false */) ||
+       CBS_len(&s3) != 0) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
+     return 0;
+   }
+-  if (read_buffer_present && !out->read_buffer.DoDeserialization(&read_buffer)) {
++  if (read_buffer_present &&
++      !out->read_buffer.DoDeserialization(&read_buffer)) {
+     return 0;
+   }
+   // If |pending_app_data_size| is not zero, it needs to point to |read_buffer|.
+@@ -392,11 +407,11 @@ static int SSL3_STATE_from_bytes(SSL *ssl, CBS *cbs, const SSL_CTX *ctx) {
+       OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
+       return 0;
+     }
+-    CBS app_seq; 
++    CBS app_seq;
+     uint64_t pending_app_data_offset, pending_app_data_size;
+     if (!CBS_get_asn1(&pending_app_data, &app_seq, CBS_ASN1_SEQUENCE) ||
+-      !CBS_get_asn1_uint64(&app_seq, &pending_app_data_offset) ||
+-      !CBS_get_asn1_uint64(&app_seq, &pending_app_data_size)) {
++        !CBS_get_asn1_uint64(&app_seq, &pending_app_data_offset) ||
++        !CBS_get_asn1_uint64(&app_seq, &pending_app_data_size)) {
+       OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
+       return 0;
+     }
+@@ -404,7 +419,9 @@ static int SSL3_STATE_from_bytes(SSL *ssl, CBS *cbs, const SSL_CTX *ctx) {
+       OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
+       return 0;
+     }
+-    out->pending_app_data = MakeSpan(out->read_buffer.buf_ptr() + pending_app_data_offset, pending_app_data_size);
++    out->pending_app_data =
++        MakeSpan(out->read_buffer.buf_ptr() + pending_app_data_offset,
++                 pending_app_data_size);
+   }
+   // Initialize some states before call |tls1_configure_aead|.
+   // Below comment is copied from |SSL_do_handshake|.
+@@ -413,8 +430,10 @@ static int SSL3_STATE_from_bytes(SSL *ssl, CBS *cbs, const SSL_CTX *ctx) {
+   // have_version is true if the connection's final version is known. Otherwise
+   // the version has not been negotiated yet.
+   out->have_version = true;
+-  OPENSSL_memcpy(out->server_random, CBS_data(&server_random), SSL3_RANDOM_SIZE);
+-  OPENSSL_memcpy(out->client_random, CBS_data(&client_random), SSL3_RANDOM_SIZE);
++  OPENSSL_memcpy(out->server_random, CBS_data(&server_random),
++                 SSL3_RANDOM_SIZE);
++  OPENSSL_memcpy(out->client_random, CBS_data(&client_random),
++                 SSL3_RANDOM_SIZE);
+   SSL_SESSION *session = out->established_session.get();
+   // the impl of |SSL_serialize_handback|, which only fetch IV when it's TLS 1.
+   Array<uint8_t> key_block1, key_block2;
+@@ -427,9 +446,12 @@ static int SSL3_STATE_from_bytes(SSL *ssl, CBS *cbs, const SSL_CTX *ctx) {
+   OPENSSL_memcpy(out->read_sequence, CBS_data(&read_seq), TLS_SEQ_NUM_SIZE);
+   OPENSSL_memcpy(out->write_sequence, CBS_data(&write_seq), TLS_SEQ_NUM_SIZE);
+   OPENSSL_memcpy(out->send_alert, CBS_data(&send_alert), SSL3_SEND_ALERT_SIZE);
+-  OPENSSL_memcpy(out->previous_client_finished, CBS_data(&previous_client_finished), PREV_FINISHED_MAX_SIZE);
+-  OPENSSL_memcpy(out->previous_server_finished, CBS_data(&previous_server_finished), PREV_FINISHED_MAX_SIZE);
+-  out->early_data_reason = static_cast<ssl_early_data_reason_t>(early_data_reason);
++  OPENSSL_memcpy(out->previous_client_finished,
++                 CBS_data(&previous_client_finished), PREV_FINISHED_MAX_SIZE);
++  OPENSSL_memcpy(out->previous_server_finished,
++                 CBS_data(&previous_server_finished), PREV_FINISHED_MAX_SIZE);
++  out->early_data_reason =
++      static_cast<ssl_early_data_reason_t>(early_data_reason);
+   out->rwstate = rwstate;
+   out->session_reused = !!session_reused;
+   if (out->session_reused) {
+@@ -459,8 +481,8 @@ static const unsigned kSSLConfigJdk11WorkaroundTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 1;
+ 
+ // *** EXPERIMENTAL — DO NOT USE WITHOUT CHECKING ***
+-// These SSL_CONFIG serialization functions are developed to support SSL transfer.
+-// Most fields of SSL_CONFIG are not used after handshake completes.
++// These SSL_CONFIG serialization functions are developed to support SSL
++// transfer. Most fields of SSL_CONFIG are not used after handshake completes.
+ // It only encodes some fields needed by SSL_*_getter functions.
+ 
+ // SSL_CONFIG_to_bytes serializes |in| to bytes stored in |cbb|.
+@@ -469,9 +491,8 @@ static const unsigned kSSLConfigJdk11WorkaroundTag =
+ // An SSL_CONFIG is serialized as the following ASN.1 structure:
+ //
+ // SSL_CONFIG ::= SEQUENCE {
+-//    version                           INTEGER (1),  -- SSL_CONFIG structure version
+-//    confMaxVersion                    INTEGER,
+-//    confMinVersion                    INTEGER,
++//    version                           INTEGER (1),  -- SSL_CONFIG structure
++//    version confMaxVersion                    INTEGER, confMinVersion INTEGER,
+ //    ocspStaplingEnabled               [0] BOOLEAN OPTIONAL,
+ //    jdk11Workaround                   [1] BOOLEAN OPTIONAL
+ // }
+@@ -511,12 +532,15 @@ static int SSL_CONFIG_from_bytes(SSL_CONFIG *out, CBS *cbs) {
+   int ocsp_stapling_enabled, jdk11_workaround;
+   uint64_t version, conf_max_version, conf_min_version;
+   if (!CBS_get_asn1(cbs, &config, CBS_ASN1_SEQUENCE) ||
+-      !CBS_get_asn1_uint64(&config, &version) ||
+-      version != kSSLConfigVersion ||
++      !CBS_get_asn1_uint64(&config, &version) || version != kSSLConfigVersion ||
+       !CBS_get_asn1_uint64(&config, &conf_max_version) ||
+       !CBS_get_asn1_uint64(&config, &conf_min_version) ||
+-      !CBS_get_optional_asn1_bool(&config, &ocsp_stapling_enabled, kSSLConfigOcspStaplingEnabledTag, 0 /* default to false */) ||
+-      !CBS_get_optional_asn1_bool(&config, &jdk11_workaround, kSSLConfigJdk11WorkaroundTag, 0 /* default to false */) ||
++      !CBS_get_optional_asn1_bool(&config, &ocsp_stapling_enabled,
++                                  kSSLConfigOcspStaplingEnabledTag,
++                                  0 /* default to false */) ||
++      !CBS_get_optional_asn1_bool(&config, &jdk11_workaround,
++                                  kSSLConfigJdk11WorkaroundTag,
++                                  0 /* default to false */) ||
+       CBS_len(&config) != 0) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL_CONFIG);
+     return 0;
+@@ -527,7 +551,8 @@ static int SSL_CONFIG_from_bytes(SSL_CONFIG *out, CBS *cbs) {
+   out->jdk11_workaround = !!jdk11_workaround;
+   // handoff will always be the normal state(false) after handshake completes.
+   out->handoff = false;
+-  // shed_handshake_config will always be false if config can be encoded(not sheded).
++  // shed_handshake_config will always be false if config can be encoded(not
++  // sheded).
+   out->shed_handshake_config = false;
+   return 1;
+ }
+@@ -537,9 +562,9 @@ static int SSL_CONFIG_from_bytes(SSL_CONFIG *out, CBS *cbs) {
+ // Serialized SSL data version for forward compatibility
+ #define SSL_SERIAL_VERSION 1
+ 
+-static const unsigned kSSLQuietShutdownTag = 
++static const unsigned kSSLQuietShutdownTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 0;
+-static const unsigned kSSLConfigTag = 
++static const unsigned kSSLConfigTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 1;
+ 
+ // Parse serialized SSL connection binary
+@@ -563,13 +588,13 @@ static int SSL_to_bytes_full(const SSL *in, CBB *cbb) {
+   CBB ssl, child;
+ 
+   if (!CBB_add_asn1(cbb, &ssl, CBS_ASN1_SEQUENCE) ||
+-    !CBB_add_asn1_uint64(&ssl, SSL_SERIAL_VERSION) ||
+-    //    FIXME add hash of SSL_CTX
+-    !CBB_add_asn1_uint64(&ssl, in->version) ||
+-    !CBB_add_asn1_uint64(&ssl, in->max_send_fragment) ||
+-    !SSL3_STATE_to_bytes(in->s3, &ssl) ||
+-    !CBB_add_asn1_uint64(&ssl, in->mode) ||
+-    !CBB_add_asn1_uint64(&ssl, in->options)) {
++      !CBB_add_asn1_uint64(&ssl, SSL_SERIAL_VERSION) ||
++      //    FIXME add hash of SSL_CTX
++      !CBB_add_asn1_uint64(&ssl, in->version) ||
++      !CBB_add_asn1_uint64(&ssl, in->max_send_fragment) ||
++      !SSL3_STATE_to_bytes(in->s3, &ssl) ||
++      !CBB_add_asn1_uint64(&ssl, in->mode) ||
++      !CBB_add_asn1_uint64(&ssl, in->options)) {
+     OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+     return 0;
+   }
+@@ -599,8 +624,7 @@ static int SSL_parse(SSL *ssl, CBS *cbs, SSL_CTX *ctx) {
+   int quiet_shutdown;
+   int ssl_config_present = 0;
+ 
+-  if (!CBS_get_asn1(cbs, &ssl_cbs, CBS_ASN1_SEQUENCE) ||
+-      CBS_len(cbs) != 0 ||
++  if (!CBS_get_asn1(cbs, &ssl_cbs, CBS_ASN1_SEQUENCE) || CBS_len(cbs) != 0 ||
+       !CBS_get_asn1_uint64(&ssl_cbs, &ssl_serial_ver)) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL);
+     return 0;
+@@ -613,7 +637,7 @@ static int SSL_parse(SSL *ssl, CBS *cbs, SSL_CTX *ctx) {
+   //    FIXME add hash of SSL_CTX
+   // This TODO is actually a part of SSL DER struct revisit.
+   if (!CBS_get_asn1_uint64(&ssl_cbs, &version) ||
+-    !CBS_get_asn1_uint64(&ssl_cbs, &max_send_fragment)) {
++      !CBS_get_asn1_uint64(&ssl_cbs, &max_send_fragment)) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL);
+     return 0;
+   }
+@@ -634,13 +658,16 @@ static int SSL_parse(SSL *ssl, CBS *cbs, SSL_CTX *ctx) {
+   ssl->mode = mode;
+   ssl->options = options;
+ 
+-  if (!CBS_get_optional_asn1_bool(&ssl_cbs, &quiet_shutdown, kSSLQuietShutdownTag, 0 /* default to false */)) {
++  if (!CBS_get_optional_asn1_bool(&ssl_cbs, &quiet_shutdown,
++                                  kSSLQuietShutdownTag,
++                                  0 /* default to false */)) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL);
+     return 0;
+   }
+   ssl->quiet_shutdown = !!quiet_shutdown;
+ 
+-  if (!CBS_get_optional_asn1(&ssl_cbs, &ssl_config, &ssl_config_present, kSSLConfigTag)) {
++  if (!CBS_get_optional_asn1(&ssl_cbs, &ssl_config, &ssl_config_present,
++                             kSSLConfigTag)) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL);
+     return 0;
+   }
+@@ -675,8 +702,7 @@ SSL *SSL_from_bytes(const uint8_t *in, size_t in_len, SSL_CTX *ctx) {
+ 
+   CBS cbs, seq;
+   CBS_init(&cbs, in, in_len);
+-  if (!CBS_get_asn1(&cbs, &seq, CBS_ASN1_SEQUENCE) ||
+-      (CBS_len(&cbs) != 0)) {
++  if (!CBS_get_asn1(&cbs, &seq, CBS_ASN1_SEQUENCE) || (CBS_len(&cbs) != 0)) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL);
+     return NULL;
+   }
+diff --git a/ssl/test/bssl_shim.cc b/ssl/test/bssl_shim.cc
+index 4b4edf92c..dbc9fff61 100644
+--- a/ssl/test/bssl_shim.cc
++++ b/ssl/test/bssl_shim.cc
+@@ -72,13 +72,9 @@ OPENSSL_MSVC_PRAGMA(warning(pop))
+ 
+ 
+ #if !defined(OPENSSL_WINDOWS)
+-static int closesocket(int sock) {
+-  return close(sock);
+-}
++static int closesocket(int sock) { return close(sock); }
+ 
+-static void PrintSocketError(const char *func) {
+-  perror(func);
+-}
++static void PrintSocketError(const char *func) { perror(func); }
+ #else
+ static void PrintSocketError(const char *func) {
+   fprintf(stderr, "%s: %d\n", func, WSAGetLastError());
+@@ -90,17 +86,15 @@ static int Usage(const char *program) {
+   return 1;
+ }
+ 
+-template<typename T>
++template <typename T>
+ struct Free {
+-  void operator()(T *buf) {
+-    free(buf);
+-  }
++  void operator()(T *buf) { free(buf); }
+ };
+ 
+ // Connect returns a new socket connected to localhost on |port| or -1 on
+ // error.
+ static int Connect(uint16_t port) {
+-  for (int af : { AF_INET6, AF_INET }) {
++  for (int af : {AF_INET6, AF_INET}) {
+     int sock = socket(af, SOCK_STREAM, 0);
+     if (sock == -1) {
+       PrintSocketError("socket");
+@@ -108,7 +102,8 @@ static int Connect(uint16_t port) {
+     }
+     int nodelay = 1;
+     if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY,
+-            reinterpret_cast<const char*>(&nodelay), sizeof(nodelay)) != 0) {
++                   reinterpret_cast<const char *>(&nodelay),
++                   sizeof(nodelay)) != 0) {
+       PrintSocketError("setsockopt");
+       closesocket(sock);
+       return -1;
+@@ -120,7 +115,7 @@ static int Connect(uint16_t port) {
+     socklen_t len = 0;
+ 
+     if (af == AF_INET6) {
+-      sockaddr_in6 *sin6 = (sockaddr_in6 *) &ss;
++      sockaddr_in6 *sin6 = (sockaddr_in6 *)&ss;
+       len = sizeof(*sin6);
+       sin6->sin6_port = htons(port);
+       if (!inet_pton(AF_INET6, "::1", &sin6->sin6_addr)) {
+@@ -129,7 +124,7 @@ static int Connect(uint16_t port) {
+         return -1;
+       }
+     } else if (af == AF_INET) {
+-      sockaddr_in *sin = (sockaddr_in *) &ss;
++      sockaddr_in *sin = (sockaddr_in *)&ss;
+       len = sizeof(*sin);
+       sin->sin_port = htons(port);
+       if (!inet_pton(AF_INET, "127.0.0.1", &sin->sin_addr)) {
+@@ -139,7 +134,7 @@ static int Connect(uint16_t port) {
+       }
+     }
+ 
+-    if (connect(sock, reinterpret_cast<const sockaddr*>(&ss), len) == 0) {
++    if (connect(sock, reinterpret_cast<const sockaddr *>(&ss), len) == 0) {
+       return sock;
+     }
+     closesocket(sock);
+@@ -174,7 +169,8 @@ class SocketCloser {
+   const int sock_;
+ };
+ 
+-static bool TransferSSL(const TestConfig *config, bssl::UniquePtr<SSL> *in, SSL** ssl) {
++static bool TransferSSL(const TestConfig *config, bssl::UniquePtr<SSL> *in,
++                        SSL **ssl) {
+   if (!config || !in || !ssl) {
+     // No ssl transfer logic is executed.
+     return true;
+@@ -232,8 +228,7 @@ static int DoRead(bssl::UniquePtr<SSL> *in, uint8_t *out, size_t max_out) {
+ 
+     // SSL_peek should synchronously return the same data.
+     int ret2 = SSL_peek(ssl, buf.get(), ret);
+-    if (ret2 != ret ||
+-        OPENSSL_memcmp(buf.get(), out, ret) != 0) {
++    if (ret2 != ret || OPENSSL_memcmp(buf.get(), out, ret) != 0) {
+       fprintf(stderr, "First and second SSL_peek did not match.\n");
+       return -1;
+     }
+@@ -245,8 +240,7 @@ static int DoRead(bssl::UniquePtr<SSL> *in, uint8_t *out, size_t max_out) {
+ 
+     // SSL_read should synchronously return the same data and consume it.
+     ret2 = SSL_read(ssl, buf.get(), ret);
+-    if (ret2 != ret ||
+-        OPENSSL_memcmp(buf.get(), out, ret) != 0) {
++    if (ret2 != ret || OPENSSL_memcmp(buf.get(), out, ret) != 0) {
+       fprintf(stderr, "SSL_peek and SSL_read did not match.\n");
+       return -1;
+     }
+@@ -333,9 +327,8 @@ static bool CheckAuthProperties(SSL *ssl, bool is_resume,
+   }
+ 
+   if (config->expect_verify_result) {
+-    int expected_verify_result = config->verify_fail ?
+-      X509_V_ERR_APPLICATION_VERIFICATION :
+-      X509_V_OK;
++    int expected_verify_result =
++        config->verify_fail ? X509_V_ERR_APPLICATION_VERIFICATION : X509_V_OK;
+ 
+     if (SSL_get_verify_result(ssl) != expected_verify_result) {
+       fprintf(stderr, "Wrong certificate verification result\n");
+@@ -376,8 +369,7 @@ static bool CheckAuthProperties(SSL *ssl, bool is_resume,
+     for (size_t i = 0; i < sk_X509_num(chain); i++) {
+       if (X509_cmp(sk_X509_value(chain, i),
+                    sk_X509_value(expect_chain.get(), i)) != 0) {
+-        fprintf(stderr, "Chain certificate %zu did not match.\n",
+-                i + 1);
++        fprintf(stderr, "Chain certificate %zu did not match.\n", i + 1);
+         return false;
+       }
+     }
+@@ -493,10 +485,9 @@ static bool CheckHandshakeProperties(SSL *ssl, bool is_resume,
+   if (!config->expect_server_name.empty()) {
+     const char *server_name =
+         SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
+-    if (server_name == nullptr ||
+-        server_name != config->expect_server_name) {
+-      fprintf(stderr, "servername mismatch (got %s; want %s)\n",
+-              server_name, config->expect_server_name.c_str());
++    if (server_name == nullptr || server_name != config->expect_server_name) {
++      fprintf(stderr, "servername mismatch (got %s; want %s)\n", server_name,
++              config->expect_server_name.c_str());
+       return false;
+     }
+   }
+@@ -552,8 +543,7 @@ static bool CheckHandshakeProperties(SSL *ssl, bool is_resume,
+     size_t peer_params_len;
+     SSL_get_peer_quic_transport_params(ssl, &peer_params, &peer_params_len);
+     if (peer_params_len != config->expect_quic_transport_params.size() ||
+-        OPENSSL_memcmp(peer_params,
+-                       config->expect_quic_transport_params.data(),
++        OPENSSL_memcmp(peer_params, config->expect_quic_transport_params.data(),
+                        peer_params_len) != 0) {
+       fprintf(stderr, "QUIC transport params mismatch\n");
+       return false;
+@@ -567,8 +557,7 @@ static bool CheckHandshakeProperties(SSL *ssl, bool is_resume,
+       return false;
+     }
+     if (config->expect_channel_id.size() != 64 ||
+-        OPENSSL_memcmp(config->expect_channel_id.data(), channel_id, 64) !=
+-            0) {
++        OPENSSL_memcmp(config->expect_channel_id.data(), channel_id, 64) != 0) {
+       fprintf(stderr, "channel id mismatch\n");
+       return false;
+     }
+@@ -613,31 +602,26 @@ static bool CheckHandshakeProperties(SSL *ssl, bool is_resume,
+   uint16_t cipher_id = SSL_CIPHER_get_protocol_id(SSL_get_current_cipher(ssl));
+   if (!config->tls13_ciphersuites.empty() &&
+       config->expect_cipher != cipher_id) {
+-    fprintf(stderr, "Cipher ID was %04x, wanted %04x\n",
+-            cipher_id, config->expect_cipher_aes);
++    fprintf(stderr, "Cipher ID was %04x, wanted %04x\n", cipher_id,
++            config->expect_cipher_aes);
+     return false;
+   }
+ 
+-  if (config->tls13_ciphersuites.empty() &&
+-      config->expect_cipher_aes != 0 &&
+-      EVP_has_aes_hardware() &&
+-      config->expect_cipher_aes != cipher_id) {
++  if (config->tls13_ciphersuites.empty() && config->expect_cipher_aes != 0 &&
++      EVP_has_aes_hardware() && config->expect_cipher_aes != cipher_id) {
+     fprintf(stderr, "Cipher ID was %04x, wanted %04x (has AES hardware)\n",
+             cipher_id, config->expect_cipher_aes);
+     return false;
+   }
+ 
+-  if (config->tls13_ciphersuites.empty() &&
+-      config->expect_cipher_no_aes != 0 &&
+-      !EVP_has_aes_hardware() &&
+-      config->expect_cipher_no_aes != cipher_id) {
++  if (config->tls13_ciphersuites.empty() && config->expect_cipher_no_aes != 0 &&
++      !EVP_has_aes_hardware() && config->expect_cipher_no_aes != cipher_id) {
+     fprintf(stderr, "Cipher ID was %04x, wanted %04x (no AES hardware)\n",
+             cipher_id, config->expect_cipher_no_aes);
+     return false;
+   }
+ 
+-  if (config->expect_cipher != 0 &&
+-      config->expect_cipher != cipher_id) {
++  if (config->expect_cipher != 0 && config->expect_cipher != cipher_id) {
+     fprintf(stderr, "Cipher ID was %04x, wanted %04x\n", cipher_id,
+             config->expect_cipher);
+     return false;
+@@ -962,14 +946,14 @@ static bool DoExchange(bssl::UniquePtr<SSL_SESSION> *out_session,
+     if (config->do_ssl_transfer == 1 && sslTransfer.IsSupported(ssl)) {
+       if (config->tls_unique) {
+         if (!SSL_get_tls_unique(ssl, tls_unique_before_transfer,
+-          &tls_unique_len_before_transfer,
+-          sizeof(tls_unique_before_transfer))) {
++                                &tls_unique_len_before_transfer,
++                                sizeof(tls_unique_before_transfer))) {
+           fprintf(stderr, "failed to get tls-unique before ssl transfer\n");
+           return false;
+         }
+         if (tls_unique_len_before_transfer != 12) {
+           fprintf(stderr, "expected 12 bytes of tls-unique but got %u",
+-            static_cast<unsigned>(tls_unique_len_before_transfer));
++                  static_cast<unsigned>(tls_unique_len_before_transfer));
+           return false;
+         }
+       }
+@@ -1006,8 +990,7 @@ static bool DoExchange(bssl::UniquePtr<SSL_SESSION> *out_session,
+     }
+ 
+     // Skip the |config->async| logic as this should be a no-op.
+-    if (config->no_op_extra_handshake &&
+-        SSL_do_handshake(ssl) != 1) {
++    if (config->no_op_extra_handshake && SSL_do_handshake(ssl) != 1) {
+       fprintf(stderr, "Extra SSL_do_handshake was not a no-op.\n");
+       return false;
+     }
+@@ -1101,8 +1084,9 @@ static bool DoExchange(bssl::UniquePtr<SSL_SESSION> *out_session,
+     }
+ 
+     if (tls_unique_len_before_transfer == 12 &&
+-      !OPENSSL_memcmp(tls_unique, tls_unique_before_transfer, 12)) {
+-      fprintf(stderr, "tls_unique_before_transfer is different from tls_unique.");
++        !OPENSSL_memcmp(tls_unique, tls_unique_before_transfer, 12)) {
++      fprintf(stderr,
++              "tls_unique_before_transfer is different from tls_unique.");
+       return false;
+     }
+ 
+@@ -1156,8 +1140,7 @@ static bool DoExchange(bssl::UniquePtr<SSL_SESSION> *out_session,
+ 
+       // Let only one byte of the record through.
+       AsyncBioAllowWrite(test_state->async_bio, 1);
+-      int write_ret =
+-          SSL_write(ssl, kInitialWrite, strlen(kInitialWrite));
++      int write_ret = SSL_write(ssl, kInitialWrite, strlen(kInitialWrite));
+       if (SSL_get_error(ssl, write_ret) != SSL_ERROR_WANT_WRITE) {
+         fprintf(stderr, "Failed to leave unfinished write.\n");
+         return false;
+@@ -1210,8 +1193,7 @@ static bool DoExchange(bssl::UniquePtr<SSL_SESSION> *out_session,
+ 
+         // After a successful read, with or without False Start, the handshake
+         // must be complete unless we are doing early data.
+-        if (!test_state->handshake_done &&
+-            !SSL_early_data_accepted(ssl)) {
++        if (!test_state->handshake_done && !SSL_early_data_accepted(ssl)) {
+           fprintf(stderr, "handshake was not completed after SSL_read\n");
+           return false;
+         }
+@@ -1243,8 +1225,7 @@ static bool DoExchange(bssl::UniquePtr<SSL_SESSION> *out_session,
+   if (!config->is_server && !config->false_start &&
+       !config->implicit_handshake &&
+       // Session tickets are sent post-handshake in TLS 1.3.
+-      GetProtocolVersion(ssl) < TLS1_3_VERSION &&
+-      test_state->got_new_session) {
++      GetProtocolVersion(ssl) < TLS1_3_VERSION && test_state->got_new_session) {
+     fprintf(stderr, "new session was established after the handshake\n");
+     return false;
+   }
+@@ -1260,8 +1241,7 @@ static bool DoExchange(bssl::UniquePtr<SSL_SESSION> *out_session,
+     }
+ 
+     if (expect_new_session) {
+-      bool got_early_data =
+-          test_state->new_session->ticket_max_early_data != 0;
++      bool got_early_data = test_state->new_session->ticket_max_early_data != 0;
+       if (config->expect_ticket_supports_early_data != got_early_data) {
+         fprintf(stderr,
+                 "new session did%s support early data, but we expected the "
+@@ -1321,11 +1301,9 @@ static bool DoExchange(bssl::UniquePtr<SSL_SESSION> *out_session,
+   }
+ 
+   if (config->renegotiate_explicit &&
+-      SSL_total_renegotiations(ssl) !=
+-          test_state->explicit_renegotiates) {
++      SSL_total_renegotiations(ssl) != test_state->explicit_renegotiates) {
+     fprintf(stderr, "Performed %d renegotiations, but triggered %d of them\n",
+-            SSL_total_renegotiations(ssl),
+-            test_state->explicit_renegotiates);
++            SSL_total_renegotiations(ssl), test_state->explicit_renegotiates);
+     return false;
+   }
+ 
+diff --git a/ssl/test/runner/mock_quic_transport.go b/ssl/test/runner/mock_quic_transport.go
+index 709f7d12a..293927444 100644
+--- a/ssl/test/runner/mock_quic_transport.go
++++ b/ssl/test/runner/mock_quic_transport.go
+@@ -54,16 +54,16 @@ func (e encryptionLevel) String() string {
+ // Messages from TLS that are sent over a mockQUICTransport are a series of
+ // records in the following format:
+ //
+-//   enum {
+-//       initial(0), early_data(1), handshake(2), application(3), (255)
+-//   } EncryptionLevel;
++//	enum {
++//	    initial(0), early_data(1), handshake(2), application(3), (255)
++//	} EncryptionLevel;
+ //
+-//   struct {
+-//       ContentType record_type;
+-//       EncryptionLevel level;
+-//       CipherSuite cipher_suite;
+-//       opaque encrypted_record<0..2^32-1>;
+-//   } MockQUICRecord;
++//	struct {
++//	    ContentType record_type;
++//	    EncryptionLevel level;
++//	    CipherSuite cipher_suite;
++//	    opaque encrypted_record<0..2^32-1>;
++//	} MockQUICRecord;
+ //
+ // The "encrypted" record is the concatenation of the encryption key and
+ // plaintext. It and the cipher suite exist only to check both sides agree on
+diff --git a/ssl/test/runner/runner.go b/ssl/test/runner/runner.go
+index cce3769c8..065803f14 100644
+--- a/ssl/test/runner/runner.go
++++ b/ssl/test/runner/runner.go
+@@ -1259,7 +1259,7 @@ type shimProcess struct {
+ 	stdout, stderr bytes.Buffer
+ 	// default value is false.
+ 	// This is marked as true in |(s *shimProcess) wait()|.
+-	idled          bool
++	idled bool
+ }
+ 
+ // newShimProcess starts a new shim with the specified executable, flags, and
+@@ -2023,7 +2023,7 @@ func convertToSSLTransferTests(tests []testCase) (sslTransferTests []testCase, e
+ 			stTest.flags = append(stTest.flags, "-do-ssl-transfer")
+ 			// When |sslFuzzSeedDir| is specified, pass below flag to let bssl_shim dump the output of |SSL_to_bytes|.
+ 			if len(*sslFuzzSeedDir) != 0 {
+-				stTest.flags = append(stTest.flags, "-ssl-fuzz-seed-path-prefix", *sslFuzzSeedDir + "/" + stTest.name)
++				stTest.flags = append(stTest.flags, "-ssl-fuzz-seed-path-prefix", *sslFuzzSeedDir+"/"+stTest.name)
+ 			}
+ 			sslTransferTests = append(sslTransferTests, stTest)
+ 		} else {
+@@ -12003,9 +12003,9 @@ func addCurveTests() {
+ 		},
+ 	})
+ 
+-        // ... and even if there's another curve in the middle because it's the
+-        // first classical and first post-quantum "curves" that get key shares
+-        // included.
++	// ... and even if there's another curve in the middle because it's the
++	// first classical and first post-quantum "curves" that get key shares
++	// included.
+ 	testCases = append(testCases, testCase{
+ 		name: "CECPQ2KeyShareIncludedThird",
+ 		config: Config{
+@@ -15274,9 +15274,9 @@ func addTLS13CipherPreferenceTests() {
+ 	})
+ 
+ 	tls13CipherSuites := map[string]uint16{
+-		"TLS_AES_256_GCM_SHA384": TLS_AES_256_GCM_SHA384,
++		"TLS_AES_256_GCM_SHA384":       TLS_AES_256_GCM_SHA384,
+ 		"TLS_CHACHA20_POLY1305_SHA256": TLS_CHACHA20_POLY1305_SHA256,
+-		"TLS_AES_128_GCM_SHA256": TLS_AES_128_GCM_SHA256,
++		"TLS_AES_128_GCM_SHA256":       TLS_AES_128_GCM_SHA256,
+ 	}
+ 	for cipherSuite, cipherSuiteId := range tls13CipherSuites {
+ 		// Test that the client sends the configured TLSv1.3 ciphersuites instead of the built in ciphersuites.
+@@ -15296,7 +15296,7 @@ func addTLS13CipherPreferenceTests() {
+ 		// Test that the server uses the configured TLSv1.3 ciphersuites instead of the built in ciphersuites.
+ 		testCases = append(testCases, testCase{
+ 			testType: serverTest,
+-			name: "TLS13-Configured-Ciphersuites-Server-" + cipherSuite,
++			name:     "TLS13-Configured-Ciphersuites-Server-" + cipherSuite,
+ 			config: Config{
+ 				MaxVersion: VersionTLS13,
+ 				CipherSuites: []uint16{
+@@ -15329,14 +15329,14 @@ func addTLS13CipherPreferenceTests() {
+ 		flags: []string{
+ 			"-tls13-ciphersuites", "TLS_CHACHA20_POLY1305_SHA256",
+ 		},
+-		shouldFail:    true,
+-		expectedError: ":HANDSHAKE_FAILURE_ON_CLIENT_HELLO:",
++		shouldFail:         true,
++		expectedError:      ":HANDSHAKE_FAILURE_ON_CLIENT_HELLO:",
+ 		expectedLocalError: "tls: no cipher suite supported by both client and server",
+ 	})
+ 
+ 	testCases = append(testCases, testCase{
+ 		testType: serverTest,
+-		name: "TLS13-Configured-Ciphersuites-Server-No-Shared-Cipher",
++		name:     "TLS13-Configured-Ciphersuites-Server-No-Shared-Cipher",
+ 		config: Config{
+ 			MaxVersion: VersionTLS13,
+ 			CipherSuites: []uint16{
+@@ -15348,7 +15348,7 @@ func addTLS13CipherPreferenceTests() {
+ 		flags: []string{
+ 			"-tls13-ciphersuites", "TLS_CHACHA20_POLY1305_SHA256",
+ 		},
+-		shouldFail:    true,
++		shouldFail:         true,
+ 		expectedError:      ":NO_SHARED_CIPHER:",
+ 		expectedLocalError: "remote error: handshake failure",
+ 	})
+@@ -15428,12 +15428,12 @@ func addPeekTests() {
+ // For SSL transfer(encode/decode), this tests are converted to test the serialization of
+ // |ssl->s3->read_buffer| and |ssl->s3->pending_app_data|.
+ // Below is the difference between |addPeekTests| and |addServerPeekTests|.
+-// 1. addServerPeekTests uses bssl_shim as server.
+-// 2. The MaxVersion is set to TLS 1.2. The default one seems TLS 1.3.
+-// 3. Let Golang TLS client sends messages(len: |maxPlaintext * 50 + 1|) to repeatedly test |SSL_peek| and |SSL_read|.
+-//    Here, the 50 is just a magic number used to test SSL_peek with more rounds.
+-//    100 was used but it caused some tcp io timeout on macOS. See below reference
+-//    CryptoAlg-850?selectedConversation=8749cd07-dcec-44f1-8405-c22aad9fb306. 
++//  1. addServerPeekTests uses bssl_shim as server.
++//  2. The MaxVersion is set to TLS 1.2. The default one seems TLS 1.3.
++//  3. Let Golang TLS client sends messages(len: |maxPlaintext * 50 + 1|) to repeatedly test |SSL_peek| and |SSL_read|.
++//     Here, the 50 is just a magic number used to test SSL_peek with more rounds.
++//     100 was used but it caused some tcp io timeout on macOS. See below reference
++//     CryptoAlg-850?selectedConversation=8749cd07-dcec-44f1-8405-c22aad9fb306.
+ func addServerPeekTests() {
+ 	// Test SSL_peek works, including on empty records.
+ 	testCases = append(testCases, testCase{
+@@ -15442,9 +15442,9 @@ func addServerPeekTests() {
+ 		config: Config{
+ 			MaxVersion: VersionTLS12,
+ 		},
+-		messageLen: maxPlaintext * 50 + 1,
++		messageLen:       maxPlaintext*50 + 1,
+ 		sendEmptyRecords: 1,
+-		flags: []string{"-peek-then-read"},
++		flags:            []string{"-peek-then-read"},
+ 	})
+ 
+ 	// Test SSL_peek can drive the initial handshake.
+@@ -15455,7 +15455,7 @@ func addServerPeekTests() {
+ 			MinVersion: VersionTLS11,
+ 			MaxVersion: VersionTLS12,
+ 		},
+-		messageLen: maxPlaintext * 50 + 1,
++		messageLen: maxPlaintext*50 + 1,
+ 		flags: []string{
+ 			"-peek-then-read",
+ 			"-implicit-handshake",
+@@ -15472,7 +15472,7 @@ func addServerPeekTests() {
+ 				ExpectCloseNotify: true,
+ 			},
+ 		},
+-		messageLen: maxPlaintext * 50 + 1,
++		messageLen: maxPlaintext*50 + 1,
+ 		flags: []string{
+ 			"-peek-then-read",
+ 			"-check-close-notify",

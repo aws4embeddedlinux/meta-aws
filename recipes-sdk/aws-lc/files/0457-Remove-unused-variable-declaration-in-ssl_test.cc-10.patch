@@ -1,0 +1,21 @@
+From e86afbeb2f53e77d9671f0ded36338c9b0e90c9a Mon Sep 17 00:00:00 2001
+From: dkostic <25055813+dkostic@users.noreply.github.com>
+Date: Thu, 29 Jun 2023 16:53:54 +0200
+Subject: [PATCH] Remove unused variable declaration in ssl_test.cc (#1073)
+
+---
+ ssl/ssl_test.cc | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index 352d56685..ed4613053 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -6640,7 +6640,6 @@ TEST_P(SSLVersionTest, FailedHandshakeVerifiedChain) {
+ 
+   ASSERT_TRUE(UseCertAndKey(server_ctx_.get()));
+   UniquePtr<SSL> client_ssl, server_ssl;
+-  ClientConfig config;
+ 
+   ASSERT_TRUE(CreateClientAndServer(&client_ssl, &server_ssl, client_ctx_.get(), server_ctx_.get()));
+   ASSERT_FALSE(CompleteHandshakes(client_ssl.get(), server_ssl.get()));

@@ -1,0 +1,40 @@
+From 8341f23ef106e9f2731cbf2b5d8a1b46a0e363bb Mon Sep 17 00:00:00 2001
+From: Bob Beck <bbe@google.com>
+Date: Thu, 2 Mar 2023 09:02:54 -0700
+Subject: [PATCH] Fix use of unitialized cbb on failure case.
+
+This made fido2's fuzzer angry: https://buganizer.corp.google.com/issues/271220905
+
+Change-Id: Ib1b909be10f230df2daea3942f35cba0a81dcedb
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57765
+Commit-Queue: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+Auto-Submit: Bob Beck <bbe@google.com>
+Reviewed-by: David Benjamin <davidben@google.com>
+(cherry picked from commit e06f172bf22c098719d0d9b970f839b39dcd41ce)
+---
+ crypto/asn1/a_mbstr.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/asn1/a_mbstr.c b/crypto/asn1/a_mbstr.c
+index 80cfac44e..85a7b98a7 100644
+--- a/crypto/asn1/a_mbstr.c
++++ b/crypto/asn1/a_mbstr.c
+@@ -222,6 +222,8 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+     }
+   }
+ 
++  CBB cbb;
++  CBB_zero(&cbb);
+   // If both the same type just copy across
+   if (inform == outform) {
+     if (!ASN1_STRING_set(dest, in, len)) {
+@@ -231,8 +233,6 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+     *out = dest;
+     return str_type;
+   }
+-
+-  CBB cbb;
+   if (!CBB_init(&cbb, size_estimate + 1)) {
+     goto err;
+   }

@@ -1,0 +1,30 @@
+From 129ee9e2f73d94b8e2ea10bd5e6be8c42ebd4fb2 Mon Sep 17 00:00:00 2001
+From: Pete Bentley <prb@google.com>
+Date: Thu, 25 Aug 2022 15:32:33 +0100
+Subject: [PATCH] test_fips: flush stdout before aborting on failure.
+
+When running on a device via `adb shell`, stdout will be a pipe
+and so is block buffered, leading to lost output if abort() is
+called before flushing.
+
+Change-Id: Ica67132fb8b2b1e7967df89fa3d0a9a793d8cbbf
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/54025
+Reviewed-by: Adam Langley <agl@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit 082e953a134ad423a00b8859f9daf5708e729260)
+---
+ util/fipstools/test_fips.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/util/fipstools/test_fips.c b/util/fipstools/test_fips.c
+index 066426708..a05d19d32 100644
+--- a/util/fipstools/test_fips.c
++++ b/util/fipstools/test_fips.c
+@@ -447,5 +447,6 @@ int main(int argc, char **argv) {
+ 
+ err:
+   printf("FAIL\n");
++  fflush(stdout);
+   abort();
+ }

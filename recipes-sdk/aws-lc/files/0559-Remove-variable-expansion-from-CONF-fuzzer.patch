@@ -1,0 +1,271 @@
+From ce0cd0af6bda11a1885a02e3254867a7fad81822 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 24 May 2023 10:35:18 -0400
+Subject: [PATCH] Remove variable expansion from CONF fuzzer
+
+CONF supports a variable expansion feature, which allows a config file
+to easily grow exponentially.
+
+2d05568a7b7bc62affbd13ea97a81b5829b99794 (upstream's
+6a6213556a80ab0a9eb926a1d6023b8bf44f2afd) capped the expansion to 65536
+bytes, but this still allows a small input to produce a fairly large
+output. (Once we have one large value, it only takes five characters
+make a new key that references it, which is an expansion factor of
+around 13,000.) This, combined with the string-based extensions
+machinery's many quadratic behaviors (see
+b92fcfdc17f3ad794c220a86f4ae6695d0a0fb61), means fuzzers hit timeouts.
+
+We have very few uses of these APIs left, and none of them use this
+feature. Just remove it. While none of these super-linear behaviors are
+DoS bugs per se (they should never be passed untrusted input), there's
+no sense in carrying an unused feature that only frustrates the fuzzers.
+
+Update-Note: NCONF_load and NCONF_load_bio no longer support the $foo
+variable expansion syntax. If you are using these functions in your
+project, remove them.
+
+Bug: oss-fuzz:59049
+Change-Id: I85832ae1d05373ee420f4fb68197786736ca8272
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/60105
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit 825bec8c8865e314bfc918c8ad352f154fdc4ba8)
+---
+ crypto/conf/conf.c        | 92 +++------------------------------------
+ crypto/conf/conf_test.cc  | 68 +----------------------------
+ crypto/err/conf.errordata |  1 +
+ include/openssl/conf.h    |  1 +
+ 4 files changed, 10 insertions(+), 152 deletions(-)
+
+diff --git a/crypto/conf/conf.c b/crypto/conf/conf.c
+index 313f105e9..978f034d9 100644
+--- a/crypto/conf/conf.c
++++ b/crypto/conf/conf.c
+@@ -72,10 +72,6 @@
+ 
+ static const char kDefaultSectionName[] = "default";
+ 
+-// The maximum length we can grow a value to after variable expansion. 64k
+-// should be more than enough for all reasonable uses.
+-#define MAX_CONF_VALUE_LENGTH 65536
+-
+ static uint32_t conf_value_hash(const CONF_VALUE *v) {
+   const uint32_t section_hash = v->section ? OPENSSL_strhash(v->section) : 0;
+   const uint32_t name_hash = v->name ? OPENSSL_strhash(v->name) : 0;
+@@ -197,9 +193,8 @@ err:
+ }
+ 
+ static int str_copy(CONF *conf, char *section, char **pto, char *from) {
+-  int q, r, rr = 0, to = 0, len = 0;
+-  char *s, *e, *rp, *rrp, *np, *cp, v;
+-  const char *p;
++  int q, to = 0, len = 0;
++  char v;
+   BUF_MEM *buf;
+ 
+   buf = BUF_MEM_new();
+@@ -246,85 +241,10 @@ static int str_copy(CONF *conf, char *section, char **pto, char *from) {
+     } else if (IS_EOF(conf, *from)) {
+       break;
+     } else if (*from == '$') {
+-      // try to expand it
+-      rrp = NULL;
+-      s = &(from[1]);
+-      if (*s == '{') {
+-        q = '}';
+-      } else if (*s == '(') {
+-        q = ')';
+-      } else {
+-        q = 0;
+-      }
+-
+-      if (q) {
+-        s++;
+-      }
+-      cp = section;
+-      e = np = s;
+-      while (IS_ALPHA_NUMERIC(conf, *e)) {
+-        e++;
+-      }
+-      if (e[0] == ':' && e[1] == ':') {
+-        cp = np;
+-        rrp = e;
+-        rr = *e;
+-        *rrp = '\0';
+-        e += 2;
+-        np = e;
+-        while (IS_ALPHA_NUMERIC(conf, *e)) {
+-          e++;
+-        }
+-      }
+-      r = *e;
+-      *e = '\0';
+-      rp = e;
+-      if (q) {
+-        if (r != q) {
+-          OPENSSL_PUT_ERROR(CONF, CONF_R_NO_CLOSE_BRACE);
+-          goto err;
+-        }
+-        e++;
+-      }
+-      // So at this point we have
+-      // np which is the start of the name string which is
+-      //   '\0' terminated.
+-      // cp which is the start of the section string which is
+-      //   '\0' terminated.
+-      // e is the 'next point after'.
+-      // r and rr are the chars replaced by the '\0'
+-      // rp and rrp is where 'r' and 'rr' came from.
+-      p = NCONF_get_string(conf, cp, np);
+-      if (rrp != NULL) {
+-        *rrp = rr;
+-      }
+-      *rp = r;
+-      if (p == NULL) {
+-        OPENSSL_PUT_ERROR(CONF, CONF_R_VARIABLE_HAS_NO_VALUE);
+-        goto err;
+-      }
+-      size_t newsize = strlen(p) + buf->length - (e - from);
+-      if (newsize > MAX_CONF_VALUE_LENGTH) {
+-        OPENSSL_PUT_ERROR(CONF, CONF_R_VARIABLE_EXPANSION_TOO_LONG);
+-        goto err;
+-      }
+-      if (!BUF_MEM_grow_clean(buf, newsize)) {
+-        goto err;
+-      }
+-      while (*p) {
+-        buf->data[to++] = *(p++);
+-      }
+-
+-      /* Since we change the pointer 'from', we also have
+-         to change the perceived length of the string it
+-         points at.  /RL */
+-      len -= e - from;
+-      from = e;
+-
+-      /* In case there were no braces or parenthesis around
+-         the variable reference, we have to put back the
+-         character that was replaced with a '\0'.  /RL */
+-      *rp = r;
++      // Historically, $foo would expand to a previously-parsed value. This
++      // feature has been removed as it was unused and is a DoS vector.
++      OPENSSL_PUT_ERROR(CONF, CONF_R_VARIABLE_EXPANSION_NOT_SUPPORTED);
++      goto err;
+     } else {
+       buf->data[to++] = *(from++);
+     }
+diff --git a/crypto/conf/conf_test.cc b/crypto/conf/conf_test.cc
+index f913d1e81..b243411db 100644
+--- a/crypto/conf/conf_test.cc
++++ b/crypto/conf/conf_test.cc
+@@ -307,43 +307,6 @@ key7 = value7  # section1
+           },
+       },
+ 
+-      // Values can refer to other values with $.
+-      {
+-          R"(
+-key1 = value1
+-key2 = $key1 ${key1} $(key1)
+-
+-[section1]
+-key3 = value3
+-
+-[section2]
+-key4 = value4
+-key5 = $key4 ${key4} $(key4)
+-key6 = $default::key1 ${default::key1} $(default::key1)
+-key7 = $section1::key3 ${section1::key3} $(section1::key3)
+-key8 = $section2::key4 ${section2::key4} $(section2::key4)
+-)",
+-          {
+-              {"default",
+-               {
+-                   {"key1", "value1"},
+-                   {"key2", "value1 value1 value1"},
+-               }},
+-              {"section1",
+-               {
+-                   {"key3", "value3"},
+-               }},
+-              {"section2",
+-               {
+-                   {"key4", "value4"},
+-                   {"key5", "value4 value4 value4"},
+-                   {"key6", "value1 value1 value1"},
+-                   {"key7", "value3 value3 value3"},
+-                   {"key8", "value4 value4 value4"},
+-               }},
+-          },
+-      },
+-
+       // Punctuation is allowed in key names.
+       {
+           "key.1 = value\n",
+@@ -351,24 +314,6 @@ key8 = $section2::key4 ${section2::key4} $(section2::key4)
+               {"default", {{"key.1", "value"}}},
+           },
+       },
+-
+-      // Punctuation is not allowed in $ references. The punctuation stops the
+-      // parse.
+-      {
+-          R"(
+-key = a
+-key.1 = b
+-ref = $key
+-)",
+-          {
+-              {"default",
+-               {
+-                   {"key", "a"},
+-                   {"key.1", "b"},
+-                   {"ref", "a"},
+-               }},
+-          },
+-      },
+   };
+   for (const auto &t : kTests) {
+     SCOPED_TRACE(t.in);
+@@ -392,17 +337,8 @@ ref = $key
+       // Keys can only contain alphanumeric characters, punctuaion, and escapes.
+       "key name = value",
+       "\"key\" = value",
+-      // Referencing a non-existent variable.
+-      "key = $key2",
+-      // key1 here is interpreted as a section name, not a key.
+-      "key1 = value1\nkey2 = $key1::key",
+-      // No self references.
+-      "key = $key",
+-      // Unterminated braced variable reference.
+-      "key1 = value1\nkey2 = ${key1",
+-      "key1 = value1\nkey2 = $(key1",
+-      // Empty reference.
+-      "key1 = $",
++      // Variable references have been removed.
++      "key1 = value1\nkey2 = $key1",
+   };
+   for (const auto &t : kInvalidTests) {
+     SCOPED_TRACE(t);
+diff --git a/crypto/err/conf.errordata b/crypto/err/conf.errordata
+index e6226e438..d01f50dec 100644
+--- a/crypto/err/conf.errordata
++++ b/crypto/err/conf.errordata
+@@ -3,5 +3,6 @@ CONF,101,MISSING_CLOSE_SQUARE_BRACKET
+ CONF,102,MISSING_EQUAL_SIGN
+ CONF,103,NO_CLOSE_BRACE
+ CONF,104,UNABLE_TO_CREATE_NEW_SECTION
++CONF,107,VARIABLE_EXPANSION_NOT_SUPPORTED
+ CONF,106,VARIABLE_EXPANSION_TOO_LONG
+ CONF,105,VARIABLE_HAS_NO_VALUE
+diff --git a/include/openssl/conf.h b/include/openssl/conf.h
+index f2bb0a77b..04b7af34f 100644
+--- a/include/openssl/conf.h
++++ b/include/openssl/conf.h
+@@ -175,5 +175,6 @@ BSSL_NAMESPACE_END
+ #define CONF_R_UNABLE_TO_CREATE_NEW_SECTION 104
+ #define CONF_R_VARIABLE_HAS_NO_VALUE 105
+ #define CONF_R_VARIABLE_EXPANSION_TOO_LONG 106
++#define CONF_R_VARIABLE_EXPANSION_NOT_SUPPORTED 107
+ 
+ #endif  // OPENSSL_HEADER_THREAD_H

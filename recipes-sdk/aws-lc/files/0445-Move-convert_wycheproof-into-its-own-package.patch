@@ -1,0 +1,43 @@
+From 0fae4c62aa856bdbb7397697046f3175b9ea6e3d Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 24 Apr 2023 16:09:23 -0400
+Subject: [PATCH] Move convert_wycheproof into its own package
+
+This can still be run like go run ../../util/convert_wycheproof. This is
+part of an attempt to reland 54b04fdc21d540a6e24f9ddb7ddc3e583518e24f,
+which ran into an issue with internal tooling that could not handle
+standalone Go files.
+
+Since the only such target we actually needed to run in that repository
+is convert_wycheproof, just promote it into its own package. Then we can
+stop trying to import util.
+
+Change-Id: I6237777dad09e5c81ad961816ce14a287ab2d46a
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59185
+Reviewed-by: Adam Langley <agl@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit 5748eb8a3314281151af1edc63ba58bfd7097d7d)
+---
+ util/{ => convert_wycheproof}/convert_wycheproof.go | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+ rename util/{ => convert_wycheproof}/convert_wycheproof.go (98%)
+
+diff --git a/util/convert_wycheproof.go b/util/convert_wycheproof/convert_wycheproof.go
+similarity index 98%
+rename from util/convert_wycheproof.go
+rename to util/convert_wycheproof/convert_wycheproof.go
+index 76aff175f..1cd8d4563 100644
+--- a/util/convert_wycheproof.go
++++ b/util/convert_wycheproof/convert_wycheproof.go
+@@ -12,8 +12,8 @@
+ // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+ // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ 
+-// convert_wycheproof.go converts Wycheproof test vectors into a format more
+-// easily consumed by BoringSSL.
++// convert_wycheproof converts Wycheproof test vectors into a format more easily
++// consumed by BoringSSL.
+ package main
+ 
+ import (

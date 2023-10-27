@@ -1,0 +1,57 @@
+From 387cb824ea4fe18a96401cf3cc4df6d615a04afb Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sat, 31 Dec 2022 23:13:48 -0500
+Subject: [PATCH] Make ASN1_OBJECT_create size_t-clean.
+
+Change-Id: If7eb9daf65f6c9480a9bffb5f1e1ea3143c5faf7
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58146
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit 173b63942dd0c58a67a354dbb4b86c6f752aac6a)
+---
+ crypto/asn1/a_object.c | 12 ++++++++----
+ include/openssl/asn1.h |  2 +-
+ 2 files changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/crypto/asn1/a_object.c b/crypto/asn1/a_object.c
+index 77bd175ea..55b6dadb0 100644
+--- a/crypto/asn1/a_object.c
++++ b/crypto/asn1/a_object.c
+@@ -261,16 +261,20 @@ void ASN1_OBJECT_free(ASN1_OBJECT *a) {
+   }
+ }
+ 
+-ASN1_OBJECT *ASN1_OBJECT_create(int nid, const unsigned char *data, int len,
++ASN1_OBJECT *ASN1_OBJECT_create(int nid, const unsigned char *data, size_t len,
+                                 const char *sn, const char *ln) {
+-  ASN1_OBJECT o;
++  if (len > INT_MAX) {
++    OPENSSL_PUT_ERROR(ASN1, ASN1_R_STRING_TOO_LONG);
++    return NULL;
++  }
+ 
++  ASN1_OBJECT o;
+   o.sn = sn;
+   o.ln = ln;
+   o.data = data;
+   o.nid = nid;
+-  o.length = len;
++  o.length = (int)len;
+   o.flags = ASN1_OBJECT_FLAG_DYNAMIC | ASN1_OBJECT_FLAG_DYNAMIC_STRINGS |
+             ASN1_OBJECT_FLAG_DYNAMIC_DATA;
+-  return (OBJ_dup(&o));
++  return OBJ_dup(&o);
+ }
+diff --git a/include/openssl/asn1.h b/include/openssl/asn1.h
+index 5bc29711f..de2f13e53 100644
+--- a/include/openssl/asn1.h
++++ b/include/openssl/asn1.h
+@@ -1465,7 +1465,7 @@ DEFINE_STACK_OF(ASN1_OBJECT)
+ // TODO(davidben): Should we just ignore all those parameters? NIDs and names
+ // are only relevant for |ASN1_OBJECT|s in the obj.h table.
+ OPENSSL_EXPORT ASN1_OBJECT *ASN1_OBJECT_create(int nid, const uint8_t *data,
+-                                               int len, const char *sn,
++                                               size_t len, const char *sn,
+                                                const char *ln);
+ 
+ // ASN1_OBJECT_free releases memory associated with |a|. If |a| is a static

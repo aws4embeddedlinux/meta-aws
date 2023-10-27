@@ -1,0 +1,102 @@
+From 8728e91d2749e7db6c311217c2d541f54edb5909 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 27 Dec 2022 00:21:35 -0500
+Subject: [PATCH] Empty stacks are vacuously sorted
+
+In the X.509 policy rewrite, I'll be using sorted stacks to keep the
+overall algorithm subquadratic. Fix up sk_FOO_is_sorted in these edge
+cases so the asserts work more smoothly.
+
+Change-Id: I369f53543f0c2219df6f62a81aead630a9dbcd8d
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56031
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit ff23b7cb2c5bec11044d92dca8fa7d3ca0ec5fbc)
+---
+ crypto/stack/stack.c       |  3 ++-
+ crypto/stack/stack_test.cc | 44 ++++++++++++++++++++++++++++++++++++++
+ include/openssl/stack.h    |  5 +++--
+ 3 files changed, 49 insertions(+), 3 deletions(-)
+
+diff --git a/crypto/stack/stack.c b/crypto/stack/stack.c
+index 2dbb842f5..7f60b2ea7 100644
+--- a/crypto/stack/stack.c
++++ b/crypto/stack/stack.c
+@@ -415,7 +415,8 @@ int sk_is_sorted(const _STACK *sk) {
+   if (!sk) {
+     return 1;
+   }
+-  return sk->sorted;
++  // Zero- and one-element lists are always sorted.
++  return sk->sorted || (sk->comp != NULL && sk->num < 2);
+ }
+ 
+ OPENSSL_sk_cmp_func sk_set_cmp_func(_STACK *sk, OPENSSL_sk_cmp_func comp) {
+diff --git a/crypto/stack/stack_test.cc b/crypto/stack/stack_test.cc
+index 9a7832c2d..f96b94202 100644
+--- a/crypto/stack/stack_test.cc
++++ b/crypto/stack/stack_test.cc
+@@ -434,3 +434,47 @@ TEST(StackTest, DeleteIf) {
+   ExpectStackEquals(sk.get(), {});
+   EXPECT_TRUE(sk_TEST_INT_is_sorted(sk.get()));
+ }
++
++TEST(StackTest, IsSorted) {
++  bssl::UniquePtr<STACK_OF(TEST_INT)> sk(sk_TEST_INT_new_null());
++  ASSERT_TRUE(sk);
++  EXPECT_FALSE(sk_TEST_INT_is_sorted(sk.get()));
++
++  // Empty lists are always known to be sorted.
++  sk_TEST_INT_set_cmp_func(sk.get(), compare);
++  EXPECT_TRUE(sk_TEST_INT_is_sorted(sk.get()));
++
++  // As are one-element lists.
++  auto value = TEST_INT_new(2);
++  ASSERT_TRUE(value);
++  ASSERT_TRUE(bssl::PushToStack(sk.get(), std::move(value)));
++  EXPECT_TRUE(sk_TEST_INT_is_sorted(sk.get()));
++
++  // Two-element lists require an explicit sort.
++  value = TEST_INT_new(1);
++  ASSERT_TRUE(value);
++  ASSERT_TRUE(bssl::PushToStack(sk.get(), std::move(value)));
++  EXPECT_FALSE(sk_TEST_INT_is_sorted(sk.get()));
++
++  // The list is now sorted.
++  sk_TEST_INT_sort(sk.get());
++  EXPECT_TRUE(sk_TEST_INT_is_sorted(sk.get()));
++
++  // After changing the comparison function, it no longer is sorted.
++  sk_TEST_INT_set_cmp_func(sk.get(), compare_reverse);
++  EXPECT_FALSE(sk_TEST_INT_is_sorted(sk.get()));
++
++  sk_TEST_INT_sort(sk.get());
++  EXPECT_TRUE(sk_TEST_INT_is_sorted(sk.get()));
++
++  // But, starting from one element, switching the comparison function preserves
++  // the sorted bit.
++  TEST_INT_free(sk_TEST_INT_pop(sk.get()));
++  EXPECT_TRUE(sk_TEST_INT_is_sorted(sk.get()));
++  sk_TEST_INT_set_cmp_func(sk.get(), compare);
++  EXPECT_TRUE(sk_TEST_INT_is_sorted(sk.get()));
++
++  // Without a comparison function, the list cannot be sorted.
++  sk_TEST_INT_set_cmp_func(sk.get(), nullptr);
++  EXPECT_FALSE(sk_TEST_INT_is_sorted(sk.get()));
++}
+diff --git a/include/openssl/stack.h b/include/openssl/stack.h
+index 9959ee4d5..d7d9821ec 100644
+--- a/include/openssl/stack.h
++++ b/include/openssl/stack.h
+@@ -269,8 +269,9 @@ typedef void *(*OPENSSL_sk_copy_func)(void *ptr);
+ // Note its actual type is |int (*)(const T **a, const T **b)|. Low-level |sk_*|
+ // functions will be passed a type-specific wrapper to call it correctly.
+ //
+-// TODO(davidben): This type should be |const T *const *|. It is already fixed
+-// in OpenSSL 1.1.1, so hopefully we can fix this compatibly.
++// TODO(https://crbug.com/boringssl/498): This type should be
++// |const T *const *|. It is already fixed in OpenSSL 1.1.1, so hopefully we can
++// fix this compatibly.
+ typedef int (*OPENSSL_sk_cmp_func)(const void **a, const void **b);
+ 
+ // OPENSSL_sk_delete_if_func is the generic version of

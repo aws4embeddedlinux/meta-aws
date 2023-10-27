@@ -1,0 +1,137 @@
+From 4cb82544709ef22fb7608cb93836b7a2051729aa Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Fri, 8 Sep 2023 10:23:16 -0700
+Subject: [PATCH] Fix and add CI for postgres build on arm (#1176)
+
+Postgres doesn't allow functions that call `exit` according to their
+Makefile documentation in libpq.
+
+With the `exit` function called in `cpu_aarch64.c`, our build breaks
+prematurely when built with PostGres on ARM.
+
+Co-authored-by: Nevine Ebeid <66388554+nebeid@users.noreply.github.com>
+---
+ crypto/fipsmodule/cpucap/cpu_aarch64.c             |  2 +-
+ .../codebuild/github_ci_integration_omnibus.yaml   | 12 ++++++++++--
+ .../linux-aarch/ubuntu-22.04_base/Dockerfile       |  7 +++++++
+ .../linux-aarch/ubuntu-22.04_gcc-12x/Dockerfile    |  6 ++++++
+ tests/ci/integration/run_postgres_integration.sh   | 14 +++++---------
+ 5 files changed, 29 insertions(+), 12 deletions(-)
+
+diff --git a/crypto/fipsmodule/cpucap/cpu_aarch64.c b/crypto/fipsmodule/cpucap/cpu_aarch64.c
+index 7c085b7e1..5a4de192b 100644
+--- a/crypto/fipsmodule/cpucap/cpu_aarch64.c
++++ b/crypto/fipsmodule/cpucap/cpu_aarch64.c
+@@ -37,7 +37,7 @@ void handle_cpu_env(uint32_t *out, const char *in) {
+     fprintf(stderr,
+             "Fatal Error: HW capability found: 0x%02X, but HW capability requested: 0x%02X.\n",
+             armcap, v);
+-    exit(1);
++    abort();
+   }
+ 
+   if (invert) {
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+index 7d4909aa2..3cbe78209 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+@@ -27,7 +27,7 @@ batch:
+         variables:
+           AWS_LC_CI_TARGET: "tests/ci/integration/run_openssh_integration.sh"
+ 
+-    - identifier: postgres_integration
++    - identifier: postgres_integration_x86
+       buildspec: ./tests/ci/codebuild/integration/postgres_integration.yml
+       env:
+         type: LINUX_CONTAINER
+@@ -35,6 +35,14 @@ batch:
+         compute-type: BUILD_GENERAL1_MEDIUM
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
+ 
++    - identifier: postgres_integration_aarch
++      buildspec: ./tests/ci/codebuild/integration/postgres_integration.yml
++      env:
++        type: ARM_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-22.04_gcc-12x_latest
++
+     # MySQL build is bloated without any obvious build configurations we can use to speed up the build, so we use a larger instance here.
+     - identifier: mysql_integration
+       buildspec: tests/ci/codebuild/common/run_simple_target.yml
+@@ -65,4 +73,4 @@ batch:
+         compute-type: BUILD_GENERAL1_MEDIUM
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
+         variables:
+-          AWS_LC_CI_TARGET: "tests/ci/integration/run_curl_integration.sh"
+\ No newline at end of file
++          AWS_LC_CI_TARGET: "tests/ci/integration/run_curl_integration.sh"
+diff --git a/tests/ci/docker_images/linux-aarch/ubuntu-22.04_base/Dockerfile b/tests/ci/docker_images/linux-aarch/ubuntu-22.04_base/Dockerfile
+index 20cf8f48b..fb273f3b6 100644
+--- a/tests/ci/docker_images/linux-aarch/ubuntu-22.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/ubuntu-22.04_base/Dockerfile
+@@ -22,6 +22,7 @@ RUN set -ex && \
+     apt-get -y --no-install-recommends install \
+     software-properties-common \
+     cmake \
++    make \
+     ninja-build \
+     perl \
+     libunwind-dev \
+@@ -32,6 +33,12 @@ RUN set -ex && \
+     lld \
+     llvm \
+     llvm-dev \
++    libicu-dev \
++    libipc-run-perl \
++    libreadline-dev \
++    zlib1g-dev \
++    flex \
++    bison \
+     curl \
+     unzip && \
+     # Based on https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html
+diff --git a/tests/ci/docker_images/linux-aarch/ubuntu-22.04_gcc-12x/Dockerfile b/tests/ci/docker_images/linux-aarch/ubuntu-22.04_gcc-12x/Dockerfile
+index 760dc93c0..d91c67dc6 100644
+--- a/tests/ci/docker_images/linux-aarch/ubuntu-22.04_gcc-12x/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/ubuntu-22.04_gcc-12x/Dockerfile
+@@ -16,5 +16,11 @@ RUN set -ex && \
+     rm -rf /var/lib/apt/lists/* && \
+     rm -rf /tmp/*
+ 
++# Postgres's integration tests cannot be run as root, so we have to define
++# a non-root user here to use in Codebuild.
++RUN adduser --disabled-password --gecos '' postgres && \
++    adduser postgres sudo && \
++    echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
++
+ ENV CC=gcc-12
+ ENV CXX=g++-12
+diff --git a/tests/ci/integration/run_postgres_integration.sh b/tests/ci/integration/run_postgres_integration.sh
+index 800f9cabc..1a7e5dbe1 100755
+--- a/tests/ci/integration/run_postgres_integration.sh
++++ b/tests/ci/integration/run_postgres_integration.sh
+@@ -7,18 +7,14 @@ source tests/ci/common_posix_setup.sh
+ # Set up environment.
+ 
+ # SYS_ROOT
+-#  |
+-#  - SRC_ROOT(aws-lc)
+-#  |
+ #  - SCRATCH_FOLDER
+-#    |
+-#    - postgres
+-#    - AWS_LC_BUILD_FOLDER
+-#    - AWS_LC_INSTALL_FOLDER
+-#    - POSTGRES_BUILD_FOLDER
++#     - postgres
++#     - AWS_LC_BUILD_FOLDER
++#     - AWS_LC_INSTALL_FOLDER
++#     - POSTGRES_BUILD_FOLDER
+ 
+ # Assumes script is executed from the root of aws-lc directory
+-SCRATCH_FOLDER=${SYS_ROOT}/"POSTGRES_BUILD_ROOT"
++SCRATCH_FOLDER=${SRC_ROOT}/"POSTGRES_BUILD_ROOT"
+ POSTGRES_SRC_FOLDER="${SCRATCH_FOLDER}/postgres"
+ POSTGRES_BUILD_FOLDER="${SCRATCH_FOLDER}/postgres/build"
+ AWS_LC_BUILD_FOLDER="${SCRATCH_FOLDER}/aws-lc-build"

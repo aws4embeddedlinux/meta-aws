@@ -1,0 +1,240 @@
+From 5d566c21166353befd9cc5911a06ab59c1fe15b5 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Thu, 2 Feb 2023 13:30:49 -0800
+Subject: [PATCH] Move x86 valgrind to AL2022, fix known valgrind supression
+ issues (#779)
+
+---
+ crypto/ocsp/ocsp_test.cc                      | 22 +++---
+ .../github_ci_linux_arm_omnibus.yaml          |  8 +++
+ .../github_ci_linux_x86_omnibus.yaml          |  6 +-
+ .../codebuild/common/run_valgrind_tests.yml   | 13 ++++
+ .../amazonlinux-2_gcc-7x_valgrind.yml         | 14 ----
+ .../ci/valgrind_suppressions_crypto_test.supp | 70 -------------------
+ 6 files changed, 35 insertions(+), 98 deletions(-)
+ create mode 100644 tests/ci/codebuild/common/run_valgrind_tests.yml
+ delete mode 100644 tests/ci/codebuild/linux-x86/amazonlinux-2_gcc-7x_valgrind.yml
+
+diff --git a/crypto/ocsp/ocsp_test.cc b/crypto/ocsp/ocsp_test.cc
+index 5c1287ed3..7673df8bd 100644
+--- a/crypto/ocsp/ocsp_test.cc
++++ b/crypto/ocsp/ocsp_test.cc
+@@ -164,9 +164,9 @@ static void CheckOCSP_CERTSTATUS(
+ // OCSP testing methods were taken from s2n's validation tests:
+ // https://github.com/aws/s2n-tls/blob/main/tests/unit/s2n_x509_validator_test.c
+ struct OCSPTestVectorExtended {
+-  std::string ocsp_response;
+-  std::string cafile;
+-  std::string server_cert;
++  const char *ocsp_response;
++  const char *cafile;
++  const char *server_cert;
+   const EVP_MD *dgst;
+   int expected_ocsp_status;
+   int expected_ocsp_verify_status;
+@@ -393,7 +393,7 @@ INSTANTIATE_TEST_SUITE_P(All, OCSPTestExtended, testing::ValuesIn(nTestVectors))
+ TEST_P(OCSPTestExtended, VerifyOCSPResponseExtended) {
+   const OCSPTestVectorExtended &t = GetParam();
+ 
+-  std::string data = GetTestData(std::string("crypto/ocsp/test/aws/" + t.ocsp_response + ".der").c_str());
++  std::string data = GetTestData(std::string("crypto/ocsp/test/aws/" + std::string(t.ocsp_response) + ".der").c_str());
+   std::vector<uint8_t> ocsp_reponse_data(data.begin(), data.end());
+ 
+   // OCSP response parsing and verification step.
+@@ -550,9 +550,9 @@ TEST(OCSPTest, TestGoodOCSP_SHA256) {
+ 
+ // https://github.com/openssl/openssl/blob/OpenSSL_1_1_1-stable/test/recipes/80-test_ocsp.t
+ struct OCSPTestVector{
+-  std::string ocsp_response;
+-  std::string cafile;
+-  std::string untrusted;
++  const char *ocsp_response;
++  const char *cafile;
++  const char *untrusted;
+   int expected_ocsp_verify_status;
+ };
+ 
+@@ -639,7 +639,7 @@ TEST_P(OCSPTest, VerifyOCSPResponse) {
+   bssl::UniquePtr<OCSP_BASICRESP> basic_response;
+ 
+   // Get OCSP response from path.
+-  std::string data = GetTestData(std::string("crypto/ocsp/test/" + t.ocsp_response + ".ors").c_str());
++  std::string data = GetTestData(std::string("crypto/ocsp/test/" + std::string(t.ocsp_response) + ".ors").c_str());
+   std::vector<uint8_t> input;
+   ASSERT_TRUE(DecodeBase64(&input, data.c_str()));
+ 
+@@ -663,16 +663,16 @@ TEST_P(OCSPTest, VerifyOCSPResponse) {
+ 
+   // Get CA root certificate from path and set up trust store.
+   bssl::UniquePtr<X509> ca_certificate(CertFromPEM(
+-      GetTestData(std::string("crypto/ocsp/test/" + t.cafile + ".pem").c_str()).c_str()));
++      GetTestData(std::string("crypto/ocsp/test/" + std::string(t.cafile) + ".pem").c_str()).c_str()));
+   X509_STORE_add_cert(trust_store.get(),ca_certificate.get());
+   ASSERT_EQ(X509_STORE_set1_param(trust_store.get(), vpm.get()), 1);
+ 
+   // If untrusted cert chain isn't available, we only use CA cert as root cert.
+-  if(t.untrusted.empty()){
++  if(std::string(t.untrusted).empty()){
+     server_cert_chain = CertsToStack({ca_certificate.get()});
+   }
+   else {
+-    server_cert_chain = CertChainFromPEM(GetTestData(std::string("crypto/ocsp/test/" + t.untrusted + ".pem").c_str()).c_str());
++    server_cert_chain = CertChainFromPEM(GetTestData(std::string("crypto/ocsp/test/" + std::string(t.untrusted) + ".pem").c_str()).c_str());
+   }
+   ASSERT_TRUE(server_cert_chain);
+ 
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
+index cb304393f..3e41d0cb9 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
+@@ -240,3 +240,11 @@ batch:
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_clang-14x_sanitizer_latest
+         variables:
+           AWS_LC_SSL_RUNNER_START_INDEX: 7001
++
++#    - identifier: amazonlinux2022_gcc11x_aarch_valgrind
++#      buildspec: ./tests/ci/codebuild/common/run_valgrind_tests.yml
++#      env:
++#        type: ARM_CONTAINER
++#        privileged-mode: true
++#        compute-type: BUILD_GENERAL1_LARGE
++#        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_gcc-11x_latest
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+index 28e6e307a..d62aefa78 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+@@ -232,13 +232,13 @@ batch:
+         compute-type: BUILD_GENERAL1_2XLARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_gcc-7x_intel-sde_latest
+ 
+-    - identifier: amazonlinux2_gcc7x_x86_64_valgrind
+-      buildspec: ./tests/ci/codebuild/linux-x86/amazonlinux-2_gcc-7x_valgrind.yml
++    - identifier: amazonlinux2022_gcc11x_x86_64_valgrind
++      buildspec: ./tests/ci/codebuild/common/run_valgrind_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_gcc-7x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_gcc-11x_latest
+ 
+     - identifier: amazonlinux2022_gcc11x_x86_64
+       buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
+diff --git a/tests/ci/codebuild/common/run_valgrind_tests.yml b/tests/ci/codebuild/common/run_valgrind_tests.yml
+new file mode 100644
+index 000000000..0b88054b4
+--- /dev/null
++++ b/tests/ci/codebuild/common/run_valgrind_tests.yml
+@@ -0,0 +1,13 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++version: 0.2
++
++phases:
++  pre_build:
++    commands:
++      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found CC."; fi
++      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found CXX."; fi
++  build:
++    commands:
++      - ./tests/ci/run_valgrind_tests.sh
+diff --git a/tests/ci/codebuild/linux-x86/amazonlinux-2_gcc-7x_valgrind.yml b/tests/ci/codebuild/linux-x86/amazonlinux-2_gcc-7x_valgrind.yml
+deleted file mode 100644
+index 22f9373b7..000000000
+--- a/tests/ci/codebuild/linux-x86/amazonlinux-2_gcc-7x_valgrind.yml
++++ /dev/null
+@@ -1,14 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-version: 0.2
+-
+-phases:
+-  pre_build:
+-    commands:
+-      - if [ $(gcc -dumpfullversion) == 7.3.1 ]; then echo "Found correct gcc version 7"; else gcc --version && echo "gcc version mismatch" && exit 1; fi
+-      - export CC=gcc
+-      - export CXX=g++
+-  build:
+-    commands:
+-      - ./tests/ci/run_valgrind_tests.sh
+diff --git a/tests/ci/valgrind_suppressions_crypto_test.supp b/tests/ci/valgrind_suppressions_crypto_test.supp
+index 3218cb071..777e1d49b 100644
+--- a/tests/ci/valgrind_suppressions_crypto_test.supp
++++ b/tests/ci/valgrind_suppressions_crypto_test.supp
+@@ -5,74 +5,4 @@
+ # Suppression file produced by running:
+ # valgrind --gen-suppressions=yes ./test_build_dir/crypto/crypto_test
+ # https://www.valgrind.org/docs/manual/manual-core.html#manual-core.suppress
+-#
+-# These errors are specific to the internals of the Gtest framework.
+ ###############################################################################
+-#
+-{
+-   <insert_a_suppression_name_here>
+-   Memcheck:Value8
+-   fun:_itoa_word
+-   fun:vfprintf
+-   fun:vsnprintf
+-   fun:snprintf
+-   fun:_ZN7testing12_GLOBAL__N_126PrintByteSegmentInObjectToEPKhmmPSo
+-   fun:_ZN7testing12_GLOBAL__N_124PrintBytesInObjectToImplEPKhmPSo
+-   fun:_ZN7testing8internal20PrintBytesInObjectToEPKhmPSo
+-   fun:_ZN7testing8internal15FallbackPrinter10PrintValueI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal17PrintWithFallbackI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal7PrintToI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal16UniversalPrinterI22OCSPTestVectorExtendedE5PrintERKS2_PSo
+-   fun:_ZN7testing8internal14UniversalPrintI22OCSPTestVectorExtendedEEvRKT_PSo
+-}
+-
+-{
+-   <insert_a_suppression_name_here>
+-   Memcheck:Cond
+-   fun:_itoa_word
+-   fun:vfprintf
+-   fun:vsnprintf
+-   fun:snprintf
+-   fun:_ZN7testing12_GLOBAL__N_126PrintByteSegmentInObjectToEPKhmmPSo
+-   fun:_ZN7testing12_GLOBAL__N_124PrintBytesInObjectToImplEPKhmPSo
+-   fun:_ZN7testing8internal20PrintBytesInObjectToEPKhmPSo
+-   fun:_ZN7testing8internal15FallbackPrinter10PrintValueI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal17PrintWithFallbackI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal7PrintToI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal16UniversalPrinterI22OCSPTestVectorExtendedE5PrintERKS2_PSo
+-   fun:_ZN7testing8internal14UniversalPrintI22OCSPTestVectorExtendedEEvRKT_PSo
+-}
+-
+-{
+-   <insert_a_suppression_name_here>
+-   Memcheck:Cond
+-   fun:vfprintf
+-   fun:vsnprintf
+-   fun:snprintf
+-   fun:_ZN7testing12_GLOBAL__N_126PrintByteSegmentInObjectToEPKhmmPSo
+-   fun:_ZN7testing12_GLOBAL__N_124PrintBytesInObjectToImplEPKhmPSo
+-   fun:_ZN7testing8internal20PrintBytesInObjectToEPKhmPSo
+-   fun:_ZN7testing8internal15FallbackPrinter10PrintValueI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal17PrintWithFallbackI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal7PrintToI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal16UniversalPrinterI22OCSPTestVectorExtendedE5PrintERKS2_PSo
+-   fun:_ZN7testing8internal14UniversalPrintI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal21UniversalTersePrinterI22OCSPTestVectorExtendedE5PrintERKS2_PSo
+-}
+-
+-{
+-   <insert_a_suppression_name_here>
+-   Memcheck:Cond
+-   fun:vfprintf
+-   fun:vsnprintf
+-   fun:snprintf
+-   fun:_ZN7testing12_GLOBAL__N_126PrintByteSegmentInObjectToEPKhmmPSo
+-   fun:_ZN7testing12_GLOBAL__N_124PrintBytesInObjectToImplEPKhmPSo
+-   fun:_ZN7testing8internal20PrintBytesInObjectToEPKhmPSo
+-   fun:_ZN7testing8internal15FallbackPrinter10PrintValueI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal17PrintWithFallbackI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal7PrintToI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal16UniversalPrinterI22OCSPTestVectorExtendedE5PrintERKS2_PSo
+-   fun:_ZN7testing8internal14UniversalPrintI22OCSPTestVectorExtendedEEvRKT_PSo
+-   fun:_ZN7testing8internal21UniversalTersePrinterI22OCSPTestVectorExtendedE5PrintERKS2_PSo
+-}

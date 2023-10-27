@@ -1,0 +1,87 @@
+From 390ab2a0b7049faf51f328c377acb5d9b1c08594 Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Thu, 13 Apr 2023 17:27:52 -0700
+Subject: [PATCH] Add Jitter speed test for FIPS build (#951)
+
+---
+ tool/bssl_bm.h |  2 ++
+ tool/speed.cc  | 39 ++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 40 insertions(+), 1 deletion(-)
+
+diff --git a/tool/bssl_bm.h b/tool/bssl_bm.h
+index 0cf8a5e22..8eeb6f278 100644
+--- a/tool/bssl_bm.h
++++ b/tool/bssl_bm.h
+@@ -8,6 +8,7 @@
+ #include <openssl/aes.h>
+ #include <openssl/base64.h>
+ #include <openssl/bn.h>
++#include "openssl/ctrdrbg.h"
+ #include <openssl/curve25519.h>
+ #include <openssl/crypto.h>
+ #include <openssl/digest.h>
+@@ -29,6 +30,7 @@
+ #if defined(INTERNAL_TOOL)
+ #include <../crypto/ec_extra/internal.h>
+ #include <../crypto/trust_token/internal.h>
++#include "../third_party/jitterentropy/jitterentropy.h"
+ #endif
+ 
+ #define BM_NAMESPACE bssl
+diff --git a/tool/speed.cc b/tool/speed.cc
+index 4c095c669..b15d5042e 100644
+--- a/tool/speed.cc
++++ b/tool/speed.cc
+@@ -1836,6 +1836,42 @@ static bool SpeedSelfTest(const std::string &selected) {
+   results.Print("self-test");
+   return true;
+ }
++
++static bool SpeedJitter(size_t chunk_size) {
++  struct rand_data *jitter_ec = jent_entropy_collector_alloc(0, JENT_FORCE_FIPS);
++
++  std::unique_ptr<char[]> input(new char[chunk_size]);
++  TimeResults results;
++
++  if (!TimeFunction(&results, [&jitter_ec, &input, chunk_size]() -> bool {
++        size_t bytes =
++            jent_read_entropy_safe(&jitter_ec, input.get(), chunk_size);
++        if (bytes != chunk_size) {
++          return false;
++        }
++        return true;
++      })){
++    jent_entropy_collector_free(jitter_ec);
++
++    return false;
++  }
++  results.PrintWithBytes("Jitter", chunk_size);
++
++  jent_entropy_collector_free(jitter_ec);
++  return true;
++}
++
++static bool SpeedJitter(std::string selected) {
++  if (!selected.empty() && selected.find("Jitter") == std::string::npos) {
++    return true;
++  }
++  for (size_t chunk_size : g_chunk_lengths) {
++    if (!SpeedJitter(chunk_size)) {
++      return false;
++    }
++  }
++  return true;
++}
+ #endif
+ 
+ #if !defined(OPENSSL_BENCHMARK) && !defined(BORINGSSL_BENCHMARK)
+@@ -2119,7 +2155,8 @@ bool Speed(const std::vector<std::string> &args) {
+     return false;
+   }
+ #if defined(BORINGSSL_FIPS)
+-  if (!SpeedSelfTest(selected)) {
++  if (!SpeedSelfTest(selected) ||
++      !SpeedJitter(selected)) {
+     return false;
+   }
+ #endif

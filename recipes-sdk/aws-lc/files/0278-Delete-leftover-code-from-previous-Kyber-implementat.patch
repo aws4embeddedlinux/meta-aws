@@ -1,0 +1,28 @@
+From f5bafd432b0cd44df2f31c3502d54bbd0c5e12d9 Mon Sep 17 00:00:00 2001
+From: dkostic <25055813+dkostic@users.noreply.github.com>
+Date: Wed, 12 Apr 2023 08:12:03 -0700
+Subject: [PATCH] Delete leftover code from previous Kyber implementation
+ (#943)
+
+Co-authored-by: dkostic <dkostic@amazon.com>
+---
+ crypto/evp_extra/internal.h | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/crypto/evp_extra/internal.h b/crypto/evp_extra/internal.h
+index b37cab80e..6d82267b1 100644
+--- a/crypto/evp_extra/internal.h
++++ b/crypto/evp_extra/internal.h
+@@ -22,12 +22,6 @@ typedef struct {
+   char has_private;
+ } X25519_KEY;
+ 
+-typedef struct {
+-  uint8_t pub[800];
+-  uint8_t priv[1632];
+-  uint8_t has_private;
+-} KYBER512_KEY;
+-
+ extern const EVP_PKEY_ASN1_METHOD dsa_asn1_meth;
+ extern const EVP_PKEY_ASN1_METHOD ec_asn1_meth;
+ extern const EVP_PKEY_ASN1_METHOD rsa_asn1_meth;

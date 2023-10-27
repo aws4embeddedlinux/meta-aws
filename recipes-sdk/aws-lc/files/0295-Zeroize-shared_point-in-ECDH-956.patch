@@ -1,0 +1,21 @@
+From 8dfbb59535cb1e42546ca3c1927fa2d41e21b9aa Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Tue, 18 Apr 2023 11:06:12 -0700
+Subject: [PATCH] Zeroize shared_point in ECDH (#956)
+
+---
+ crypto/fipsmodule/ecdh/ecdh.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/crypto/fipsmodule/ecdh/ecdh.c b/crypto/fipsmodule/ecdh/ecdh.c
+index 6d11b4871..acafdb8ca 100644
+--- a/crypto/fipsmodule/ecdh/ecdh.c
++++ b/crypto/fipsmodule/ecdh/ecdh.c
+@@ -124,6 +124,7 @@ int ECDH_compute_shared_secret(uint8_t *buf, size_t *buflen, const EC_POINT *pub
+ 
+   ret = 1;
+ end:
++  OPENSSL_cleanse(&shared_point, sizeof(EC_RAW_POINT));
+   FIPS_service_indicator_unlock_state();
+   if (key_pub_key != NULL) {
+     EC_KEY_free(key_pub_key);

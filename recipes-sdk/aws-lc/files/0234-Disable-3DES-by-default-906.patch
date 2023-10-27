@@ -1,0 +1,280 @@
+From 36582f767505181fedd6a72bc9c739a03d46cf13 Mon Sep 17 00:00:00 2001
+From: torben-hansen <50673096+torben-hansen@users.noreply.github.com>
+Date: Mon, 27 Mar 2023 20:07:06 -0700
+Subject: [PATCH] Disable 3DES by default (#906)
+
+Disable 3DES from default cipher suite list. The TLS version specific keyword rules still add 3DES when appropriate (and that is TLS 1 and TLS 1.1).
+
+Some keyword rules map to the default rule ALL. Instead of hard-coding these into the cipher suite mapping structure, we factor them out and just keep the default ALL rule in the structure. Future keywords that should map to default can then be added to a separate list.
+---
+ ssl/ssl_cipher.cc         | 46 ++++++++++++++++++++--------
+ ssl/ssl_test.cc           | 63 ++++++++++++++++++++++++++-------------
+ ssl/test/runner/runner.go | 53 +++++++++++++++++++++++++++++---
+ 3 files changed, 124 insertions(+), 38 deletions(-)
+
+diff --git a/ssl/ssl_cipher.cc b/ssl/ssl_cipher.cc
+index 506ebeb42..441364bc0 100644
+--- a/ssl/ssl_cipher.cc
++++ b/ssl/ssl_cipher.cc
+@@ -522,8 +522,11 @@ typedef struct cipher_alias_st {
+ } CIPHER_ALIAS;
+ 
+ static const CIPHER_ALIAS kCipherAliases[] = {
+-    // "ALL" doesn't include eNULL. It must be explicitly enabled.
+-    {"ALL", ~0u, ~0u, ~0u, ~0u, 0},
++    // "ALL" is the default rule and includes everything except: SSL_3DES and
++    // SSL_eNULL, which must be explicitly configured.
++    // Several "known" keyword rules map to "ALL". See
++    // is_known_default_alias_keyword_filter_rule().
++    {"ALL", ~0u, ~0u, ~(SSL_3DES | SSL_eNULL), ~0u, 0},
+ 
+     // The "COMPLEMENTOFDEFAULT" rule is omitted. It matches nothing.
+ 
+@@ -565,13 +568,9 @@ static const CIPHER_ALIAS kCipherAliases[] = {
+ 
+     // Legacy protocol minimum version aliases. "TLSv1" is intentionally the
+     // same as "SSLv3".
+-    {"SSLv3", ~0u, ~0u, ~0u, ~0u, SSL3_VERSION},
+-    {"TLSv1", ~0u, ~0u, ~0u, ~0u, SSL3_VERSION},
+-    {"TLSv1.2", ~0u, ~0u, ~0u, ~0u, TLS1_2_VERSION},
+-
+-    // Legacy strength classes.
+-    {"HIGH", ~0u, ~0u, ~0u, ~0u, 0},
+-    {"FIPS", ~0u, ~0u, ~0u, ~0u, 0},
++    {"SSLv3", ~0u, ~0u, ~SSL_3DES, ~0u, SSL3_VERSION},
++    {"TLSv1", ~0u, ~0u, ~SSL_3DES, ~0u, SSL3_VERSION},
++    {"TLSv1.2", ~0u, ~0u, ~SSL_3DES, ~0u, TLS1_2_VERSION},
+ 
+     // Temporary no-op aliases corresponding to removed SHA-2 legacy CBC
+     // ciphers. These should be removed after 2018-05-14.
+@@ -1193,6 +1192,26 @@ static bool ssl_cipher_process_rulestr(const char *rule_str,
+   return true;
+ }
+ 
++static const char *kKnownKeywordFilterRulesMappingToDefault[] = {
++  "ALL",
++  "DEFAULT",
++  "FIPS",
++  "HIGH",
++};
++
++static bool is_known_default_alias_keyword_filter_rule(const char *rule,
++  size_t *matched_rule_length) {
++
++  for (auto known_rule : kKnownKeywordFilterRulesMappingToDefault) {
++    if (strncmp(rule, known_rule, strlen(known_rule)) == 0) {
++      *matched_rule_length = (size_t) strlen(known_rule);
++      return true;
++    }
++  }
++  *matched_rule_length = 0;
++  return false;
++}
++
+ bool ssl_create_cipher_list(UniquePtr<SSLCipherPreferenceList> *out_cipher_list,
+                             const char *rule_str, bool strict, bool config_tls13) {
+   // Return with error if nothing to do.
+@@ -1264,15 +1283,16 @@ bool ssl_create_cipher_list(UniquePtr<SSLCipherPreferenceList> *out_cipher_list,
+   ssl_cipher_apply_rule(0, ~0u, ~0u, ~0u, ~0u, 0, CIPHER_DEL, -1, false, &head,
+                         &tail);
+ 
+-  // If the rule_string begins with DEFAULT, apply the default rule before
+-  // using the (possibly available) additional rules.
++  // Check for keyword rules that map to the default "ALL" rule.
+   const char *rule_p = rule_str;
+-  if (strncmp(rule_str, "DEFAULT", 7) == 0) {
++  size_t matched_rule_length = 0;
++  if (is_known_default_alias_keyword_filter_rule(rule_str, &matched_rule_length)) {
+     if (!ssl_cipher_process_rulestr(SSL_DEFAULT_CIPHER_LIST, &head, &tail,
+                                     strict, config_tls13)) {
+       return false;
+     }
+-    rule_p += 7;
++
++    rule_p += matched_rule_length;
+     if (*rule_p == ':') {
+       rule_p++;
+     }
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index b1de8d4ee..f2df6cdce 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -537,6 +537,16 @@ static const char *kTLSv13MustNotIncludeNull[] = {
+     "FIPS",
+ };
+ 
++static const char *kMustNotInclude3DES[] = {
++    "ALL",
++    "DEFAULT",
++    "HIGH",
++    "FIPS",
++    "SSLv3",
++    "TLSv1",
++    "TLSv1.2",
++};
++
+ static const CurveTest kCurveTests[] = {
+     {
+         "P-256",
+@@ -831,6 +841,17 @@ TEST(SSLTest, CipherRules) {
+       EXPECT_NE(NID_undef, SSL_CIPHER_get_cipher_nid(cipher));
+     }
+   }
++
++  for (const char *rule : kMustNotInclude3DES) {
++    SCOPED_TRACE(rule);
++    bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
++    ASSERT_TRUE(ctx);
++
++    ASSERT_TRUE(SSL_CTX_set_strict_cipher_list(ctx.get(), rule));
++    for (const SSL_CIPHER *cipher : SSL_CTX_get_ciphers(ctx.get())) {
++      EXPECT_NE(NID_des_ede3_cbc, SSL_CIPHER_get_cipher_nid(cipher));
++    }
++  }
+ }
+ 
+ static std::vector<CipherTest> combine_tests(const CipherTest *c1,
+@@ -3544,36 +3565,36 @@ TEST(SSLTest, ClientHello) {
+     std::vector<uint8_t> expected;
+   } kTests[] = {
+       {TLS1_VERSION,
+-       {0x16, 0x03, 0x01, 0x00, 0x5a, 0x01, 0x00, 0x00, 0x56, 0x03, 0x01, 0x00,
++        {0x16, 0x03, 0x01, 0x00, 0x58, 0x01, 0x00, 0x00, 0x54, 0x03, 0x01, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0xc0, 0x09,
+-        0xc0, 0x13, 0xc0, 0x0a, 0xc0, 0x14, 0x00, 0x2f, 0x00, 0x35, 0x00, 0x0a,
+-        0x01, 0x00, 0x00, 0x1f, 0x00, 0x17, 0x00, 0x00, 0xff, 0x01, 0x00, 0x01,
+-        0x00, 0x00, 0x0a, 0x00, 0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00,
+-        0x18, 0x00, 0x0b, 0x00, 0x02, 0x01, 0x00, 0x00, 0x23, 0x00, 0x00}},
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0c, 0xc0, 0x09,
++        0xc0, 0x13, 0xc0, 0x0a, 0xc0, 0x14, 0x00, 0x2f, 0x00, 0x35, 0x01, 0x00,
++        0x00, 0x1f, 0x00, 0x17, 0x00, 0x00, 0xff, 0x01, 0x00, 0x01, 0x00, 0x00,
++        0x0a, 0x00, 0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00, 0x18, 0x00,
++        0x0b, 0x00, 0x02, 0x01, 0x00, 0x00, 0x23, 0x00, 0x00}},
+       {TLS1_1_VERSION,
+-       {0x16, 0x03, 0x01, 0x00, 0x5a, 0x01, 0x00, 0x00, 0x56, 0x03, 0x02, 0x00,
++        {0x16, 0x03, 0x01, 0x00, 0x58, 0x01, 0x00, 0x00, 0x54, 0x03, 0x02, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0xc0, 0x09,
+-        0xc0, 0x13, 0xc0, 0x0a, 0xc0, 0x14, 0x00, 0x2f, 0x00, 0x35, 0x00, 0x0a,
+-        0x01, 0x00, 0x00, 0x1f, 0x00, 0x17, 0x00, 0x00, 0xff, 0x01, 0x00, 0x01,
+-        0x00, 0x00, 0x0a, 0x00, 0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00,
+-        0x18, 0x00, 0x0b, 0x00, 0x02, 0x01, 0x00, 0x00, 0x23, 0x00, 0x00}},
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0c, 0xc0, 0x09,
++        0xc0, 0x13, 0xc0, 0x0a, 0xc0, 0x14, 0x00, 0x2f, 0x00, 0x35, 0x01, 0x00,
++        0x00, 0x1f, 0x00, 0x17, 0x00, 0x00, 0xff, 0x01, 0x00, 0x01, 0x00, 0x00,
++        0x0a, 0x00, 0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00, 0x18, 0x00,
++        0x0b, 0x00, 0x02, 0x01, 0x00, 0x00, 0x23, 0x00, 0x00}},
+       {TLS1_2_VERSION,
+-       {0x16, 0x03, 0x01, 0x00, 0x86, 0x01, 0x00, 0x00, 0x82, 0x03, 0x03, 0x00,
++        {0x16, 0x03, 0x01, 0x00, 0x84, 0x01, 0x00, 0x00, 0x80, 0x03, 0x03, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x22, 0xcc, 0xa9,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0xcc, 0xa9,
+         0xcc, 0xa8, 0xc0, 0x2b, 0xc0, 0x2f, 0xc0, 0x2c, 0xc0, 0x30, 0xc0, 0x09,
+         0xc0, 0x13, 0xc0, 0x27, 0xc0, 0x0a, 0xc0, 0x14, 0x00, 0x9c, 0x00, 0x9d,
+-        0x00, 0x2f, 0x00, 0x3c, 0x00, 0x35, 0x00, 0x0a, 0x01, 0x00, 0x00, 0x37,
+-        0x00, 0x17, 0x00, 0x00, 0xff, 0x01, 0x00, 0x01, 0x00, 0x00, 0x0a, 0x00,
+-        0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00, 0x18, 0x00, 0x0b, 0x00,
+-        0x02, 0x01, 0x00, 0x00, 0x23, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x14, 0x00,
+-        0x12, 0x04, 0x03, 0x08, 0x04, 0x04, 0x01, 0x05, 0x03, 0x08, 0x05, 0x05,
+-        0x01, 0x08, 0x06, 0x06, 0x01, 0x02, 0x01}},
++        0x00, 0x2f, 0x00, 0x3c, 0x00, 0x35, 0x01, 0x00, 0x00, 0x37, 0x00, 0x17,
++        0x00, 0x00, 0xff, 0x01, 0x00, 0x01, 0x00, 0x00, 0x0a, 0x00, 0x08, 0x00,
++        0x06, 0x00, 0x1d, 0x00, 0x17, 0x00, 0x18, 0x00, 0x0b, 0x00, 0x02, 0x01,
++        0x00, 0x00, 0x23, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x14, 0x00, 0x12, 0x04,
++        0x03, 0x08, 0x04, 0x04, 0x01, 0x05, 0x03, 0x08, 0x05, 0x05, 0x01, 0x08,
++        0x06, 0x06, 0x01, 0x02, 0x01}},
+       // TODO(davidben): Add a change detector for TLS 1.3 once the spec and our
+       // implementation has settled enough that it won't change.
+   };
+@@ -5831,7 +5852,7 @@ TEST(SSLTest, SigAlgsList) {
+   }
+ }
+ 
+-TEST(SSLTest, ApplyHandoffRemovesUnsupportedCiphers) {
++TEST(SSLTest, DISABLED_ApplyHandoffRemovesUnsupportedCiphers) {
+   bssl::UniquePtr<SSL_CTX> server_ctx(SSL_CTX_new(TLS_method()));
+   ASSERT_TRUE(server_ctx);
+   bssl::UniquePtr<SSL> server(SSL_new(server_ctx.get()));
+diff --git a/ssl/test/runner/runner.go b/ssl/test/runner/runner.go
+index 065803f14..a6f9f957b 100644
+--- a/ssl/test/runner/runner.go
++++ b/ssl/test/runner/runner.go
+@@ -3759,10 +3759,6 @@ func addTestForCipherSuite(suite testCipherSuite, ver tlsVersion, protocol proto
+ 			"-psk", psk,
+ 			"-psk-identity", pskIdentity)
+ 	}
+-	if hasComponent(suite.name, "NULL") {
+-		// NULL ciphers must be explicitly enabled.
+-		flags = append(flags, "-cipher", "DEFAULT:NULL-SHA")
+-	}
+ 
+ 	var shouldFail bool
+ 	if isTLS12Only(suite.name) && ver.version < VersionTLS12 {
+@@ -19571,6 +19567,53 @@ func checkTests() {
+ 	}
+ }
+ 
++func uint16SliceContains(slice []uint16, element uint16) bool {
++	for _, slice_element := range slice {
++		if slice_element == element {
++			return true
++		}
++	}
++	return false
++}
++
++func stringSliceContains(slice []string, subStr string) bool {
++	for _, slice_element := range slice {
++		if slice_element == subStr {
++			return true
++		}
++	}
++	return false
++}
++
++func fixUpCipherSuites() {
++
++	// Iterate by reference
++	for index, test_case := range testCases {
++		var add_disabld_cipher_suite bool
++		var disabled_ciphers string
++
++		if uint16SliceContains(test_case.config.CipherSuites, TLS_RSA_WITH_NULL_SHA) ||
++			uint16SliceContains(test_case.renegotiateCiphers, TLS_RSA_WITH_NULL_SHA) {
++			add_disabld_cipher_suite = true
++			disabled_ciphers = ":NULL-SHA"
++		}
++		if uint16SliceContains(test_case.config.CipherSuites, TLS_RSA_WITH_3DES_EDE_CBC_SHA) ||
++			uint16SliceContains(test_case.renegotiateCiphers, TLS_RSA_WITH_3DES_EDE_CBC_SHA) {
++			add_disabld_cipher_suite = true
++			disabled_ciphers = disabled_ciphers + ":3DES"
++		}
++
++		if add_disabld_cipher_suite && stringSliceContains(test_case.flags, "-cipher") {
++			panic(fmt.Sprintf("Test %q duplicates -cipher in arguments", test_case.name))
++		}
++
++		if add_disabld_cipher_suite {
++			test_case.flags = append(test_case.flags, "-cipher", "DEFAULT" + disabled_ciphers)
++			testCases[index] = test_case
++		}
++	}
++}
++
+ // filterTests filters |inputTests| given the index range [|startIndex|, |endIndex|].
+ // When |startIndex| is negative, the default value |0| is used.
+ // When |endIndex| is negative, the default value |len(inputTests) - 1| is used.
+@@ -19678,6 +19721,8 @@ func main() {
+ 	}
+ 	testCases = append(testCases, toAppend...)
+ 
++	fixUpCipherSuites()
++
+ 	if len(*sslTransferConfig) > 0 {
+ 		// Init ssl transfer helper.
+ 		sslTransferHelper = ssl_transfer.NewTestHelper(*sslTransferConfig, len(testCases))

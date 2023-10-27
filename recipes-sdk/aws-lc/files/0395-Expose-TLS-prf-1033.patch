@@ -1,0 +1,172 @@
+From 7923ea46e920b10ba09241ae7ff50692ae476feb Mon Sep 17 00:00:00 2001
+From: torben-hansen <50673096+torben-hansen@users.noreply.github.com>
+Date: Tue, 30 May 2023 12:49:06 -0700
+Subject: [PATCH] Expose TLS prf (#1033)
+
+CRYPTO_tls1_prf is validated and an exported symbol, but the declaration is private... Sort that out, such that it eventually will be easy to consume.
+---
+ crypto/fipsmodule/self_check/self_check.c     |  1 -
+ .../service_indicator_test.cc                 |  1 -
+ crypto/fipsmodule/tls/internal.h              | 39 -------------------
+ crypto/fipsmodule/tls/kdf.c                   |  1 -
+ include/openssl/kdf.h                         | 10 +++++
+ ssl/t1_enc.cc                                 |  2 +-
+ .../acvp/modulewrapper/modulewrapper.cc       |  2 +-
+ util/fipstools/test_fips.c                    |  2 +-
+ 8 files changed, 13 insertions(+), 45 deletions(-)
+ delete mode 100644 crypto/fipsmodule/tls/internal.h
+
+diff --git a/crypto/fipsmodule/self_check/self_check.c b/crypto/fipsmodule/self_check/self_check.c
+index 067e42983..ee674d438 100644
+--- a/crypto/fipsmodule/self_check/self_check.c
++++ b/crypto/fipsmodule/self_check/self_check.c
+@@ -38,7 +38,6 @@
+ #include "../ecdsa/internal.h"
+ #include "../rand/internal.h"
+ #include "../rsa/internal.h"
+-#include "../tls/internal.h"
+ 
+ static void hexdump(const uint8_t *in, size_t len) {
+   for (size_t i = 0; i < len; i++) {
+diff --git a/crypto/fipsmodule/service_indicator/service_indicator_test.cc b/crypto/fipsmodule/service_indicator/service_indicator_test.cc
+index 89db28647..7253b4a8b 100644
+--- a/crypto/fipsmodule/service_indicator/service_indicator_test.cc
++++ b/crypto/fipsmodule/service_indicator/service_indicator_test.cc
+@@ -31,7 +31,6 @@
+ #include "../../test/test_util.h"
+ #include "../bn/internal.h"
+ #include "../rand/internal.h"
+-#include "../tls/internal.h"
+ 
+ static const uint8_t kAESKey[16] = {
+     'A','W','S','-','L','C','C','r','y','p','t','o',' ','K', 'e','y'};
+diff --git a/crypto/fipsmodule/tls/internal.h b/crypto/fipsmodule/tls/internal.h
+deleted file mode 100644
+index ef642a6cd..000000000
+--- a/crypto/fipsmodule/tls/internal.h
++++ /dev/null
+@@ -1,39 +0,0 @@
+-/* Copyright (c) 2018, Google Inc.
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+- * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+- * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+- * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+-
+-#ifndef OPENSSL_HEADER_CRYPTO_FIPSMODULE_TLS_INTERNAL_H
+-#define OPENSSL_HEADER_CRYPTO_FIPSMODULE_TLS_INTERNAL_H
+-
+-#include <openssl/base.h>
+-
+-#if defined(__cplusplus)
+-extern "C" {
+-#endif
+-
+-
+-// tls1_prf calculates |out_len| bytes of the TLS PDF, using |digest|, and
+-// writes them to |out|. It returns one on success and zero on error.
+-OPENSSL_EXPORT int CRYPTO_tls1_prf(const EVP_MD *digest,
+-                                   uint8_t *out, size_t out_len,
+-                                   const uint8_t *secret, size_t secret_len,
+-                                   const char *label, size_t label_len,
+-                                   const uint8_t *seed1, size_t seed1_len,
+-                                   const uint8_t *seed2, size_t seed2_len);
+-
+-
+-#if defined(__cplusplus)
+-}
+-#endif
+-
+-#endif  // OPENSSL_HEADER_CRYPTO_FIPSMODULE_TLS_INTERNAL_H
+diff --git a/crypto/fipsmodule/tls/kdf.c b/crypto/fipsmodule/tls/kdf.c
+index bb2de5deb..2be29d6a5 100644
+--- a/crypto/fipsmodule/tls/kdf.c
++++ b/crypto/fipsmodule/tls/kdf.c
+@@ -56,7 +56,6 @@
+ #include <openssl/hmac.h>
+ #include <openssl/mem.h>
+ 
+-#include "internal.h"
+ #include "../../internal.h"
+ 
+ 
+diff --git a/include/openssl/kdf.h b/include/openssl/kdf.h
+index 7adad3810..bb98970ee 100644
+--- a/include/openssl/kdf.h
++++ b/include/openssl/kdf.h
+@@ -21,6 +21,16 @@
+ extern "C" {
+ #endif
+ 
++// CRYPTO_tls1_prf calculates |out_len| bytes of the TLS PRF, using |digest|,
++// and writes them to |out|. It returns one on success and zero on error.
++// TLS 1.2: https://datatracker.ietf.org/doc/html/rfc5246#section-5
++// TLS 1.{0,1}: https://datatracker.ietf.org/doc/html/rfc4346#section-5
++OPENSSL_EXPORT int CRYPTO_tls1_prf(const EVP_MD *digest,
++                                   uint8_t *out, size_t out_len,
++                                   const uint8_t *secret, size_t secret_len,
++                                   const char *label, size_t label_len,
++                                   const uint8_t *seed1, size_t seed1_len,
++                                   const uint8_t *seed2, size_t seed2_len);
+ 
+ // KDF support for EVP.
+ 
+diff --git a/ssl/t1_enc.cc b/ssl/t1_enc.cc
+index a985d38bb..081c8eb7b 100644
+--- a/ssl/t1_enc.cc
++++ b/ssl/t1_enc.cc
+@@ -143,12 +143,12 @@
+ #include <openssl/err.h>
+ #include <openssl/evp.h>
+ #include <openssl/hmac.h>
++#include <openssl/kdf.h>
+ #include <openssl/md5.h>
+ #include <openssl/mem.h>
+ #include <openssl/nid.h>
+ #include <openssl/rand.h>
+ 
+-#include "../crypto/fipsmodule/tls/internal.h"
+ #include "../crypto/internal.h"
+ #include "internal.h"
+ 
+diff --git a/util/fipstools/acvp/modulewrapper/modulewrapper.cc b/util/fipstools/acvp/modulewrapper/modulewrapper.cc
+index 44682688a..a79c96474 100644
+--- a/util/fipstools/acvp/modulewrapper/modulewrapper.cc
++++ b/util/fipstools/acvp/modulewrapper/modulewrapper.cc
+@@ -46,10 +46,10 @@
+ #include <openssl/span.h>
+ #include <openssl/hkdf.h>
+ #include <openssl/sshkdf.h>
++#include <openssl/kdf.h>
+ 
+ #include "../../../../crypto/fipsmodule/ec/internal.h"
+ #include "../../../../crypto/fipsmodule/rand/internal.h"
+-#include "../../../../crypto/fipsmodule/tls/internal.h"
+ #include "modulewrapper.h"
+ 
+ 
+diff --git a/util/fipstools/test_fips.c b/util/fipstools/test_fips.c
+index a05d19d32..4c5e82679 100644
+--- a/util/fipstools/test_fips.c
++++ b/util/fipstools/test_fips.c
+@@ -27,12 +27,12 @@
+ #include <openssl/ecdsa.h>
+ #include <openssl/ec_key.h>
+ #include <openssl/hmac.h>
++#include <openssl/kdf.h>
+ #include <openssl/nid.h>
+ #include <openssl/rsa.h>
+ #include <openssl/sha.h>
+ 
+ #include "../../crypto/fipsmodule/rand/internal.h"
+-#include "../../crypto/fipsmodule/tls/internal.h"
+ #include "../../crypto/internal.h"
+ 
+ 

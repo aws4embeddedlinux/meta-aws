@@ -1,0 +1,239 @@
+From ef72167ed5095447f00866253d3a3c353bdeed25 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Wed, 4 Jan 2023 15:52:36 -0800
+Subject: [PATCH] Const-correct sk_FOO_deep_copy's copy callback.
+
+This aligns with upstream OpenSSL, so it's hopefully more compatible.
+Code search says no one outside of the project uses this function, so
+it's unlikely to break anyone.
+
+Whether it makes things better is a bit of a wash: OBJ_dup and
+OPENSSL_strdup loose a pointless wrapper. X509_NAME_dup gains one, but
+hopefully that can be resolved once we solve the X509_NAME
+const-correctness problem. CRYPTO_BUFFER_up_ref gains one... really
+FOO_up_ref should have type const T * -> T *, but OpenSSL decided it
+returns int, so we've got to cast.
+
+Change-Id: Ifa6eaf26777ac7239db6021fc1eafcaed98e42c4
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56032
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit df8a55bf622a495b2dd07f8ecf697d5642ee6be2)
+---
+ crypto/stack/stack_test.cc | 19 ++++++++++---------
+ crypto/x509/x509_vpm.c     |  9 +++------
+ include/openssl/stack.h    | 16 ++++++++--------
+ ssl/ssl_cert.cc            |  6 +++---
+ ssl/ssl_session.cc         |  6 +++---
+ ssl/ssl_x509.cc            |  6 +++++-
+ tool/speed.cc              |  6 +++---
+ 7 files changed, 35 insertions(+), 33 deletions(-)
+
+diff --git a/crypto/stack/stack_test.cc b/crypto/stack/stack_test.cc
+index f96b94202..98e54489a 100644
+--- a/crypto/stack/stack_test.cc
++++ b/crypto/stack/stack_test.cc
+@@ -163,7 +163,7 @@ TEST(StackTest, Basic) {
+   // Test both deep and shallow copies.
+   bssl::UniquePtr<STACK_OF(TEST_INT)> copy(sk_TEST_INT_deep_copy(
+       sk.get(),
+-      [](TEST_INT *x) -> TEST_INT * {
++      [](const TEST_INT *x) -> TEST_INT * {
+         return x == nullptr ? nullptr : TEST_INT_new(*x).release();
+       },
+       TEST_INT_free));
+@@ -179,13 +179,12 @@ TEST(StackTest, Basic) {
+   }
+ 
+   // Deep copies may fail. This should clean up temporaries.
+-  EXPECT_FALSE(sk_TEST_INT_deep_copy(sk.get(),
+-                                     [](TEST_INT *x) -> TEST_INT * {
+-                                       return x == nullptr || *x == 4
+-                                                  ? nullptr
+-                                                  : TEST_INT_new(*x).release();
+-                                     },
+-                                     TEST_INT_free));
++  EXPECT_FALSE(sk_TEST_INT_deep_copy(
++      sk.get(),
++      [](const TEST_INT *x) -> TEST_INT * {
++        return x == nullptr || *x == 4 ? nullptr : TEST_INT_new(*x).release();
++      },
++      TEST_INT_free));
+ 
+   // sk_TEST_INT_zero clears a stack, but does not free the elements.
+   ShallowStack shallow2(sk_TEST_INT_dup(sk.get()));
+@@ -274,7 +273,9 @@ TEST(StackTest, Sorted) {
+     // Copies preserve comparison and sorted information.
+     bssl::UniquePtr<STACK_OF(TEST_INT)> copy(sk_TEST_INT_deep_copy(
+         sk.get(),
+-        [](TEST_INT *x) -> TEST_INT * { return TEST_INT_new(*x).release(); },
++        [](const TEST_INT *x) -> TEST_INT * {
++          return TEST_INT_new(*x).release();
++        },
+         TEST_INT_free));
+     ASSERT_TRUE(copy);
+     EXPECT_TRUE(sk_TEST_INT_is_sorted(copy.get()));
+diff --git a/crypto/x509/x509_vpm.c b/crypto/x509/x509_vpm.c
+index 21ad5e006..8ea2c6a67 100644
+--- a/crypto/x509/x509_vpm.c
++++ b/crypto/x509/x509_vpm.c
+@@ -72,8 +72,6 @@
+ #define SET_HOST 0
+ #define ADD_HOST 1
+ 
+-static char *str_copy(char *s) { return OPENSSL_strdup(s); }
+-
+ static void str_free(char *s) { OPENSSL_free(s); }
+ 
+ #define string_stack_free(sk) sk_OPENSSL_STRING_pop_free(sk, str_free)
+@@ -279,7 +277,8 @@ int X509_VERIFY_PARAM_inherit(X509_VERIFY_PARAM *dest,
+       dest->hosts = NULL;
+     }
+     if (src->hosts) {
+-      dest->hosts = sk_OPENSSL_STRING_deep_copy(src->hosts, str_copy, str_free);
++      dest->hosts =
++          sk_OPENSSL_STRING_deep_copy(src->hosts, OPENSSL_strdup, str_free);
+       if (dest->hosts == NULL) {
+         return 0;
+       }
+@@ -400,8 +399,6 @@ int X509_VERIFY_PARAM_add0_policy(X509_VERIFY_PARAM *param,
+   return 1;
+ }
+ 
+-static ASN1_OBJECT *dup_object(ASN1_OBJECT *obj) { return OBJ_dup(obj); }
+-
+ int X509_VERIFY_PARAM_set1_policies(X509_VERIFY_PARAM *param,
+                                     const STACK_OF(ASN1_OBJECT) *policies) {
+   if (!param) {
+@@ -415,7 +412,7 @@ int X509_VERIFY_PARAM_set1_policies(X509_VERIFY_PARAM *param,
+   }
+ 
+   param->policies =
+-      sk_ASN1_OBJECT_deep_copy(policies, dup_object, ASN1_OBJECT_free);
++      sk_ASN1_OBJECT_deep_copy(policies, OBJ_dup, ASN1_OBJECT_free);
+   if (!param->policies) {
+     return 0;
+   }
+diff --git a/include/openssl/stack.h b/include/openssl/stack.h
+index d7d9821ec..6fbc9746c 100644
+--- a/include/openssl/stack.h
++++ b/include/openssl/stack.h
+@@ -122,7 +122,7 @@ typedef void (*sk_SAMPLE_free_func)(SAMPLE *);
+ 
+ // sk_SAMPLE_copy_func is a callback to copy an element in a stack. It should
+ // return the copy or NULL on error.
+-typedef SAMPLE *(*sk_SAMPLE_copy_func)(SAMPLE *);
++typedef SAMPLE *(*sk_SAMPLE_copy_func)(const SAMPLE *);
+ 
+ // sk_SAMPLE_cmp_func is a callback to compare |*a| to |*b|. It should return a
+ // value < 0, 0, or > 0 if |*a| is less than, equal to, or greater than |*b|,
+@@ -257,9 +257,9 @@ STACK_OF(SAMPLE) *sk_SAMPLE_deep_copy(const STACK_OF(SAMPLE) *sk,
+ typedef void (*OPENSSL_sk_free_func)(void *ptr);
+ 
+ // OPENSSL_sk_copy_func is a function that copies an element in a stack. Note
+-// its actual type is T *(*)(T *) for some T. Low-level |sk_*| functions will be
+-// passed a type-specific wrapper to call it correctly.
+-typedef void *(*OPENSSL_sk_copy_func)(void *ptr);
++// its actual type is T *(*)(const T *) for some T. Low-level |sk_*| functions
++// will be passed a type-specific wrapper to call it correctly.
++typedef void *(*OPENSSL_sk_copy_func)(const void *ptr);
+ 
+ // OPENSSL_sk_cmp_func is a comparison function that returns a value < 0, 0 or >
+ // 0 if |*a| is less than, equal to or greater than |*b|, respectively.  Note
+@@ -281,7 +281,7 @@ typedef int (*OPENSSL_sk_delete_if_func)(void *obj, void *data);
+ // The following function types call the above type-erased signatures with the
+ // true types.
+ typedef void (*OPENSSL_sk_call_free_func)(OPENSSL_sk_free_func, void *);
+-typedef void *(*OPENSSL_sk_call_copy_func)(OPENSSL_sk_copy_func, void *);
++typedef void *(*OPENSSL_sk_call_copy_func)(OPENSSL_sk_copy_func, const void *);
+ typedef int (*OPENSSL_sk_call_cmp_func)(OPENSSL_sk_cmp_func,
+                                         const void *const *,
+                                         const void *const *);
+@@ -388,7 +388,7 @@ BSSL_NAMESPACE_END
+   DECLARE_STACK_OF(name)                                                      \
+                                                                               \
+   typedef void (*sk_##name##_free_func)(ptrtype);                             \
+-  typedef ptrtype (*sk_##name##_copy_func)(ptrtype);                          \
++  typedef ptrtype (*sk_##name##_copy_func)(constptrtype);                     \
+   typedef int (*sk_##name##_cmp_func)(constptrtype *, constptrtype *);        \
+   typedef int (*sk_##name##_delete_if_func)(ptrtype, void *);                 \
+                                                                               \
+@@ -398,8 +398,8 @@ BSSL_NAMESPACE_END
+   }                                                                           \
+                                                                               \
+   OPENSSL_INLINE void *sk_##name##_call_copy_func(                            \
+-      OPENSSL_sk_copy_func copy_func, void *ptr) {                            \
+-    return (void *)((sk_##name##_copy_func)copy_func)((ptrtype)ptr);          \
++      OPENSSL_sk_copy_func copy_func, const void *ptr) {                      \
++    return (void *)((sk_##name##_copy_func)copy_func)((constptrtype)ptr);     \
+   }                                                                           \
+                                                                               \
+   OPENSSL_INLINE int sk_##name##_call_cmp_func(OPENSSL_sk_cmp_func cmp_func,  \
+diff --git a/ssl/ssl_cert.cc b/ssl/ssl_cert.cc
+index 68e010ad6..b6f1e6108 100644
+--- a/ssl/ssl_cert.cc
++++ b/ssl/ssl_cert.cc
+@@ -142,9 +142,9 @@ CERT::~CERT() {
+   x509_method->cert_free(this);
+ }
+ 
+-static CRYPTO_BUFFER *buffer_up_ref(CRYPTO_BUFFER *buffer) {
+-  CRYPTO_BUFFER_up_ref(buffer);
+-  return buffer;
++static CRYPTO_BUFFER *buffer_up_ref(const CRYPTO_BUFFER *buffer) {
++  CRYPTO_BUFFER_up_ref(const_cast<CRYPTO_BUFFER *>(buffer));
++  return const_cast<CRYPTO_BUFFER *>(buffer);
+ }
+ 
+ UniquePtr<CERT> ssl_cert_dup(CERT *cert) {
+diff --git a/ssl/ssl_session.cc b/ssl/ssl_session.cc
+index 384c5f84d..d9c3b188e 100644
+--- a/ssl/ssl_session.cc
++++ b/ssl/ssl_session.cc
+@@ -214,9 +214,9 @@ UniquePtr<SSL_SESSION> SSL_SESSION_dup(SSL_SESSION *session, int dup_flags) {
+     }
+   }
+   if (session->certs != nullptr) {
+-    auto buf_up_ref = [](CRYPTO_BUFFER *buf) {
+-      CRYPTO_BUFFER_up_ref(buf);
+-      return buf;
++    auto buf_up_ref = [](const CRYPTO_BUFFER *buf) {
++      CRYPTO_BUFFER_up_ref(const_cast<CRYPTO_BUFFER *>(buf));
++      return const_cast<CRYPTO_BUFFER*>(buf);
+     };
+     new_session->certs.reset(sk_CRYPTO_BUFFER_deep_copy(
+         session->certs.get(), buf_up_ref, CRYPTO_BUFFER_free));
+diff --git a/ssl/ssl_x509.cc b/ssl/ssl_x509.cc
+index 5533c7f0e..c89d4edb5 100644
+--- a/ssl/ssl_x509.cc
++++ b/ssl/ssl_x509.cc
+@@ -1041,7 +1041,11 @@ SSL_SESSION *d2i_SSL_SESSION(SSL_SESSION **a, const uint8_t **pp, long length) {
+ }
+ 
+ STACK_OF(X509_NAME) *SSL_dup_CA_list(STACK_OF(X509_NAME) *list) {
+-  return sk_X509_NAME_deep_copy(list, X509_NAME_dup, X509_NAME_free);
++  // TODO(https://crbug.com/boringssl/407): |X509_NAME_dup| should be const.
++  auto name_dup = [](const X509_NAME *name) {
++    return X509_NAME_dup(const_cast<X509_NAME *>(name));
++  };
++  return sk_X509_NAME_deep_copy(list, name_dup, X509_NAME_free);
+ }
+ 
+ static void set_client_CA_list(UniquePtr<STACK_OF(CRYPTO_BUFFER)> *ca_list,
+diff --git a/tool/speed.cc b/tool/speed.cc
+index 7ab532c3c..10788e9d5 100644
+--- a/tool/speed.cc
++++ b/tool/speed.cc
+@@ -1564,9 +1564,9 @@ static bool SpeedSipHash(const std::string &selected) {
+ 
+ #if defined(INTERNAL_TOOL)
+ static TRUST_TOKEN_PRETOKEN *trust_token_pretoken_dup(
+-    TRUST_TOKEN_PRETOKEN *in) {
+-  return (TRUST_TOKEN_PRETOKEN *)OPENSSL_memdup(in,
+-                                                sizeof(TRUST_TOKEN_PRETOKEN));
++    const TRUST_TOKEN_PRETOKEN *in) {
++  return static_cast<TRUST_TOKEN_PRETOKEN *>(
++      OPENSSL_memdup(in, sizeof(TRUST_TOKEN_PRETOKEN)));
+ }
+ 
+ static bool SpeedTrustToken(std::string name, const TRUST_TOKEN_METHOD *method,

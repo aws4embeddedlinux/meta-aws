@@ -1,0 +1,368 @@
+From 15bd84a7a63b44c7a94965a13a9df74b1db25483 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Fri, 23 Jun 2023 10:08:19 -0700
+Subject: [PATCH] add integration build CI dimension for mySQL (#1051)
+
+We've recently resolved missing symbols for mySQL and are looking
+to add a CI dimension to ensure we don't break the build. This doesn't
+run the tests yet since there are test failures still pending investigation,
+so this just runs the build.
+
+---------
+
+Co-authored-by: Andrew Hopkins <andhop@amazon.com>
+---
+ tests/ci/cdk/cdk/aws_lc_github_ci_stack.py    |  6 +-
+ .../github_ci_integration_omnibus.yaml        | 10 +++
+ .../integration/mysql_integration.yml         | 13 ++++
+ tests/ci/common_posix_setup.sh                |  4 +
+ .../linux-x86/ubuntu-22.04_base/Dockerfile    | 12 ++-
+ .../linux-x86/ubuntu-22.04_gcc-12x/Dockerfile |  5 ++
+ tests/ci/integration/run_mysql_integration.sh | 75 +++++++++++++++++++
+ .../ci/integration/run_openssh_integration.sh | 15 +---
+ .../integration/run_postgres_integration.sh   | 14 +---
+ tests/ci/integration/run_s2n_integration.sh   | 14 +---
+ 10 files changed, 133 insertions(+), 35 deletions(-)
+ create mode 100644 tests/ci/codebuild/integration/mysql_integration.yml
+ create mode 100755 tests/ci/integration/run_mysql_integration.sh
+
+diff --git a/tests/ci/cdk/cdk/aws_lc_github_ci_stack.py b/tests/ci/cdk/cdk/aws_lc_github_ci_stack.py
+index b89f4c674..bf6651edc 100644
+--- a/tests/ci/cdk/cdk/aws_lc_github_ci_stack.py
++++ b/tests/ci/cdk/cdk/aws_lc_github_ci_stack.py
+@@ -5,7 +5,7 @@ from aws_cdk import Duration, Stack, aws_codebuild as codebuild, aws_iam as iam,
+ from constructs import Construct
+ 
+ from cdk.components import PruneStaleGitHubBuilds
+-from util.iam_policies import code_build_batch_policy_in_json
++from util.iam_policies import code_build_batch_policy_in_json, code_build_publish_metrics_in_json
+ from util.metadata import CAN_AUTOLOAD, GITHUB_REPO_OWNER, GITHUB_REPO_NAME
+ from util.build_spec_loader import BuildSpecLoader
+ 
+@@ -37,7 +37,9 @@ class AwsLcGitHubCIStack(Stack):
+         code_build_batch_policy = iam.PolicyDocument.from_json(
+             code_build_batch_policy_in_json([id])
+         )
+-        inline_policies = {"code_build_batch_policy": code_build_batch_policy}
++        metrics_policy = iam.PolicyDocument.from_json(code_build_publish_metrics_in_json())
++        inline_policies = {"code_build_batch_policy": code_build_batch_policy,
++                           "metrics_policy": metrics_policy}
+         role = iam.Role(scope=self,
+                         id="{}-role".format(id),
+                         assumed_by=iam.ServicePrincipal("codebuild.amazonaws.com"),
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+index f5197ecaf..fc475d6fd 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+@@ -29,3 +29,13 @@ batch:
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_MEDIUM
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
++
++    # Only runs the build for now, tests are disabled. MySQL build is bloated without any obvious build configurations we can
++    # use to speed up the build, so we use a larger instance here.
++    - identifier: mysql_integration
++      buildspec: ./tests/ci/codebuild/integration/mysql_integration.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_2XLARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
+\ No newline at end of file
+diff --git a/tests/ci/codebuild/integration/mysql_integration.yml b/tests/ci/codebuild/integration/mysql_integration.yml
+new file mode 100644
+index 000000000..074d6f2ea
+--- /dev/null
++++ b/tests/ci/codebuild/integration/mysql_integration.yml
+@@ -0,0 +1,13 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++version: 0.2
++
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
++phases:
++  build:
++    commands:
++      - ./tests/ci/integration/run_mysql_integration.sh
+diff --git a/tests/ci/common_posix_setup.sh b/tests/ci/common_posix_setup.sh
+index d41c561fd..2eaf4c452 100644
+--- a/tests/ci/common_posix_setup.sh
++++ b/tests/ci/common_posix_setup.sh
+@@ -8,6 +8,10 @@ else
+ fi
+ echo "$SRC_ROOT"
+ 
++cd ../
++SYS_ROOT=$(pwd)
++cd $SRC_ROOT
++
+ BUILD_ROOT="${SRC_ROOT}/test_build_dir"
+ echo "$BUILD_ROOT"
+ 
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+index ee4dc5301..fe6c51d04 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+@@ -7,6 +7,9 @@ SHELL ["/bin/bash", "-c"]
+ 
+ ENV DEBIAN_FRONTEND=noninteractive
+ 
++ENV BOOST_PACKAGE_NAME=boost_1_77_0
++ENV BOOST_TARBALL="${BOOST_PACKAGE_NAME}.tar.bz2"
++ENV BOOST_SRC_URL="https://boostorg.jfrog.io/artifactory/main/release/1.77.0/source/${BOOST_TARBALL}"
+ ENV DEPENDENCIES_DIR=/home/dependencies
+ ENV LLVM_PROJECT_HOME=${DEPENDENCIES_DIR}/llvm-project
+ ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
+@@ -36,10 +39,13 @@ RUN set -ex && \
+     libicu-dev \
+     libipc-run-perl \
+     libreadline-dev \
++    libudev-dev \
+     zlib1g-dev \
++    dpkg-dev \
+     flex \
+     bison \
+     curl \
++    jq \
+     unzip && \
+     # Based on https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html
+     # The awscli is used to publish data to CloudWatch Metrics in some jobs. This requires additional IAM permission
+@@ -47,12 +53,14 @@ RUN set -ex && \
+     unzip awscliv2.zip && \
+     ./aws/install --bin-dir /usr/bin && \
+     rm -rf awscliv2.zip aws/ && \
+-    # Download a copy of LLVM's libcxx which is required for building and running with Memory Sanitizer
+     mkdir -p ${DEPENDENCIES_DIR} && \
+     cd ${DEPENDENCIES_DIR} && \
++    # Extract and install Boost 1.77.0. mySQL 8.33 depends on this specific version.
++    wget ${BOOST_SRC_URL} && tar xfj ${BOOST_TARBALL} && mv ./${BOOST_PACKAGE_NAME} ./boost && rm ${BOOST_TARBALL} && \
++    # Download a copy of LLVM's libcxx which is required for building and running with Memory Sanitizer
+     git clone https://github.com/llvm/llvm-project.git --branch llvmorg-11.1.0  --depth 1 && \
+     cd llvm-project && rm -rf $(ls -A | grep -Ev "(libcxx|libcxxabi)") && \
+-    apt-get --purge remove -y curl unzip && \
++    apt-get --purge remove -y unzip && \
+     apt-get autoremove --purge -y && \
+     apt-get clean && \
+     apt-get autoclean && \
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-22.04_gcc-12x/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-22.04_gcc-12x/Dockerfile
+index 011de85cd..be1a49f31 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-22.04_gcc-12x/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-22.04_gcc-12x/Dockerfile
+@@ -16,6 +16,11 @@ RUN set -ex && \
+     rm -rf /var/lib/apt/lists/* && \
+     rm -rf /tmp/*
+ 
++# Create alias to use gcc/cpp-12 preprocessor as default. MySQL relies on cpp being available.
++RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100 \
++                        --slave /usr/bin/g++ g++ /usr/bin/g++-12 \
++                        --slave /usr/bin/cpp cpp-bin /usr/bin/cpp-12
++
+ # Postgres's integration tests cannot be ran as root, so we have to define
+ # a non-root user here to use in Codebuild.
+ RUN adduser --disabled-password --gecos '' postgres && \
+diff --git a/tests/ci/integration/run_mysql_integration.sh b/tests/ci/integration/run_mysql_integration.sh
+new file mode 100755
+index 000000000..333b96d51
+--- /dev/null
++++ b/tests/ci/integration/run_mysql_integration.sh
+@@ -0,0 +1,75 @@
++#!/bin/bash -exu
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++source tests/ci/common_posix_setup.sh
++
++MYSQL_VERSION_TAG="mysql-8.0.33"
++# This directory is specific to the docker image used. Use -DDOWNLOAD_BOOST=1 -DWITH_BOOST=<directory>
++# with mySQL to download a compatible boost version locally.
++BOOST_INSTALL_FOLDER=/home/dependencies/boost
++
++# Set up environment.
++
++# SYS_ROOT
++#  |
++#  - SRC_ROOT(aws-lc)
++#  |
++#  - SCRATCH_FOLDER
++#    |
++#    - mysql
++#    - AWS_LC_BUILD_FOLDER
++#    - AWS_LC_INSTALL_FOLDER
++#    - MYSQL_BUILD_FOLDER
++
++# Assumes script is executed from the root of aws-lc directory
++SCRATCH_FOLDER=${SYS_ROOT}/"MYSQL_BUILD_ROOT"
++MYSQL_SRC_FOLDER="${SCRATCH_FOLDER}/mysql-server"
++MYSQL_BUILD_FOLDER="${SCRATCH_FOLDER}/server/mysql-aws-lc"
++AWS_LC_BUILD_FOLDER="${SCRATCH_FOLDER}/aws-lc-build"
++AWS_LC_INSTALL_FOLDER="${MYSQL_SRC_FOLDER}/aws-lc-install"
++
++mkdir -p ${SCRATCH_FOLDER}
++rm -rf ${SCRATCH_FOLDER}/*
++cd ${SCRATCH_FOLDER}
++
++function aws_lc_build() {
++  ${CMAKE_COMMAND} "${SRC_ROOT}" -GNinja "-B${AWS_LC_BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${AWS_LC_INSTALL_FOLDER}" "$@"
++  ninja -C "${AWS_LC_BUILD_FOLDER}" install
++  ls -R "${AWS_LC_INSTALL_FOLDER}"
++  rm -rf "${AWS_LC_BUILD_FOLDER:?}"/*
++}
++
++function mysql_patch_reminder() {
++  LATEST_MYSQL_VERSION_TAG=mysql-`curl https://api.github.com/repos/mysql/mysql-server/tags | jq '.[].name' |grep '\-8.0' |sed -e 's/"mysql-cluster-\(.*\)"/\1/' |sort | tail -n 1`
++  if [[ "${LATEST_MYSQL_VERSION_TAG}" != "${MYSQL_VERSION_TAG}" ]]; then
++    aws cloudwatch put-metric-data --namespace AWS-LC --metric-name MySQLVersionMismatch --value 1
++  else
++    aws cloudwatch put-metric-data --namespace AWS-LC --metric-name MySQLVersionMismatch --value 0
++  fi
++}
++
++function mysql_build() {
++  cmake ${MYSQL_SRC_FOLDER} -GNinja -DENABLED_PROFILING=OFF -DWITH_NDB_JAVA=OFF  -DWITH_BOOST=${BOOST_INSTALL_FOLDER} -DWITH_SSL=${AWS_LC_INSTALL_FOLDER} "-B${MYSQL_BUILD_FOLDER}"
++  ninja -C ${MYSQL_BUILD_FOLDER}
++  ls -R ${MYSQL_BUILD_FOLDER}
++}
++
++function mysql_run_tests() {
++  pushd ${MYSQL_BUILD_FOLDER}
++  ninja test
++  popd
++}
++
++# Get latest MySQL version. MySQL often updates with large changes depending on OpenSSL all at once, so we pin to a specific version.
++mysql_patch_reminder
++git clone https://github.com/mysql/mysql-server.git ${MYSQL_SRC_FOLDER} -b ${MYSQL_VERSION_TAG} --depth 1
++mkdir -p ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER} ${MYSQL_BUILD_FOLDER}
++ls
++
++aws_lc_build
++pushd ${MYSQL_SRC_FOLDER}
++mysql_build
++# TODO: There are still pending test failures that need to be resolved. Turn this on once we resolve them.
++# mysql_run_tests
++popd
+diff --git a/tests/ci/integration/run_openssh_integration.sh b/tests/ci/integration/run_openssh_integration.sh
+index 0c21f45b1..da3f0dc45 100755
+--- a/tests/ci/integration/run_openssh_integration.sh
++++ b/tests/ci/integration/run_openssh_integration.sh
+@@ -6,11 +6,9 @@ source tests/ci/common_posix_setup.sh
+ 
+ # Set up environment.
+ 
+-# ROOT
++# SYS_ROOT
+ #  |
+-#  - AWS_LC_DIR
+-#    |
+-#    - aws-lc
++#  - SRC_ROOT(aws-lc)
+ #  |
+ #  - SCRATCH_FOLDER
+ #    |
+@@ -20,12 +18,7 @@ source tests/ci/common_posix_setup.sh
+ #    - OPENSSH_INSTALL_FOLDER
+ 
+ # Assumes script is executed from the root of aws-lc directory
+-AWS_LC_DIR=$(pwd)
+-pushd ..
+-ROOT=$(pwd)
+-popd
+-
+-SCRATCH_FOLDER="${ROOT}/SCRATCH_AWSLC_OPENSSH_INTERN_TEST"
++SCRATCH_FOLDER="${SYS_ROOT}/SCRATCH_AWSLC_OPENSSH_INTERN_TEST"
+ AWS_LC_BUILD_FOLDER="${SCRATCH_FOLDER}/aws-lc-build"
+ AWS_LC_INSTALL_FOLDER="${SCRATCH_FOLDER}/aws-lc-install"
+ OPENSSH_WORKSPACE_FOLDER="${SCRATCH_FOLDER}/openssh-portable"
+@@ -44,7 +37,7 @@ pushd "${SCRATCH_FOLDER}"
+ # Test helper functions.
+ 
+ function aws_lc_build() {
+-  ${CMAKE_COMMAND} "${AWS_LC_DIR}" -GNinja "-B${AWS_LC_BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${AWS_LC_INSTALL_FOLDER}" "$@"
++  ${CMAKE_COMMAND} "${SRC_ROOT}" -GNinja "-B${AWS_LC_BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${AWS_LC_INSTALL_FOLDER}" "$@"
+   ${NINJA_COMMAND} -C "${AWS_LC_BUILD_FOLDER}" install
+   ls -R "${AWS_LC_INSTALL_FOLDER}"
+   rm -rf "${AWS_LC_BUILD_FOLDER:?}"/*
+diff --git a/tests/ci/integration/run_postgres_integration.sh b/tests/ci/integration/run_postgres_integration.sh
+index 1864d3135..d070e559b 100755
+--- a/tests/ci/integration/run_postgres_integration.sh
++++ b/tests/ci/integration/run_postgres_integration.sh
+@@ -6,11 +6,9 @@ source tests/ci/common_posix_setup.sh
+ 
+ # Set up environment.
+ 
+-# ROOT
++# SYS_ROOT
+ #  |
+-#  - AWS_LC_DIR
+-#    |
+-#    - aws-lc
++#  - SRC_ROOT(aws-lc)
+ #  |
+ #  - SCRATCH_FOLDER
+ #    |
+@@ -20,11 +18,7 @@ source tests/ci/common_posix_setup.sh
+ #    - POSTGRES_BUILD_FOLDER
+ 
+ # Assumes script is executed from the root of aws-lc directory
+-AWS_LC_DIR=$(pwd)
+-cd ../
+-ROOT=$(pwd)
+-
+-SCRATCH_FOLDER=${ROOT}/"POSTGRES_BUILD_ROOT"
++SCRATCH_FOLDER=${SYS_ROOT}/"POSTGRES_BUILD_ROOT"
+ POSTGRES_SRC_FOLDER="${SCRATCH_FOLDER}/postgres"
+ POSTGRES_BUILD_FOLDER="${SCRATCH_FOLDER}/postgres/build"
+ AWS_LC_BUILD_FOLDER="${SCRATCH_FOLDER}/aws-lc-build"
+@@ -35,7 +29,7 @@ rm -rf ${SCRATCH_FOLDER}/*
+ cd ${SCRATCH_FOLDER}
+ 
+ function aws_lc_build() {
+-  ${CMAKE_COMMAND} ${AWS_LC_DIR} -GNinja "-B${AWS_LC_BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${AWS_LC_INSTALL_FOLDER}"
++  ${CMAKE_COMMAND} ${SRC_ROOT} -GNinja "-B${AWS_LC_BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${AWS_LC_INSTALL_FOLDER}"
+   ninja -C ${AWS_LC_BUILD_FOLDER} install
+   ls -R ${AWS_LC_INSTALL_FOLDER}
+   rm -rf ${AWS_LC_BUILD_FOLDER}/*
+diff --git a/tests/ci/integration/run_s2n_integration.sh b/tests/ci/integration/run_s2n_integration.sh
+index 7050a9884..e53f528e8 100755
+--- a/tests/ci/integration/run_s2n_integration.sh
++++ b/tests/ci/integration/run_s2n_integration.sh
+@@ -6,11 +6,9 @@ source tests/ci/common_posix_setup.sh
+ 
+ # Set up environment.
+ 
+-# ROOT
++# SYS_ROOT
+ #  |
+-#  - AWS_LC_DIR
+-#    |
+-#    - aws-lc
++#  - SRC_ROOT(aws-lc)
+ #  |
+ #  - SCRATCH_FOLDER
+ #    |
+@@ -20,11 +18,7 @@ source tests/ci/common_posix_setup.sh
+ #    - S2N_TLS_BUILD_FOLDER
+ 
+ # Assumes script is executed from the root of aws-lc directory
+-AWS_LC_DIR=$(pwd)
+-cd ../
+-ROOT=$(pwd)
+-
+-SCRATCH_FOLDER=${ROOT}/"SCRATCH_AWSLC_S2N_INTERN_TEST"
++SCRATCH_FOLDER=${SYS_ROOT}/"SCRATCH_AWSLC_S2N_INTERN_TEST"
+ AWS_LC_BUILD_FOLDER="${SCRATCH_FOLDER}/aws-lc-build"
+ AWS_LC_INSTALL_FOLDER="${SCRATCH_FOLDER}/aws-lc-install"
+ S2N_TLS_BUILD_FOLDER="${SCRATCH_FOLDER}/s2n-tls-build"
+@@ -44,7 +38,7 @@ function fail() {
+ }
+ 
+ function aws_lc_build() {
+-	${CMAKE_COMMAND} ${AWS_LC_DIR} -GNinja "-B${AWS_LC_BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${AWS_LC_INSTALL_FOLDER}" "$@"
++	${CMAKE_COMMAND} ${SRC_ROOT} -GNinja "-B${AWS_LC_BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${AWS_LC_INSTALL_FOLDER}" "$@"
+ 	ninja -C ${AWS_LC_BUILD_FOLDER} install
+ 	ls -R ${AWS_LC_INSTALL_FOLDER}
+ 	rm -rf ${AWS_LC_BUILD_FOLDER}/*

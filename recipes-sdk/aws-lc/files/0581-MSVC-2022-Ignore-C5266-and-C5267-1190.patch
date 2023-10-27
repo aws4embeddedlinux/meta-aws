@@ -1,0 +1,22 @@
+From c288cd32cb5069ef95d5c4a316ce67a5a60238f3 Mon Sep 17 00:00:00 2001
+From: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+Date: Thu, 14 Sep 2023 13:21:57 -0400
+Subject: [PATCH] MSVC 2022 - Ignore C5266 and C5267 (#1190)
+
+---
+ CMakeLists.txt | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d1e51a054..d36eee057 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -473,6 +473,8 @@ elseif(MSVC)
+       "C4996" # deprecated warnings using low level functions in OpenSSL 3.0
+       "C4746" # consider using __iso_volatile_load/store intrinsic functions
+       "C5264" # 'variable-name': 'const' variable is not used
++      "C5266" # 'const' qualifier on return type has no effect
++      "C5267" # definition of implicit copy constructor for '...' is deprecated because it has a user-provided destructor
+           )
+   set(MSVC_LEVEL4_WARNINGS_LIST
+       # See https://connect.microsoft.com/VisualStudio/feedback/details/1217660/warning-c4265-when-using-functional-header

@@ -1,0 +1,502 @@
+From 6ba258c31a16d6f5eead6cfb572f836e08e956cd Mon Sep 17 00:00:00 2001
+From: torben-hansen <50673096+torben-hansen@users.noreply.github.com>
+Date: Mon, 7 Aug 2023 09:09:09 -0700
+Subject: [PATCH] Implementation passive entropy (#1125)
+
+---
+ CMakeLists.txt                         |   9 ++
+ crypto/CMakeLists.txt                  |   1 +
+ crypto/fipsmodule/rand/internal.h      |  20 +++++
+ crypto/fipsmodule/rand/rand.c          |  99 +++++++++++++++-------
+ crypto/fipsmodule/rand/urandom_test.cc |  38 ++++++++-
+ crypto/rand_extra/entropy_passive.c    |  16 ++++
+ crypto/rand_extra/rand_test.cc         | 113 +++++++++++++++++++++++++
+ tests/ci/run_fips_tests.sh             |   3 +
+ 8 files changed, 267 insertions(+), 32 deletions(-)
+ create mode 100644 crypto/rand_extra/entropy_passive.c
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 98312d179..da8c3bd5b 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -25,6 +25,15 @@ include(cmake/go.cmake)
+ 
+ enable_language(C)
+ 
++# Configure entropy source in case of FIPS build
++if(FIPS)
++  if(USE_FIPS_ENTROPY_SOURCE_PASSIVE)
++    add_definitions(-DFIPS_ENTROPY_SOURCE_PASSIVE)
++  else()
++    add_definitions(-DFIPS_ENTROPY_SOURCE_JITTER_CPU)
++  endif()
++endif()
++
+ # Tests and libssl both require the CXX language to be enabled. If a consumer
+ # chooses to disable building the tests and libssl, do not enable CXX
+ if(BUILD_TESTING OR BUILD_LIBSSL)
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index ab86bdaca..a82b1cb59 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -422,6 +422,7 @@ add_library(
+   poly1305/poly1305_vec.c
+   pool/pool.c
+   rand_extra/deterministic.c
++  rand_extra/entropy_passive.c
+   rand_extra/forkunsafe.c
+   rand_extra/fuchsia.c
+   rand_extra/rand_extra.c
+diff --git a/crypto/fipsmodule/rand/internal.h b/crypto/fipsmodule/rand/internal.h
+index 76675795d..6a8091926 100644
+--- a/crypto/fipsmodule/rand/internal.h
++++ b/crypto/fipsmodule/rand/internal.h
+@@ -129,10 +129,30 @@ OPENSSL_INLINE int have_fast_rdrand(void) {
+ #define MAX_BACKOFF_RETRIES 9
+ OPENSSL_EXPORT void HAZMAT_set_urandom_test_mode_for_testing(void);
+ 
++// Final factor TBD
++#define PASSIVE_ENTROPY_WHITEN_FACTOR 10
++// Total number of bytes of entropy to load into FIPS module
++#define PASSIVE_ENTROPY_LOAD_LENGTH (CTR_DRBG_ENTROPY_LEN * PASSIVE_ENTROPY_WHITEN_FACTOR)
++
+ #if defined(BORINGSSL_FIPS)
++
++#if defined(FIPS_ENTROPY_SOURCE_JITTER_CPU)
++
+ #define JITTER_MAX_NUM_TRIES (3)
++
++#elif defined(FIPS_ENTROPY_SOURCE_PASSIVE)
++
++OPENSSL_EXPORT void RAND_module_entropy_depleted(uint8_t out_entropy[CTR_DRBG_ENTROPY_LEN],
++                                  int *out_want_additional_input);
++void CRYPTO_get_seed_entropy(uint8_t entropy[PASSIVE_ENTROPY_LOAD_LENGTH],
++                             int *out_want_additional_input);
++OPENSSL_EXPORT void RAND_load_entropy(uint8_t out_entropy[CTR_DRBG_ENTROPY_LEN],
++                       uint8_t entropy[PASSIVE_ENTROPY_LOAD_LENGTH]);
++
+ #endif
+ 
++#endif // defined(BORINGSSL_FIPS)
++
+ #if defined(__cplusplus)
+ }  // extern C
+ #endif
+diff --git a/crypto/fipsmodule/rand/rand.c b/crypto/fipsmodule/rand/rand.c
+index c9bfba641..8de4fadda 100644
+--- a/crypto/fipsmodule/rand/rand.c
++++ b/crypto/fipsmodule/rand/rand.c
+@@ -65,26 +65,28 @@
+ 
+ #if defined(BORINGSSL_FIPS)
+ 
+-// In the future this will be demoted to a build-time option.
+-// Another entropy source will be promoted to the default source.
+-#define FIPS_ENTROPY_SOURCE_JITTER_CPU 1
+-
+-#if !defined(FIPS_ENTROPY_SOURCE_JITTER_CPU)
+-#error "Currently, Jitter CPU must be configured as the entropy source in FIPS mode"
++#if defined(FIPS_ENTROPY_SOURCE_JITTER_CPU) && defined(FIPS_ENTROPY_SOURCE_PASSIVE)
++#error "Only one FIPS entropy source can be enabled at a time"
+ #endif
+ 
++#if defined(FIPS_ENTROPY_SOURCE_JITTER_CPU)
+ static const unsigned kReseedInterval = 16777216;
++#elif defined(FIPS_ENTROPY_SOURCE_PASSIVE)
++static const unsigned kReseedInterval = 4096;
++#else
++#error "A FIPS entropy source must be explicitly defined"
++#endif
+ 
+ #else // defined(BORINGSSL_FIPS)
+ 
+-#if defined(FIPS_ENTROPY_SOURCE_JITTER_CPU)
+-#error "Jitter CPU must not be configured as the entropy source in non-FIPS mode"
++#if defined(FIPS_ENTROPY_SOURCE_JITTER_CPU) || defined(FIPS_ENTROPY_SOURCE_PASSIVE)
++#error "A FIPS entropy source must not be defined for non-FIPS build"
+ #endif
+-
+ static const unsigned kReseedInterval = 4096;
+ 
+ #endif // defined(BORINGSSL_FIPS)
+ 
++
+ // rand_thread_state contains the per-thread state for the RNG.
+ struct rand_thread_state {
+   CTR_DRBG_STATE drbg;
+@@ -141,16 +143,29 @@ static void rand_state_fips_init(struct rand_thread_state *state) {
+ 
+ static void rand_state_fips_maybe_want_additional_input(
+   uint8_t additional_input[CTR_DRBG_ENTROPY_LEN],
+-  size_t *additional_input_len) {
++  size_t *additional_input_len,
++  int want_additional_input) {
+ 
+   *additional_input_len = 0;
+ 
+ #if defined(FIPS_ENTROPY_SOURCE_JITTER_CPU)
+-  // In FIPS mode we get the entropy from CPU Jitter. In order to not rely
++
++  // In FIPS mode when getting the entropy from CPU Jitter, in order to not rely
+   // completely on Jitter we add to |CTR_DRBG_init| additional data
+   // that we read from urandom.
+   CRYPTO_sysrand(additional_input, CTR_DRBG_ENTROPY_LEN);
+   *additional_input_len = CTR_DRBG_ENTROPY_LEN;
++
++#elif defined(FIPS_ENTROPY_SOURCE_PASSIVE)
++
++  // When getting entropy from the passive source in FIPS mode, we add
++  // additional data if a CPU source has been used.
++  if (want_additional_input == 1) {
++    if (CRYPTO_sysrand_if_available(additional_input, CTR_DRBG_ENTROPY_LEN) == 1) {
++      *additional_input_len = CTR_DRBG_ENTROPY_LEN;
++    }
++  }
++
+ #endif
+ }
+ 
+@@ -159,6 +174,7 @@ static void CRYPTO_fips_get_from_entropy_source(struct rand_thread_state *state,
+   uint8_t *out_entropy, size_t out_entropy_len, int *out_want_additional_input) {
+ 
+ #if defined(FIPS_ENTROPY_SOURCE_JITTER_CPU)
++
+   if (state->jitter_ec == NULL) {
+     abort();
+   }
+@@ -185,6 +201,11 @@ static void CRYPTO_fips_get_from_entropy_source(struct rand_thread_state *state,
+   if (num_tries > JITTER_MAX_NUM_TRIES) {
+     abort();
+   }
++
++#elif defined(FIPS_ENTROPY_SOURCE_PASSIVE)
++
++  RAND_module_entropy_depleted(out_entropy, out_want_additional_input);
++
+ #endif
+ }
+ 
+@@ -291,33 +312,53 @@ static int rdrand(uint8_t *buf, size_t len) {
+ 
+ #if defined(BORINGSSL_FIPS)
+ 
+-static void CRYPTO_get_fips_seed(uint8_t *out_entropy, size_t out_entropy_len,
+-                                 int *out_want_additional_input) {
+-  *out_want_additional_input = 0;
+-  // Every thread has its own Jitter instance so we fetch the one assigned
+-  // to the current thread.
+-  struct rand_thread_state *state =
+-      CRYPTO_get_thread_local(OPENSSL_THREAD_LOCAL_RAND);
+-  if (state == NULL) {
+-    abort();
++#if defined(FIPS_ENTROPY_SOURCE_PASSIVE)
++void RAND_load_entropy(uint8_t out_entropy[CTR_DRBG_ENTROPY_LEN],
++                       uint8_t entropy[PASSIVE_ENTROPY_LOAD_LENGTH]) {
++
++  OPENSSL_memcpy(out_entropy, entropy, CTR_DRBG_ENTROPY_LEN);
++
++  // Whiten the resulting entropy
++  OPENSSL_STATIC_ASSERT(PASSIVE_ENTROPY_LOAD_LENGTH == (PASSIVE_ENTROPY_WHITEN_FACTOR * CTR_DRBG_ENTROPY_LEN), PASSIVE_ENTROPY_LOAD_LENGTH_wrong_size);
++  for (size_t i = 1; i < PASSIVE_ENTROPY_WHITEN_FACTOR; i++) {
++    for (size_t j = 0; j < CTR_DRBG_ENTROPY_LEN; j++) {
++      out_entropy[j] ^= entropy[CTR_DRBG_ENTROPY_LEN * i + j];
++    }
+   }
++}
+ 
+-  CRYPTO_fips_get_from_entropy_source(state, out_entropy, out_entropy_len,
+-    out_want_additional_input);
++void CRYPTO_get_seed_entropy(uint8_t entropy[PASSIVE_ENTROPY_LOAD_LENGTH],
++                             int *out_want_additional_input) {
++  *out_want_additional_input = 0;
++
++  if (have_rdrand() == 1) {
++    if (rdrand(entropy, PASSIVE_ENTROPY_LOAD_LENGTH) != 1) {
++      abort();
++    }
++    *out_want_additional_input = 1;
++  } else {
++    CRYPTO_sysrand_for_seed(entropy, PASSIVE_ENTROPY_LOAD_LENGTH);
++  }
+ }
++#endif
+ 
+ // rand_get_seed fills |seed| with entropy and sets |*out_want_additional_input|
+ // to one if that entropy came directly from the CPU and zero otherwise.
+-static void rand_get_seed(uint8_t seed[CTR_DRBG_ENTROPY_LEN],
++static void rand_get_seed(struct rand_thread_state *state,
++                          uint8_t seed[CTR_DRBG_ENTROPY_LEN],
+                           int *out_want_additional_input) {
+-  CRYPTO_get_fips_seed(seed, CTR_DRBG_ENTROPY_LEN, out_want_additional_input);
++  *out_want_additional_input = 0;
++
++  CRYPTO_fips_get_from_entropy_source(state, seed, CTR_DRBG_ENTROPY_LEN,
++    out_want_additional_input);
+ }
+ 
+ #else // BORINGSSL_FIPS
+ 
+ // rand_get_seed fills |seed| with entropy and sets |*out_want_additional_input|
+ // to one if that entropy came directly from the CPU and zero otherwise.
+-static void rand_get_seed(uint8_t seed[CTR_DRBG_ENTROPY_LEN],
++static void rand_get_seed(struct rand_thread_state *state,
++                          uint8_t seed[CTR_DRBG_ENTROPY_LEN],
+                           int *out_want_additional_input) {
+   // If not in FIPS mode, we don't overread from the system entropy source and
+   // we don't depend only on the hardware RDRAND.
+@@ -385,13 +426,13 @@ void RAND_bytes_with_additional_data(uint8_t *out, size_t out_len,
+ 
+     uint8_t seed[CTR_DRBG_ENTROPY_LEN];
+     int want_additional_input;
+-    rand_get_seed(seed, &want_additional_input);
++    rand_get_seed(state, seed, &want_additional_input);
+ 
+     uint8_t personalization[CTR_DRBG_ENTROPY_LEN] = {0};
+     size_t personalization_len = 0;
+ #if defined(BORINGSSL_FIPS)
+     rand_state_fips_maybe_want_additional_input(personalization,
+-      &personalization_len);
++      &personalization_len, want_additional_input);
+ #endif
+ 
+     if (!CTR_DRBG_init(&state->drbg, seed, personalization,
+@@ -422,7 +463,7 @@ void RAND_bytes_with_additional_data(uint8_t *out, size_t out_len,
+       state->fork_generation != fork_generation) {
+     uint8_t seed[CTR_DRBG_ENTROPY_LEN];
+     int want_additional_input;
+-    rand_get_seed(seed, &want_additional_input);
++    rand_get_seed(state, seed, &want_additional_input);
+ 
+     uint8_t add_data_for_reseed[CTR_DRBG_ENTROPY_LEN];
+     size_t add_data_for_reseed_len = 0;
+@@ -438,7 +479,7 @@ void RAND_bytes_with_additional_data(uint8_t *out, size_t out_len,
+     CRYPTO_STATIC_MUTEX_lock_read(state_clear_all_lock_bss_get());
+ 
+     rand_state_fips_maybe_want_additional_input(add_data_for_reseed,
+-      &add_data_for_reseed_len);
++      &add_data_for_reseed_len, want_additional_input);
+ #endif
+     if (!CTR_DRBG_reseed(&state->drbg, seed,
+                          add_data_for_reseed, add_data_for_reseed_len)) {
+diff --git a/crypto/fipsmodule/rand/urandom_test.cc b/crypto/fipsmodule/rand/urandom_test.cc
+index a9d664342..562d4ba83 100644
+--- a/crypto/fipsmodule/rand/urandom_test.cc
++++ b/crypto/fipsmodule/rand/urandom_test.cc
+@@ -48,6 +48,17 @@ static const bool kIsFIPS = true;
+ static const bool kIsFIPS = false;
+ #endif
+ 
++#if defined(FIPS_ENTROPY_SOURCE_JITTER_CPU)
++static const bool kIsFipsSourceJitterCpu = true;
++#else
++static const bool kIsFipsSourceJitterCpu = false;
++#endif
++
++#if defined(FIPS_ENTROPY_SOURCE_PASSIVE)
++static const bool kIsFipsSourcePassive = true;
++#else
++static const bool kIsFipsSourcePassive = false;
++#endif
+ 
+ // This test can be run with $OPENSSL_ia32cap=~0x4000000000000000 in order to
+ // simulate the absence of RDRAND of machines that have it.
+@@ -474,6 +485,7 @@ static std::vector<Event> TestFunctionPRNGModel(unsigned flags) {
+   const size_t kSeedLength = CTR_DRBG_ENTROPY_LEN;
+   const size_t kAdditionalDataLength = 32;
+   const size_t kPersonalizationStringLength = CTR_DRBG_ENTROPY_LEN;
++  const size_t kPassiveEntropyWithWhitenFactor = PASSIVE_ENTROPY_LOAD_LENGTH;
+   const bool kHaveRdrand = have_rdrand();
+   const bool kHaveFastRdrand = have_fast_rdrand();
+   const bool kHaveForkDetection = have_fork_detection();
+@@ -495,11 +507,31 @@ static std::vector<Event> TestFunctionPRNGModel(unsigned flags) {
+       }
+     }
+   }
++
+   // Now the entropy for seeding.
+   if (kIsFIPS) {
+-    // In FIPS mode we use Jitter Entropy for the seed but Jitter is not modeled
+-    // A blocking system random call for a personalization string always follows.
+-    if (!sysrand(true, kPersonalizationStringLength)) {
++    if (kIsFipsSourceJitterCpu) {
++      // In FIPS mode we use Jitter Entropy by default for the seed but Jitter
++      // is not modeled. A blocking system random call for a personalization
++      // string always follows.
++      if (!sysrand(true, kPersonalizationStringLength)) {
++        return ret;
++      }
++    } else if (kIsFipsSourcePassive) {
++      // The Passive FIPS entropy source either gathers entropy from a CPU
++      // source or a system source. The former is not modeled.
++      if (!kHaveRdrand) {
++        if (!sysrand(true, kPassiveEntropyWithWhitenFactor)) {
++                return ret;
++        }
++      } else {
++        // If using the CPU source, also drawing additional data for diversity.
++        if (!sysrand(false, kPersonalizationStringLength)) {
++                return ret;
++        }
++      }
++    } else {
++      // This shouldn't really happen...
+       return ret;
+     }
+   } else {
+diff --git a/crypto/rand_extra/entropy_passive.c b/crypto/rand_extra/entropy_passive.c
+new file mode 100644
+index 000000000..e1c912496
+--- /dev/null
++++ b/crypto/rand_extra/entropy_passive.c
+@@ -0,0 +1,16 @@
++// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
++// SPDX-License-Identifier: Apache-2.0 OR ISC
++
++#include "../fipsmodule/rand/internal.h"
++
++#if defined(FIPS_ENTROPY_SOURCE_PASSIVE)
++
++void RAND_module_entropy_depleted(uint8_t out_entropy[CTR_DRBG_ENTROPY_LEN],
++                                  int *out_want_additional_input) {
++
++  uint8_t entropy[PASSIVE_ENTROPY_LOAD_LENGTH] = {0};
++  CRYPTO_get_seed_entropy(entropy, out_want_additional_input);
++  RAND_load_entropy(out_entropy, entropy);
++}
++
++#endif
+diff --git a/crypto/rand_extra/rand_test.cc b/crypto/rand_extra/rand_test.cc
+index 364de74db..61da75033 100644
+--- a/crypto/rand_extra/rand_test.cc
++++ b/crypto/rand_extra/rand_test.cc
+@@ -219,3 +219,116 @@ TEST(RandTest, RdrandABI) {
+   CHECK_ABI_SEH(CRYPTO_rdrand_multiple8_buf, buf, 32);
+ }
+ #endif  // OPENSSL_X86_64 && SUPPORTS_ABI_TEST
++
++#if defined(AWSLC_FIPS) && defined(FIPS_ENTROPY_SOURCE_PASSIVE)
++TEST(RandTest, PassiveEntropyLoad) {
++  uint8_t out_entropy[CTR_DRBG_ENTROPY_LEN] = {0};
++  uint8_t entropy[PASSIVE_ENTROPY_LOAD_LENGTH] = {
++    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
++    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
++    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
++    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
++    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
++    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
++
++    0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
++    0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
++    0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
++    0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
++    0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
++    0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
++
++    0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0,
++    0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0,
++    0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0,
++    0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0,
++    0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0,
++    0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0,
++
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++
++    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++
++    0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
++    0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
++    0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
++    0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
++    0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
++    0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
++
++    0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0,
++    0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0,
++    0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0,
++    0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0,
++    0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0,
++    0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0,
++
++    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
++    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
++    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
++    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
++    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
++    0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
++  };
++  uint8_t expected_out_entropy[CTR_DRBG_ENTROPY_LEN] = {
++    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++  };
++
++  RAND_load_entropy(out_entropy, entropy);
++
++  EXPECT_EQ(Bytes(out_entropy), Bytes(expected_out_entropy));
++}
++
++TEST(RandTest, PassiveEntropyDepletedObviouslyNotBroken) {
++
++  static const uint8_t kZeros[CTR_DRBG_ENTROPY_LEN] = {0};
++  uint8_t buf1[CTR_DRBG_ENTROPY_LEN] = {0};
++  uint8_t buf2[CTR_DRBG_ENTROPY_LEN] = {0};
++  int out_want_additional_input_false_default = 0;
++  int out_want_additional_input_true_default = 1;
++  int want_additional_input_expect = 0;
++
++  RAND_module_entropy_depleted(buf1, &out_want_additional_input_false_default);
++  RAND_module_entropy_depleted(buf2, &out_want_additional_input_true_default);
++
++  if (have_rdrand()) {
++    want_additional_input_expect = 1;
++  }
++
++  EXPECT_EQ(out_want_additional_input_false_default, want_additional_input_expect);
++  EXPECT_EQ(out_want_additional_input_true_default, want_additional_input_expect);
++  EXPECT_NE(Bytes(buf1), Bytes(buf2));
++  EXPECT_NE(Bytes(buf1), Bytes(kZeros));
++  EXPECT_NE(Bytes(buf2), Bytes(kZeros));
++
++}
++#endif
+diff --git a/tests/ci/run_fips_tests.sh b/tests/ci/run_fips_tests.sh
+index 9f21bcf1e..723e3ef50 100755
+--- a/tests/ci/run_fips_tests.sh
++++ b/tests/ci/run_fips_tests.sh
+@@ -19,6 +19,9 @@ if [[ ("$(uname -s)" == 'Linux'*) && (("$(uname -p)" == 'x86_64'*) || ("$(uname
+ 
+   # These build parameters may be needed by our aws-lc-fips-sys Rust package
+   run_build -DFIPS=1 -DBUILD_LIBSSL=OFF -DBUILD_TESTING=OFF
++
++  echo "Testing FIPS entropy source: Passive."
++  fips_build_and_test -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release -DUSE_FIPS_ENTROPY_SOURCE_PASSIVE=1
+ fi
+ 
+ # The AL2 version of Clang does not have all of the required artifacts for address sanitizer, see P45594051

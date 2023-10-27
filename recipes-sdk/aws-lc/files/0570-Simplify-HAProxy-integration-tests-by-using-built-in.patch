@@ -1,0 +1,128 @@
+From dd7b89840cd0db8dadcc7431d865b4eb20da319c Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Thu, 7 Sep 2023 10:18:11 -0700
+Subject: [PATCH] Simplify HAProxy integration tests by using built in filters
+ (#1174)
+
+Run all "default,bug,devel" HAProxy tests instead of manually filtering out test files. Migrate HAProxy CI from CodeBuild to GitHub actions.
+---
+ .github/workflows/integrations.yml            | 19 ++++++++
+ .../github_ci_integration_omnibus.yaml        | 10 -----
+ .../ci/integration/run_haproxy_integration.sh | 43 +++++++++----------
+ 3 files changed, 39 insertions(+), 33 deletions(-)
+ create mode 100644 .github/workflows/integrations.yml
+
+diff --git a/.github/workflows/integrations.yml b/.github/workflows/integrations.yml
+new file mode 100644
+index 000000000..f3453e776
+--- /dev/null
++++ b/.github/workflows/integrations.yml
+@@ -0,0 +1,19 @@
++name: aws-lc integration tests
++on:
++  push:
++    branches: [ '*' ]
++  pull_request:
++    branches: [ '*' ]
++env:
++  CC: gcc
++jobs:
++  haproxy:
++    runs-on: ubuntu-latest
++    steps:
++      - name: Install OS Dependencies
++        run: |
++          sudo apt-get -y --no-install-recommends install cmake gcc ninja-build golang make
++      - uses: actions/checkout@v3
++      - name: Run integration build
++        run: |
++          ./tests/ci/integration/run_haproxy_integration.sh
+\ No newline at end of file
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+index 011fbe891..7d4909aa2 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+@@ -57,16 +57,6 @@ batch:
+         variables:
+           AWS_LC_CI_TARGET: "tests/ci/integration/run_mariadb_integration.sh"
+ 
+-    - identifier: haproxy_integration
+-      buildspec: tests/ci/codebuild/common/run_simple_target.yml
+-      env:
+-        type: LINUX_CONTAINER
+-        privileged-mode: false
+-        compute-type: BUILD_GENERAL1_MEDIUM
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
+-        variables:
+-          AWS_LC_CI_TARGET: "tests/ci/integration/run_haproxy_integration.sh"
+-
+     - identifier: curl_integration
+       buildspec: tests/ci/codebuild/common/run_simple_target.yml
+       env:
+diff --git a/tests/ci/integration/run_haproxy_integration.sh b/tests/ci/integration/run_haproxy_integration.sh
+index e6097a2a4..5a3a9140f 100755
+--- a/tests/ci/integration/run_haproxy_integration.sh
++++ b/tests/ci/integration/run_haproxy_integration.sh
+@@ -6,18 +6,14 @@ source tests/ci/common_posix_setup.sh
+ 
+ # Set up environment.
+ 
+-# SYS_ROOT
+-#  |
+-#  - SRC_ROOT(aws-lc)
+-#  |
++# SRC_ROOT(aws-lc)
+ #  - SCRATCH_FOLDER
+-#    |
+ #    - HAPROXY_SRC
+ #    - AWS_LC_BUILD_FOLDER
+ #    - AWS_LC_INSTALL_FOLDER
+ 
+ # Assumes script is executed from the root of aws-lc directory
+-SCRATCH_FOLDER=${SYS_ROOT}/"scratch"
++SCRATCH_FOLDER=${SRC_ROOT}/"scratch"
+ AWS_LC_BUILD_FOLDER="${SCRATCH_FOLDER}/aws-lc-build"
+ AWS_LC_INSTALL_FOLDER="${SCRATCH_FOLDER}/aws-lc-install"
+ HAPROXY_SRC="${SCRATCH_FOLDER}/haproxy"
+@@ -25,23 +21,24 @@ export LD_LIBRARY_PATH="${AWS_LC_INSTALL_FOLDER}/lib"
+ 
+ function build_and_test_haproxy() {
+   cd ${HAPROXY_SRC}
+-  make CC="${CC}" -j ${NUM_CPU_THREADS} TARGET=generic USE_OPENSSL=1 SSL_INC="${AWS_LC_INSTALL_FOLDER}/include" \
+-      SSL_LIB="${AWS_LC_INSTALL_FOLDER}/lib/" USE_LUA=1  LUA_LIB_NAME=lua5.4
+-
+-  # These tests are marked as SLOW and should be skipped.
+-  # TODO: update this to: make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
+-  # ssl_dh.vtc expects to use libssl with a FFDH ciphersuite which is unsupported, it will be gracefully turned off in
+-  # ssl_dh.vtc with the change in https://github.com/andrewhop/haproxy/pull/1
+-  excluded_tests=("mcli_show_info.vtc" "mcli_start_progs.vtc" "tls_basic_sync.vtc" "tls_basic_sync_wo_stkt_backend.vtc" "acl_cli_spaces.vtc" "http_reuse_always.vtc" "ocsp_auto_update.vtc" "ssl_dh.vtc")
+-  test_paths=""
+-
+-  for test in reg-tests/**/*; do
+-      if [[ "$test" == *.vtc ]] && [[ ! " ${excluded_tests[*]} " =~ $(basename "$test") ]]; then
+-          test_paths+="$(realpath "$test") "
+-      fi
+-  done
+-
+-  make reg-tests VTEST_PROGRAM=../vtest/vtest REG_TEST_FILES="$test_paths"
++  make CC="${CC}" -j ${NUM_CPU_THREADS} TARGET=linux-glibc USE_OPENSSL_AWSLC=1 SSL_INC="${AWS_LC_INSTALL_FOLDER}/include" \
++      SSL_LIB="${AWS_LC_INSTALL_FOLDER}/lib/"
++
++  set +e
++  make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
++  make_exit_status=$?
++  set -e
++  if [ $make_exit_status -ne 0 ]; then
++      echo "Regression tests failed with ${make_exit_status}"
++      for folder in /tmp/haregtests-*/vtc.*; do
++        echo $folder
++        cat $folder/INFO
++        cat $folder/LOG
++      done
++      exit 1
++    else
++      echo "Regression tests passed"
++    fi
+ }
+ 
+ # Make script execution idempotent.

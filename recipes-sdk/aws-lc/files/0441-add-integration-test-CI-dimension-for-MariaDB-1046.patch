@@ -1,0 +1,566 @@
+From 341a240a35ea405687aee0641567a236c97848e4 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Fri, 23 Jun 2023 11:56:25 -0700
+Subject: [PATCH] add integration test CI dimension for MariaDB (#1046)
+
+We've recently resolved missing symbols for MariaDB and are
+looking to add a CI dimension to ensure we don't break the build.
+Patches and flags necessary were taken from work done internally
+on MariaDB.
+---
+ .gitignore                                    |   1 +
+ .../github_ci_integration_omnibus.yaml        |   8 ++
+ .../integration/mariadb_integration.yml       |   9 ++
+ tests/ci/common_posix_setup.sh                |  13 ++
+ .../linux-x86/ubuntu-22.04_base/Dockerfile    |   1 +
+ ...-template-_template-so-AWS-LC-builds.patch |  56 +++++++++
+ ...the-unchecked-version-of-DES_set_key.patch | 115 ++++++++++++++++++
+ ...regex-in-mysql-test-run-to-make-SSL-.patch |  28 +++++
+ ...at-is-disabled-when-using-OpenSSL-1..patch |  29 +++++
+ .../ci/integration/run_mariadb_integration.sh |  85 +++++++++++++
+ tests/ci/integration/run_mysql_integration.sh |   9 +-
+ .../ci/integration/run_openssh_integration.sh |   9 +-
+ .../integration/run_postgres_integration.sh   |   9 +-
+ tests/ci/integration/run_s2n_integration.sh   |  11 +-
+ 14 files changed, 350 insertions(+), 33 deletions(-)
+ create mode 100644 tests/ci/codebuild/integration/mariadb_integration.yml
+ create mode 100644 tests/ci/integration/mariadb_patch/0001-WIP-Avoid-define-template-_template-so-AWS-LC-builds.patch
+ create mode 100644 tests/ci/integration/mariadb_patch/0002-WIP-Stop-using-the-unchecked-version-of-DES_set_key.patch
+ create mode 100644 tests/ci/integration/mariadb_patch/0003-WIP-Use-replace_regex-in-mysql-test-run-to-make-SSL-.patch
+ create mode 100644 tests/ci/integration/mariadb_patch/0004-WIP-Skip-test-that-is-disabled-when-using-OpenSSL-1..patch
+ create mode 100755 tests/ci/integration/run_mariadb_integration.sh
+
+diff --git a/.gitignore b/.gitignore
+index 0754f0a58..c8016a853 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -33,6 +33,7 @@ util/bot/sde-win32.tar.xz
+ util/bot/win_toolchain.json
+ util/bot/yasm-win32.exe
+ 
++tests/ci/.env
+ tests/ci/cdk/cdk.context.json
+ test_build_dir/
+ cmake-build-debug/
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+index fc475d6fd..e91895252 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+@@ -38,4 +38,12 @@ batch:
+         type: LINUX_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_2XLARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
++
++    - identifier: mariadb_integration
++      buildspec: ./tests/ci/codebuild/integration/mariadb_integration.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_LARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
+\ No newline at end of file
+diff --git a/tests/ci/codebuild/integration/mariadb_integration.yml b/tests/ci/codebuild/integration/mariadb_integration.yml
+new file mode 100644
+index 000000000..63b6a9b43
+--- /dev/null
++++ b/tests/ci/codebuild/integration/mariadb_integration.yml
+@@ -0,0 +1,9 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++version: 0.2
++
++phases:
++  build:
++    commands:
++      - ./tests/ci/integration/run_mariadb_integration.sh
+diff --git a/tests/ci/common_posix_setup.sh b/tests/ci/common_posix_setup.sh
+index 2eaf4c452..576050375 100644
+--- a/tests/ci/common_posix_setup.sh
++++ b/tests/ci/common_posix_setup.sh
+@@ -193,6 +193,19 @@ function build_and_run_minimal_test {
+   run_cmake_custom_target 'run_minimal_tests'
+ }
+ 
++# Install local build of AWS-LC for integration testing.
++function aws_lc_build() {
++  AWS_LC_DIR=${1}
++  BUILD_FOLDER=${2}
++  INSTALL_FOLDER=${3}
++
++  echo "Building AWS-LC to ${BUILD_FOLDER} and installing to ${INSTALL_FOLDER} with CFlags "${@:4}""
++  ${CMAKE_COMMAND} ${AWS_LC_DIR} -GNinja "-B${BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${INSTALL_FOLDER}" "${@:4}"
++  ninja -C ${BUILD_FOLDER} install
++  ls -R ${INSTALL_FOLDER}
++  rm -rf ${BUILD_FOLDER:?}/*
++}
++
+ function print_executable_information {
+   EXE_NAME=${1}
+   EXE_ARGUMENT=${2}
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+index fe6c51d04..41f32fbc2 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+@@ -27,6 +27,7 @@ RUN set -ex && \
+     cmake \
+     make \
+     ninja-build \
++    patch \
+     perl \
+     libunwind-dev \
+     pkg-config \
+diff --git a/tests/ci/integration/mariadb_patch/0001-WIP-Avoid-define-template-_template-so-AWS-LC-builds.patch b/tests/ci/integration/mariadb_patch/0001-WIP-Avoid-define-template-_template-so-AWS-LC-builds.patch
+new file mode 100644
+index 000000000..a555becd7
+--- /dev/null
++++ b/tests/ci/integration/mariadb_patch/0001-WIP-Avoid-define-template-_template-so-AWS-LC-builds.patch
+@@ -0,0 +1,56 @@
++From 10318f2e70b2cab11537b4fcf10266de254d8452 Mon Sep 17 00:00:00 2001
++From: Otto Kekalainen <ottoke@amazon.com>
++Date: Mon, 28 Nov 2022 20:27:35 -0800
++Subject: [PATCH 1/4] WIP: Avoid '#define template _template' so AWS-LC builds
++ can run
++
++Disable the WolfSSL specific bug fix as it breaks AWS-LC builds with
++errors like:
++
++/builds/CPACK_BUILD_SOURCE_DIRS_LONG_NAME_REQUIREMENT/mysys_ssl/my_crypt.cc:21:18: error: '_template' does not name a type
++   21 | #define template _template /* bug in WolfSSL 4.4.0, see also violite.h */
++      |                  ^~~~~~~~~
++
++Also:
++
++In file included from /usr/local/include/openssl/evp.h:60,
++                 from /builds/CPACK_BUILD_SOURCE_DIRS_LONG_NAME_REQUIREMENT/mysys_ssl/my_crypt.cc:22:
++/usr/local/include/openssl/mem.h:257:1: error: 'DeleterImpl' is not a class template
++  257 | BORINGSSL_MAKE_DELETER(char, OPENSSL_free)
++      | ^~~~~~~~~~~~~~~~~~~~~~
++---
++ include/violite.h     | 3 ++-
++ mysys_ssl/my_crypt.cc | 3 ++-
++ 2 files changed, 4 insertions(+), 2 deletions(-)
++
++diff --git a/include/violite.h b/include/violite.h
++index b823e62b2e1..f9c8ee6b845 100644
++--- a/include/violite.h
+++++ b/include/violite.h
++@@ -147,7 +147,8 @@ int vio_getnameinfo(const struct sockaddr *sa,
++ /* Set yaSSL to use same type as MySQL do for socket handles */
++ typedef my_socket YASSL_SOCKET_T;
++ #define YASSL_SOCKET_T_DEFINED
++-#define template _template /* bug in WolfSSL 4.4.0, see also my_crypt.cc */
+++// This causes template parse errors in the c++ stdlib.
+++// #define template _template /* bug in WolfSSL 4.4.0, see also my_crypt.cc */
++ #include <openssl/ssl.h>
++ #undef template
++ #include <openssl/err.h>
++diff --git a/mysys_ssl/my_crypt.cc b/mysys_ssl/my_crypt.cc
++index 4d7ebc7bd27..6fabb42f0cb 100644
++--- a/mysys_ssl/my_crypt.cc
+++++ b/mysys_ssl/my_crypt.cc
++@@ -18,7 +18,8 @@
++ #include <my_global.h>
++ #include <string.h>
++ 
++-#define template _template /* bug in WolfSSL 4.4.0, see also violite.h */
+++// This causes template parse errors in the c++ stdlib.
+++// #define template _template /* bug in WolfSSL 4.4.0, see also violite.h */
++ #include <openssl/evp.h>
++ #undef template
++ #include <openssl/aes.h>
++-- 
++2.39.2
++
+diff --git a/tests/ci/integration/mariadb_patch/0002-WIP-Stop-using-the-unchecked-version-of-DES_set_key.patch b/tests/ci/integration/mariadb_patch/0002-WIP-Stop-using-the-unchecked-version-of-DES_set_key.patch
+new file mode 100644
+index 000000000..92c8efe0e
+--- /dev/null
++++ b/tests/ci/integration/mariadb_patch/0002-WIP-Stop-using-the-unchecked-version-of-DES_set_key.patch
+@@ -0,0 +1,115 @@
++From e8efa757ab510b81e5f225e5d3736899600d1d86 Mon Sep 17 00:00:00 2001
++From: Otto Kekalainen <ottoke@amazon.com>
++Date: Mon, 28 Nov 2022 21:07:19 -0800
++Subject: [PATCH 2/4] WIP: Stop using the unchecked version of DES_set_key
++
++DES_set_key_unchecked  is deprecated since OpenSSL 3.0
++(https://www.openssl.org/docs/manmaster/man3/DES_set_key.html),
++the current long term support version.
++
++According to DES_set_key_unchecked documentation, it is functionally
++equivalent to DES_set_key, when the global variable DES_check_key is 0.
++In MariaDB the variable DES_check_key is used only in WolfSSL, which is
++not used when AWS-LC is used, so this change should be safe to do.
++
++Example error on CentOS 7:
++
++[ 83%] Building CXX object sql/CMakeFiles/sql.dir/des_key_file.cc.o
++/builds/CPACK_BUILD_SOURCE_DIRS_LONG_NAME_REQUIREMENT/sql/des_key_file.cc: In function 'bool load_des_key_file(const char*)':
++/builds/CPACK_BUILD_SOURCE_DIRS_LONG_NAME_REQUIREMENT/sql/des_key_file.cc:84:14: error: cannot convert 'DES_cblock' to 'uint8_t* {aka unsigned char*}' for argument '8' to 'int EVP_BytesToKey(const EVP_CIPHER*, const EVP_MD*, const uint8_t*, const uint8_t*, size_t, unsigned int, uint8_t*, uint8_t*)'
++          ivec);
++              ^
++/builds/CPACK_BUILD_SOURCE_DIRS_LONG_NAME_REQUIREMENT/sql/des_key_file.cc:85:74: error: 'DES_set_key_unchecked' was not declared in this scope
++  DES_set_key_unchecked(&keyblock.key1,&(des_keyschedule[(int)offset].ks1));
++                                                                          ^
++make[2]: *** [sql/CMakeFiles/sql.dir/des_key_file.cc.o] Error 1
++
++Example error on Fedora:
++
++[ 83%] Building CXX object sql/CMakeFiles/sql.dir/des_key_file.cc.o
++/builds/CPACK_BUILD_SOURCE_DIRS_LONG_NAME_REQUIREMENT/sql/des_key_file.cc: In function 'bool load_des_key_file(const char*)':
++/builds/CPACK_BUILD_SOURCE_DIRS_LONG_NAME_REQUIREMENT/sql/des_key_file.cc:84:10: error: cannot convert 'DES_cblock' {aka 'DES_cblock_st'} to 'uint8_t*' {aka 'unsigned char*'}
++   84 |          ivec);
++      |          ^~~~
++      |          |
++      |          DES_cblock {aka DES_cblock_st}
++In file included from /usr/local/include/openssl/pem.h:62,
++                 from /usr/local/include/openssl/ssl.h:149,
++                 from /builds/CPACK_BUILD_SOURCE_DIRS_LONG_NAME_REQUIREMENT/include/violite.h:152,
++                 from /builds/CPACK_BUILD_SOURCE_DIRS_LONG_NAME_REQUIREMENT/sql/des_key_file.h:22,
++                 from /builds/CPACK_BUILD_SOURCE_DIRS_LONG_NAME_REQUIREMENT/sql/des_key_file.cc:18:
++/usr/local/include/openssl/cipher.h:350:44: note:   initializing argument 8 of 'int EVP_BytesToKey(const EVP_CIPHER*, const EVP_MD*, const uint8_t*, const uint8_t*, size_t, unsigned int, uint8_t*, uint8_t*)'
++  350 |                                   uint8_t *iv);
++      |                                   ~~~~~~~~~^~
++/builds/CPACK_BUILD_SOURCE_DIRS_LONG_NAME_REQUIREMENT/sql/des_key_file.cc:85:2: error: 'DES_set_key_unchecked' was not declared in this scope
++   85 |  DES_set_key_unchecked(&keyblock.key1,&(des_keyschedule[(int)offset].ks1));
++      |  ^~~~~~~~~~~~~~~~~~~~~
++make[2]: *** [sql/CMakeFiles/sql.dir/build.make:177: sql/CMakeFiles/sql.dir/des_key_file.cc.o] Error 1
++---
++ sql/des_key_file.cc | 10 +++++-----
++ sql/item_strfunc.cc | 16 ++++++++--------
++ 2 files changed, 13 insertions(+), 13 deletions(-)
++
++diff --git a/sql/des_key_file.cc b/sql/des_key_file.cc
++index bfbe04f6015..084523a6d4f 100644
++--- a/sql/des_key_file.cc
+++++ b/sql/des_key_file.cc
++@@ -78,13 +78,13 @@ load_des_key_file(const char *file_name)
++ 	DES_cblock ivec;
++ 	bzero((char*) &ivec,sizeof(ivec));
++ 	// We make good 24-byte (168 bit) key from given plaintext key with MD5
++-	EVP_BytesToKey(EVP_des_ede3_cbc(),EVP_md5(),NULL,
+++	EVP_BytesToKey( EVP_des_ede3_cbc(),EVP_md5(),NULL,
++ 		       (uchar *) start, (int) (end-start),1,
++ 		       (uchar *) &keyblock,
++-		       ivec);
++-	DES_set_key_unchecked(&keyblock.key1,&(des_keyschedule[(int)offset].ks1));
++-	DES_set_key_unchecked(&keyblock.key2,&(des_keyschedule[(int)offset].ks2));
++-	DES_set_key_unchecked(&keyblock.key3,&(des_keyschedule[(int)offset].ks3));
+++                       ivec.bytes);
+++	DES_set_key(&keyblock.key1,&(des_keyschedule[(int)offset].ks1));
+++	DES_set_key(&keyblock.key2,&(des_keyschedule[(int)offset].ks2));
+++	DES_set_key(&keyblock.key3,&(des_keyschedule[(int)offset].ks3));
++ 	if (des_default_key == 15)
++ 	  des_default_key= (uint) offset;		// use first as def.
++       }
++diff --git a/sql/item_strfunc.cc b/sql/item_strfunc.cc
++index 7eee96b3a19..7b6ab0788d2 100644
++--- a/sql/item_strfunc.cc
+++++ b/sql/item_strfunc.cc
++@@ -764,11 +764,11 @@ String *Item_func_des_encrypt::val_str(String *str)
++     bzero((char*) &ivec,sizeof(ivec));
++     if (!EVP_BytesToKey(EVP_des_ede3_cbc(),EVP_md5(),NULL,
++ 		   (uchar*) keystr->ptr(), (int) keystr->length(),
++-		   1, (uchar*) &keyblock,ivec))
+++		   1, (uchar*) &keyblock,(uchar*) &ivec))
++       goto error;
++-    DES_set_key_unchecked(&keyblock.key1,&keyschedule.ks1);
++-    DES_set_key_unchecked(&keyblock.key2,&keyschedule.ks2);
++-    DES_set_key_unchecked(&keyblock.key3,&keyschedule.ks3);
+++    DES_set_key(&keyblock.key1,&keyschedule.ks1);
+++    DES_set_key(&keyblock.key2,&keyschedule.ks2);
+++    DES_set_key(&keyblock.key3,&keyschedule.ks3);
++   }
++ 
++   /*
++@@ -859,12 +859,12 @@ String *Item_func_des_decrypt::val_str(String *str)
++     bzero((char*) &ivec,sizeof(ivec));
++     if (!EVP_BytesToKey(EVP_des_ede3_cbc(),EVP_md5(),NULL,
++ 		   (uchar*) keystr->ptr(),(int) keystr->length(),
++-		   1,(uchar*) &keyblock,ivec))
+++		   1,(uchar*) &keyblock,(uchar *) &ivec))
++       goto error;
++     // Here we set all 64-bit keys (56 effective) one by one
++-    DES_set_key_unchecked(&keyblock.key1,&keyschedule.ks1);
++-    DES_set_key_unchecked(&keyblock.key2,&keyschedule.ks2);
++-    DES_set_key_unchecked(&keyblock.key3,&keyschedule.ks3);
+++    DES_set_key(&keyblock.key1,&keyschedule.ks1);
+++    DES_set_key(&keyblock.key2,&keyschedule.ks2);
+++    DES_set_key(&keyblock.key3,&keyschedule.ks3);
++   }
++   code= ER_OUT_OF_RESOURCES;
++   if (str->alloc(length-1))
++-- 
++2.39.2
++
+diff --git a/tests/ci/integration/mariadb_patch/0003-WIP-Use-replace_regex-in-mysql-test-run-to-make-SSL-.patch b/tests/ci/integration/mariadb_patch/0003-WIP-Use-replace_regex-in-mysql-test-run-to-make-SSL-.patch
+new file mode 100644
+index 000000000..4904217df
+--- /dev/null
++++ b/tests/ci/integration/mariadb_patch/0003-WIP-Use-replace_regex-in-mysql-test-run-to-make-SSL-.patch
+@@ -0,0 +1,28 @@
++From 557b4261a3120b037e2c705ce94453bc63d08823 Mon Sep 17 00:00:00 2001
++From: Otto Kekalainen <ottoke@amazon.com>
++Date: Mon, 28 Nov 2022 21:03:50 -0800
++Subject: [PATCH 3/4] WIP: Use `--replace_regex` in mysql-test-run to make SSL
++ tests pass
++
++Another potential area worthy of upstream contribution.
++
++The new error messages _seem_ to follow uppercase and underscore format.
++
++---
++ mysql-test/main/ssl_crl.test | 1 +
++ 1 file changed, 1 insertion(+)
++
++diff --git a/mysql-test/main/ssl_crl.test b/mysql-test/main/ssl_crl.test
++index 9b4758578a7..50f7d6981a0 100644
++--- a/mysql-test/main/ssl_crl.test
+++++ b/mysql-test/main/ssl_crl.test
++@@ -9,5 +9,6 @@
++ --echo # try logging in with a certificate in the server's --ssl-crl : should fail
++ # OpenSSL 1.1.1a correctly rejects the certificate, but the error message is different
++ --replace_regex /ERROR 2013 \(HY000\): Lost connection to server at '.*', system error: [0-9]+/ERROR 2026 (HY000): TLS\/SSL error: sslv3 alert certificate revoked/
+++--replace_regex /SSLV3_ALERT_CERTIFICATE_REVOKED/sslv3 alert certificate revoked/
++ --error 1
++ --exec $MYSQL --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test -e "SHOW STATUS LIKE 'Ssl_version'" 2>&1
++-- 
++2.39.2
++
+diff --git a/tests/ci/integration/mariadb_patch/0004-WIP-Skip-test-that-is-disabled-when-using-OpenSSL-1..patch b/tests/ci/integration/mariadb_patch/0004-WIP-Skip-test-that-is-disabled-when-using-OpenSSL-1..patch
+new file mode 100644
+index 000000000..b17d58b59
+--- /dev/null
++++ b/tests/ci/integration/mariadb_patch/0004-WIP-Skip-test-that-is-disabled-when-using-OpenSSL-1..patch
+@@ -0,0 +1,29 @@
++From 85cf96e689ef0df5ddefe12cfbcfb18a80e96210 Mon Sep 17 00:00:00 2001
++From: Robin Newhouse <robinnew@amazon.com>
++Date: Mon, 15 May 2023 22:37:36 +0000
++Subject: [PATCH 4/4] WIP: Skip test that is disabled when using OpenSSL 1.1.1
++
++OpenSSL 1.1.1 and AWS-LC use different cipher names than OpenSSL 1.0.2
++so we cannot reuse old tests with hardcoded cipher requirements.
++---
++ mysql-test/main/ssl_cipher.test | 4 ++--
++ 1 file changed, 2 insertions(+), 2 deletions(-)
++
++diff --git a/mysql-test/main/ssl_cipher.test b/mysql-test/main/ssl_cipher.test
++index 4671b085ce7..0f926bf3e64 100644
++--- a/mysql-test/main/ssl_cipher.test
+++++ b/mysql-test/main/ssl_cipher.test
++@@ -4,8 +4,8 @@
++ #
++ --source include/have_ssl_communication.inc
++ 
++-if (`select @@version_ssl_library like 'OpenSSL 1.1.1%'`) {
++-  skip OpenSSL 1.1.1;
+++if (`select @@version_ssl_library like 'OpenSSL 1.1.1%' OR @@version_ssl_library like 'AWS-LC%'`) {
+++  skip OpenSSL 1.1.1 and AWS-LC use different cipher names so we cannot reuse old tests with hardcoded cipher requirements;
++ }
++ 
++ create user ssl_user1@localhost require SSL;
++-- 
++2.39.2
++
+diff --git a/tests/ci/integration/run_mariadb_integration.sh b/tests/ci/integration/run_mariadb_integration.sh
+new file mode 100755
+index 000000000..cf616372a
+--- /dev/null
++++ b/tests/ci/integration/run_mariadb_integration.sh
+@@ -0,0 +1,85 @@
++#!/bin/bash -exu
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++source tests/ci/common_posix_setup.sh
++
++trap dump_log EXIT
++
++# Set up environment.
++
++# SYS_ROOT
++#  |
++#  - SRC_ROOT(aws-lc)
++#  |
++#  - SCRATCH_FOLDER
++#    |
++#    - mariadb
++#    - AWS_LC_BUILD_FOLDER
++#    - AWS_LC_INSTALL_FOLDER
++#    - MARIADB_BUILD_FOLDER
++
++# The CFlags, skipped test list, and patches were taken from the internal CI pipeline of our customer.
++
++# Assumes script is executed from the root of aws-lc directory
++SCRATCH_FOLDER=${SYS_ROOT}/"MARIADB_BUILD_ROOT"
++MARIADB_SRC_FOLDER="${SCRATCH_FOLDER}/server"
++MARIADB_BUILD_FOLDER="${SCRATCH_FOLDER}/server/mariadb-aws-lc"
++MARIADB_PATCH_FOLDER=${SRC_ROOT}/"tests/ci/integration/mariadb_patch"
++AWS_LC_BUILD_FOLDER="${SCRATCH_FOLDER}/aws-lc-build"
++AWS_LC_INSTALL_FOLDER="${MARIADB_SRC_FOLDER}/aws-lc-install"
++
++mkdir -p ${SCRATCH_FOLDER}
++rm -rf ${SCRATCH_FOLDER}/*
++cd ${SCRATCH_FOLDER}
++
++function mariadb_build() {
++  cmake ${MARIADB_SRC_FOLDER} -GNinja -DWITH_SSL=${AWS_LC_INSTALL_FOLDER} "-B${MARIADB_BUILD_FOLDER}" -DPLUGIN_COLUMNSTORE=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_S3=NO -DPLUGIN_MROONGA=NO -DPLUGIN_CONNECT=NO -DPLUGIN_SPHINX=NO -DPLUGIN_SPIDER=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_PERFSCHEMA=NO -DWITH_WSREP=OFF
++  ninja -C ${MARIADB_BUILD_FOLDER}
++  ls -R ${MARIADB_BUILD_FOLDER}
++}
++
++# Used to access debugging logs.
++function dump_log() {
++  ls ${MARIADB_BUILD_FOLDER}/mysql-test/var/log
++  for logfile in $(find -L "${MARIADB_BUILD_FOLDER}/mysql-test/var/log" -type f -name '*.log'); do
++    echo "Dumping out logs to observe:"
++    cat $logfile
++  done
++}
++
++function mariadb_run_tests() {
++  pushd ${MARIADB_BUILD_FOLDER}/mysql-test
++  # More complicated integration tests. mtr expects to be launched in-place and with write access to it's own directories
++  #
++  # main.plugin_load passes, but is skipped over since it generates a warning when we run the script in Codebuild. Warnings will cause
++  # a failure in MariaDB's test runs, unless --nowarnings is turned on. The warning is not reproducable in Gitlab's CI or any local
++  # container runs. This test isn't relevant to AWS-LC integration so we skip over the Codebuild specific issue for now.
++  echo "main.mysqldump : Field separator argument is not what is expected; check the manual when executing 'SELECT INTO OUTFILE'
++main.flush_logs_not_windows : query 'flush logs' succeeded - should have failed with error ER_CANT_CREATE_FILE (1004)
++main.mysql_upgrade_noengine : upgrade output order does not match the expected
++main.plugin_load : This test generates a warning in Codebuild. Skip over since this isn't relevant to AWS-LC. "> skiplist
++  ./mtr --suite=main --force --parallel=auto --skip-test-list=${MARIADB_BUILD_FOLDER}/mysql-test/skiplist --retry-failure=2
++  popd
++}
++
++# TODO: Remove this when we make an upstream contribution.
++function mariadb_patch() {
++  for patchfile in $(find -L "${MARIADB_PATCH_FOLDER}" -type f -name '*.patch'); do
++    echo "Apply patch $patchfile..."
++    patch -p1 --quiet -i "$patchfile"
++  done
++}
++
++# Get latest mariadb version, we can pin to a specific version if MariaDB's code changes break us too often.
++git clone https://github.com/MariaDB/server.git ${MARIADB_SRC_FOLDER} --depth 1
++mkdir -p ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER} ${MARIADB_BUILD_FOLDER}
++ls
++
++aws_lc_build ${SRC_ROOT} ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER}
++pushd ${MARIADB_SRC_FOLDER}
++mariadb_patch
++mariadb_build
++mariadb_run_tests
++popd
++
+diff --git a/tests/ci/integration/run_mysql_integration.sh b/tests/ci/integration/run_mysql_integration.sh
+index 333b96d51..5b7c87756 100755
+--- a/tests/ci/integration/run_mysql_integration.sh
++++ b/tests/ci/integration/run_mysql_integration.sh
+@@ -33,13 +33,6 @@ mkdir -p ${SCRATCH_FOLDER}
+ rm -rf ${SCRATCH_FOLDER}/*
+ cd ${SCRATCH_FOLDER}
+ 
+-function aws_lc_build() {
+-  ${CMAKE_COMMAND} "${SRC_ROOT}" -GNinja "-B${AWS_LC_BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${AWS_LC_INSTALL_FOLDER}" "$@"
+-  ninja -C "${AWS_LC_BUILD_FOLDER}" install
+-  ls -R "${AWS_LC_INSTALL_FOLDER}"
+-  rm -rf "${AWS_LC_BUILD_FOLDER:?}"/*
+-}
+-
+ function mysql_patch_reminder() {
+   LATEST_MYSQL_VERSION_TAG=mysql-`curl https://api.github.com/repos/mysql/mysql-server/tags | jq '.[].name' |grep '\-8.0' |sed -e 's/"mysql-cluster-\(.*\)"/\1/' |sort | tail -n 1`
+   if [[ "${LATEST_MYSQL_VERSION_TAG}" != "${MYSQL_VERSION_TAG}" ]]; then
+@@ -67,7 +60,7 @@ git clone https://github.com/mysql/mysql-server.git ${MYSQL_SRC_FOLDER} -b ${MYS
+ mkdir -p ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER} ${MYSQL_BUILD_FOLDER}
+ ls
+ 
+-aws_lc_build
++aws_lc_build ${SRC_ROOT} ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER}
+ pushd ${MYSQL_SRC_FOLDER}
+ mysql_build
+ # TODO: There are still pending test failures that need to be resolved. Turn this on once we resolve them.
+diff --git a/tests/ci/integration/run_openssh_integration.sh b/tests/ci/integration/run_openssh_integration.sh
+index da3f0dc45..770a96e0f 100755
+--- a/tests/ci/integration/run_openssh_integration.sh
++++ b/tests/ci/integration/run_openssh_integration.sh
+@@ -36,13 +36,6 @@ pushd "${SCRATCH_FOLDER}"
+ 
+ # Test helper functions.
+ 
+-function aws_lc_build() {
+-  ${CMAKE_COMMAND} "${SRC_ROOT}" -GNinja "-B${AWS_LC_BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${AWS_LC_INSTALL_FOLDER}" "$@"
+-  ${NINJA_COMMAND} -C "${AWS_LC_BUILD_FOLDER}" install
+-  ls -R "${AWS_LC_INSTALL_FOLDER}"
+-  rm -rf "${AWS_LC_BUILD_FOLDER:?}"/*
+-}
+-
+ function install_aws_lc() {
+   AWS_LC_LIB_FOLDER=$(readlink -f "${AWS_LC_INSTALL_FOLDER}"/lib*)
+   # This installs AWS-LC as the "libcrypto" for the system
+@@ -90,7 +83,7 @@ git clone https://github.com/openssh/openssh-portable.git
+ ls
+ 
+ # Buld AWS-LC as a shared library
+-aws_lc_build -DBUILD_SHARED_LIBS=1
++aws_lc_build ${SRC_ROOT} ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER} -DBUILD_SHARED_LIBS=1
+ install_aws_lc
+ 
+ CODEBUILD_SKIPPED_TESTS="agent-subprocess forwarding multiplex forward-control agent-restrict connection-timeout"
+diff --git a/tests/ci/integration/run_postgres_integration.sh b/tests/ci/integration/run_postgres_integration.sh
+index d070e559b..800f9cabc 100755
+--- a/tests/ci/integration/run_postgres_integration.sh
++++ b/tests/ci/integration/run_postgres_integration.sh
+@@ -28,13 +28,6 @@ mkdir -p ${SCRATCH_FOLDER}
+ rm -rf ${SCRATCH_FOLDER}/*
+ cd ${SCRATCH_FOLDER}
+ 
+-function aws_lc_build() {
+-  ${CMAKE_COMMAND} ${SRC_ROOT} -GNinja "-B${AWS_LC_BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${AWS_LC_INSTALL_FOLDER}"
+-  ninja -C ${AWS_LC_BUILD_FOLDER} install
+-  ls -R ${AWS_LC_INSTALL_FOLDER}
+-  rm -rf ${AWS_LC_BUILD_FOLDER}/*
+-}
+-
+ function postgres_build() {
+   ./configure --with-openssl --enable-tap-tests --with-includes=${AWS_LC_INSTALL_FOLDER}/include --with-libraries=${AWS_LC_INSTALL_FOLDER}/lib --prefix=$(pwd)/build
+   make -j ${NUM_CPU_THREADS}
+@@ -65,7 +58,7 @@ git clone https://github.com/postgres/postgres.git ${POSTGRES_SRC_FOLDER}
+ mkdir -p ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER} ${POSTGRES_BUILD_FOLDER}
+ ls
+ 
+-aws_lc_build
++aws_lc_build ${SRC_ROOT} ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER}
+ cd ${POSTGRES_SRC_FOLDER}
+ postgres_patch
+ postgres_build
+diff --git a/tests/ci/integration/run_s2n_integration.sh b/tests/ci/integration/run_s2n_integration.sh
+index e53f528e8..ab80b4aca 100755
+--- a/tests/ci/integration/run_s2n_integration.sh
++++ b/tests/ci/integration/run_s2n_integration.sh
+@@ -37,13 +37,6 @@ function fail() {
+     exit 1
+ }
+ 
+-function aws_lc_build() {
+-	${CMAKE_COMMAND} ${SRC_ROOT} -GNinja "-B${AWS_LC_BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${AWS_LC_INSTALL_FOLDER}" "$@"
+-	ninja -C ${AWS_LC_BUILD_FOLDER} install
+-	ls -R ${AWS_LC_INSTALL_FOLDER}
+-	rm -rf ${AWS_LC_BUILD_FOLDER}/*
+-}
+-
+ function s2n_tls_build() {
+ 	${CMAKE_COMMAND} s2n-tls -GNinja "-B${S2N_TLS_BUILD_FOLDER}" "-DCMAKE_PREFIX_PATH=${AWS_LC_INSTALL_FOLDER}" "$@"
+ 	ninja -C ${S2N_TLS_BUILD_FOLDER}
+@@ -71,8 +64,8 @@ ls
+ # (e.g. run_build()) because they make implicit assumptions about e.g. build
+ # folders.
+ 
+-aws_lc_build -DBUILD_SHARED_LIBS=0
+-aws_lc_build -DBUILD_SHARED_LIBS=1
++aws_lc_build ${SRC_ROOT} ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER} -DBUILD_SHARED_LIBS=0
++aws_lc_build ${SRC_ROOT} ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER} -DBUILD_SHARED_LIBS=1
+ 
+ # Build s2n-tls+aws-lc and run s2n-tls tests. First using static aws-lc
+ # libcrypto and then shared aws-lc libcrypto.

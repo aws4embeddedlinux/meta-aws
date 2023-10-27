@@ -1,0 +1,765 @@
+From 1f68f80ada8989ac1dfc8bc4bc5b65308e5b5139 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sat, 25 Mar 2023 01:26:49 -0400
+Subject: [PATCH] Fix miscellaneous size_t truncations
+
+Also unexport PEM_proc_type and PEM_dek_info. They're never called
+externally, just private functions within one file. Also, while I'm
+here, fix the include guard on asn1/internal.h.
+
+Bug: 516
+Change-Id: I6961a65f638e7b464a8c349663898a954d7826b4
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58548
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit a438519f9eac3ec34d82da96984eb48d237e4e97)
+---
+ crypto/asn1/internal.h                  |  6 ++--
+ crypto/asn1/tasn_dec.c                  |  4 +--
+ crypto/bio/bio.c                        | 10 +++---
+ crypto/bio/fd.c                         |  3 +-
+ crypto/bio/file.c                       | 14 +++-----
+ crypto/bio/pair.c                       |  6 ++--
+ crypto/cipher_extra/cipher_test.cc      |  5 +--
+ crypto/fipsmodule/ec/oct.c              |  3 +-
+ crypto/fipsmodule/ec/p256-nistz_test.cc | 13 ++++---
+ crypto/pem/pem_lib.c                    | 32 ++++++++++--------
+ crypto/x509/a_sign.c                    | 45 +++++++++++++++----------
+ crypto/x509/asn1_gen.c                  |  2 +-
+ crypto/x509/x509spki.c                  |  2 +-
+ crypto/x509/x_x509a.c                   |  4 +--
+ crypto/x509v3/internal.h                |  2 +-
+ crypto/x509v3/v3_conf.c                 | 29 ++++++++++------
+ crypto/x509v3/v3_info.c                 |  8 ++---
+ crypto/x509v3/v3_skey.c                 | 27 +++++++++------
+ crypto/x509v3/v3_utl.c                  |  2 +-
+ include/openssl/pem.h                   |  3 --
+ include/openssl/x509.h                  |  6 ++--
+ ssl/ssl_test.cc                         | 11 +++---
+ ssl/test/test_config.cc                 | 10 ++++--
+ 23 files changed, 142 insertions(+), 105 deletions(-)
+
+diff --git a/crypto/asn1/internal.h b/crypto/asn1/internal.h
+index 9fd8134a9..56b534fd2 100644
+--- a/crypto/asn1/internal.h
++++ b/crypto/asn1/internal.h
+@@ -56,8 +56,8 @@
+  *
+  */
+ 
+-#ifndef OPENSSL_HEADER_ASN1_ASN1_LOCL_H
+-#define OPENSSL_HEADER_ASN1_ASN1_LOCL_H
++#ifndef OPENSSL_HEADER_ASN1_INTERNAL_H
++#define OPENSSL_HEADER_ASN1_INTERNAL_H
+ 
+ #include <time.h>
+ 
+@@ -252,4 +252,4 @@ OPENSSL_EXPORT void asn1_get_string_table_for_testing(
+ }  // extern C
+ #endif
+ 
+-#endif  // OPENSSL_HEADER_ASN1_ASN1_LOCL_H
++#endif  // OPENSSL_HEADER_ASN1_INTERNAL_H
+diff --git a/crypto/asn1/tasn_dec.c b/crypto/asn1/tasn_dec.c
+index f3cea052f..bc0edaf3f 100644
+--- a/crypto/asn1/tasn_dec.c
++++ b/crypto/asn1/tasn_dec.c
+@@ -82,7 +82,7 @@ static int asn1_template_ex_d2i(ASN1_VALUE **pval, const unsigned char **in,
+ static int asn1_template_noexp_d2i(ASN1_VALUE **val, const unsigned char **in,
+                                    long len, const ASN1_TEMPLATE *tt, char opt,
+                                    int depth);
+-static int asn1_ex_c2i(ASN1_VALUE **pval, const unsigned char *cont, int len,
++static int asn1_ex_c2i(ASN1_VALUE **pval, const unsigned char *cont, long len,
+                        int utype, const ASN1_ITEM *it);
+ static int asn1_d2i_ex_primitive(ASN1_VALUE **pval, const unsigned char **in,
+                                  long len, const ASN1_ITEM *it, int tag,
+@@ -706,7 +706,7 @@ err:
+ 
+ // Translate ASN1 content octets into a structure
+ 
+-static int asn1_ex_c2i(ASN1_VALUE **pval, const unsigned char *cont, int len,
++static int asn1_ex_c2i(ASN1_VALUE **pval, const unsigned char *cont, long len,
+                        int utype, const ASN1_ITEM *it) {
+   ASN1_VALUE **opval = NULL;
+   ASN1_STRING *stmp;
+diff --git a/crypto/bio/bio.c b/crypto/bio/bio.c
+index e11d82a33..c2eff5e4e 100644
+--- a/crypto/bio/bio.c
++++ b/crypto/bio/bio.c
+@@ -478,7 +478,7 @@ int BIO_indent(BIO *bio, unsigned indent, unsigned max_indent) {
+ }
+ 
+ static int print_bio(const char *str, size_t len, void *bio) {
+-  return BIO_write((BIO *)bio, str, len);
++  return BIO_write_all((BIO *)bio, str, len);
+ }
+ 
+ void ERR_print_errors(BIO *bio) {
+@@ -517,9 +517,11 @@ static int bio_read_all(BIO *bio, uint8_t **out, size_t *out_len,
+       OPENSSL_free(*out);
+       return 0;
+     }
+-    const size_t todo = len - done;
+-    assert(todo < INT_MAX);
+-    const int n = BIO_read(bio, *out + done, todo);
++    size_t todo = len - done;
++    if (todo > INT_MAX) {
++      todo = INT_MAX;
++    }
++    const int n = BIO_read(bio, *out + done, (int)todo);
+     if (n == 0) {
+       *out_len = done;
+       return 1;
+diff --git a/crypto/bio/fd.c b/crypto/bio/fd.c
+index 9a2a65027..7775d7a75 100644
+--- a/crypto/bio/fd.c
++++ b/crypto/bio/fd.c
+@@ -257,7 +257,8 @@ static int fd_gets(BIO *bp, char *buf, int size) {
+ 
+   ptr[0] = '\0';
+ 
+-  return ptr - buf;
++  // The output length is bounded by |size|.
++  return (int)(ptr - buf);
+ }
+ 
+ static const BIO_METHOD methods_fdp = {
+diff --git a/crypto/bio/file.c b/crypto/bio/file.c
+index 0f2fffbd6..8ba9c544c 100644
+--- a/crypto/bio/file.c
++++ b/crypto/bio/file.c
+@@ -157,13 +157,11 @@ static int file_read(BIO *b, char *out, int outl) {
+ }
+ 
+ static int file_write(BIO *b, const char *in, int inl) {
+-  int ret = 0;
+-
+   if (!b->init) {
+     return 0;
+   }
+ 
+-  ret = fwrite(in, inl, 1, (FILE *)b->ptr);
++  int ret = (int)fwrite(in, inl, 1, (FILE *)b->ptr);
+   if (ret > 0) {
+     ret = inl;
+   }
+@@ -253,20 +251,18 @@ static long file_ctrl(BIO *b, int cmd, long num, void *ptr) {
+ }
+ 
+ static int file_gets(BIO *bp, char *buf, int size) {
+-  int ret = 0;
+-
+   if (size == 0) {
+     return 0;
+   }
+ 
+   if (!fgets(buf, size, (FILE *)bp->ptr)) {
+     buf[0] = 0;
+-    goto err;
++    // TODO(davidben): This doesn't distinguish error and EOF. This should check
++    // |ferror| as in |file_read|.
++    return 0;
+   }
+-  ret = strlen(buf);
+ 
+-err:
+-  return ret;
++  return (int)strlen(buf);
+ }
+ 
+ static const BIO_METHOD methods_filep = {
+diff --git a/crypto/bio/pair.c b/crypto/bio/pair.c
+index c4d09c14a..40711cdf9 100644
+--- a/crypto/bio/pair.c
++++ b/crypto/bio/pair.c
+@@ -221,7 +221,8 @@ static int bio_read(BIO *bio, char *buf, int size_) {
+     rest -= chunk;
+   } while (rest);
+ 
+-  return size;
++  // |size| is bounded by the buffer size, which fits in |int|.
++  return (int)size;
+ }
+ 
+ static int bio_write(BIO *bio, const char *buf, int num_) {
+@@ -293,7 +294,8 @@ static int bio_write(BIO *bio, const char *buf, int num_) {
+     buf += chunk;
+   } while (rest);
+ 
+-  return num;
++  // |num| is bounded by the buffer size, which fits in |int|.
++  return (int)num;
+ }
+ 
+ static int bio_make_pair(BIO *bio1, BIO *bio2, size_t writebuf1_len,
+diff --git a/crypto/cipher_extra/cipher_test.cc b/crypto/cipher_extra/cipher_test.cc
+index 42eb35851..9bf519169 100644
+--- a/crypto/cipher_extra/cipher_test.cc
++++ b/crypto/cipher_extra/cipher_test.cc
+@@ -208,8 +208,9 @@ static void TestCipherAPI(const EVP_CIPHER *cipher, Operation op, bool padding,
+   // pre-computed key schedule and a streaming operation.
+   ASSERT_TRUE(MaybeCopyCipherContext(copy, &ctx));
+   if (is_aead) {
+-    ASSERT_TRUE(
+-        EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_AEAD_SET_IVLEN, iv.size(), 0));
++    ASSERT_LE(iv.size(), size_t{INT_MAX});
++    ASSERT_TRUE(EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_AEAD_SET_IVLEN,
++                                    static_cast<int>(iv.size()), 0));
+   } else {
+     ASSERT_EQ(iv.size(), EVP_CIPHER_CTX_iv_length(ctx.get()));
+   }
+diff --git a/crypto/fipsmodule/ec/oct.c b/crypto/fipsmodule/ec/oct.c
+index 70326355c..5cac7cc0e 100644
+--- a/crypto/fipsmodule/ec/oct.c
++++ b/crypto/fipsmodule/ec/oct.c
+@@ -299,8 +299,7 @@ int EC_POINT_set_compressed_coordinates_GFp(const EC_GROUP *group,
+   }
+ 
+   if (!BN_mod_sqrt(y, tmp1, &group->field, ctx)) {
+-    unsigned long err = ERR_peek_last_error();
+-
++    uint32_t err = ERR_peek_last_error();
+     if (ERR_GET_LIB(err) == ERR_LIB_BN &&
+         ERR_GET_REASON(err) == BN_R_NOT_A_SQUARE) {
+       ERR_clear_error();
+diff --git a/crypto/fipsmodule/ec/p256-nistz_test.cc b/crypto/fipsmodule/ec/p256-nistz_test.cc
+index 07897cce7..de8d42e88 100644
+--- a/crypto/fipsmodule/ec/p256-nistz_test.cc
++++ b/crypto/fipsmodule/ec/p256-nistz_test.cc
+@@ -45,9 +45,11 @@ TEST(P256_NistzTest, SelectW5) {
+   P256_POINT *aligned_table = (P256_POINT *) align_pointer(buffer_table, 64);
+ 
+   for (size_t i = 0; i < 16; i++) {
+-    OPENSSL_memset(aligned_table[i].X, 3 * i, sizeof(aligned_table[i].X));
+-    OPENSSL_memset(aligned_table[i].Y, 3 * i + 1, sizeof(aligned_table[i].Y));
+-    OPENSSL_memset(aligned_table[i].Z, 3 * i + 2, sizeof(aligned_table[i].Z));
++    OPENSSL_memset(aligned_table[i].X, static_cast<uint8_t>(3 * i), sizeof(aligned_table[i].X));
++    OPENSSL_memset(aligned_table[i].Y, static_cast<uint8_t>(3 * i + 1),
++                   sizeof(aligned_table[i].Y));
++    OPENSSL_memset(aligned_table[i].Z, static_cast<uint8_t>(3 * i + 2),
++                   sizeof(aligned_table[i].Z));
+   }
+ 
+   for (int i = 0; i <= 16; i++) {
+@@ -77,8 +79,9 @@ TEST(P256_NistzTest, SelectW7) {
+   P256_POINT_AFFINE *aligned_table = (P256_POINT_AFFINE *) align_pointer(buffer_table, 64);
+ 
+   for (size_t i = 0; i < 64; i++) {
+-    OPENSSL_memset(aligned_table[i].X, 2 * i, sizeof(aligned_table[i].X));
+-    OPENSSL_memset(aligned_table[i].Y, 2 * i + 1, sizeof(aligned_table[i].Y));
++    OPENSSL_memset(aligned_table[i].X, static_cast<uint8_t>(2 * i), sizeof(aligned_table[i].X));
++    OPENSSL_memset(aligned_table[i].Y, static_cast<uint8_t>(2 * i + 1),
++                   sizeof(aligned_table[i].Y));
+   }
+ 
+   for (int i = 0; i <= 64; i++) {
+diff --git a/crypto/pem/pem_lib.c b/crypto/pem/pem_lib.c
+index 28ed438b9..30ba387e4 100644
+--- a/crypto/pem/pem_lib.c
++++ b/crypto/pem/pem_lib.c
+@@ -78,7 +78,8 @@
+ static int load_iv(char **fromp, unsigned char *to, size_t num);
+ static int check_pem(const char *nm, const char *name);
+ 
+-void PEM_proc_type(char *buf, int type) {
++// PEM_proc_type appends a Proc-Type header to |buf|, determined by |type|.
++static void PEM_proc_type(char buf[PEM_BUFSIZE], int type) {
+   const char *str;
+ 
+   if (type == PEM_TYPE_ENCRYPTED) {
+@@ -96,24 +97,27 @@ void PEM_proc_type(char *buf, int type) {
+   OPENSSL_strlcat(buf, "\n", PEM_BUFSIZE);
+ }
+ 
+-void PEM_dek_info(char *buf, const char *type, int len, char *str) {
++// PEM_dek_info appends a DEK-Info header to |buf|, with an algorithm of |type|
++// and a single parameter, specified by hex-encoding |len| bytes from |str|.
++static void PEM_dek_info(char buf[PEM_BUFSIZE], const char *type, size_t len,
++                         char *str) {
+   static const unsigned char map[17] = "0123456789ABCDEF";
+-  long i;
+-  int j;
+ 
+   OPENSSL_strlcat(buf, "DEK-Info: ", PEM_BUFSIZE);
+   OPENSSL_strlcat(buf, type, PEM_BUFSIZE);
+   OPENSSL_strlcat(buf, ",", PEM_BUFSIZE);
+-  j = strlen(buf);
+-  if (j + (len * 2) + 1 > PEM_BUFSIZE) {
++  size_t buf_len = strlen(buf);
++  // We must write an additional |2 * len + 2| bytes after |buf_len|, including
++  // the trailing newline and NUL.
++  if (len > (PEM_BUFSIZE - buf_len - 2) / 2) {
+     return;
+   }
+-  for (i = 0; i < len; i++) {
+-    buf[j + i * 2] = map[(str[i] >> 4) & 0x0f];
+-    buf[j + i * 2 + 1] = map[(str[i]) & 0x0f];
++  for (size_t i = 0; i < len; i++) {
++    buf[buf_len + i * 2] = map[(str[i] >> 4) & 0x0f];
++    buf[buf_len + i * 2 + 1] = map[(str[i]) & 0x0f];
+   }
+-  buf[j + i * 2] = '\n';
+-  buf[j + i * 2 + 1] = '\0';
++  buf[buf_len + len * 2] = '\n';
++  buf[buf_len + len * 2 + 1] = '\0';
+ }
+ 
+ void *PEM_ASN1_read(d2i_of_void *d2i, const char *name, FILE *fp, void **x,
+@@ -318,7 +322,7 @@ int PEM_ASN1_write_bio(i2d_of_void *i2d, const char *name, BIO *bp, void *x,
+       }
+       kstr = (unsigned char *)buf;
+     }
+-    assert(iv_len <= (int)sizeof(iv));
++    assert(iv_len <= sizeof(iv));
+     if (!RAND_bytes(iv, iv_len)) {  // Generate a salt
+       goto err;
+     }
+@@ -332,7 +336,7 @@ int PEM_ASN1_write_bio(i2d_of_void *i2d, const char *name, BIO *bp, void *x,
+       OPENSSL_cleanse(buf, PEM_BUFSIZE);
+     }
+ 
+-    assert(strlen(objstr) + 23 + 2 * iv_len + 13 <= sizeof buf);
++    assert(strlen(objstr) + 23 + 2 * iv_len + 13 <= sizeof(buf));
+ 
+     buf[0] = '\0';
+     PEM_proc_type(buf, PEM_TYPE_ENCRYPTED);
+@@ -781,5 +785,5 @@ int PEM_def_callback(char *buf, int size, int rwflag, void *userdata) {
+     return 0;
+   }
+   OPENSSL_strlcpy(buf, userdata, (size_t)size);
+-  return len;
++  return (int)len;
+ }
+diff --git a/crypto/x509/a_sign.c b/crypto/x509/a_sign.c
+index de89fabd7..8ee477988 100644
+--- a/crypto/x509/a_sign.c
++++ b/crypto/x509/a_sign.c
+@@ -62,6 +62,8 @@
+ #include <openssl/obj.h>
+ #include <openssl/x509.h>
+ 
++#include <limits.h>
++
+ #include "internal.h"
+ 
+ int ASN1_item_sign(const ASN1_ITEM *it, X509_ALGOR *algor1, X509_ALGOR *algor2,
+@@ -83,17 +85,13 @@ int ASN1_item_sign(const ASN1_ITEM *it, X509_ALGOR *algor1, X509_ALGOR *algor2,
+ int ASN1_item_sign_ctx(const ASN1_ITEM *it, X509_ALGOR *algor1,
+                        X509_ALGOR *algor2, ASN1_BIT_STRING *signature,
+                        void *asn, EVP_MD_CTX *ctx) {
+-  EVP_PKEY *pkey;
+-  unsigned char *buf_in = NULL, *buf_out = NULL;
+-  size_t inl = 0, outl = 0;
+-
++  int ret = 0;
++  uint8_t *in = NULL, *out = NULL;
+   if (signature->type != V_ASN1_BIT_STRING) {
+     OPENSSL_PUT_ERROR(ASN1, ASN1_R_WRONG_TYPE);
+     goto err;
+   }
+ 
+-  pkey = EVP_PKEY_CTX_get0_pkey(ctx->pctx);
+-
+   // Write out the requested copies of the AlgorithmIdentifier.
+   if (algor1 && !x509_digest_sign_algorithm(ctx, algor1)) {
+     goto err;
+@@ -102,26 +100,37 @@ int ASN1_item_sign_ctx(const ASN1_ITEM *it, X509_ALGOR *algor1,
+     goto err;
+   }
+ 
+-  inl = ASN1_item_i2d(asn, &buf_in, it);
+-  outl = EVP_PKEY_size(pkey);
+-  buf_out = OPENSSL_malloc((unsigned int)outl);
+-  if ((buf_in == NULL) || (buf_out == NULL)) {
+-    outl = 0;
++  int in_len = ASN1_item_i2d(asn, &in, it);
++  if (in_len < 0) {
++    goto err;
++  }
++
++  EVP_PKEY *pkey = EVP_PKEY_CTX_get0_pkey(ctx->pctx);
++  size_t out_len = EVP_PKEY_size(pkey);
++  if (out_len > INT_MAX) {
++    OPENSSL_PUT_ERROR(X509, ERR_R_OVERFLOW);
+     goto err;
+   }
+ 
+-  if (!EVP_DigestSign(ctx, buf_out, &outl, buf_in, inl)) {
+-    outl = 0;
++  out = OPENSSL_malloc(out_len);
++  if (out == NULL) {
++    goto err;
++  }
++
++  if (!EVP_DigestSign(ctx, out, &out_len, in, in_len)) {
+     OPENSSL_PUT_ERROR(X509, ERR_R_EVP_LIB);
+     goto err;
+   }
+-  ASN1_STRING_set0(signature, buf_out, outl);
+-  buf_out = NULL;
++
++  ASN1_STRING_set0(signature, out, (int)out_len);
++  out = NULL;
+   signature->flags &= ~(ASN1_STRING_FLAG_BITS_LEFT | 0x07);
+   signature->flags |= ASN1_STRING_FLAG_BITS_LEFT;
++  ret = 1;
++
+ err:
+   EVP_MD_CTX_cleanup(ctx);
+-  OPENSSL_free(buf_in);
+-  OPENSSL_free(buf_out);
+-  return outl;
++  OPENSSL_free(in);
++  OPENSSL_free(out);
++  return ret;
+ }
+diff --git a/crypto/x509/asn1_gen.c b/crypto/x509/asn1_gen.c
+index 937069e88..321f63bec 100644
+--- a/crypto/x509/asn1_gen.c
++++ b/crypto/x509/asn1_gen.c
+@@ -509,7 +509,7 @@ static int generate_v3(CBB *cbb, const char *str, const X509V3_CTX *cnf,
+                CBB_flush(cbb);
+       }
+       if (format == ASN1_GEN_FORMAT_HEX) {
+-        long len;
++        size_t len;
+         uint8_t *data = x509v3_hex_to_bytes(value, &len);
+         if (data == NULL) {
+           OPENSSL_PUT_ERROR(ASN1, ASN1_R_ILLEGAL_HEX);
+diff --git a/crypto/x509/x509spki.c b/crypto/x509/x509spki.c
+index 8ff2053ae..2b9b904ee 100644
+--- a/crypto/x509/x509spki.c
++++ b/crypto/x509/x509spki.c
+@@ -77,7 +77,7 @@ EVP_PKEY *NETSCAPE_SPKI_get_pubkey(NETSCAPE_SPKI *x) {
+ 
+ // Load a Netscape SPKI from a base64 encoded string
+ 
+-NETSCAPE_SPKI *NETSCAPE_SPKI_b64_decode(const char *str, int len) {
++NETSCAPE_SPKI *NETSCAPE_SPKI_b64_decode(const char *str, ossl_ssize_t len) {
+   unsigned char *spki_der;
+   const unsigned char *p;
+   size_t spki_len;
+diff --git a/crypto/x509/x_x509a.c b/crypto/x509/x_x509a.c
+index c473f93dd..4b34caaa7 100644
+--- a/crypto/x509/x_x509a.c
++++ b/crypto/x509/x_x509a.c
+@@ -90,7 +90,7 @@ static X509_CERT_AUX *aux_get(X509 *x) {
+   return x->aux;
+ }
+ 
+-int X509_alias_set1(X509 *x, const unsigned char *name, int len) {
++int X509_alias_set1(X509 *x, const unsigned char *name, ossl_ssize_t len) {
+   X509_CERT_AUX *aux;
+   // TODO(davidben): Empty aliases are not meaningful in PKCS#12, and the
+   // getters cannot quite represent them. Also erase the object if |len| is
+@@ -112,7 +112,7 @@ int X509_alias_set1(X509 *x, const unsigned char *name, int len) {
+   return ASN1_STRING_set(aux->alias, name, len);
+ }
+ 
+-int X509_keyid_set1(X509 *x, const unsigned char *id, int len) {
++int X509_keyid_set1(X509 *x, const unsigned char *id, ossl_ssize_t len) {
+   X509_CERT_AUX *aux;
+   // TODO(davidben): Empty key IDs are not meaningful in PKCS#12, and the
+   // getters cannot quite represent them. Also erase the object if |len| is
+diff --git a/crypto/x509v3/internal.h b/crypto/x509v3/internal.h
+index cccd3c039..2ae6bce21 100644
+--- a/crypto/x509v3/internal.h
++++ b/crypto/x509v3/internal.h
+@@ -90,7 +90,7 @@ OPENSSL_EXPORT char *x509v3_bytes_to_hex(const uint8_t *in, size_t len);
+ //
+ // This function was historically named |string_to_hex| in OpenSSL. Despite the
+ // name, |string_to_hex| converted from hex.
+-unsigned char *x509v3_hex_to_bytes(const char *str, long *len);
++unsigned char *x509v3_hex_to_bytes(const char *str, size_t *len);
+ 
+ // x509v3_conf_name_matches returns one if |name| is equal to |cmp| or begins
+ // with |cmp| followed by '.', and zero otherwise.
+diff --git a/crypto/x509v3/v3_conf.c b/crypto/x509v3/v3_conf.c
+index ebf33f182..8f71502f1 100644
+--- a/crypto/x509v3/v3_conf.c
++++ b/crypto/x509v3/v3_conf.c
+@@ -57,6 +57,7 @@
+ // extension creation utilities
+ 
+ #include <ctype.h>
++#include <limits.h>
+ #include <stdio.h>
+ #include <string.h>
+ 
+@@ -81,7 +82,7 @@ static X509_EXTENSION *v3_generic_extension(const char *ext, const char *value,
+ static X509_EXTENSION *do_ext_i2d(const X509V3_EXT_METHOD *method, int ext_nid,
+                                   int crit, void *ext_struc);
+ static unsigned char *generic_asn1(const char *value, const X509V3_CTX *ctx,
+-                                   long *ext_len);
++                                   size_t *ext_len);
+ 
+ X509_EXTENSION *X509V3_EXT_nconf(const CONF *conf, const X509V3_CTX *ctx,
+                                  const char *name, const char *value) {
+@@ -290,7 +291,7 @@ static X509_EXTENSION *v3_generic_extension(const char *ext, const char *value,
+                                             int crit, int gen_type,
+                                             const X509V3_CTX *ctx) {
+   unsigned char *ext_der = NULL;
+-  long ext_len = 0;
++  size_t ext_len = 0;
+   ASN1_OBJECT *obj = NULL;
+   ASN1_OCTET_STRING *oct = NULL;
+   X509_EXTENSION *extension = NULL;
+@@ -312,12 +313,17 @@ static X509_EXTENSION *v3_generic_extension(const char *ext, const char *value,
+     goto err;
+   }
+ 
+-  if (!(oct = ASN1_OCTET_STRING_new())) {
++  if (ext_len > INT_MAX) {
++    OPENSSL_PUT_ERROR(X509V3, ERR_R_OVERFLOW);
+     goto err;
+   }
+ 
+-  oct->data = ext_der;
+-  oct->length = ext_len;
++  oct = ASN1_OCTET_STRING_new();
++  if (oct == NULL) {
++    goto err;
++  }
++
++  ASN1_STRING_set0(oct, ext_der, (int)ext_len);
+   ext_der = NULL;
+ 
+   extension = X509_EXTENSION_create_by_OBJ(NULL, obj, crit, oct);
+@@ -330,15 +336,18 @@ err:
+ }
+ 
+ static unsigned char *generic_asn1(const char *value, const X509V3_CTX *ctx,
+-                                   long *ext_len) {
+-  ASN1_TYPE *typ;
+-  unsigned char *ext_der = NULL;
+-  typ = ASN1_generate_v3(value, ctx);
++                                   size_t *ext_len) {
++  ASN1_TYPE *typ = ASN1_generate_v3(value, ctx);
+   if (typ == NULL) {
+     return NULL;
+   }
+-  *ext_len = i2d_ASN1_TYPE(typ, &ext_der);
++  unsigned char *ext_der = NULL;
++  int len = i2d_ASN1_TYPE(typ, &ext_der);
+   ASN1_TYPE_free(typ);
++  if (len < 0) {
++    return NULL;
++  }
++  *ext_len = len;
+   return ext_der;
+ }
+ 
+diff --git a/crypto/x509v3/v3_info.c b/crypto/x509v3/v3_info.c
+index 2ac92213f..5e14b7658 100644
+--- a/crypto/x509v3/v3_info.c
++++ b/crypto/x509v3/v3_info.c
+@@ -168,7 +168,6 @@ static void *v2i_AUTHORITY_INFO_ACCESS(const X509V3_EXT_METHOD *method,
+                                        const STACK_OF(CONF_VALUE) *nval) {
+   AUTHORITY_INFO_ACCESS *ainfo = NULL;
+   ACCESS_DESCRIPTION *acc;
+-  char *objtmp, *ptmp;
+   if (!(ainfo = sk_ACCESS_DESCRIPTION_new_null())) {
+     return NULL;
+   }
+@@ -178,22 +177,21 @@ static void *v2i_AUTHORITY_INFO_ACCESS(const X509V3_EXT_METHOD *method,
+         !sk_ACCESS_DESCRIPTION_push(ainfo, acc)) {
+       goto err;
+     }
+-    ptmp = strchr(cnf->name, ';');
++    char *ptmp = strchr(cnf->name, ';');
+     if (!ptmp) {
+       OPENSSL_PUT_ERROR(X509V3, X509V3_R_INVALID_SYNTAX);
+       goto err;
+     }
+-    int objlen = ptmp - cnf->name;
+     CONF_VALUE ctmp;
+     ctmp.name = ptmp + 1;
+     ctmp.value = cnf->value;
+     if (!v2i_GENERAL_NAME_ex(acc->location, method, ctx, &ctmp, 0)) {
+       goto err;
+     }
+-    if (!(objtmp = OPENSSL_malloc(objlen + 1))) {
++    char *objtmp = OPENSSL_strndup(cnf->name, ptmp - cnf->name);
++    if (objtmp == NULL) {
+       goto err;
+     }
+-    OPENSSL_strlcpy(objtmp, cnf->name, objlen + 1);
+     acc->method = OBJ_txt2obj(objtmp, 0);
+     if (!acc->method) {
+       OPENSSL_PUT_ERROR(X509V3, X509V3_R_BAD_OBJECT);
+diff --git a/crypto/x509v3/v3_skey.c b/crypto/x509v3/v3_skey.c
+index cae776f68..caa7fe50a 100644
+--- a/crypto/x509v3/v3_skey.c
++++ b/crypto/x509v3/v3_skey.c
+@@ -54,12 +54,14 @@
+  * (eay@cryptsoft.com).  This product includes software written by Tim
+  * Hudson (tjh@cryptsoft.com). */
+ 
++#include <limits.h>
+ #include <stdio.h>
+ #include <string.h>
+ 
+ #include <openssl/digest.h>
+ #include <openssl/err.h>
+ #include <openssl/obj.h>
++#include <openssl/mem.h>
+ #include <openssl/x509v3.h>
+ 
+ #include "../x509/internal.h"
+@@ -74,21 +76,26 @@ char *i2s_ASN1_OCTET_STRING(const X509V3_EXT_METHOD *method,
+ ASN1_OCTET_STRING *s2i_ASN1_OCTET_STRING(const X509V3_EXT_METHOD *method,
+                                          const X509V3_CTX *ctx,
+                                          const char *str) {
+-  ASN1_OCTET_STRING *oct;
+-  long length;
+-
+-  if (!(oct = ASN1_OCTET_STRING_new())) {
++  size_t len;
++  uint8_t *data = x509v3_hex_to_bytes(str, &len);
++  if (data == NULL) {
+     return NULL;
+   }
+-
+-  if (!(oct->data = x509v3_hex_to_bytes(str, &length))) {
+-    ASN1_OCTET_STRING_free(oct);
+-    return NULL;
++  if (len > INT_MAX) {
++    OPENSSL_PUT_ERROR(X509V3, ERR_R_OVERFLOW);
++    goto err;
+   }
+ 
+-  oct->length = length;
+-
++  ASN1_OCTET_STRING *oct = ASN1_OCTET_STRING_new();
++  if (oct == NULL) {
++    goto err;
++  }
++  ASN1_STRING_set0(oct, data, (int)len);
+   return oct;
++
++err:
++  OPENSSL_free(data);
++  return NULL;
+ }
+ 
+ static char *i2s_ASN1_OCTET_STRING_cb(const X509V3_EXT_METHOD *method,
+diff --git a/crypto/x509v3/v3_utl.c b/crypto/x509v3/v3_utl.c
+index 6e413dd07..4307e8bec 100644
+--- a/crypto/x509v3/v3_utl.c
++++ b/crypto/x509v3/v3_utl.c
+@@ -494,7 +494,7 @@ err:
+   return NULL;
+ }
+ 
+-unsigned char *x509v3_hex_to_bytes(const char *str, long *len) {
++unsigned char *x509v3_hex_to_bytes(const char *str, size_t *len) {
+   unsigned char *hexbuf, *q;
+   unsigned char ch, cl, *p;
+   uint8_t high, low;
+diff --git a/include/openssl/pem.h b/include/openssl/pem.h
+index 639d9e7ba..b0a1174c7 100644
+--- a/include/openssl/pem.h
++++ b/include/openssl/pem.h
+@@ -378,9 +378,6 @@ OPENSSL_EXPORT STACK_OF(X509_INFO) *PEM_X509_INFO_read(FILE *fp,
+ // password.
+ OPENSSL_EXPORT int PEM_def_callback(char *buf, int size, int rwflag,
+                                     void *userdata);
+-OPENSSL_EXPORT void PEM_proc_type(char *buf, int type);
+-OPENSSL_EXPORT void PEM_dek_info(char *buf, const char *type, int len,
+-                                 char *str);
+ 
+ 
+ DECLARE_PEM_rw(X509, X509)
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index c642281a0..c15dcff7a 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -421,13 +421,13 @@ OPENSSL_EXPORT X509 *d2i_X509_AUX(X509 **x509, const unsigned char **inp,
+ // NULL, the alias is cleared instead. Aliases are not part of the certificate
+ // itself and will not be serialized by |i2d_X509|.
+ OPENSSL_EXPORT int X509_alias_set1(X509 *x509, const unsigned char *name,
+-                                   int len);
++                                   ossl_ssize_t len);
+ 
+ // X509_keyid_set1 sets |x509|'s key ID to |len| bytes from |id|. If |id| is
+ // NULL, the key ID is cleared instead. Key IDs are not part of the certificate
+ // itself and will not be serialized by |i2d_X509|.
+ OPENSSL_EXPORT int X509_keyid_set1(X509 *x509, const unsigned char *id,
+-                                   int len);
++                                   ossl_ssize_t len);
+ 
+ // X509_alias_get0 looks up |x509|'s alias. If found, it sets |*out_len| to the
+ // alias's length and returns a pointer to a buffer containing the contents. If
+@@ -1800,7 +1800,7 @@ OPENSSL_EXPORT int NETSCAPE_SPKI_verify(NETSCAPE_SPKI *spki, EVP_PKEY *pkey);
+ // If |len| is 0 or negative, the length is calculated with |strlen| and |str|
+ // must be a NUL-terminated C string.
+ OPENSSL_EXPORT NETSCAPE_SPKI *NETSCAPE_SPKI_b64_decode(const char *str,
+-                                                       int len);
++                                                       ossl_ssize_t len);
+ 
+ // NETSCAPE_SPKI_b64_encode encodes |spki| as a base64-encoded Netscape signed
+ // public key and challenge (SPKAC) structure. It returns a newly-allocated
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index bb8cec6bf..5e5f7818f 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -12,6 +12,7 @@
+  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+ 
++#include <limits.h>
+ #include <stdio.h>
+ #include <string.h>
+ #include <time.h>
+@@ -3833,8 +3834,10 @@ static bool GetServerTicketTime(long *out, const SSL_SESSION *session) {
+   const uint8_t *iv = ticket + 16;
+   bssl::ScopedEVP_CIPHER_CTX ctx;
+   int len1, len2;
+-  if (!EVP_DecryptInit_ex(ctx.get(), EVP_aes_128_cbc(), nullptr, kZeros, iv) ||
+-      !EVP_DecryptUpdate(ctx.get(), plaintext.get(), &len1, ciphertext, len) ||
++  if (len > INT_MAX ||
++      !EVP_DecryptInit_ex(ctx.get(), EVP_aes_128_cbc(), nullptr, kZeros, iv) ||
++      !EVP_DecryptUpdate(ctx.get(), plaintext.get(), &len1, ciphertext,
++                         static_cast<int>(len)) ||
+       !EVP_DecryptFinal_ex(ctx.get(), plaintext.get() + len1, &len2)) {
+     return false;
+   }
+@@ -8559,8 +8562,8 @@ TEST(SSLTest, BIO) {
+     // |BIO_should_write|.
+     int ret;
+     for (int i = 0; i < 1024; i++) {
+-      std::vector<uint8_t> buffer(1024);
+-      ret = BIO_write(client_bio.get(), buffer.data(), buffer.size());
++      const uint8_t kZeros[1024] = {0};
++      ret = BIO_write(client_bio.get(), kZeros, sizeof(kZeros));
+       if (ret <= 0) {
+         break;
+       }
+diff --git a/ssl/test/test_config.cc b/ssl/test/test_config.cc
+index 509207cee..0d7cf5eb0 100644
+--- a/ssl/test/test_config.cc
++++ b/ssl/test/test_config.cc
+@@ -17,6 +17,7 @@
+ #include <assert.h>
+ #include <ctype.h>
+ #include <errno.h>
++#include <limits.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -574,8 +575,13 @@ static int NextProtosAdvertisedCallback(SSL *ssl, const uint8_t **out,
+     return SSL_TLSEXT_ERR_NOACK;
+   }
+ 
+-  *out = (const uint8_t *)config->advertise_npn.data();
+-  *out_len = config->advertise_npn.size();
++  if (config->advertise_npn.size() > UINT_MAX) {
++    fprintf(stderr, "NPN value too large.\n");
++    return SSL_TLSEXT_ERR_ALERT_FATAL;
++  }
++
++  *out = reinterpret_cast<const uint8_t *>(config->advertise_npn.data());
++  *out_len = static_cast<unsigned>(config->advertise_npn.size());
+   return SSL_TLSEXT_ERR_OK;
+ }
+ 

@@ -1,0 +1,711 @@
+From 0809c193d6452f8b7bdf68fae9a2a772197bdbdf Mon Sep 17 00:00:00 2001
+From: Nevine Ebeid <66388554+nebeid@users.noreply.github.com>
+Date: Thu, 27 Jul 2023 22:38:49 -0400
+Subject: [PATCH] Make dispatch tests use corruptible registers on aarch64.
+ (#1118)
+
+Using registers x6 and x7 is risky because they can be used for input parameters.
+Switching the dispatch tests to use x9 and x10 which are corruptible regitsters.
+---
+ crypto/fipsmodule/aes/asm/aesv8-armx.pl       | 24 +++++++-------
+ crypto/fipsmodule/aes/asm/vpaes-armv8.pl      | 16 +++++-----
+ .../modes/asm/aesv8-gcm-armv8-unroll8.pl      |  8 ++---
+ .../fipsmodule/modes/asm/aesv8-gcm-armv8.pl   |  8 ++---
+ crypto/fipsmodule/sha/asm/sha512-armv8.pl     | 16 +++++-----
+ .../crypto/fipsmodule/aesv8-armx.S            | 32 +++++++++----------
+ .../fipsmodule/aesv8-gcm-armv8-unroll8.S      |  8 ++---
+ .../crypto/fipsmodule/aesv8-gcm-armv8.S       |  8 ++---
+ .../crypto/fipsmodule/sha256-armv8.S          |  8 ++---
+ .../crypto/fipsmodule/sha512-armv8.S          |  8 ++---
+ .../crypto/fipsmodule/vpaes-armv8.S           | 16 +++++-----
+ .../crypto/fipsmodule/aesv8-armx.S            | 32 +++++++++----------
+ .../fipsmodule/aesv8-gcm-armv8-unroll8.S      |  8 ++---
+ .../crypto/fipsmodule/aesv8-gcm-armv8.S       |  8 ++---
+ .../crypto/fipsmodule/sha256-armv8.S          |  8 ++---
+ .../crypto/fipsmodule/sha512-armv8.S          |  8 ++---
+ .../crypto/fipsmodule/vpaes-armv8.S           | 16 +++++-----
+ .../crypto/fipsmodule/aesv8-armx.S            | 32 +++++++++----------
+ .../fipsmodule/aesv8-gcm-armv8-unroll8.S      |  8 ++---
+ .../crypto/fipsmodule/aesv8-gcm-armv8.S       |  8 ++---
+ .../crypto/fipsmodule/sha256-armv8.S          |  8 ++---
+ .../crypto/fipsmodule/sha512-armv8.S          |  8 ++---
+ .../crypto/fipsmodule/vpaes-armv8.S           | 16 +++++-----
+ 23 files changed, 156 insertions(+), 156 deletions(-)
+
+diff --git a/crypto/fipsmodule/aes/asm/aesv8-armx.pl b/crypto/fipsmodule/aes/asm/aesv8-armx.pl
+index 5b96a0921..4603028f8 100644
+--- a/crypto/fipsmodule/aes/asm/aesv8-armx.pl
++++ b/crypto/fipsmodule/aes/asm/aesv8-armx.pl
+@@ -101,10 +101,10 @@ ___
+ $code.=<<___	if ($flavour =~ /64/);
+ #ifdef BORINGSSL_DISPATCH_TEST
+ .extern        BORINGSSL_function_hit
+-	adrp	x6,:pg_hi21:BORINGSSL_function_hit
+-	add x6, x6, :lo12:BORINGSSL_function_hit
+-	mov w7, #1
+-	strb w7, [x6,#3] // kFlag_aes_hw_set_encrypt_key
++	adrp	x9,:pg_hi21:BORINGSSL_function_hit
++	add     x9, x9, :lo12:BORINGSSL_function_hit
++	mov     w10, #1
++	strb    w10, [x9,#3] // kFlag_aes_hw_set_encrypt_key
+ #endif
+ 	// Armv8.3-A PAuth: even though x30 is pushed to stack it is not popped later.
+ 	AARCH64_VALID_CALL_TARGET
+@@ -354,10 +354,10 @@ ___
+ $code.=<<___	if ($flavour =~ /64/);
+ #ifdef BORINGSSL_DISPATCH_TEST
+ .extern        BORINGSSL_function_hit
+-	adrp	x6,:pg_hi21:BORINGSSL_function_hit
+-	add x6, x6, :lo12:BORINGSSL_function_hit
+-	mov w7, #1
+-	strb w7, [x6,#1] // kFlag_aes_hw_encrypt
++	adrp	x9,:pg_hi21:BORINGSSL_function_hit
++	add     x9, x9, :lo12:BORINGSSL_function_hit
++	mov     w10, #1
++	strb    w10, [x9,#1] // kFlag_aes_hw_encrypt
+ #endif
+ ___
+ $code.=<<___;
+@@ -742,10 +742,10 @@ ___
+ $code.=<<___	if ($flavour =~ /64/);
+ #ifdef BORINGSSL_DISPATCH_TEST
+ .extern        BORINGSSL_function_hit
+-	adrp	x6,:pg_hi21:BORINGSSL_function_hit
+-	add x6, x6, :lo12:BORINGSSL_function_hit
+-	mov w7, #1
+-	strb w7, [x6] // kFlag_aes_hw_ctr32_encrypt_blocks
++	adrp	x9,:pg_hi21:BORINGSSL_function_hit
++	add     x9, x9, :lo12:BORINGSSL_function_hit
++	mov     w10, #1
++	strb    w10, [x9] // kFlag_aes_hw_ctr32_encrypt_blocks
+ #endif
+ 	// Armv8.3-A PAuth: even though x30 is pushed to stack it is not popped later.
+ 	AARCH64_VALID_CALL_TARGET
+diff --git a/crypto/fipsmodule/aes/asm/vpaes-armv8.pl b/crypto/fipsmodule/aes/asm/vpaes-armv8.pl
+index a39c29a86..4f4b737c1 100755
+--- a/crypto/fipsmodule/aes/asm/vpaes-armv8.pl
++++ b/crypto/fipsmodule/aes/asm/vpaes-armv8.pl
+@@ -266,10 +266,10 @@ _vpaes_encrypt_core:
+ vpaes_encrypt:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ .extern        BORINGSSL_function_hit
+-	adrp	x6,:pg_hi21:BORINGSSL_function_hit
+-	add x6, x6, :lo12:BORINGSSL_function_hit
+-	mov w7, #1
+-	strb w7, [x6,#4] // kFlag_vpaes_encrypt
++	adrp	x9,:pg_hi21:BORINGSSL_function_hit
++	add     x9, x9, :lo12:BORINGSSL_function_hit
++	mov     w10, #1
++	strb    w10, [x9,#4] // kFlag_vpaes_encrypt
+ #endif
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-16]!
+@@ -1081,10 +1081,10 @@ _vpaes_schedule_mangle:
+ vpaes_set_encrypt_key:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ .extern        BORINGSSL_function_hit
+-	adrp	x6,:pg_hi21:BORINGSSL_function_hit
+-	add x6, x6, :lo12:BORINGSSL_function_hit
+-	mov w7, #1
+-	strb w7, [x6,#5] // kFlag_vpaes_set_encrypt_key
++	adrp	x9,:pg_hi21:BORINGSSL_function_hit
++	add     x9, x9, :lo12:BORINGSSL_function_hit
++	mov     w10, #1
++	strb    w10, [x9,#5] // kFlag_vpaes_set_encrypt_key
+ #endif
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-16]!
+diff --git a/crypto/fipsmodule/modes/asm/aesv8-gcm-armv8-unroll8.pl b/crypto/fipsmodule/modes/asm/aesv8-gcm-armv8-unroll8.pl
+index 4dc36b7a1..85a4fd277 100644
+--- a/crypto/fipsmodule/modes/asm/aesv8-gcm-armv8-unroll8.pl
++++ b/crypto/fipsmodule/modes/asm/aesv8-gcm-armv8-unroll8.pl
+@@ -264,10 +264,10 @@ $code.=<<___;
+ aesv8_gcm_8x_enc_128:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ .extern        BORINGSSL_function_hit
+-	adrp	x6,:pg_hi21:BORINGSSL_function_hit
+-	add x6, x6, :lo12:BORINGSSL_function_hit
+-	mov w7, #1
+-	strb w7, [x6,#7] // kFlag_aesv8_gcm_8x_enc_128
++	adrp	x9,:pg_hi21:BORINGSSL_function_hit
++	add     x9, x9, :lo12:BORINGSSL_function_hit
++	mov     w10, #1
++	strb    w10, [x9,#7] // kFlag_aesv8_gcm_8x_enc_128
+ #endif
+ 	AARCH64_VALID_CALL_TARGET
+ 	cbz	x1, .L128_enc_ret
+diff --git a/crypto/fipsmodule/modes/asm/aesv8-gcm-armv8.pl b/crypto/fipsmodule/modes/asm/aesv8-gcm-armv8.pl
+index 9d84edfce..cd6ee3ebf 100644
+--- a/crypto/fipsmodule/modes/asm/aesv8-gcm-armv8.pl
++++ b/crypto/fipsmodule/modes/asm/aesv8-gcm-armv8.pl
+@@ -290,10 +290,10 @@ $code.=<<___;
+ aes_gcm_enc_kernel:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ .extern        BORINGSSL_function_hit
+-	adrp	x6,:pg_hi21:BORINGSSL_function_hit
+-	add x6, x6, :lo12:BORINGSSL_function_hit
+-	mov w7, #1
+-	strb w7, [x6,#2] // kFlag_aes_gcm_enc_kernel
++	adrp	x9,:pg_hi21:BORINGSSL_function_hit
++	add     x9, x9, :lo12:BORINGSSL_function_hit
++	mov     w10, #1
++	strb    w10, [x9,#2] // kFlag_aes_gcm_enc_kernel
+ #endif
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29, x30, [sp, #-128]!
+diff --git a/crypto/fipsmodule/sha/asm/sha512-armv8.pl b/crypto/fipsmodule/sha/asm/sha512-armv8.pl
+index 9643cd8da..3aa85fdca 100644
+--- a/crypto/fipsmodule/sha/asm/sha512-armv8.pl
++++ b/crypto/fipsmodule/sha/asm/sha512-armv8.pl
+@@ -364,10 +364,10 @@ sha256_block_armv8:
+ .Lv8_entry:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ .extern        BORINGSSL_function_hit
+-	adrp	x6,:pg_hi21:BORINGSSL_function_hit
+-	add x6, x6, :lo12:BORINGSSL_function_hit
+-	mov w7, #1
+-	strb w7, [x6,#6] // kFlag_sha256_hw
++	adrp	x9,:pg_hi21:BORINGSSL_function_hit
++	add     x9, x9, :lo12:BORINGSSL_function_hit
++	mov     w10, #1
++	strb    w10, [x9,#6] // kFlag_sha256_hw
+ #endif
+ 	// Armv8.3-A PAuth: even though x30 is pushed to stack it is not popped later.
+ 	stp		x29,x30,[sp,#-16]!
+@@ -457,10 +457,10 @@ sha512_block_armv8:
+ .Lv8_entry:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ .extern        BORINGSSL_function_hit
+-	adrp	x6,:pg_hi21:BORINGSSL_function_hit
+-	add x6, x6, :lo12:BORINGSSL_function_hit
+-	mov w7, #1
+-	strb w7, [x6,#8] // kFlag_sha512_hw
++	adrp	x9,:pg_hi21:BORINGSSL_function_hit
++	add     x9, x9, :lo12:BORINGSSL_function_hit
++	mov     w10, #1
++	strb    w10, [x9,#8] // kFlag_sha512_hw
+ #endif
+ 	stp		x29,x30,[sp,#-16]!
+ 	add		x29,sp,#0
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-armx.S b/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-armx.S
+index f9d545cf7..c9982dad9 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-armx.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-armx.S
+@@ -34,10 +34,10 @@ _aes_hw_set_encrypt_key:
+ Lenc_key:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,_BORINGSSL_function_hit@PAGE
+-	add	x6, x6, _BORINGSSL_function_hit@PAGEOFF
+-	mov	w7, #1
+-	strb	w7, [x6,#3] // kFlag_aes_hw_set_encrypt_key
++	adrp	x9,_BORINGSSL_function_hit@PAGE
++	add	x9, x9, _BORINGSSL_function_hit@PAGEOFF
++	mov	w10, #1
++	strb	w10, [x9,#3] // kFlag_aes_hw_set_encrypt_key
+ #endif
+ 	// Armv8.3-A PAuth: even though x30 is pushed to stack it is not popped later.
+ 	AARCH64_VALID_CALL_TARGET
+@@ -253,10 +253,10 @@ Ldec_key_abort:
+ _aes_hw_encrypt:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,_BORINGSSL_function_hit@PAGE
+-	add	x6, x6, _BORINGSSL_function_hit@PAGEOFF
+-	mov	w7, #1
+-	strb	w7, [x6,#1] // kFlag_aes_hw_encrypt
++	adrp	x9,_BORINGSSL_function_hit@PAGE
++	add	x9, x9, _BORINGSSL_function_hit@PAGEOFF
++	mov	w10, #1
++	strb	w10, [x9,#1] // kFlag_aes_hw_encrypt
+ #endif
+ 	AARCH64_VALID_CALL_TARGET
+ 	ldr	w3,[x2,#240]
+@@ -291,10 +291,10 @@ Loop_enc:
+ _aes_hw_decrypt:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,_BORINGSSL_function_hit@PAGE
+-	add	x6, x6, _BORINGSSL_function_hit@PAGEOFF
+-	mov	w7, #1
+-	strb	w7, [x6,#1] // kFlag_aes_hw_encrypt
++	adrp	x9,_BORINGSSL_function_hit@PAGE
++	add	x9, x9, _BORINGSSL_function_hit@PAGEOFF
++	mov	w10, #1
++	strb	w10, [x9,#1] // kFlag_aes_hw_encrypt
+ #endif
+ 	AARCH64_VALID_CALL_TARGET
+ 	ldr	w3,[x2,#240]
+@@ -622,10 +622,10 @@ Lcbc_abort:
+ _aes_hw_ctr32_encrypt_blocks:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,_BORINGSSL_function_hit@PAGE
+-	add	x6, x6, _BORINGSSL_function_hit@PAGEOFF
+-	mov	w7, #1
+-	strb	w7, [x6] // kFlag_aes_hw_ctr32_encrypt_blocks
++	adrp	x9,_BORINGSSL_function_hit@PAGE
++	add	x9, x9, _BORINGSSL_function_hit@PAGEOFF
++	mov	w10, #1
++	strb	w10, [x9] // kFlag_aes_hw_ctr32_encrypt_blocks
+ #endif
+ 	// Armv8.3-A PAuth: even though x30 is pushed to stack it is not popped later.
+ 	AARCH64_VALID_CALL_TARGET
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S b/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
+index ddcc221ed..f8e26e44e 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
+@@ -24,10 +24,10 @@
+ _aesv8_gcm_8x_enc_128:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,_BORINGSSL_function_hit@PAGE
+-	add	x6, x6, _BORINGSSL_function_hit@PAGEOFF
+-	mov	w7, #1
+-	strb	w7, [x6,#7] // kFlag_aesv8_gcm_8x_enc_128
++	adrp	x9,_BORINGSSL_function_hit@PAGE
++	add	x9, x9, _BORINGSSL_function_hit@PAGEOFF
++	mov	w10, #1
++	strb	w10, [x9,#7] // kFlag_aesv8_gcm_8x_enc_128
+ #endif
+ 	AARCH64_VALID_CALL_TARGET
+ 	cbz	x1, L128_enc_ret
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
+index b27e32722..50305ceb7 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
+@@ -24,10 +24,10 @@
+ _aes_gcm_enc_kernel:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,_BORINGSSL_function_hit@PAGE
+-	add	x6, x6, _BORINGSSL_function_hit@PAGEOFF
+-	mov	w7, #1
+-	strb	w7, [x6,#2] // kFlag_aes_gcm_enc_kernel
++	adrp	x9,_BORINGSSL_function_hit@PAGE
++	add	x9, x9, _BORINGSSL_function_hit@PAGEOFF
++	mov	w10, #1
++	strb	w10, [x9,#2] // kFlag_aes_gcm_enc_kernel
+ #endif
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29, x30, [sp, #-128]!
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/sha256-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/sha256-armv8.S
+index a8ea7951c..d407c765a 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/sha256-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/sha256-armv8.S
+@@ -1074,10 +1074,10 @@ sha256_block_armv8:
+ Lv8_entry:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,_BORINGSSL_function_hit@PAGE
+-	add	x6, x6, _BORINGSSL_function_hit@PAGEOFF
+-	mov	w7, #1
+-	strb	w7, [x6,#6] // kFlag_sha256_hw
++	adrp	x9,_BORINGSSL_function_hit@PAGE
++	add	x9, x9, _BORINGSSL_function_hit@PAGEOFF
++	mov	w10, #1
++	strb	w10, [x9,#6] // kFlag_sha256_hw
+ #endif
+ 	// Armv8.3-A PAuth: even though x30 is pushed to stack it is not popped later.
+ 	stp	x29,x30,[sp,#-16]!
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/sha512-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/sha512-armv8.S
+index 2d795fe04..17c8e78df 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/sha512-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/sha512-armv8.S
+@@ -1098,10 +1098,10 @@ sha512_block_armv8:
+ Lv8_entry:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,_BORINGSSL_function_hit@PAGE
+-	add	x6, x6, _BORINGSSL_function_hit@PAGEOFF
+-	mov	w7, #1
+-	strb	w7, [x6,#8] // kFlag_sha512_hw
++	adrp	x9,_BORINGSSL_function_hit@PAGE
++	add	x9, x9, _BORINGSSL_function_hit@PAGEOFF
++	mov	w10, #1
++	strb	w10, [x9,#8] // kFlag_sha512_hw
+ #endif
+ 	stp	x29,x30,[sp,#-16]!
+ 	add	x29,sp,#0
+diff --git a/generated-src/ios-aarch64/crypto/fipsmodule/vpaes-armv8.S b/generated-src/ios-aarch64/crypto/fipsmodule/vpaes-armv8.S
+index cc18cd257..c7eafb66f 100644
+--- a/generated-src/ios-aarch64/crypto/fipsmodule/vpaes-armv8.S
++++ b/generated-src/ios-aarch64/crypto/fipsmodule/vpaes-armv8.S
+@@ -218,10 +218,10 @@ Lenc_entry:
+ _vpaes_encrypt:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,_BORINGSSL_function_hit@PAGE
+-	add	x6, x6, _BORINGSSL_function_hit@PAGEOFF
+-	mov	w7, #1
+-	strb	w7, [x6,#4] // kFlag_vpaes_encrypt
++	adrp	x9,_BORINGSSL_function_hit@PAGE
++	add	x9, x9, _BORINGSSL_function_hit@PAGEOFF
++	mov	w10, #1
++	strb	w10, [x9,#4] // kFlag_vpaes_encrypt
+ #endif
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-16]!
+@@ -1028,10 +1028,10 @@ Lschedule_mangle_both:
+ _vpaes_set_encrypt_key:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,_BORINGSSL_function_hit@PAGE
+-	add	x6, x6, _BORINGSSL_function_hit@PAGEOFF
+-	mov	w7, #1
+-	strb	w7, [x6,#5] // kFlag_vpaes_set_encrypt_key
++	adrp	x9,_BORINGSSL_function_hit@PAGE
++	add	x9, x9, _BORINGSSL_function_hit@PAGEOFF
++	mov	w10, #1
++	strb	w10, [x9,#5] // kFlag_vpaes_set_encrypt_key
+ #endif
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-16]!
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-armx.S b/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-armx.S
+index 999fafa88..5304a1079 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-armx.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-armx.S
+@@ -34,10 +34,10 @@ aes_hw_set_encrypt_key:
+ .Lenc_key:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#3] // kFlag_aes_hw_set_encrypt_key
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#3] // kFlag_aes_hw_set_encrypt_key
+ #endif
+ 	// Armv8.3-A PAuth: even though x30 is pushed to stack it is not popped later.
+ 	AARCH64_VALID_CALL_TARGET
+@@ -253,10 +253,10 @@ aes_hw_set_decrypt_key:
+ aes_hw_encrypt:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#1] // kFlag_aes_hw_encrypt
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#1] // kFlag_aes_hw_encrypt
+ #endif
+ 	AARCH64_VALID_CALL_TARGET
+ 	ldr	w3,[x2,#240]
+@@ -291,10 +291,10 @@ aes_hw_encrypt:
+ aes_hw_decrypt:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#1] // kFlag_aes_hw_encrypt
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#1] // kFlag_aes_hw_encrypt
+ #endif
+ 	AARCH64_VALID_CALL_TARGET
+ 	ldr	w3,[x2,#240]
+@@ -622,10 +622,10 @@ aes_hw_cbc_encrypt:
+ aes_hw_ctr32_encrypt_blocks:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6] // kFlag_aes_hw_ctr32_encrypt_blocks
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9] // kFlag_aes_hw_ctr32_encrypt_blocks
+ #endif
+ 	// Armv8.3-A PAuth: even though x30 is pushed to stack it is not popped later.
+ 	AARCH64_VALID_CALL_TARGET
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S b/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
+index 52ab18276..c44988d6e 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
+@@ -24,10 +24,10 @@
+ aesv8_gcm_8x_enc_128:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#7] // kFlag_aesv8_gcm_8x_enc_128
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#7] // kFlag_aesv8_gcm_8x_enc_128
+ #endif
+ 	AARCH64_VALID_CALL_TARGET
+ 	cbz	x1, .L128_enc_ret
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
+index 776dbefff..a2672c0d3 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
+@@ -24,10 +24,10 @@
+ aes_gcm_enc_kernel:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#2] // kFlag_aes_gcm_enc_kernel
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#2] // kFlag_aes_gcm_enc_kernel
+ #endif
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29, x30, [sp, #-128]!
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/sha256-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/sha256-armv8.S
+index fd801b4e0..36c50d026 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/sha256-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/sha256-armv8.S
+@@ -1074,10 +1074,10 @@ sha256_block_armv8:
+ .Lv8_entry:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#6] // kFlag_sha256_hw
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#6] // kFlag_sha256_hw
+ #endif
+ 	// Armv8.3-A PAuth: even though x30 is pushed to stack it is not popped later.
+ 	stp	x29,x30,[sp,#-16]!
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/sha512-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/sha512-armv8.S
+index 24e59622f..d7c5a3f4f 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/sha512-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/sha512-armv8.S
+@@ -1098,10 +1098,10 @@ sha512_block_armv8:
+ .Lv8_entry:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#8] // kFlag_sha512_hw
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#8] // kFlag_sha512_hw
+ #endif
+ 	stp	x29,x30,[sp,#-16]!
+ 	add	x29,sp,#0
+diff --git a/generated-src/linux-aarch64/crypto/fipsmodule/vpaes-armv8.S b/generated-src/linux-aarch64/crypto/fipsmodule/vpaes-armv8.S
+index 51b5af48b..edf2cf1bc 100644
+--- a/generated-src/linux-aarch64/crypto/fipsmodule/vpaes-armv8.S
++++ b/generated-src/linux-aarch64/crypto/fipsmodule/vpaes-armv8.S
+@@ -218,10 +218,10 @@ _vpaes_encrypt_core:
+ vpaes_encrypt:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#4] // kFlag_vpaes_encrypt
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#4] // kFlag_vpaes_encrypt
+ #endif
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-16]!
+@@ -1028,10 +1028,10 @@ _vpaes_schedule_mangle:
+ vpaes_set_encrypt_key:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#5] // kFlag_vpaes_set_encrypt_key
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#5] // kFlag_vpaes_set_encrypt_key
+ #endif
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-16]!
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/aesv8-armx.S b/generated-src/win-aarch64/crypto/fipsmodule/aesv8-armx.S
+index 639a3a2de..af3341dbc 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/aesv8-armx.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/aesv8-armx.S
+@@ -36,10 +36,10 @@ aes_hw_set_encrypt_key:
+ Lenc_key:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#3] // kFlag_aes_hw_set_encrypt_key
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#3] // kFlag_aes_hw_set_encrypt_key
+ #endif
+ 	// Armv8.3-A PAuth: even though x30 is pushed to stack it is not popped later.
+ 	AARCH64_VALID_CALL_TARGET
+@@ -259,10 +259,10 @@ Ldec_key_abort:
+ aes_hw_encrypt:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#1] // kFlag_aes_hw_encrypt
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#1] // kFlag_aes_hw_encrypt
+ #endif
+ 	AARCH64_VALID_CALL_TARGET
+ 	ldr	w3,[x2,#240]
+@@ -299,10 +299,10 @@ Loop_enc:
+ aes_hw_decrypt:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#1] // kFlag_aes_hw_encrypt
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#1] // kFlag_aes_hw_encrypt
+ #endif
+ 	AARCH64_VALID_CALL_TARGET
+ 	ldr	w3,[x2,#240]
+@@ -634,10 +634,10 @@ Lcbc_abort:
+ aes_hw_ctr32_encrypt_blocks:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6] // kFlag_aes_hw_ctr32_encrypt_blocks
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9] // kFlag_aes_hw_ctr32_encrypt_blocks
+ #endif
+ 	// Armv8.3-A PAuth: even though x30 is pushed to stack it is not popped later.
+ 	AARCH64_VALID_CALL_TARGET
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S b/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
+index 8763eb3cf..c7550cca7 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8-unroll8.S
+@@ -26,10 +26,10 @@
+ aesv8_gcm_8x_enc_128:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#7] // kFlag_aesv8_gcm_8x_enc_128
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#7] // kFlag_aesv8_gcm_8x_enc_128
+ #endif
+ 	AARCH64_VALID_CALL_TARGET
+ 	cbz	x1, L128_enc_ret
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
+index b6c4ec529..12d19d11e 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/aesv8-gcm-armv8.S
+@@ -26,10 +26,10 @@
+ aes_gcm_enc_kernel:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#2] // kFlag_aes_gcm_enc_kernel
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#2] // kFlag_aes_gcm_enc_kernel
+ #endif
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29, x30, [sp, #-128]!
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/sha256-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/sha256-armv8.S
+index 5d4bceb1c..baf6b85d2 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/sha256-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/sha256-armv8.S
+@@ -1078,10 +1078,10 @@ sha256_block_armv8:
+ Lv8_entry:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#6] // kFlag_sha256_hw
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#6] // kFlag_sha256_hw
+ #endif
+ 	// Armv8.3-A PAuth: even though x30 is pushed to stack it is not popped later.
+ 	stp	x29,x30,[sp,#-16]!
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/sha512-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/sha512-armv8.S
+index 7cca7ef2d..72d353454 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/sha512-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/sha512-armv8.S
+@@ -1102,10 +1102,10 @@ sha512_block_armv8:
+ Lv8_entry:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#8] // kFlag_sha512_hw
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#8] // kFlag_sha512_hw
+ #endif
+ 	stp	x29,x30,[sp,#-16]!
+ 	add	x29,sp,#0
+diff --git a/generated-src/win-aarch64/crypto/fipsmodule/vpaes-armv8.S b/generated-src/win-aarch64/crypto/fipsmodule/vpaes-armv8.S
+index fba7f704d..61eb10df4 100644
+--- a/generated-src/win-aarch64/crypto/fipsmodule/vpaes-armv8.S
++++ b/generated-src/win-aarch64/crypto/fipsmodule/vpaes-armv8.S
+@@ -224,10 +224,10 @@ Lenc_entry:
+ vpaes_encrypt:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#4] // kFlag_vpaes_encrypt
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#4] // kFlag_vpaes_encrypt
+ #endif
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-16]!
+@@ -1058,10 +1058,10 @@ Lschedule_mangle_both:
+ vpaes_set_encrypt_key:
+ #ifdef BORINGSSL_DISPATCH_TEST
+ 
+-	adrp	x6,BORINGSSL_function_hit
+-	add	x6, x6, :lo12:BORINGSSL_function_hit
+-	mov	w7, #1
+-	strb	w7, [x6,#5] // kFlag_vpaes_set_encrypt_key
++	adrp	x9,BORINGSSL_function_hit
++	add	x9, x9, :lo12:BORINGSSL_function_hit
++	mov	w10, #1
++	strb	w10, [x9,#5] // kFlag_vpaes_set_encrypt_key
+ #endif
+ 	AARCH64_SIGN_LINK_REGISTER
+ 	stp	x29,x30,[sp,#-16]!

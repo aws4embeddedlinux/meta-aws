@@ -1,0 +1,35 @@
+From edf110cf09a1b12d3ec8d517bbf493ddf5e8ff79 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Wed, 11 Jan 2023 15:51:16 -0800
+Subject: [PATCH] Add SM2 field doubling and halving
+
+And again, make minor tweaks to the ARM implementations of some analogous
+functions for P-256 and P-384.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/0ac9eea30a37c3fef7505647105428cc3bff1185
+---
+ arm/p384/bignum_half_p384.S | 9 +++------
+ 1 file changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/arm/p384/bignum_half_p384.S b/arm/p384/bignum_half_p384.S
+index e242829c6..e3a7ff0e7 100644
+--- a/arm/p384/bignum_half_p384.S
++++ b/arm/p384/bignum_half_p384.S
+@@ -47,14 +47,11 @@ S2N_BN_SYMBOL(bignum_half_p384):
+ 
+ // Do a masked addition of p_384, catching carry in a 7th word
+ 
+-        mov     n, #0x00000000ffffffff
+-        and     n, n, m
++        and     n, m, #0x00000000ffffffff
+         adds    d0, d0, n
+-        mov     n, #0xffffffff00000000
+-        and     n, n, m
++        and     n, m, #0xffffffff00000000
+         adcs    d1, d1, n
+-        mov     n, #0xfffffffffffffffe
+-        and     n, n, m
++        and     n, m, #0xfffffffffffffffe
+         adcs    d2, d2, n
+         adcs    d3, d3, m
+         adcs    d4, d4, m

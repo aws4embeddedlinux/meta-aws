@@ -1,0 +1,92 @@
+From d1be65320a1f11f1f63f22616d8ebbe923ad03d6 Mon Sep 17 00:00:00 2001
+From: Adam Langley <agl@google.com>
+Date: Mon, 23 Jan 2023 21:11:44 +0000
+Subject: [PATCH] Don't send two post-quantum initial key shares.
+
+More than one post-quantum group is now defined so it would be possible
+for two PQ groups to be 1st and 2nd preferences. In that case, we
+probably don't want to send two PQ initial key shares.
+
+(Only one PQ group is _implemented_ currently, so we can't write a test
+for this.)
+
+Change-Id: I51ff118f224153e09a0c3ee8b142aebb6b340dcb
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56226
+Reviewed-by: David Benjamin <davidben@google.com>
+Commit-Queue: Adam Langley <agl@google.com>
+(cherry picked from commit 1e97ce3beab9e6d34bc645f6901b2b30b50530c0)
+---
+ ssl/extensions.cc         | 12 +++++++-----
+ ssl/test/runner/runner.go | 25 ++++++++++++++++++++++---
+ 2 files changed, 29 insertions(+), 8 deletions(-)
+
+diff --git a/ssl/extensions.cc b/ssl/extensions.cc
+index a126b4645..ef4219444 100644
+--- a/ssl/extensions.cc
++++ b/ssl/extensions.cc
+@@ -2300,11 +2300,13 @@ bool ssl_setup_key_shares(SSL_HANDSHAKE *hs, uint16_t override_group_id) {
+ 
+     group_id = groups[0];
+ 
+-    if (is_post_quantum_group(group_id) && groups.size() >= 2) {
+-      // CECPQ2(b) is not sent as the only initial key share. We'll include the
+-      // 2nd preference group too to avoid round-trips.
+-      second_group_id = groups[1];
+-      assert(second_group_id != group_id);
++    // We'll try to include one post-quantum and one classical initial key
++    // share.
++    for (size_t i = 1; i < groups.size() && second_group_id == 0; i++) {
++      if (is_post_quantum_group(group_id) != is_post_quantum_group(groups[i])) {
++        second_group_id = groups[i];
++        assert(second_group_id != group_id);
++      }
+     }
+   }
+ 
+diff --git a/ssl/test/runner/runner.go b/ssl/test/runner/runner.go
+index 2973f488e..cce3769c8 100644
+--- a/ssl/test/runner/runner.go
++++ b/ssl/test/runner/runner.go
+@@ -11987,13 +11987,13 @@ func addCurveTests() {
+ 		},
+ 	})
+ 
+-	// ... but only if CECPQ2 is listed first.
++	// ... and the other way around
+ 	testCases = append(testCases, testCase{
+-		name: "CECPQ2KeyShareNotIncludedSecond",
++		name: "CECPQ2KeyShareIncludedSecond",
+ 		config: Config{
+ 			MinVersion: VersionTLS13,
+ 			Bugs: ProtocolBugs{
+-				ExpectedKeyShares: []CurveID{CurveX25519},
++				ExpectedKeyShares: []CurveID{CurveX25519, CurveCECPQ2},
+ 			},
+ 		},
+ 		flags: []string{
+@@ -12003,6 +12003,25 @@ func addCurveTests() {
+ 		},
+ 	})
+ 
++        // ... and even if there's another curve in the middle because it's the
++        // first classical and first post-quantum "curves" that get key shares
++        // included.
++	testCases = append(testCases, testCase{
++		name: "CECPQ2KeyShareIncludedThird",
++		config: Config{
++			MinVersion: VersionTLS13,
++			Bugs: ProtocolBugs{
++				ExpectedKeyShares: []CurveID{CurveX25519, CurveCECPQ2},
++			},
++		},
++		flags: []string{
++			"-curves", strconv.Itoa(int(CurveX25519)),
++			"-curves", strconv.Itoa(int(CurveP256)),
++			"-curves", strconv.Itoa(int(CurveCECPQ2)),
++			"-expect-curve-id", strconv.Itoa(int(CurveX25519)),
++		},
++	})
++
+ 	// If CECPQ2 is the only configured curve, the key share is sent.
+ 	testCases = append(testCases, testCase{
+ 		name: "JustConfiguringCECPQ2Works",

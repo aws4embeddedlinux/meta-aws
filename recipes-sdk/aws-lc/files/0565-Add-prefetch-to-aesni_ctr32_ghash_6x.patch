@@ -1,0 +1,156 @@
+From 0b71885738e73a58fc859e0e0a0b40ea048034db Mon Sep 17 00:00:00 2001
+From: Ilya Tokar <tokarip@google.com>
+Date: Thu, 1 Dec 2022 17:21:54 -0500
+Subject: [PATCH] Add prefetch to aesni_ctr32_ghash_6x
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Performance is neutral (~1% change with ~2% noise level):
+BM_AesCtrEncrypt/999                940MB/s ± 2%            941MB/s ± 1%    ~           (p=0.811 n=40+39)
+BM_AesCtrEncrypt/4k                1.11GB/s ± 2%           1.11GB/s ± 2%    ~           (p=0.452 n=40+40)
+BM_AesCtrEncrypt/8k                1.14GB/s ± 2%           1.14GB/s ± 1%    ~           (p=0.101 n=40+39)
+BM_AesCtrEncrypt/12k               1.14GB/s ± 1%           1.14GB/s ± 2%    ~           (p=0.629 n=39+40)
+BM_AesCtrEncrypt/16k               1.16GB/s ± 2%           1.16GB/s ± 1%    ~           (p=0.193 n=40+38)
+BM_AesCtrEncrypt/24k               1.15GB/s ± 2%           1.15GB/s ± 2%  +0.32%        (p=0.037 n=40+40)
+BM_AesCtrEncrypt/64k               1.15GB/s ± 2%           1.15GB/s ± 2%    ~           (p=0.246 n=40+38)
+BM_AesCtrEncrypt/128k              1.15GB/s ± 2%           1.15GB/s ± 2%  +0.32%        (p=0.042 n=40+79)
+BM_AesCtrEncryptWithFlush/4k       1.03GB/s ± 2%           1.03GB/s ± 2%    ~           (p=0.707 n=39+40)
+BM_AesCtrEncryptWithFlush/8k       1.08GB/s ± 2%           1.08GB/s ± 2%    ~           (p=0.381 n=40+40)
+BM_AesCtrEncryptWithFlush/12k      1.10GB/s ± 2%           1.10GB/s ± 1%    ~           (p=0.980 n=40+37)
+BM_AesCtrEncryptWithFlush/16k      1.12GB/s ± 2%           1.12GB/s ± 2%    ~           (p=0.568 n=39+40)
+BM_AesCtrEncryptWithFlush/24k      1.12GB/s ± 2%           1.12GB/s ± 2%    ~           (p=0.620 n=39+40)
+BM_AesCtrEncryptWithFlush/64k      1.13GB/s ± 2%           1.14GB/s ± 2%    ~           (p=0.289 n=40+39)
+BM_AesCtrEncryptWithFlush/128k     1.14GB/s ± 2%           1.14GB/s ± 2%  +0.38%        (p=0.011 n=40+78)
+BM_AesGcmEncrypt/999               1.60GB/s ± 2%           1.59GB/s ± 2%  -0.67%        (p=0.000 n=40+39)
+BM_AesGcmEncrypt/4k                2.16GB/s ± 2%           2.14GB/s ± 1%  -0.72%        (p=0.000 n=40+40)
+BM_AesGcmEncrypt/8k                2.29GB/s ± 2%           2.28GB/s ± 1%  -0.49%        (p=0.003 n=40+40)
+BM_AesGcmEncrypt/12k               2.29GB/s ± 2%           2.27GB/s ± 2%  -0.67%        (p=0.002 n=40+40)
+BM_AesGcmEncrypt/16k               2.37GB/s ± 2%           2.35GB/s ± 2%  -0.70%        (p=0.000 n=39+40)
+BM_AesGcmEncrypt/24k               2.32GB/s ± 2%           2.31GB/s ± 2%  -0.49%        (p=0.018 n=40+40)
+BM_AesGcmEncrypt/64k               2.33GB/s ± 2%           2.31GB/s ± 2%  -0.54%        (p=0.005 n=40+40)
+BM_AesGcmEncrypt/128k              2.31GB/s ± 2%           2.30GB/s ± 2%  -0.49%        (p=0.000 n=40+80)
+BM_AesCtrDecrypt/999               93.2MB/s ± 2%           93.4MB/s ± 1%    ~           (p=0.788 n=40+40)
+BM_AesCtrDecrypt/4k                 363MB/s ± 2%            364MB/s ± 1%    ~           (p=0.239 n=40+39)
+BM_AesCtrDecrypt/8k                 680MB/s ± 2%            680MB/s ± 1%    ~           (p=0.852 n=40+40)
+BM_AesCtrDecrypt/12k                959MB/s ± 2%            963MB/s ± 1%  +0.49%        (p=0.013 n=40+37)
+BM_AesCtrDecrypt/16k               1.21GB/s ± 2%           1.21GB/s ± 2%  +0.41%        (p=0.038 n=40+38)
+BM_AesCtrDecrypt/24k                960MB/s ± 2%            964MB/s ± 2%  +0.44%        (p=0.006 n=40+39)
+BM_AesCtrDecrypt/64k               1.21GB/s ± 2%           1.21GB/s ± 2%    ~           (p=0.114 n=40+39)
+BM_AesCtrDecrypt/128k              1.21GB/s ± 2%           1.21GB/s ± 2%    ~           (p=0.110 n=40+77)
+BM_AesCtrDecryptRandomOffset/999   92.7MB/s ± 1%           92.9MB/s ± 1%    ~           (p=0.386 n=40+40)
+BM_AesCtrDecryptRandomOffset/4k     188MB/s ± 1%            188MB/s ± 2%    ~           (p=0.055 n=38+39)
+BM_AesCtrDecryptRandomOffset/8k     363MB/s ± 2%            363MB/s ± 1%    ~           (p=0.890 n=40+40)
+BM_AesCtrDecryptRandomOffset/12k    526MB/s ± 2%            527MB/s ± 1%    ~           (p=0.107 n=40+40)
+BM_AesCtrDecryptRandomOffset/16k    679MB/s ± 2%            681MB/s ± 2%    ~           (p=0.162 n=40+40)
+BM_AesCtrDecryptRandomOffset/24k    681MB/s ± 2%            682MB/s ± 2%    ~           (p=0.307 n=40+40)
+BM_AesCtrDecryptRandomOffset/64k   1.01GB/s ± 2%           1.01GB/s ± 1%    ~           (p=0.574 n=38+39)
+BM_AesCtrDecryptRandomOffset/128k  1.10GB/s ± 2%           1.10GB/s ± 2%    ~           (p=0.073 n=40+80)
+BM_AesGcmDecrypt/999                177MB/s ± 2%            175MB/s ± 2%  -0.77%        (p=0.000 n=39+40)
+BM_AesGcmDecrypt/4k                 704MB/s ± 2%            698MB/s ± 2%  -0.76%        (p=0.000 n=40+40)
+BM_AesGcmDecrypt/8k                1.35GB/s ± 2%           1.34GB/s ± 2%  -0.50%        (p=0.001 n=39+39)
+BM_AesGcmDecrypt/12k               1.95GB/s ± 2%           1.95GB/s ± 1%  -0.43%        (p=0.004 n=40+39)
+BM_AesGcmDecrypt/16k               2.54GB/s ± 1%           2.53GB/s ± 2%  -0.69%        (p=0.000 n=39+40)
+BM_AesGcmDecrypt/24k               1.95GB/s ± 1%           1.94GB/s ± 1%  -0.57%        (p=0.001 n=39+40)
+BM_AesGcmDecrypt/64k               2.52GB/s ± 1%           2.51GB/s ± 2%  -0.68%        (p=0.000 n=39+40)
+BM_AesGcmDecrypt/128k              2.51GB/s ± 2%           2.50GB/s ± 2%  -0.67%        (p=0.000 n=40+79)
+BM_AesGcmDecryptRandomOffset/999    173MB/s ± 2%            172MB/s ± 1%  -0.64%        (p=0.000 n=39+39)
+BM_AesGcmDecryptRandomOffset/4k     356MB/s ± 2%            354MB/s ± 2%  -0.66%        (p=0.000 n=40+40)
+BM_AesGcmDecryptRandomOffset/8k     700MB/s ± 2%            694MB/s ± 2%  -0.82%        (p=0.000 n=40+40)
+BM_AesGcmDecryptRandomOffset/12k   1.03GB/s ± 2%           1.03GB/s ± 2%  -0.50%        (p=0.002 n=40+39)
+BM_AesGcmDecryptRandomOffset/16k   1.35GB/s ± 2%           1.34GB/s ± 2%    ~           (p=0.057 n=40+40)
+BM_AesGcmDecryptRandomOffset/24k   1.35GB/s ± 2%           1.34GB/s ± 2%  -0.59%        (p=0.003 n=39+40)
+BM_AesGcmDecryptRandomOffset/64k   2.06GB/s ± 2%           2.05GB/s ± 1%  -0.46%        (p=0.008 n=40+40)
+BM_AesGcmDecryptRandomOffset/128k  2.26GB/s ± 2%           2.25GB/s ± 2%  -0.60%        (p=0.000 n=40+80)
+
+However on AMD with disabled hardware prefetchers gain is very
+significant (see 128Mb case, for a microbenchmark that doesn't fit  in
+cache, for a 50+% speed-up):
+
+name                               old time/op  new time/op  delta
+BM_AesCtrEncrypt/999               1.06µs ± 2%  1.06µs ± 2%   +0.42%  (p=0.011 n=38+40)
+BM_AesCtrEncrypt/128k               114µs ± 2%   114µs ± 2%     ~     (p=0.333 n=78+80)
+BM_AesCtrEncrypt/4k                3.70µs ± 2%  3.71µs ± 2%     ~     (p=0.355 n=40+40)
+BM_AesCtrEncrypt/8k                7.15µs ± 2%  7.19µs ± 2%   +0.44%  (p=0.015 n=38+39)
+BM_AesCtrEncrypt/12k               10.7µs ± 2%  10.8µs ± 2%     ~     (p=0.366 n=39+40)
+BM_AesCtrEncrypt/16k               14.1µs ± 2%  14.1µs ± 1%     ~     (p=0.264 n=40+40)
+BM_AesCtrEncrypt/24k               21.3µs ± 2%  21.4µs ± 2%     ~     (p=0.075 n=38+39)
+BM_AesCtrEncrypt/64k               56.8µs ± 2%  56.8µs ± 1%     ~     (p=0.464 n=40+40)
+BM_AesCtrEncrypt/128M               200ms ± 3%   201ms ± 3%     ~     (p=0.677 n=38+37)
+BM_AesCtrEncryptWithFlush/128k      115µs ± 2%   115µs ± 2%     ~     (p=0.273 n=76+79)
+BM_AesCtrEncryptWithFlush/4k       3.95µs ± 1%  3.95µs ± 1%     ~     (p=0.664 n=39+40)
+BM_AesCtrEncryptWithFlush/8k       7.53µs ± 2%  7.56µs ± 1%   +0.30%  (p=0.011 n=40+38)
+BM_AesCtrEncryptWithFlush/12k      11.1µs ± 2%  11.1µs ± 2%     ~     (p=0.298 n=38+39)
+BM_AesCtrEncryptWithFlush/16k      14.6µs ± 2%  14.7µs ± 2%     ~     (p=0.184 n=40+40)
+BM_AesCtrEncryptWithFlush/24k      21.9µs ± 2%  21.9µs ± 2%     ~     (p=0.615 n=39+40)
+BM_AesCtrEncryptWithFlush/64k      57.7µs ± 2%  57.8µs ± 2%     ~     (p=0.747 n=38+40)
+BM_AesCtrEncryptWithFlush/128M      201ms ± 3%   201ms ± 4%     ~     (p=0.969 n=33+40)
+BM_AesGcmEncrypt/999                625ns ± 2%   629ns ± 2%   +0.69%  (p=0.000 n=35+37)
+BM_AesGcmEncrypt/128k              56.7µs ± 2%  57.1µs ± 2%   +0.85%  (p=0.000 n=72+79)
+BM_AesGcmEncrypt/4k                1.90µs ± 2%  1.91µs ± 2%   +0.92%  (p=0.000 n=36+40)
+BM_AesGcmEncrypt/8k                3.58µs ± 2%  3.60µs ± 1%   +0.55%  (p=0.000 n=39+37)
+BM_AesGcmEncrypt/12k               5.36µs ± 2%  5.42µs ± 2%   +1.15%  (p=0.000 n=37+40)
+BM_AesGcmEncrypt/16k               6.91µs ± 1%  6.96µs ± 2%   +0.75%  (p=0.000 n=37+37)
+BM_AesGcmEncrypt/24k               10.6µs ± 2%  10.7µs ± 2%   +0.90%  (p=0.000 n=37+39)
+BM_AesGcmEncrypt/64k               28.1µs ± 3%  28.3µs ± 1%   +0.51%  (p=0.001 n=39+36)
+BM_AesGcmEncrypt/128M               217ms ± 2%   199ms ± 1%   -8.42%  (p=0.000 n=40+37)
+BM_AesCtrDecrypt/999               10.7µs ± 1%  10.7µs ± 1%     ~     (p=0.683 n=38+38)
+BM_AesCtrDecrypt/128k               108µs ± 1%   108µs ± 2%     ~     (p=0.098 n=77+78)
+BM_AesCtrDecrypt/4k                11.3µs ± 2%  11.3µs ± 2%     ~     (p=0.950 n=40+40)
+BM_AesCtrDecrypt/8k                12.0µs ± 2%  12.0µs ± 2%     ~     (p=0.126 n=39+38)
+BM_AesCtrDecrypt/12k               12.7µs ± 1%  12.8µs ± 2%   +0.39%  (p=0.010 n=37+40)
+BM_AesCtrDecrypt/16k               13.5µs ± 2%  13.5µs ± 2%     ~     (p=0.148 n=40+40)
+BM_AesCtrDecrypt/24k               25.5µs ± 2%  25.6µs ± 2%   +0.32%  (p=0.047 n=39+39)
+BM_AesCtrDecrypt/64k               53.9µs ± 1%  54.1µs ± 2%     ~     (p=0.197 n=38+40)
+BM_AesCtrDecrypt/128M               190ms ± 3%   189ms ± 2%     ~     (p=0.656 n=40+40)
+BM_AesCtrDecryptRandomOffset/999   10.8µs ± 2%  10.8µs ± 2%     ~     (p=0.811 n=40+39)
+BM_AesCtrDecryptRandomOffset/128k   119µs ± 2%   119µs ± 2%     ~     (p=0.072 n=80+77)
+BM_AesCtrDecryptRandomOffset/4k    21.8µs ± 2%  21.8µs ± 2%     ~     (p=0.386 n=39+38)
+BM_AesCtrDecryptRandomOffset/8k    22.5µs ± 2%  22.6µs ± 2%     ~     (p=0.298 n=40+38)
+BM_AesCtrDecryptRandomOffset/12k   23.3µs ± 2%  23.3µs ± 2%     ~     (p=0.964 n=38+39)
+BM_AesCtrDecryptRandomOffset/16k   24.0µs ± 2%  24.1µs ± 2%   +0.33%  (p=0.022 n=38+39)
+BM_AesCtrDecryptRandomOffset/24k   36.0µs ± 1%  35.9µs ± 1%     ~     (p=0.376 n=38+35)
+BM_AesCtrDecryptRandomOffset/64k   64.5µs ± 1%  64.6µs ± 1%     ~     (p=0.237 n=38+39)
+BM_AesCtrDecryptRandomOffset/128M   190ms ± 2%   191ms ± 2%   +0.54%  (p=0.029 n=40+38)
+BM_AesGcmDecrypt/999               5.65µs ± 1%  5.71µs ± 2%   +0.99%  (p=0.000 n=36+40)
+BM_AesGcmDecrypt/128k              51.8µs ± 2%  52.5µs ± 2%   +1.17%  (p=0.000 n=77+75)
+BM_AesGcmDecrypt/4k                5.82µs ± 2%  5.86µs ± 2%   +0.68%  (p=0.000 n=39+39)
+BM_AesGcmDecrypt/8k                6.07µs ± 2%  6.11µs ± 2%   +0.69%  (p=0.000 n=39+39)
+BM_AesGcmDecrypt/12k               6.26µs ± 1%  6.33µs ± 1%   +1.04%  (p=0.000 n=38+39)
+BM_AesGcmDecrypt/16k               6.42µs ± 1%  6.49µs ± 1%   +1.04%  (p=0.000 n=38+38)
+BM_AesGcmDecrypt/24k               12.6µs ± 2%  12.7µs ± 2%   +1.02%  (p=0.000 n=39+39)
+BM_AesGcmDecrypt/64k               26.0µs ± 2%  26.2µs ± 1%   +0.88%  (p=0.000 n=40+38)
+BM_AesGcmDecrypt/128M               210ms ± 2%    94ms ±12%  -55.31%  (p=0.000 n=40+32)
+BM_AesGcmDecryptRandomOffset/999   5.77µs ± 2%  5.83µs ± 2%   +1.11%  (p=0.000 n=39+40)
+BM_AesGcmDecryptRandomOffset/128k  57.7µs ± 2%  58.4µs ± 2%   +1.19%  (p=0.000 n=80+76)
+BM_AesGcmDecryptRandomOffset/4k    11.5µs ± 2%  11.6µs ± 2%   +0.67%  (p=0.000 n=40+36)
+BM_AesGcmDecryptRandomOffset/8k    11.6µs ± 2%  11.8µs ± 1%   +1.04%  (p=0.000 n=39+37)
+BM_AesGcmDecryptRandomOffset/12k   11.9µs ± 1%  12.0µs ± 2%   +0.95%  (p=0.000 n=39+39)
+BM_AesGcmDecryptRandomOffset/16k   12.1µs ± 2%  12.2µs ± 2%   +0.84%  (p=0.000 n=40+40)
+BM_AesGcmDecryptRandomOffset/24k   18.1µs ± 2%  18.3µs ± 1%   +0.97%  (p=0.000 n=40+38)
+BM_AesGcmDecryptRandomOffset/64k   31.6µs ± 1%  32.0µs ± 2%   +1.32%  (p=0.000 n=39+39)
+BM_AesGcmDecryptRandomOffset/128M   209ms ± 2%    93ms ± 2%  -55.34%  (p=0.000 n=40+31)
+
+Change-Id: I6312e01ff0da70cc52f09194846b82cc6b69d37a
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/55466
+Commit-Queue: Adam Langley <agl@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit 90e3b6e68c0a9ff79de8cfb92fa81e6cd2a9d57d)
+---
+ crypto/fipsmodule/modes/asm/aesni-gcm-x86_64.pl | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/crypto/fipsmodule/modes/asm/aesni-gcm-x86_64.pl b/crypto/fipsmodule/modes/asm/aesni-gcm-x86_64.pl
+index 2c6c50c5e..bde59fa53 100644
+--- a/crypto/fipsmodule/modes/asm/aesni-gcm-x86_64.pl
++++ b/crypto/fipsmodule/modes/asm/aesni-gcm-x86_64.pl
+@@ -392,6 +392,9 @@ _aesni_ctr32_ghash_6x:
+ 	 vpaddb		$T2,$T1,$Ii
+ 	mov		%r13,0x70+8(%rsp)
+ 	lea		0x60($inp),$inp
++	# These two prefetches were added in BoringSSL. See change that added them.
++	 prefetcht0	512($inp)		# We use 96-byte block so prefetch 2 lines (128 bytes)
++	 prefetcht0	576($inp)
+ 	  vaesenclast	$Z1,$inout2,$inout2
+ 	 vpaddb		$T2,$Ii,$Z1
+ 	mov		%r12,0x78+8(%rsp)

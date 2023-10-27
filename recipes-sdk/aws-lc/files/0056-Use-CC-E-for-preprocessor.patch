@@ -1,0 +1,37 @@
+From ca2b50156eec8c7dca32b9dc9dab6ca02a662961 Mon Sep 17 00:00:00 2001
+From: Justin Smith <justsmth@amazon.com>
+Date: Tue, 24 May 2022 13:25:40 -0400
+Subject: [PATCH] Use '$(CC) -E' for preprocessor
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/0fd68eb4af6a4f6dafd85b147f4df4c3549919f9
+---
+ arm/p384/Makefile | 2 +-
+ arm/p521/Makefile | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arm/p384/Makefile b/arm/p384/Makefile
+index d3859296e..469a20ff1 100644
+--- a/arm/p384/Makefile
++++ b/arm/p384/Makefile
+@@ -55,7 +55,7 @@ OBJ = bignum_add_p384.o \
+       bignum_tomont_p384.o \
+       bignum_triple_p384.o
+ 
+-%.o : %.S ; $(CXX) -E -I../../include $< | $(GAS) -o $@ -
++%.o : %.S ; $(CC) -E -I../../include $< | $(GAS) -o $@ -
+ 
+ default: $(OBJ);
+ 
+diff --git a/arm/p521/Makefile b/arm/p521/Makefile
+index 70fc7aff2..921016115 100644
+--- a/arm/p521/Makefile
++++ b/arm/p521/Makefile
+@@ -55,7 +55,7 @@ OBJ = bignum_add_p521.o \
+       bignum_tomont_p521.o \
+       bignum_triple_p521.o
+ 
+-%.o : %.S ; $(CXX) -E -I../../include $< | $(GAS) -o $@ -
++%.o : %.S ; $(CC) -E -I../../include $< | $(GAS) -o $@ -
+ 
+ default: $(OBJ);
+ 

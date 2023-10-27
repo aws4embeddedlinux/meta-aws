@@ -1,0 +1,358 @@
+From a4bc612579925a21e04b8a4f69f481979c5434ff Mon Sep 17 00:00:00 2001
+From: Theo Buehler <theorbuehler@gmail.com>
+Date: Fri, 17 Feb 2023 10:05:47 +0100
+Subject: [PATCH] Move data from .text to .rodata on x86_64
+
+Various constants and strings identifying the authors are currently
+misplaced in .text. This change allows using execute-only .text on
+platforms that enforce it by default, such as OpenBSD.
+
+Modify x86_64-xlate.pl to replace .rodata with __DATA,__const for macs.
+Adapt the nasm/masm path to emit an .rdata segment with alignment of 8.
+This last change is not strictly needed but makes things explicit.
+
+AWS-LC:
+- Moved data to .rodata in aesni-gcm-avx512.pl.
+
+Change-Id: If716b892c1faabd85c6c70bdd75e145304841f83
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57445
+Reviewed-by: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit ebd43ef8dd3c062dccf6adf264c5332efda1f4b3)
+---
+ crypto/chacha/asm/chacha-x86_64.pl                  | 2 ++
+ crypto/cipher_extra/asm/aes128gcmsiv-x86_64.pl      | 2 +-
+ crypto/cipher_extra/asm/chacha20_poly1305_x86_64.pl | 2 ++
+ crypto/fipsmodule/aes/asm/aesni-x86_64.pl           | 2 ++
+ crypto/fipsmodule/aes/asm/vpaes-x86_64.pl           | 2 ++
+ crypto/fipsmodule/bn/asm/rsaz-avx2.pl               | 2 ++
+ crypto/fipsmodule/bn/asm/x86_64-mont5.pl            | 2 ++
+ crypto/fipsmodule/ec/asm/p256-x86_64-asm.pl         | 2 ++
+ crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl     | 3 ++-
+ crypto/fipsmodule/modes/asm/aesni-gcm-x86_64.pl     | 2 ++
+ crypto/fipsmodule/modes/asm/ghash-ssse3-x86_64.pl   | 2 ++
+ crypto/fipsmodule/modes/asm/ghash-x86_64.pl         | 2 ++
+ crypto/fipsmodule/sha/asm/sha1-x86_64.pl            | 2 ++
+ crypto/fipsmodule/sha/asm/sha512-x86_64.pl          | 4 ++++
+ crypto/perlasm/x86_64-xlate.pl                      | 8 ++++++--
+ 15 files changed, 35 insertions(+), 4 deletions(-)
+
+diff --git a/crypto/chacha/asm/chacha-x86_64.pl b/crypto/chacha/asm/chacha-x86_64.pl
+index 622af6de6..3cbf10e63 100755
+--- a/crypto/chacha/asm/chacha-x86_64.pl
++++ b/crypto/chacha/asm/chacha-x86_64.pl
+@@ -82,6 +82,7 @@ $code.=<<___;
+ 
+ .extern OPENSSL_ia32cap_P
+ 
++.section .rodata
+ .align	64
+ .Lzero:
+ .long	0,0,0,0
+@@ -111,6 +112,7 @@ $code.=<<___;
+ .Lsixteen:
+ .long	16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16
+ .asciz	"ChaCha20 for x86_64, CRYPTOGAMS by <appro\@openssl.org>"
++.text
+ ___
+ 
+ sub AUTOLOAD()          # thunk [simplified] 32-bit style perlasm
+diff --git a/crypto/cipher_extra/asm/aes128gcmsiv-x86_64.pl b/crypto/cipher_extra/asm/aes128gcmsiv-x86_64.pl
+index b1ef3c777..cbab44095 100644
+--- a/crypto/cipher_extra/asm/aes128gcmsiv-x86_64.pl
++++ b/crypto/cipher_extra/asm/aes128gcmsiv-x86_64.pl
+@@ -38,7 +38,7 @@ open OUT,"| \"$^X\" \"$xlate\" $flavour \"$output\"";
+ *STDOUT=*OUT;
+ 
+ $code.=<<___;
+-.data
++.section .rodata
+ 
+ .align 16
+ one:
+diff --git a/crypto/cipher_extra/asm/chacha20_poly1305_x86_64.pl b/crypto/cipher_extra/asm/chacha20_poly1305_x86_64.pl
+index 6dbe24fee..a533e2a1e 100644
+--- a/crypto/cipher_extra/asm/chacha20_poly1305_x86_64.pl
++++ b/crypto/cipher_extra/asm/chacha20_poly1305_x86_64.pl
+@@ -46,6 +46,7 @@ $code.=<<___;
+ 
+ chacha20_poly1305_constants:
+ 
++.section .rodata
+ .align 64
+ .Lchacha20_consts:
+ .byte 'e','x','p','a','n','d',' ','3','2','-','b','y','t','e',' ','k'
+@@ -83,6 +84,7 @@ chacha20_poly1305_constants:
+ .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00
+ .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00
+ .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff
++.text
+ ___
+ 
+ my ($oup,$inp,$inl,$adp,$keyp,$itr1,$itr2,$adl)=("%rdi","%rsi","%rbx","%rcx","%r9","%rcx","%r8","%r8");
+diff --git a/crypto/fipsmodule/aes/asm/aesni-x86_64.pl b/crypto/fipsmodule/aes/asm/aesni-x86_64.pl
+index 82711467c..45899542b 100644
+--- a/crypto/fipsmodule/aes/asm/aesni-x86_64.pl
++++ b/crypto/fipsmodule/aes/asm/aesni-x86_64.pl
+@@ -3781,6 +3781,7 @@ ___
+ }
+ 
+ $code.=<<___;
++.section .rodata
+ .align	64
+ .Lbswap_mask:
+ 	.byte	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
+@@ -3803,6 +3804,7 @@ $code.=<<___;
+ 
+ .asciz  "AES for Intel AES-NI, CRYPTOGAMS by <appro\@openssl.org>"
+ .align	64
++.text
+ ___
+ 
+ # EXCEPTION_DISPOSITION handler (EXCEPTION_RECORD *rec,ULONG64 frame,
+diff --git a/crypto/fipsmodule/aes/asm/vpaes-x86_64.pl b/crypto/fipsmodule/aes/asm/vpaes-x86_64.pl
+index 42a32f8b8..50db29c55 100644
+--- a/crypto/fipsmodule/aes/asm/vpaes-x86_64.pl
++++ b/crypto/fipsmodule/aes/asm/vpaes-x86_64.pl
+@@ -1291,6 +1291,7 @@ _vpaes_preheat:
+ ##                                                    ##
+ ########################################################
+ .type	_vpaes_consts,\@object
++.section .rodata
+ .align	64
+ _vpaes_consts:
+ .Lk_inv:	# inv, inva
+@@ -1400,6 +1401,7 @@ _vpaes_consts:
+ .asciz	"Vector Permutation AES for x86_64/SSSE3, Mike Hamburg (Stanford University)"
+ .align	64
+ .size	_vpaes_consts,.-_vpaes_consts
++.text
+ ___
+ 
+ if ($win64) {
+diff --git a/crypto/fipsmodule/bn/asm/rsaz-avx2.pl b/crypto/fipsmodule/bn/asm/rsaz-avx2.pl
+index 0647a0612..a3d130eca 100755
+--- a/crypto/fipsmodule/bn/asm/rsaz-avx2.pl
++++ b/crypto/fipsmodule/bn/asm/rsaz-avx2.pl
+@@ -1742,6 +1742,7 @@ ___
+ }
+ 
+ $code.=<<___;
++.section .rodata
+ .align	64
+ .Land_mask:
+ 	.quad	0x1fffffff,0x1fffffff,0x1fffffff,0x1fffffff
+@@ -1754,6 +1755,7 @@ $code.=<<___;
+ 	.long	2,2,2,2, 3,3,3,3
+ 	.long	4,4,4,4, 4,4,4,4
+ .align	64
++.text
+ ___
+ 
+ if ($win64) {
+diff --git a/crypto/fipsmodule/bn/asm/x86_64-mont5.pl b/crypto/fipsmodule/bn/asm/x86_64-mont5.pl
+index d2cea511a..b3797b36a 100755
+--- a/crypto/fipsmodule/bn/asm/x86_64-mont5.pl
++++ b/crypto/fipsmodule/bn/asm/x86_64-mont5.pl
+@@ -3580,11 +3580,13 @@ $code.=<<___;
+ ___
+ }
+ $code.=<<___;
++.section .rodata
+ .align	64
+ .Linc:
+ 	.long	0,0, 1,1
+ 	.long	2,2, 2,2
+ .asciz	"Montgomery Multiplication with scatter/gather for x86_64, CRYPTOGAMS by <appro\@openssl.org>"
++.text
+ ___
+ 
+ # EXCEPTION_DISPOSITION handler (EXCEPTION_RECORD *rec,ULONG64 frame,
+diff --git a/crypto/fipsmodule/ec/asm/p256-x86_64-asm.pl b/crypto/fipsmodule/ec/asm/p256-x86_64-asm.pl
+index 7d6c2395a..711cc8348 100755
+--- a/crypto/fipsmodule/ec/asm/p256-x86_64-asm.pl
++++ b/crypto/fipsmodule/ec/asm/p256-x86_64-asm.pl
+@@ -66,6 +66,7 @@ $code.=<<___;
+ .extern	OPENSSL_ia32cap_P
+ 
+ # The polynomial
++.section .rodata
+ .align 64
+ .Lpoly:
+ .quad 0xffffffffffffffff, 0x00000000ffffffff, 0x0000000000000000, 0xffffffff00000001
+@@ -84,6 +85,7 @@ $code.=<<___;
+ .quad 0xf3b9cac2fc632551, 0xbce6faada7179e84, 0xffffffffffffffff, 0xffffffff00000000
+ .LordK:
+ .quad 0xccd1c8aaee00bc4f
++.text
+ ___
+ 
+ {
+diff --git a/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl b/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl
+index b08beed72..2ffcb647d 100644
+--- a/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl
++++ b/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl
+@@ -4562,7 +4562,7 @@ ___
+ }
+ 
+ $code .= <<___;
+-.text
++.section .rodata
+ .align 16
+ POLY:   .quad     0x0000000000000001, 0xC200000000000000
+ 
+@@ -4688,6 +4688,7 @@ byte64_len_to_mask_table:
+         .quad      0x0fffffffffffffff, 0x1fffffffffffffff
+         .quad      0x3fffffffffffffff, 0x7fffffffffffffff
+         .quad      0xffffffffffffffff
++.text
+ ___
+ 
+ } else {
+diff --git a/crypto/fipsmodule/modes/asm/aesni-gcm-x86_64.pl b/crypto/fipsmodule/modes/asm/aesni-gcm-x86_64.pl
+index e247491e1..443a986c9 100644
+--- a/crypto/fipsmodule/modes/asm/aesni-gcm-x86_64.pl
++++ b/crypto/fipsmodule/modes/asm/aesni-gcm-x86_64.pl
+@@ -1054,6 +1054,7 @@ $code.=<<___;
+ ___
+ 
+ $code.=<<___;
++.section .rodata
+ .align	64
+ .Lbswap_mask:
+ 	.byte	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
+@@ -1067,6 +1068,7 @@ $code.=<<___;
+ 	.byte	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+ .asciz	"AES-NI GCM module for x86_64, CRYPTOGAMS by <appro\@openssl.org>"
+ .align	64
++.text
+ ___
+ }}} else {{{
+ $code=<<___;	# assembler is too old
+diff --git a/crypto/fipsmodule/modes/asm/ghash-ssse3-x86_64.pl b/crypto/fipsmodule/modes/asm/ghash-ssse3-x86_64.pl
+index 599865780..0bc786c63 100644
+--- a/crypto/fipsmodule/modes/asm/ghash-ssse3-x86_64.pl
++++ b/crypto/fipsmodule/modes/asm/ghash-ssse3-x86_64.pl
+@@ -334,6 +334,7 @@ $code .= <<____;
+ .seh_endproc
+ .size	gcm_ghash_ssse3,.-gcm_ghash_ssse3
+ 
++.section .rodata
+ .align	16
+ # .Lreverse_bytes is a permutation which, if applied with pshufb, reverses the
+ # bytes in an XMM register.
+@@ -342,6 +343,7 @@ $code .= <<____;
+ # .Llow4_mask is an XMM mask which selects the low four bits of each byte.
+ .Llow4_mask:
+ .quad	0x0f0f0f0f0f0f0f0f, 0x0f0f0f0f0f0f0f0f
++.text
+ ____
+ 
+ print $code;
+diff --git a/crypto/fipsmodule/modes/asm/ghash-x86_64.pl b/crypto/fipsmodule/modes/asm/ghash-x86_64.pl
+index f76ed1639..2bfa3c0a0 100644
+--- a/crypto/fipsmodule/modes/asm/ghash-x86_64.pl
++++ b/crypto/fipsmodule/modes/asm/ghash-x86_64.pl
+@@ -1303,6 +1303,7 @@ ___
+ }
+ 
+ $code.=<<___;
++.section .rodata
+ .align	64
+ .Lbswap_mask:
+ 	.byte	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
+@@ -1314,6 +1315,7 @@ $code.=<<___;
+ 
+ .asciz	"GHASH for x86_64, CRYPTOGAMS by <appro\@openssl.org>"
+ .align	64
++.text
+ ___
+ 
+ $code =~ s/\`([^\`]*)\`/eval($1)/gem;
+diff --git a/crypto/fipsmodule/sha/asm/sha1-x86_64.pl b/crypto/fipsmodule/sha/asm/sha1-x86_64.pl
+index 4c137b526..368e3fb1a 100755
+--- a/crypto/fipsmodule/sha/asm/sha1-x86_64.pl
++++ b/crypto/fipsmodule/sha/asm/sha1-x86_64.pl
+@@ -1819,6 +1819,7 @@ ___
+ }
+ }
+ $code.=<<___;
++.section .rodata
+ .align	64
+ K_XX_XX:
+ .long	0x5a827999,0x5a827999,0x5a827999,0x5a827999	# K_00_19
+@@ -1837,6 +1838,7 @@ ___
+ $code.=<<___;
+ .asciz	"SHA1 block transform for x86_64, CRYPTOGAMS by <appro\@openssl.org>"
+ .align	64
++.text
+ ___
+ 
+ # EXCEPTION_DISPOSITION handler (EXCEPTION_RECORD *rec,ULONG64 frame,
+diff --git a/crypto/fipsmodule/sha/asm/sha512-x86_64.pl b/crypto/fipsmodule/sha/asm/sha512-x86_64.pl
+index 7349529d5..d4ec46fce 100755
+--- a/crypto/fipsmodule/sha/asm/sha512-x86_64.pl
++++ b/crypto/fipsmodule/sha/asm/sha512-x86_64.pl
+@@ -408,6 +408,7 @@ ___
+ 
+ if ($SZ==4) {
+ $code.=<<___;
++.section .rodata
+ .align	64
+ .type	$TABLE,\@object
+ $TABLE:
+@@ -451,9 +452,11 @@ $TABLE:
+ 	.long	0xffffffff,0xffffffff,0x03020100,0x0b0a0908
+ 	.long	0xffffffff,0xffffffff,0x03020100,0x0b0a0908
+ 	.asciz	"SHA256 block transform for x86_64, CRYPTOGAMS by <appro\@openssl.org>"
++.text
+ ___
+ } else {
+ $code.=<<___;
++.section .rodata
+ .align	64
+ .type	$TABLE,\@object
+ $TABLE:
+@@ -541,6 +544,7 @@ $TABLE:
+ 	.quad	0x0001020304050607,0x08090a0b0c0d0e0f
+ 	.quad	0x0001020304050607,0x08090a0b0c0d0e0f
+ 	.asciz	"SHA512 block transform for x86_64, CRYPTOGAMS by <appro\@openssl.org>"
++.text
+ ___
+ }
+ 
+diff --git a/crypto/perlasm/x86_64-xlate.pl b/crypto/perlasm/x86_64-xlate.pl
+index 68f1a695a..b8802c586 100755
+--- a/crypto/perlasm/x86_64-xlate.pl
++++ b/crypto/perlasm/x86_64-xlate.pl
+@@ -1107,6 +1107,9 @@ ____
+ 		    $self->{value} = ".p2align\t" . (log($$line)/log(2));
+ 		} elsif ($dir eq ".section") {
+ 		    $current_segment=$$line;
++		    if (!$elf && $current_segment eq ".rodata") {
++			if	($flavour eq "macosx") { $self->{value} = ".section\t__DATA,__const"; }
++		    }
+ 		    if (!$elf && $current_segment eq ".init") {
+ 			if	($flavour eq "macosx")	{ $self->{value} = ".mod_init_func"; }
+ 			elsif	($flavour eq "mingw64")	{ $self->{value} = ".section\t.ctors"; }
+@@ -1159,9 +1162,10 @@ ____
+ 		/\.section/ && do { my $v=undef;
+ 				    $$line =~ s/([^,]*).*/$1/;
+ 				    $$line = ".CRT\$XCU" if ($$line eq ".init");
++				    $$line = ".rdata" if ($$line eq ".rodata");
+ 				    if ($nasm) {
+ 					$v="section	$$line";
+-					if ($$line=~/\.([px])data/) {
++					if ($$line=~/\.([prx])data/) {
+ 					    $v.=" rdata align=";
+ 					    $v.=$1 eq "p"? 4 : 8;
+ 					} elsif ($$line=~/\.CRT\$/i) {
+@@ -1170,7 +1174,7 @@ ____
+ 				    } else {
+ 					$v="$current_segment\tENDS\n" if ($current_segment);
+ 					$v.="$$line\tSEGMENT";
+-					if ($$line=~/\.([px])data/) {
++					if ($$line=~/\.([prx])data/) {
+ 					    $v.=" READONLY";
+ 					    $v.=" ALIGN(".($1 eq "p" ? 4 : 8).")" if ($masm>=$masmref);
+ 					} elsif ($$line=~/\.CRT\$/i) {

@@ -1,0 +1,25 @@
+From 44a1c471faf65cbfd57e62b8a5357ca6330c7c56 Mon Sep 17 00:00:00 2001
+From: Dengke Tang <815825145@qq.com>
+Date: Mon, 17 Apr 2023 21:00:37 -0700
+Subject: [PATCH] Make the AES-GCM avx512 Perl script compatible with old Perl
+ (#960)
+
+---
+ crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl b/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl
+index ba69fb608..b08beed72 100644
+--- a/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl
++++ b/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl
+@@ -4723,8 +4723,8 @@ ___
+ sub evex_byte1 {
+   my ($mm, $src1, $dst) = @_;
+   # set default to zero
+-  $src1 //= 0;
+-  $dst //= 0;
++  $src1 = 0 if (!defined($src1));
++  $dst = 0 if (!defined($dst));
+ 
+   my $byte = 0xf0 | $mm;
+ 

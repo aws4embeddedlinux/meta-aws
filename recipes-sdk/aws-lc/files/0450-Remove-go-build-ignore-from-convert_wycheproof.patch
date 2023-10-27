@@ -1,0 +1,31 @@
+From 6f5836474db324fff0df4c983c166cb19682c6bb Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 25 Apr 2023 21:35:16 -0400
+Subject: [PATCH] Remove go:build ignore from convert_wycheproof
+
+The reason to make it a package was to avoid needing this, but I missed
+that git put it back.
+
+Change-Id: Idd6df275aa964083db525d4d5e300128b204d973
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/59305
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+(cherry picked from commit b352546be44551f5aabc428ac4d0cc161cd1b2ec)
+---
+ util/convert_wycheproof/convert_wycheproof.go | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/util/convert_wycheproof/convert_wycheproof.go b/util/convert_wycheproof/convert_wycheproof.go
+index 2839d6414..1cd8d4563 100644
+--- a/util/convert_wycheproof/convert_wycheproof.go
++++ b/util/convert_wycheproof/convert_wycheproof.go
+@@ -12,8 +12,6 @@
+ // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+ // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ 
+-//go:build ignore
+-
+ // convert_wycheproof converts Wycheproof test vectors into a format more easily
+ // consumed by BoringSSL.
+ package main

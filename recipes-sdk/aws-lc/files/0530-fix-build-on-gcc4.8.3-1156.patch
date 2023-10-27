@@ -1,0 +1,32 @@
+From 85786c54423a2092f9c2da9749869307eea9b5e5 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Wed, 16 Aug 2023 09:03:20 +0800
+Subject: [PATCH] fix build on gcc4.8.3 (#1156)
+
+We recently had a team reach out to us about our broken build on gcc
+4.8.3. This is due to a bug that we've previously encountered in this
+commit: 65661035692572f9e399a162a4e908ad5b4bd509
+
+We may have to add new CI to check for this, but it seems like this
+specific version is hard to find. We already have CI for gcc 4.8.5.
+---
+ tool/speed.cc | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/tool/speed.cc b/tool/speed.cc
+index 28b152444..419b6ff96 100644
+--- a/tool/speed.cc
++++ b/tool/speed.cc
+@@ -21,7 +21,12 @@
+ 
+ #include <assert.h>
+ #include <errno.h>
++
++#ifndef __STDC_FORMAT_MACROS
++#define __STDC_FORMAT_MACROS
++#endif
+ #include <inttypes.h>
++
+ #include <stdint.h>
+ #include <stdlib.h>
+ #include <string.h>

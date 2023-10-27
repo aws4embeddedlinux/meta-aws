@@ -1,0 +1,1655 @@
+From 7ffb76f1dfacd1482b28a8f32825a9ed4c5502f4 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Thu, 3 Mar 2022 08:52:01 -0800
+Subject: [PATCH] Liberalize input-output aliasing conditions on P-521
+ functions
+
+After this change, all functions optimized for specific elliptic
+curve fields allow the output buffer address to be the same as any
+input buffer address. This was already true of most functions, and
+this change fixes the others by using extra stack space as temporary
+storage where necessary.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/01f0a9b9ab451f1c353429e10ac49af0506fd161
+---
+ arm/p521/bignum_montmul_p521.S         | 48 +++++++++---------
+ arm/p521/bignum_montmul_p521_alt.S     | 20 ++++----
+ arm/p521/bignum_mul_p521.S             | 48 +++++++++---------
+ arm/p521/bignum_mul_p521_alt.S         | 20 ++++----
+ x86_att/p521/bignum_montmul_p521.S     | 40 ++++++++-------
+ x86_att/p521/bignum_montmul_p521_alt.S | 46 ++++++++---------
+ x86_att/p521/bignum_montsqr_p521.S     | 68 +++++++++++++-------------
+ x86_att/p521/bignum_montsqr_p521_alt.S | 46 ++++++++---------
+ x86_att/p521/bignum_mul_p521.S         | 42 ++++++++--------
+ x86_att/p521/bignum_mul_p521_alt.S     | 46 ++++++++---------
+ x86_att/p521/bignum_sqr_p521.S         | 68 +++++++++++++-------------
+ x86_att/p521/bignum_sqr_p521_alt.S     | 46 ++++++++---------
+ 12 files changed, 281 insertions(+), 257 deletions(-)
+
+diff --git a/arm/p521/bignum_montmul_p521.S b/arm/p521/bignum_montmul_p521.S
+index 897f03fdc..25acc32ee 100644
+--- a/arm/p521/bignum_montmul_p521.S
++++ b/arm/p521/bignum_montmul_p521.S
+@@ -161,12 +161,13 @@
+ bignum_montmul_p521:
+ _bignum_montmul_p521:
+ 
+-// Save registers
++// Save registers and make space for the temporary buffer
+ 
+                 stp     x19, x20, [sp, #-16]!
+                 stp     x21, x22, [sp, #-16]!
+                 stp     x23, x24, [sp, #-16]!
+                 stp     x25, x26, [sp, #-16]!
++                sub     sp, sp, #80
+ 
+ // Load 4-digit low parts and multiply them to get L
+ 
+@@ -176,18 +177,18 @@ _bignum_montmul_p521:
+                 ldp     b2, b3, [y, #16]
+                 mul4
+ 
+-// Shift right 256 bits modulo p_521 and stash in output buffer
++// Shift right 256 bits modulo p_521 and stash in temp buffer
+ 
+                 lsl     c, s0, #9
+                 extr    s0, s1, s0, #55
+                 extr    s1, s2, s1, #55
+                 extr    s2, s3, s2, #55
+                 lsr     s3, s3, #55
+-                stp     s4, s5, [z]
+-                stp     s6, s7, [z, #16]
+-                stp     c, s0, [z, #32]
+-                stp     s1, s2, [z, #48]
+-                str     s3, [z, #64]
++                stp     s4, s5, [sp]
++                stp     s6, s7, [sp, #16]
++                stp     c, s0, [sp, #32]
++                stp     s1, s2, [sp, #48]
++                str     s3, [sp, #64]
+ 
+ // Load 4-digit low parts and multiply them to get H
+ 
+@@ -197,28 +198,28 @@ _bignum_montmul_p521:
+                 ldp     b2, b3, [y, #48]
+                 mul4
+ 
+-// Add to the existing output buffer and re-stash.
++// Add to the existing temporary buffer and re-stash.
+ // This gives a result HL congruent to (2^256 * H + L) / 2^256 modulo p_521
+ 
+-                ldp     l, h, [z]
++                ldp     l, h, [sp]
+                 adds    s0, s0, l
+                 adcs    s1, s1, h
+-                stp     s0, s1, [z]
+-                ldp     l, h, [z, #16]
++                stp     s0, s1, [sp]
++                ldp     l, h, [sp, #16]
+                 adcs    s2, s2, l
+                 adcs    s3, s3, h
+-                stp     s2, s3, [z, #16]
+-                ldp     l, h, [z, #32]
++                stp     s2, s3, [sp, #16]
++                ldp     l, h, [sp, #32]
+                 adcs    s4, s4, l
+                 adcs    s5, s5, h
+-                stp     s4, s5, [z, #32]
+-                ldp     l, h, [z, #48]
++                stp     s4, s5, [sp, #32]
++                ldp     l, h, [sp, #48]
+                 adcs    s6, s6, l
+                 adcs    s7, s7, h
+-                stp     s6, s7, [z, #48]
+-                ldr     c, [z, #64]
++                stp     s6, s7, [sp, #48]
++                ldr     c, [sp, #64]
+                 adc     c, c, xzr
+-                str     c, [z, #64]
++                str     c, [sp, #64]
+ 
+ // Compute t,[a3,a2,a1,a0] = x_hi - x_lo
+ // and     s,[b3,b2,b1,b0] = y_lo - y_hi
+@@ -277,8 +278,8 @@ _bignum_montmul_p521:
+ // small c (s8 + suspended carry) to add at the 256 position here (512
+ // overall). This can be added in the next block (to b0 = sum4).
+ 
+-                ldp     a0, a1, [z]
+-                ldp     a2, a3, [z, #16]
++                ldp     a0, a1, [sp]
++                ldp     a2, a3, [sp, #16]
+ 
+                 eor     s0, s0, s
+                 adds    s0, s0, a0
+@@ -290,9 +291,9 @@ _bignum_montmul_p521:
+                 adcs    s3, s3, a3
+                 eor     s4, s4, s
+ 
+-                ldp     b0, b1, [z, #32]
+-                ldp     b2, b3, [z, #48]
+-                ldr     s8, [z, #64]
++                ldp     b0, b1, [sp, #32]
++                ldp     b2, b3, [sp, #48]
++                ldr     s8, [sp, #64]
+ 
+                 adcs    s4, s4, b0
+                 eor     s5, s5, s
+@@ -592,6 +593,7 @@ _bignum_montmul_p521:
+ 
+ // Restore regs and return
+ 
++                add     sp, sp, #80
+                 ldp     x25, x26, [sp], #16
+                 ldp     x23, x24, [sp], #16
+                 ldp     x21, x22, [sp], #16
+diff --git a/arm/p521/bignum_montmul_p521_alt.S b/arm/p521/bignum_montmul_p521_alt.S
+index f82135752..a211a3a85 100644
+--- a/arm/p521/bignum_montmul_p521_alt.S
++++ b/arm/p521/bignum_montmul_p521_alt.S
+@@ -85,12 +85,13 @@
+ bignum_montmul_p521_alt:
+ _bignum_montmul_p521_alt:
+ 
+-// Save more registers
++// Save more registers and make space for the temporary buffer
+ 
+                 stp     x19, x20, [sp, #-16]!
+                 stp     x21, x22, [sp, #-16]!
+                 stp     x23, x24, [sp, #-16]!
+                 stp     x25, x26, [sp, #-16]!
++                sub     sp, sp, #64
+ 
+ // Load operands and set up row 0 = [u9;...;u0] = a0 * [b8;...;b0]
+ 
+@@ -182,7 +183,7 @@ _bignum_montmul_p521_alt:
+                 umulh   t, a1, b8
+                 adc     u10, u10, t
+ 
+-                stp     u0, u1, [z]
++                stp     u0, u1, [sp]
+ 
+ // Row 2 = [u11;...;u0] = [a2;a1;a0] * [b8;...;b0]
+ 
+@@ -268,7 +269,7 @@ _bignum_montmul_p521_alt:
+                 umulh   t, a3, b8
+                 adc     u12, u12, t
+ 
+-                stp     u2, u3, [z, #16]
++                stp     u2, u3, [sp, #16]
+ 
+ // Row 4 = [u13;...;u0] = [a4;a3;a2;a1;a0] * [b8;...;b0]
+ 
+@@ -354,7 +355,7 @@ _bignum_montmul_p521_alt:
+                 umulh   t, a5, b8
+                 adc     u14, u14, t
+ 
+-                stp     u4, u5, [z, #32]
++                stp     u4, u5, [sp, #32]
+ 
+ // Row 6 = [u15;...;u0] = [a6;a5;a4;a3;a2;a1;a0] * [b8;...;b0]
+ 
+@@ -440,7 +441,7 @@ _bignum_montmul_p521_alt:
+                 umulh   t, a7, b8
+                 adc     u16, u16, t
+ 
+-                stp     u6, u7, [z, #48]
++                stp     u6, u7, [sp, #48]
+ 
+ // Row 8 = [u16;...;u0] = [a8;a7;a6;a5;a4;a3;a2;a1;a0] * [b8;...;b0]
+ 
+@@ -486,22 +487,22 @@ _bignum_montmul_p521_alt:
+ // 2^521 * h + l. Form h + l + 1
+ 
+                 subs    xzr, xzr, xzr
+-                ldp     b0, b1, [z]
++                ldp     b0, b1, [sp]
+                 extr    t, u9, u8, #9
+                 adcs    b0, b0, t
+                 extr    t, u10, u9, #9
+                 adcs    b1, b1, t
+-                ldp     b2, b3, [z, #16]
++                ldp     b2, b3, [sp, #16]
+                 extr    t, u11, u10, #9
+                 adcs    b2, b2, t
+                 extr    t, u12, u11, #9
+                 adcs    b3, b3, t
+-                ldp     b4, b5, [z, #32]
++                ldp     b4, b5, [sp, #32]
+                 extr    t, u13, u12, #9
+                 adcs    b4, b4, t
+                 extr    t, u14, u13, #9
+                 adcs    b5, b5, t
+-                ldp     b6, b7, [z, #48]
++                ldp     b6, b7, [sp, #48]
+                 extr    t, u15, u14, #9
+                 adcs    b6, b6, t
+                 extr    t, u16, u15, #9
+@@ -551,6 +552,7 @@ _bignum_montmul_p521_alt:
+ 
+ // Restore registers
+ 
++                add     sp, sp, #64
+                 ldp     x25, x26, [sp], #16
+                 ldp     x23, x24, [sp], #16
+                 ldp     x21, x22, [sp], #16
+diff --git a/arm/p521/bignum_mul_p521.S b/arm/p521/bignum_mul_p521.S
+index 3a76efc53..9c1978705 100644
+--- a/arm/p521/bignum_mul_p521.S
++++ b/arm/p521/bignum_mul_p521.S
+@@ -156,12 +156,13 @@
+ bignum_mul_p521:
+ _bignum_mul_p521:
+ 
+-// Save registers
++// Save registers and make space for the temporary buffer
+ 
+                 stp     x19, x20, [sp, #-16]!
+                 stp     x21, x22, [sp, #-16]!
+                 stp     x23, x24, [sp, #-16]!
+                 stp     x25, x26, [sp, #-16]!
++                sub     sp, sp, #80
+ 
+ // Load 4-digit low parts and multiply them to get L
+ 
+@@ -171,18 +172,18 @@ _bignum_mul_p521:
+                 ldp     b2, b3, [y, #16]
+                 mul4
+ 
+-// Shift right 256 bits modulo p_521 and stash in output buffer
++// Shift right 256 bits modulo p_521 and stash in temp buffer
+ 
+                 lsl     c, s0, #9
+                 extr    s0, s1, s0, #55
+                 extr    s1, s2, s1, #55
+                 extr    s2, s3, s2, #55
+                 lsr     s3, s3, #55
+-                stp     s4, s5, [z]
+-                stp     s6, s7, [z, #16]
+-                stp     c, s0, [z, #32]
+-                stp     s1, s2, [z, #48]
+-                str     s3, [z, #64]
++                stp     s4, s5, [sp]
++                stp     s6, s7, [sp, #16]
++                stp     c, s0, [sp, #32]
++                stp     s1, s2, [sp, #48]
++                str     s3, [sp, #64]
+ 
+ // Load 4-digit low parts and multiply them to get H
+ 
+@@ -192,28 +193,28 @@ _bignum_mul_p521:
+                 ldp     b2, b3, [y, #48]
+                 mul4
+ 
+-// Add to the existing output buffer and re-stash.
++// Add to the existing temporary buffer and re-stash.
+ // This gives a result HL congruent to (2^256 * H + L) / 2^256 modulo p_521
+ 
+-                ldp     l, h, [z]
++                ldp     l, h, [sp]
+                 adds    s0, s0, l
+                 adcs    s1, s1, h
+-                stp     s0, s1, [z]
+-                ldp     l, h, [z, #16]
++                stp     s0, s1, [sp]
++                ldp     l, h, [sp, #16]
+                 adcs    s2, s2, l
+                 adcs    s3, s3, h
+-                stp     s2, s3, [z, #16]
+-                ldp     l, h, [z, #32]
++                stp     s2, s3, [sp, #16]
++                ldp     l, h, [sp, #32]
+                 adcs    s4, s4, l
+                 adcs    s5, s5, h
+-                stp     s4, s5, [z, #32]
+-                ldp     l, h, [z, #48]
++                stp     s4, s5, [sp, #32]
++                ldp     l, h, [sp, #48]
+                 adcs    s6, s6, l
+                 adcs    s7, s7, h
+-                stp     s6, s7, [z, #48]
+-                ldr     c, [z, #64]
++                stp     s6, s7, [sp, #48]
++                ldr     c, [sp, #64]
+                 adc     c, c, xzr
+-                str     c, [z, #64]
++                str     c, [sp, #64]
+ 
+ // Compute t,[a3,a2,a1,a0] = x_hi - x_lo
+ // and     s,[b3,b2,b1,b0] = y_lo - y_hi
+@@ -272,8 +273,8 @@ _bignum_mul_p521:
+ // small c (s8 + suspended carry) to add at the 256 position here (512
+ // overall). This can be added in the next block (to b0 = sum4).
+ 
+-                ldp     a0, a1, [z]
+-                ldp     a2, a3, [z, #16]
++                ldp     a0, a1, [sp]
++                ldp     a2, a3, [sp, #16]
+ 
+                 eor     s0, s0, s
+                 adds    s0, s0, a0
+@@ -285,9 +286,9 @@ _bignum_mul_p521:
+                 adcs    s3, s3, a3
+                 eor     s4, s4, s
+ 
+-                ldp     b0, b1, [z, #32]
+-                ldp     b2, b3, [z, #48]
+-                ldr     s8, [z, #64]
++                ldp     b0, b1, [sp, #32]
++                ldp     b2, b3, [sp, #48]
++                ldr     s8, [sp, #64]
+ 
+                 adcs    s4, s4, b0
+                 eor     s5, s5, s
+@@ -591,6 +592,7 @@ _bignum_mul_p521:
+ 
+ // Restore regs and return
+ 
++                add     sp, sp, #80
+                 ldp     x25, x26, [sp], #16
+                 ldp     x23, x24, [sp], #16
+                 ldp     x21, x22, [sp], #16
+diff --git a/arm/p521/bignum_mul_p521_alt.S b/arm/p521/bignum_mul_p521_alt.S
+index ad210ad0a..6b0ca2793 100644
+--- a/arm/p521/bignum_mul_p521_alt.S
++++ b/arm/p521/bignum_mul_p521_alt.S
+@@ -80,12 +80,13 @@
+ bignum_mul_p521_alt:
+ _bignum_mul_p521_alt:
+ 
+-// Save more registers
++// Save more registers and make temporary space on stack
+ 
+                 stp     x19, x20, [sp, #-16]!
+                 stp     x21, x22, [sp, #-16]!
+                 stp     x23, x24, [sp, #-16]!
+                 stp     x25, x26, [sp, #-16]!
++                sub     sp, sp, #64
+ 
+ // Load operands and set up row 0 = [u9;...;u0] = a0 * [b8;...;b0]
+ 
+@@ -177,7 +178,7 @@ _bignum_mul_p521_alt:
+                 umulh   t, a1, b8
+                 adc     u10, u10, t
+ 
+-                stp     u0, u1, [z]
++                stp     u0, u1, [sp]
+ 
+ // Row 2 = [u11;...;u0] = [a2;a1;a0] * [b8;...;b0]
+ 
+@@ -263,7 +264,7 @@ _bignum_mul_p521_alt:
+                 umulh   t, a3, b8
+                 adc     u12, u12, t
+ 
+-                stp     u2, u3, [z, #16]
++                stp     u2, u3, [sp, #16]
+ 
+ // Row 4 = [u13;...;u0] = [a4;a3;a2;a1;a0] * [b8;...;b0]
+ 
+@@ -349,7 +350,7 @@ _bignum_mul_p521_alt:
+                 umulh   t, a5, b8
+                 adc     u14, u14, t
+ 
+-                stp     u4, u5, [z, #32]
++                stp     u4, u5, [sp, #32]
+ 
+ // Row 6 = [u15;...;u0] = [a6;a5;a4;a3;a2;a1;a0] * [b8;...;b0]
+ 
+@@ -435,7 +436,7 @@ _bignum_mul_p521_alt:
+                 umulh   t, a7, b8
+                 adc     u16, u16, t
+ 
+-                stp     u6, u7, [z, #48]
++                stp     u6, u7, [sp, #48]
+ 
+ // Row 8 = [u16;...;u0] = [a8;a7;a6;a5;a4;a3;a2;a1;a0] * [b8;...;b0]
+ 
+@@ -481,22 +482,22 @@ _bignum_mul_p521_alt:
+ // 2^521 * h + l. Form h + l + 1
+ 
+                 subs    xzr, xzr, xzr
+-                ldp     b0, b1, [z]
++                ldp     b0, b1, [sp]
+                 extr    t, u9, u8, #9
+                 adcs    b0, b0, t
+                 extr    t, u10, u9, #9
+                 adcs    b1, b1, t
+-                ldp     b2, b3, [z, #16]
++                ldp     b2, b3, [sp, #16]
+                 extr    t, u11, u10, #9
+                 adcs    b2, b2, t
+                 extr    t, u12, u11, #9
+                 adcs    b3, b3, t
+-                ldp     b4, b5, [z, #32]
++                ldp     b4, b5, [sp, #32]
+                 extr    t, u13, u12, #9
+                 adcs    b4, b4, t
+                 extr    t, u14, u13, #9
+                 adcs    b5, b5, t
+-                ldp     b6, b7, [z, #48]
++                ldp     b6, b7, [sp, #48]
+                 extr    t, u15, u14, #9
+                 adcs    b6, b6, t
+                 extr    t, u16, u15, #9
+@@ -530,6 +531,7 @@ _bignum_mul_p521_alt:
+ 
+ // Restore registers
+ 
++                add     sp, sp, #64
+                 ldp     x25, x26, [sp], #16
+                 ldp     x23, x24, [sp], #16
+                 ldp     x21, x22, [sp], #16
+diff --git a/x86_att/p521/bignum_montmul_p521.S b/x86_att/p521/bignum_montmul_p521.S
+index c2535e124..98eb07693 100644
+--- a/x86_att/p521/bignum_montmul_p521.S
++++ b/x86_att/p521/bignum_montmul_p521.S
+@@ -52,7 +52,7 @@
+ bignum_montmul_p521:
+ _bignum_montmul_p521:
+ 
+-// Save more registers to play with
++// Save more registers to play with and make temporary space on stack
+ 
+         pushq   %rbp
+         pushq   %rbx
+@@ -60,18 +60,19 @@ _bignum_montmul_p521:
+         pushq   %r13
+         pushq   %r14
+         pushq   %r15
++        subq    $64, %rsp
+ 
+ // Copy y into a safe register to start with
+ 
+         movq    %rdx, y
+ 
+ // Clone of the main body of bignum_8_16, writing back the low 8 words
+-// to the output buffer z and keeping the top half in %r15,...,%r8
++// to the stack and keeping the top half in %r15,...,%r8
+ 
+         xorl   %ebp, %ebp
+         movq   (y), %rdx
+         mulxq  (x), %r8, %r9
+-        movq   %r8, (z)
++        movq   %r8, (%rsp)
+         mulxq  0x8(x), %rbx, %r10
+         adcq   %rbx, %r9
+         mulxq  0x10(x), %rbx, %r11
+@@ -92,7 +93,7 @@ _bignum_montmul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r9
+         adoxq  %rbx, %r10
+-        movq   %r9, 0x8(z)
++        movq   %r9, 0x8(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r10
+         adoxq  %rbx, %r11
+@@ -120,7 +121,7 @@ _bignum_montmul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r10
+         adoxq  %rbx, %r11
+-        movq   %r10, 0x10(z)
++        movq   %r10, 0x10(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r11
+         adoxq  %rbx, %r12
+@@ -148,7 +149,7 @@ _bignum_montmul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r11
+         adoxq  %rbx, %r12
+-        movq   %r11, 0x18(z)
++        movq   %r11, 0x18(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r12
+         adoxq  %rbx, %r13
+@@ -176,7 +177,7 @@ _bignum_montmul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r12
+         adoxq  %rbx, %r13
+-        movq   %r12, 0x20(z)
++        movq   %r12, 0x20(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r13
+         adoxq  %rbx, %r14
+@@ -204,7 +205,7 @@ _bignum_montmul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r13
+         adoxq  %rbx, %r14
+-        movq   %r13, 0x28(z)
++        movq   %r13, 0x28(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r14
+         adoxq  %rbx, %r15
+@@ -232,7 +233,7 @@ _bignum_montmul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r14
+         adoxq  %rbx, %r15
+-        movq   %r14, 0x30(z)
++        movq   %r14, 0x30(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r15
+         adoxq  %rbx, %r8
+@@ -260,7 +261,7 @@ _bignum_montmul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r15
+         adoxq  %rbx, %r8
+-        movq   %r15, 0x38(z)
++        movq   %r15, 0x38(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r8
+         adoxq  %rbx, %r9
+@@ -318,7 +319,7 @@ _bignum_montmul_p521:
+         adcq    %rax, %rbp
+ 
+ // Rotate the upper portion right 9 bits since 2^512 == 2^-9 (mod p_521)
+-// Let rotated result %rbp,%r15,%r14,...,%r8 be h (high) and z[0..7] be l (low)
++// Let rotated result %rbp,%r15,%r14,...,%r8 be h (high) and %rsp[0..7] be l (low)
+ 
+         movq    %r8, %rax
+         andq    $0x1FF, %rax
+@@ -337,14 +338,14 @@ _bignum_montmul_p521:
+ // but actually add all 1s in the top 53 bits to get simple carry out
+ 
+         stc
+-        adcq    (z), %r8
+-        adcq    8(z), %r9
+-        adcq    16(z), %r10
+-        adcq    24(z), %r11
+-        adcq    32(z), %r12
+-        adcq    40(z), %r13
+-        adcq    48(z), %r14
+-        adcq    56(z), %r15
++        adcq    (%rsp), %r8
++        adcq    8(%rsp), %r9
++        adcq    16(%rsp), %r10
++        adcq    24(%rsp), %r11
++        adcq    32(%rsp), %r12
++        adcq    40(%rsp), %r13
++        adcq    48(%rsp), %r14
++        adcq    56(%rsp), %r15
+         adcq    $~0x1FF, %rbp
+ 
+ // Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
+@@ -394,6 +395,7 @@ _bignum_montmul_p521:
+ 
+ // Restore registers and return
+ 
++        addq    $64, %rsp
+         popq    %r15
+         popq    %r14
+         popq    %r13
+diff --git a/x86_att/p521/bignum_montmul_p521_alt.S b/x86_att/p521/bignum_montmul_p521_alt.S
+index 966102cd9..21a9995e0 100644
+--- a/x86_att/p521/bignum_montmul_p521_alt.S
++++ b/x86_att/p521/bignum_montmul_p521_alt.S
+@@ -69,12 +69,13 @@
+ bignum_montmul_p521_alt:
+ _bignum_montmul_p521_alt:
+ 
+-// Make more registers available
++// Make more registers available and make temporary space on stack
+ 
+         pushq   %r12
+         pushq   %r13
+         pushq   %r14
+         pushq   %r15
++        subq    $72, %rsp
+ 
+ // Copy y into a safe register to start with
+ 
+@@ -85,13 +86,13 @@ _bignum_montmul_p521_alt:
+         mov %rdx, y
+ 
+ // Start doing a conventional columnwise multiplication,
+-// temporarily storing the lower 9 digits to the output buffer.
++// temporarily storing the lower 9 digits to the stack.
+ // Start with result term 0
+ 
+         movq    (x), %rax
+         mulq     (y)
+ 
+-        movq    %rax, (z)
++        movq    %rax, (%rsp)
+         movq    %rdx, %r9
+         xorq    %r10, %r10
+ 
+@@ -100,7 +101,7 @@ _bignum_montmul_p521_alt:
+         xorq    %r11, %r11
+         combads(%r10,%r9,(x),8(y))
+         combadz(%r11,%r10,%r9,8(x),(y))
+-        movq    %r9, 8(z)
++        movq    %r9, 8(%rsp)
+ 
+ // Result term 2
+ 
+@@ -108,7 +109,7 @@ _bignum_montmul_p521_alt:
+         combadz(%r12,%r11,%r10,(x),16(y))
+         combadd(%r12,%r11,%r10,8(x),8(y))
+         combadd(%r12,%r11,%r10,16(x),(y))
+-        movq    %r10, 16(z)
++        movq    %r10, 16(%rsp)
+ 
+ // Result term 3
+ 
+@@ -117,7 +118,7 @@ _bignum_montmul_p521_alt:
+         combadd(%r13,%r12,%r11,8(x),16(y))
+         combadd(%r13,%r12,%r11,16(x),8(y))
+         combadd(%r13,%r12,%r11,24(x),(y))
+-        movq    %r11, 24(z)
++        movq    %r11, 24(%rsp)
+ 
+ // Result term 4
+ 
+@@ -127,7 +128,7 @@ _bignum_montmul_p521_alt:
+         combadd(%r14,%r13,%r12,16(x),16(y))
+         combadd(%r14,%r13,%r12,24(x),8(y))
+         combadd(%r14,%r13,%r12,32(x),(y))
+-        movq    %r12, 32(z)
++        movq    %r12, 32(%rsp)
+ 
+ // Result term 5
+ 
+@@ -138,7 +139,7 @@ _bignum_montmul_p521_alt:
+         combadd(%r15,%r14,%r13,24(x),16(y))
+         combadd(%r15,%r14,%r13,32(x),8(y))
+         combadd(%r15,%r14,%r13,40(x),(y))
+-        movq    %r13, 40(z)
++        movq    %r13, 40(%rsp)
+ 
+ // Result term 6
+ 
+@@ -150,7 +151,7 @@ _bignum_montmul_p521_alt:
+         combadd(%r8,%r15,%r14,32(x),16(y))
+         combadd(%r8,%r15,%r14,40(x),8(y))
+         combadd(%r8,%r15,%r14,48(x),(y))
+-        movq    %r14, 48(z)
++        movq    %r14, 48(%rsp)
+ 
+ // Result term 7
+ 
+@@ -163,7 +164,7 @@ _bignum_montmul_p521_alt:
+         combadd(%r9,%r8,%r15,40(x),16(y))
+         combadd(%r9,%r8,%r15,48(x),8(y))
+         combadd(%r9,%r8,%r15,56(x),(y))
+-        movq    %r15, 56(z)
++        movq    %r15, 56(%rsp)
+ 
+ // Result term 8
+ 
+@@ -177,7 +178,7 @@ _bignum_montmul_p521_alt:
+         combadd(%r10,%r9,%r8,48(x),16(y))
+         combadd(%r10,%r9,%r8,56(x),8(y))
+         combadd(%r10,%r9,%r8,64(x),(y))
+-        movq    %r8, 64(z)
++        movq    %r8, 64(%rsp)
+ 
+ // At this point we suspend writing back results and collect them
+ // in a register window. Next is result term 9
+@@ -248,11 +249,11 @@ _bignum_montmul_p521_alt:
+         imulq   64(y), %rax
+         addq    %r8, %rax
+ 
+-// Now the upper portion is [%rax;%r15;%r14;%r13;%r12;%r11;%r10;%r9;[z+64]].
++// Now the upper portion is [%rax;%r15;%r14;%r13;%r12;%r11;%r10;%r9;[%rsp+64]].
+ // Rotate the upper portion right 9 bits since 2^512 == 2^-9 (mod p_521)
+-// Let rotated result %rdx,%r15,%r14,...,%r8 be h (high) and z[0..7] be l (low)
++// Let rotated result %rdx,%r15,%r14,...,%r8 be h (high) and %rsp[0..7] be l (low)
+ 
+-        movq    64(z), %r8
++        movq    64(%rsp), %r8
+         movq    %r8, %rdx
+         andq    $0x1FF, %rdx
+         shrdq   $9, %r9, %r8
+@@ -270,14 +271,14 @@ _bignum_montmul_p521_alt:
+ // but actually add all 1s in the top 53 bits to get simple carry out
+ 
+         stc
+-        adcq    (z), %r8
+-        adcq    8(z), %r9
+-        adcq    16(z), %r10
+-        adcq    24(z), %r11
+-        adcq    32(z), %r12
+-        adcq    40(z), %r13
+-        adcq    48(z), %r14
+-        adcq    56(z), %r15
++        adcq    (%rsp), %r8
++        adcq    8(%rsp), %r9
++        adcq    16(%rsp), %r10
++        adcq    24(%rsp), %r11
++        adcq    32(%rsp), %r12
++        adcq    40(%rsp), %r13
++        adcq    48(%rsp), %r14
++        adcq    56(%rsp), %r15
+         adcq    $~0x1FF, %rdx
+ 
+ // Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
+@@ -327,6 +328,7 @@ _bignum_montmul_p521_alt:
+ 
+ // Restore registers and return
+ 
++        addq    $72, %rsp
+         popq    %r15
+         popq    %r14
+         popq    %r13
+diff --git a/x86_att/p521/bignum_montsqr_p521.S b/x86_att/p521/bignum_montsqr_p521.S
+index a08182e2f..2ef12343d 100644
+--- a/x86_att/p521/bignum_montsqr_p521.S
++++ b/x86_att/p521/bignum_montsqr_p521.S
+@@ -63,15 +63,16 @@
+ bignum_montsqr_p521:
+ _bignum_montsqr_p521:
+ 
+-// Save more registers to play with
++// Save more registers to play with and make temporary space on stack
+ 
+         pushq   %rbp
+         pushq   %r12
+         pushq   %r13
+         pushq   %r14
+         pushq   %r15
++        subq    $64, %rsp
+ 
+-// Do a basic 8x8 squaring writing back z[0..7] but keeping the
++// Do a basic 8x8 squaring stashing %rsp[0..7] but keeping the
+ // top half in the usual rotating register window %r15,...,%r8. Except
+ // for the lack of full writeback this is the same as bignum_sqr_8_16.
+ 
+@@ -79,10 +80,10 @@ _bignum_montsqr_p521:
+ 
+         movq    (x), %rdx
+         mulxq   8(x), %r9, %rax
+-        movq    %r9, 8(z)
++        movq    %r9, 8(%rsp)
+         mulxq   16(x), %r10, %rcx
+         adcxq   %rax, %r10
+-        movq    %r10, 16(z)
++        movq    %r10, 16(%rsp)
+         mulxq   24(x), %r11, %rax
+         adcxq   %rcx, %r11
+         mulxq   32(x), %r12, %rcx
+@@ -98,9 +99,9 @@ _bignum_montsqr_p521:
+         xorl    zeroe, zeroe
+         movq    8(x), %rdx
+         mulpadd(%r12,%r11,16)
+-        movq    %r11, 24(z)
++        movq    %r11, 24(%rsp)
+         mulpadd(%r13,%r12,24)
+-        movq    %r12, 32(z)
++        movq    %r12, 32(%rsp)
+         mulpadd(%r14,%r13,32)
+         mulpadd(%r15,%r14,40)
+         mulpadd(%r8,%r15,48)
+@@ -112,9 +113,9 @@ _bignum_montsqr_p521:
+         xorl    zeroe, zeroe
+         movq    16(x), %rdx
+         mulpadd(%r14,%r13,24)
+-        movq    %r13, 40(z)
++        movq    %r13, 40(%rsp)
+         mulpadd(%r15,%r14,32)
+-        movq    %r14, 48(z)
++        movq    %r14, 48(%rsp)
+         mulpadd(%r8,%r15,40)
+         mulpadd(%r9,%r8,48)
+         mulpadd(%r10,%r9,56)
+@@ -126,7 +127,7 @@ _bignum_montsqr_p521:
+         xorl    zeroe, zeroe
+         movq    24(x), %rdx
+         mulpadd(%r8,%r15,32)
+-        movq    %r15, 56(z)
++        movq    %r15, 56(%rsp)
+         mulpadd(%r9,%r8,40)
+         mulpadd(%r10,%r9,48)
+         mulpadd(%r11,%r10,56)
+@@ -139,44 +140,44 @@ _bignum_montsqr_p521:
+         xorl    zeroe, zeroe
+         movq    (x), %rdx
+         mulxq   %rdx, %rax, %rcx
+-        movq    %rax, (z)
+-        movq    8(z), %rax
++        movq    %rax, (%rsp)
++        movq    8(%rsp), %rax
+         adcxq   %rax, %rax
+         adoxq   %rcx, %rax
+-        movq    %rax, 8(z)
++        movq    %rax, 8(%rsp)
+ 
+-        movq    16(z), %rax
++        movq    16(%rsp), %rax
+         movq    8(x), %rdx
+         mulxq   %rdx, %rdx, %rcx
+         adcxq   %rax, %rax
+         adoxq   %rdx, %rax
+-        movq    %rax, 16(z)
+-        movq    24(z), %rax
++        movq    %rax, 16(%rsp)
++        movq    24(%rsp), %rax
+         adcxq   %rax, %rax
+         adoxq   %rcx, %rax
+-        movq    %rax, 24(z)
++        movq    %rax, 24(%rsp)
+ 
+-        movq    32(z), %rax
++        movq    32(%rsp), %rax
+         movq    16(x), %rdx
+         mulxq   %rdx, %rdx, %rcx
+         adcxq   %rax, %rax
+         adoxq   %rdx, %rax
+-        movq    %rax, 32(z)
+-        movq    40(z), %rax
++        movq    %rax, 32(%rsp)
++        movq    40(%rsp), %rax
+         adcxq   %rax, %rax
+         adoxq   %rcx, %rax
+-        movq    %rax, 40(z)
++        movq    %rax, 40(%rsp)
+ 
+-        movq    48(z), %rax
++        movq    48(%rsp), %rax
+         movq    24(x), %rdx
+         mulxq   %rdx, %rdx, %rcx
+         adcxq   %rax, %rax
+         adoxq   %rdx, %rax
+-        movq    %rax, 48(z)
+-        movq    56(z), %rax
++        movq    %rax, 48(%rsp)
++        movq    56(%rsp), %rax
+         adcxq   %rax, %rax
+         adoxq   %rcx, %rax
+-        movq    %rax, 56(z)
++        movq    %rax, 56(%rsp)
+ 
+         movq    32(x), %rdx
+         mulxq   %rdx, %rdx, %rcx
+@@ -229,7 +230,7 @@ _bignum_montsqr_p521:
+         adcq   $0, %rbp
+ 
+ // Rotate the upper portion right 9 bits since 2^512 == 2^-9 (mod p_521)
+-// Let rotated result %rbp,%r15,%r14,...,%r8 be h (high) and z[0..7] be l (low)
++// Let rotated result %rbp,%r15,%r14,...,%r8 be h (high) and %rsp[0..7] be l (low)
+ 
+         movq    %r8, %rax
+         andq    $0x1FF, %rax
+@@ -248,14 +249,14 @@ _bignum_montsqr_p521:
+ // but actually add all 1s in the top 53 bits to get simple carry out
+ 
+         stc
+-        adcq    (z), %r8
+-        adcq    8(z), %r9
+-        adcq    16(z), %r10
+-        adcq    24(z), %r11
+-        adcq    32(z), %r12
+-        adcq    40(z), %r13
+-        adcq    48(z), %r14
+-        adcq    56(z), %r15
++        adcq    (%rsp), %r8
++        adcq    8(%rsp), %r9
++        adcq    16(%rsp), %r10
++        adcq    24(%rsp), %r11
++        adcq    32(%rsp), %r12
++        adcq    40(%rsp), %r13
++        adcq    48(%rsp), %r14
++        adcq    56(%rsp), %r15
+         adcq    $~0x1FF, %rbp
+ 
+ // Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
+@@ -305,6 +306,7 @@ _bignum_montsqr_p521:
+ 
+ // Restore registers and return
+ 
++        addq    $64, %rsp
+         popq    %r15
+         popq    %r14
+         popq    %r13
+diff --git a/x86_att/p521/bignum_montsqr_p521_alt.S b/x86_att/p521/bignum_montsqr_p521_alt.S
+index c7bb5ba4f..2dbb5bb04 100644
+--- a/x86_att/p521/bignum_montsqr_p521_alt.S
++++ b/x86_att/p521/bignum_montsqr_p521_alt.S
+@@ -98,22 +98,23 @@
+ bignum_montsqr_p521_alt:
+ _bignum_montsqr_p521_alt:
+ 
+-// Make more registers available
++// Make more registers available and make temporary space on stack
+ 
+         pushq   %rbx
+         pushq   %r12
+         pushq   %r13
+         pushq   %r14
+         pushq   %r15
++        subq    $72, %rsp
+ 
+ // Start doing a conventional columnwise squaring,
+-// temporarily storing the lower 9 digits to the output buffer.
++// temporarily storing the lower 9 digits on the stack.
+ // Start with result term 0
+ 
+         movq    (x), %rax
+         mulq    %rax
+ 
+-        movq    %rax, (z)
++        movq    %rax, (%rsp)
+         movq    %rdx, %r9
+         xorq    %r10, %r10
+ 
+@@ -121,21 +122,21 @@ _bignum_montsqr_p521_alt:
+ 
+         xorq    %r11, %r11
+         combadd2(%r11,%r10,%r9,(x),8(x))
+-        movq    %r9, 8(z)
++        movq    %r9, 8(%rsp)
+ 
+ // Result term 2
+ 
+         xorq    %r12, %r12
+         combadd1(%r12,%r11,%r10,8(x))
+         combadd2(%r12,%r11,%r10,(x),16(x))
+-        movq    %r10, 16(z)
++        movq    %r10, 16(%rsp)
+ 
+ // Result term 3
+ 
+         combaddz(%r13,%rcx,%rbx,(x),24(x))
+         combadd(%r13,%rcx,%rbx,8(x),16(x))
+         doubladd(%r13,%r12,%r11,%rcx,%rbx)
+-        movq    %r11, 24(z)
++        movq    %r11, 24(%rsp)
+ 
+ // Result term 4
+ 
+@@ -143,7 +144,7 @@ _bignum_montsqr_p521_alt:
+         combadd(%r14,%rcx,%rbx,8(x),24(x))
+         doubladd(%r14,%r13,%r12,%rcx,%rbx)
+         combadd1(%r14,%r13,%r12,16(x))
+-        movq    %r12, 32(z)
++        movq    %r12, 32(%rsp)
+ 
+ // Result term 5
+ 
+@@ -151,7 +152,7 @@ _bignum_montsqr_p521_alt:
+         combadd(%r15,%rcx,%rbx,8(x),32(x))
+         combadd(%r15,%rcx,%rbx,16(x),24(x))
+         doubladd(%r15,%r14,%r13,%rcx,%rbx)
+-        movq    %r13, 40(z)
++        movq    %r13, 40(%rsp)
+ 
+ // Result term 6
+ 
+@@ -160,7 +161,7 @@ _bignum_montsqr_p521_alt:
+         combadd(%r8,%rcx,%rbx,16(x),32(x))
+         doubladd(%r8,%r15,%r14,%rcx,%rbx)
+         combadd1(%r8,%r15,%r14,24(x))
+-        movq    %r14, 48(z)
++        movq    %r14, 48(%rsp)
+ 
+ // Result term 7
+ 
+@@ -169,7 +170,7 @@ _bignum_montsqr_p521_alt:
+         combadd(%r9,%rcx,%rbx,16(x),40(x))
+         combadd(%r9,%rcx,%rbx,24(x),32(x))
+         doubladd(%r9,%r8,%r15,%rcx,%rbx)
+-        movq    %r15, 56(z)
++        movq    %r15, 56(%rsp)
+ 
+ // Result term 8
+ 
+@@ -179,7 +180,7 @@ _bignum_montsqr_p521_alt:
+         combadd(%r10,%rcx,%rbx,24(x),40(x))
+         doubladd(%r10,%r9,%r8,%rcx,%rbx)
+         combadd1(%r10,%r9,%r8,32(x))
+-        movq    %r8, 64(z)
++        movq    %r8, 64(%rsp)
+ 
+ // We now stop writing back and keep remaining results in a register window.
+ // Continue with result term 9
+@@ -239,11 +240,11 @@ _bignum_montsqr_p521_alt:
+         imulq   %rax, %rax
+         addq    %r8, %rax
+ 
+-// Now the upper portion is [%rax;%r15;%r14;%r13;%r12;%r11;%r10;%r9;[z+64]].
++// Now the upper portion is [%rax;%r15;%r14;%r13;%r12;%r11;%r10;%r9;[%rsp+64]].
+ // Rotate the upper portion right 9 bits since 2^512 == 2^-9 (mod p_521)
+-// Let rotated result %rdx,%r15,%r14,...,%r8 be h (high) and z[0..7] be l (low)
++// Let rotated result %rdx,%r15,%r14,...,%r8 be h (high) and %rsp[0..7] be l (low)
+ 
+-        movq    64(z), %r8
++        movq    64(%rsp), %r8
+         movq    %r8, %rdx
+         andq    $0x1FF, %rdx
+         shrdq   $9, %r9, %r8
+@@ -261,14 +262,14 @@ _bignum_montsqr_p521_alt:
+ // but actually add all 1s in the top 53 bits to get simple carry out
+ 
+         stc
+-        adcq    (z), %r8
+-        adcq    8(z), %r9
+-        adcq    16(z), %r10
+-        adcq    24(z), %r11
+-        adcq    32(z), %r12
+-        adcq    40(z), %r13
+-        adcq    48(z), %r14
+-        adcq    56(z), %r15
++        adcq    (%rsp), %r8
++        adcq    8(%rsp), %r9
++        adcq    16(%rsp), %r10
++        adcq    24(%rsp), %r11
++        adcq    32(%rsp), %r12
++        adcq    40(%rsp), %r13
++        adcq    48(%rsp), %r14
++        adcq    56(%rsp), %r15
+         adcq    $~0x1FF, %rdx
+ 
+ // Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
+@@ -318,6 +319,7 @@ _bignum_montsqr_p521_alt:
+ 
+ // Restore registers and return
+ 
++        addq    $72, %rsp
+         popq    %r15
+         popq    %r14
+         popq    %r13
+diff --git a/x86_att/p521/bignum_mul_p521.S b/x86_att/p521/bignum_mul_p521.S
+index 477023ce9..ec13a859e 100644
+--- a/x86_att/p521/bignum_mul_p521.S
++++ b/x86_att/p521/bignum_mul_p521.S
+@@ -47,7 +47,7 @@
+ bignum_mul_p521:
+ _bignum_mul_p521:
+ 
+-// Save more registers to play with
++// Save more registers to play with and make temporary space on stack
+ 
+         pushq   %rbp
+         pushq   %rbx
+@@ -55,18 +55,19 @@ _bignum_mul_p521:
+         pushq   %r13
+         pushq   %r14
+         pushq   %r15
++        subq    $64, %rsp
+ 
+ // Copy y into a safe register to start with
+ 
+         movq    %rdx, y
+ 
+-// Clone of the main body of bignum_8_16, writing back the low 8 words
+-// to the output buffer z and keeping the top half in %r15,...,%r8
++// Clone of the main body of bignum_8_16, writing back the low 8 words to
++// the temporary buffer on the stack and keeping the top half in %r15,...,%r8
+ 
+         xorl   %ebp, %ebp
+         movq   (y), %rdx
+         mulxq  (x), %r8, %r9
+-        movq   %r8, (z)
++        movq   %r8, (%rsp)
+         mulxq  0x8(x), %rbx, %r10
+         adcq   %rbx, %r9
+         mulxq  0x10(x), %rbx, %r11
+@@ -87,7 +88,7 @@ _bignum_mul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r9
+         adoxq  %rbx, %r10
+-        movq   %r9, 0x8(z)
++        movq   %r9, 0x8(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r10
+         adoxq  %rbx, %r11
+@@ -115,7 +116,7 @@ _bignum_mul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r10
+         adoxq  %rbx, %r11
+-        movq   %r10, 0x10(z)
++        movq   %r10, 0x10(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r11
+         adoxq  %rbx, %r12
+@@ -143,7 +144,7 @@ _bignum_mul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r11
+         adoxq  %rbx, %r12
+-        movq   %r11, 0x18(z)
++        movq   %r11, 0x18(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r12
+         adoxq  %rbx, %r13
+@@ -171,7 +172,7 @@ _bignum_mul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r12
+         adoxq  %rbx, %r13
+-        movq   %r12, 0x20(z)
++        movq   %r12, 0x20(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r13
+         adoxq  %rbx, %r14
+@@ -199,7 +200,7 @@ _bignum_mul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r13
+         adoxq  %rbx, %r14
+-        movq   %r13, 0x28(z)
++        movq   %r13, 0x28(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r14
+         adoxq  %rbx, %r15
+@@ -227,7 +228,7 @@ _bignum_mul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r14
+         adoxq  %rbx, %r15
+-        movq   %r14, 0x30(z)
++        movq   %r14, 0x30(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r15
+         adoxq  %rbx, %r8
+@@ -255,7 +256,7 @@ _bignum_mul_p521:
+         mulxq  (x), %rax, %rbx
+         adcxq  %rax, %r15
+         adoxq  %rbx, %r8
+-        movq   %r15, 0x38(z)
++        movq   %r15, 0x38(%rsp)
+         mulxq  0x8(x), %rax, %rbx
+         adcxq  %rax, %r8
+         adoxq  %rbx, %r9
+@@ -313,7 +314,7 @@ _bignum_mul_p521:
+         adcq    %rax, %rbp
+ 
+ // Rotate the upper portion right 9 bits since 2^512 == 2^-9 (mod p_521)
+-// Let rotated result %rbp,%r15,%r14,...,%r8 be h (high) and z[0..7] be l (low)
++// Let rotated result %rbp,%r15,%r14,...,%r8 be h (high) and %rsp[0..7] be l (low)
+ 
+         movq    %r8, %rax
+         andq    $0x1FF, %rax
+@@ -332,14 +333,14 @@ _bignum_mul_p521:
+ // but actually add all 1s in the top 53 bits to get simple carry out
+ 
+         stc
+-        adcq    (z), %r8
+-        adcq    8(z), %r9
+-        adcq    16(z), %r10
+-        adcq    24(z), %r11
+-        adcq    32(z), %r12
+-        adcq    40(z), %r13
+-        adcq    48(z), %r14
+-        adcq    56(z), %r15
++        adcq    (%rsp), %r8
++        adcq    8(%rsp), %r9
++        adcq    16(%rsp), %r10
++        adcq    24(%rsp), %r11
++        adcq    32(%rsp), %r12
++        adcq    40(%rsp), %r13
++        adcq    48(%rsp), %r14
++        adcq    56(%rsp), %r15
+         adcq    $~0x1FF, %rbp
+ 
+ // Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
+@@ -371,6 +372,7 @@ _bignum_mul_p521:
+ 
+ // Restore registers and return
+ 
++        addq    $64, %rsp
+         popq    %r15
+         popq    %r14
+         popq    %r13
+diff --git a/x86_att/p521/bignum_mul_p521_alt.S b/x86_att/p521/bignum_mul_p521_alt.S
+index baa278b42..b6c88348c 100644
+--- a/x86_att/p521/bignum_mul_p521_alt.S
++++ b/x86_att/p521/bignum_mul_p521_alt.S
+@@ -64,12 +64,13 @@
+ bignum_mul_p521_alt:
+ _bignum_mul_p521_alt:
+ 
+-// Make more registers available
++// Make more registers available and make temporary space on stack
+ 
+         pushq   %r12
+         pushq   %r13
+         pushq   %r14
+         pushq   %r15
++        subq    $72, %rsp
+ 
+ // Copy y into a safe register to start with
+ 
+@@ -80,13 +81,13 @@ _bignum_mul_p521_alt:
+         mov %rdx, y
+ 
+ // Start doing a conventional columnwise multiplication,
+-// temporarily storing the lower 9 digits to the output buffer.
++// temporarily storing the lower 9 digits to the stack.
+ // Start with result term 0
+ 
+         movq    (x), %rax
+         mulq     (y)
+ 
+-        movq    %rax, (z)
++        movq    %rax, (%rsp)
+         movq    %rdx, %r9
+         xorq    %r10, %r10
+ 
+@@ -95,7 +96,7 @@ _bignum_mul_p521_alt:
+         xorq    %r11, %r11
+         combads(%r10,%r9,(x),8(y))
+         combadz(%r11,%r10,%r9,8(x),(y))
+-        movq    %r9, 8(z)
++        movq    %r9, 8(%rsp)
+ 
+ // Result term 2
+ 
+@@ -103,7 +104,7 @@ _bignum_mul_p521_alt:
+         combadz(%r12,%r11,%r10,(x),16(y))
+         combadd(%r12,%r11,%r10,8(x),8(y))
+         combadd(%r12,%r11,%r10,16(x),(y))
+-        movq    %r10, 16(z)
++        movq    %r10, 16(%rsp)
+ 
+ // Result term 3
+ 
+@@ -112,7 +113,7 @@ _bignum_mul_p521_alt:
+         combadd(%r13,%r12,%r11,8(x),16(y))
+         combadd(%r13,%r12,%r11,16(x),8(y))
+         combadd(%r13,%r12,%r11,24(x),(y))
+-        movq    %r11, 24(z)
++        movq    %r11, 24(%rsp)
+ 
+ // Result term 4
+ 
+@@ -122,7 +123,7 @@ _bignum_mul_p521_alt:
+         combadd(%r14,%r13,%r12,16(x),16(y))
+         combadd(%r14,%r13,%r12,24(x),8(y))
+         combadd(%r14,%r13,%r12,32(x),(y))
+-        movq    %r12, 32(z)
++        movq    %r12, 32(%rsp)
+ 
+ // Result term 5
+ 
+@@ -133,7 +134,7 @@ _bignum_mul_p521_alt:
+         combadd(%r15,%r14,%r13,24(x),16(y))
+         combadd(%r15,%r14,%r13,32(x),8(y))
+         combadd(%r15,%r14,%r13,40(x),(y))
+-        movq    %r13, 40(z)
++        movq    %r13, 40(%rsp)
+ 
+ // Result term 6
+ 
+@@ -145,7 +146,7 @@ _bignum_mul_p521_alt:
+         combadd(%r8,%r15,%r14,32(x),16(y))
+         combadd(%r8,%r15,%r14,40(x),8(y))
+         combadd(%r8,%r15,%r14,48(x),(y))
+-        movq    %r14, 48(z)
++        movq    %r14, 48(%rsp)
+ 
+ // Result term 7
+ 
+@@ -158,7 +159,7 @@ _bignum_mul_p521_alt:
+         combadd(%r9,%r8,%r15,40(x),16(y))
+         combadd(%r9,%r8,%r15,48(x),8(y))
+         combadd(%r9,%r8,%r15,56(x),(y))
+-        movq    %r15, 56(z)
++        movq    %r15, 56(%rsp)
+ 
+ // Result term 8
+ 
+@@ -172,7 +173,7 @@ _bignum_mul_p521_alt:
+         combadd(%r10,%r9,%r8,48(x),16(y))
+         combadd(%r10,%r9,%r8,56(x),8(y))
+         combadd(%r10,%r9,%r8,64(x),(y))
+-        movq    %r8, 64(z)
++        movq    %r8, 64(%rsp)
+ 
+ // At this point we suspend writing back results and collect them
+ // in a register window. Next is result term 9
+@@ -243,11 +244,11 @@ _bignum_mul_p521_alt:
+         imulq   64(y), %rax
+         addq    %r8, %rax
+ 
+-// Now the upper portion is [%rax;%r15;%r14;%r13;%r12;%r11;%r10;%r9;[z+64]].
++// Now the upper portion is [%rax;%r15;%r14;%r13;%r12;%r11;%r10;%r9;[%rsp+64]].
+ // Rotate the upper portion right 9 bits since 2^512 == 2^-9 (mod p_521)
+-// Let rotated result %rdx,%r15,%r14,...,%r8 be h (high) and z[0..7] be l (low)
++// Let rotated result %rdx,%r15,%r14,...,%r8 be h (high) and %rsp[0..7] be l (low)
+ 
+-        movq    64(z), %r8
++        movq    64(%rsp), %r8
+         movq    %r8, %rdx
+         andq    $0x1FF, %rdx
+         shrdq   $9, %r9, %r8
+@@ -265,14 +266,14 @@ _bignum_mul_p521_alt:
+ // but actually add all 1s in the top 53 bits to get simple carry out
+ 
+         stc
+-        adcq    (z), %r8
+-        adcq    8(z), %r9
+-        adcq    16(z), %r10
+-        adcq    24(z), %r11
+-        adcq    32(z), %r12
+-        adcq    40(z), %r13
+-        adcq    48(z), %r14
+-        adcq    56(z), %r15
++        adcq    (%rsp), %r8
++        adcq    8(%rsp), %r9
++        adcq    16(%rsp), %r10
++        adcq    24(%rsp), %r11
++        adcq    32(%rsp), %r12
++        adcq    40(%rsp), %r13
++        adcq    48(%rsp), %r14
++        adcq    56(%rsp), %r15
+         adcq    $~0x1FF, %rdx
+ 
+ // Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
+@@ -304,6 +305,7 @@ _bignum_mul_p521_alt:
+ 
+ // Restore registers and return
+ 
++        addq    $72, %rsp
+         popq    %r15
+         popq    %r14
+         popq    %r13
+diff --git a/x86_att/p521/bignum_sqr_p521.S b/x86_att/p521/bignum_sqr_p521.S
+index d5445f037..6f999d0d7 100644
+--- a/x86_att/p521/bignum_sqr_p521.S
++++ b/x86_att/p521/bignum_sqr_p521.S
+@@ -57,15 +57,16 @@
+ bignum_sqr_p521:
+ _bignum_sqr_p521:
+ 
+-// Save more registers to play with
++// Save more registers to play with and make temporary space on stack
+ 
+         pushq   %rbp
+         pushq   %r12
+         pushq   %r13
+         pushq   %r14
+         pushq   %r15
++        subq    $64, %rsp
+ 
+-// Do a basic 8x8 squaring writing back z[0..7] but keeping the
++// Do a basic 8x8 squaring stashing in %rsp[0..7] but keeping the
+ // top half in the usual rotating register window %r15,...,%r8. Except
+ // for the lack of full writeback this is the same as bignum_sqr_8_16.
+ 
+@@ -73,10 +74,10 @@ _bignum_sqr_p521:
+ 
+         movq    (x), %rdx
+         mulxq   8(x), %r9, %rax
+-        movq    %r9, 8(z)
++        movq    %r9, 8(%rsp)
+         mulxq   16(x), %r10, %rcx
+         adcxq   %rax, %r10
+-        movq    %r10, 16(z)
++        movq    %r10, 16(%rsp)
+         mulxq   24(x), %r11, %rax
+         adcxq   %rcx, %r11
+         mulxq   32(x), %r12, %rcx
+@@ -92,9 +93,9 @@ _bignum_sqr_p521:
+         xorl    zeroe, zeroe
+         movq    8(x), %rdx
+         mulpadd(%r12,%r11,16)
+-        movq    %r11, 24(z)
++        movq    %r11, 24(%rsp)
+         mulpadd(%r13,%r12,24)
+-        movq    %r12, 32(z)
++        movq    %r12, 32(%rsp)
+         mulpadd(%r14,%r13,32)
+         mulpadd(%r15,%r14,40)
+         mulpadd(%r8,%r15,48)
+@@ -106,9 +107,9 @@ _bignum_sqr_p521:
+         xorl    zeroe, zeroe
+         movq    16(x), %rdx
+         mulpadd(%r14,%r13,24)
+-        movq    %r13, 40(z)
++        movq    %r13, 40(%rsp)
+         mulpadd(%r15,%r14,32)
+-        movq    %r14, 48(z)
++        movq    %r14, 48(%rsp)
+         mulpadd(%r8,%r15,40)
+         mulpadd(%r9,%r8,48)
+         mulpadd(%r10,%r9,56)
+@@ -120,7 +121,7 @@ _bignum_sqr_p521:
+         xorl    zeroe, zeroe
+         movq    24(x), %rdx
+         mulpadd(%r8,%r15,32)
+-        movq    %r15, 56(z)
++        movq    %r15, 56(%rsp)
+         mulpadd(%r9,%r8,40)
+         mulpadd(%r10,%r9,48)
+         mulpadd(%r11,%r10,56)
+@@ -133,44 +134,44 @@ _bignum_sqr_p521:
+         xorl    zeroe, zeroe
+         movq    (x), %rdx
+         mulxq   %rdx, %rax, %rcx
+-        movq    %rax, (z)
+-        movq    8(z), %rax
++        movq    %rax, (%rsp)
++        movq    8(%rsp), %rax
+         adcxq   %rax, %rax
+         adoxq   %rcx, %rax
+-        movq    %rax, 8(z)
++        movq    %rax, 8(%rsp)
+ 
+-        movq    16(z), %rax
++        movq    16(%rsp), %rax
+         movq    8(x), %rdx
+         mulxq   %rdx, %rdx, %rcx
+         adcxq   %rax, %rax
+         adoxq   %rdx, %rax
+-        movq    %rax, 16(z)
+-        movq    24(z), %rax
++        movq    %rax, 16(%rsp)
++        movq    24(%rsp), %rax
+         adcxq   %rax, %rax
+         adoxq   %rcx, %rax
+-        movq    %rax, 24(z)
++        movq    %rax, 24(%rsp)
+ 
+-        movq    32(z), %rax
++        movq    32(%rsp), %rax
+         movq    16(x), %rdx
+         mulxq   %rdx, %rdx, %rcx
+         adcxq   %rax, %rax
+         adoxq   %rdx, %rax
+-        movq    %rax, 32(z)
+-        movq    40(z), %rax
++        movq    %rax, 32(%rsp)
++        movq    40(%rsp), %rax
+         adcxq   %rax, %rax
+         adoxq   %rcx, %rax
+-        movq    %rax, 40(z)
++        movq    %rax, 40(%rsp)
+ 
+-        movq    48(z), %rax
++        movq    48(%rsp), %rax
+         movq    24(x), %rdx
+         mulxq   %rdx, %rdx, %rcx
+         adcxq   %rax, %rax
+         adoxq   %rdx, %rax
+-        movq    %rax, 48(z)
+-        movq    56(z), %rax
++        movq    %rax, 48(%rsp)
++        movq    56(%rsp), %rax
+         adcxq   %rax, %rax
+         adoxq   %rcx, %rax
+-        movq    %rax, 56(z)
++        movq    %rax, 56(%rsp)
+ 
+         movq    32(x), %rdx
+         mulxq   %rdx, %rdx, %rcx
+@@ -223,7 +224,7 @@ _bignum_sqr_p521:
+         adcq   $0, %rbp
+ 
+ // Rotate the upper portion right 9 bits since 2^512 == 2^-9 (mod p_521)
+-// Let rotated result %rbp,%r15,%r14,...,%r8 be h (high) and z[0..7] be l (low)
++// Let rotated result %rbp,%r15,%r14,...,%r8 be h (high) and %rsp[0..7] be l (low)
+ 
+         movq    %r8, %rax
+         andq    $0x1FF, %rax
+@@ -242,14 +243,14 @@ _bignum_sqr_p521:
+ // but actually add all 1s in the top 53 bits to get simple carry out
+ 
+         stc
+-        adcq    (z), %r8
+-        adcq    8(z), %r9
+-        adcq    16(z), %r10
+-        adcq    24(z), %r11
+-        adcq    32(z), %r12
+-        adcq    40(z), %r13
+-        adcq    48(z), %r14
+-        adcq    56(z), %r15
++        adcq    (%rsp), %r8
++        adcq    8(%rsp), %r9
++        adcq    16(%rsp), %r10
++        adcq    24(%rsp), %r11
++        adcq    32(%rsp), %r12
++        adcq    40(%rsp), %r13
++        adcq    48(%rsp), %r14
++        adcq    56(%rsp), %r15
+         adcq    $~0x1FF, %rbp
+ 
+ // Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
+@@ -281,6 +282,7 @@ _bignum_sqr_p521:
+ 
+ // Restore registers and return
+ 
++        addq    $64, %rsp
+         popq    %r15
+         popq    %r14
+         popq    %r13
+diff --git a/x86_att/p521/bignum_sqr_p521_alt.S b/x86_att/p521/bignum_sqr_p521_alt.S
+index 58c9b8bad..527313b0c 100644
+--- a/x86_att/p521/bignum_sqr_p521_alt.S
++++ b/x86_att/p521/bignum_sqr_p521_alt.S
+@@ -92,22 +92,23 @@
+ bignum_sqr_p521_alt:
+ _bignum_sqr_p521_alt:
+ 
+-// Make more registers available
++// Make more registers available and make temporary space on stack
+ 
+         pushq   %rbx
+         pushq   %r12
+         pushq   %r13
+         pushq   %r14
+         pushq   %r15
++        subq    $72, %rsp
+ 
+ // Start doing a conventional columnwise squaring,
+-// temporarily storing the lower 9 digits to the output buffer.
++// temporarily storing the lower 9 digits on the stack.
+ // Start with result term 0
+ 
+         movq    (x), %rax
+         mulq    %rax
+ 
+-        movq    %rax, (z)
++        movq    %rax, (%rsp)
+         movq    %rdx, %r9
+         xorq    %r10, %r10
+ 
+@@ -115,21 +116,21 @@ _bignum_sqr_p521_alt:
+ 
+         xorq    %r11, %r11
+         combadd2(%r11,%r10,%r9,(x),8(x))
+-        movq    %r9, 8(z)
++        movq    %r9, 8(%rsp)
+ 
+ // Result term 2
+ 
+         xorq    %r12, %r12
+         combadd1(%r12,%r11,%r10,8(x))
+         combadd2(%r12,%r11,%r10,(x),16(x))
+-        movq    %r10, 16(z)
++        movq    %r10, 16(%rsp)
+ 
+ // Result term 3
+ 
+         combaddz(%r13,%rcx,%rbx,(x),24(x))
+         combadd(%r13,%rcx,%rbx,8(x),16(x))
+         doubladd(%r13,%r12,%r11,%rcx,%rbx)
+-        movq    %r11, 24(z)
++        movq    %r11, 24(%rsp)
+ 
+ // Result term 4
+ 
+@@ -137,7 +138,7 @@ _bignum_sqr_p521_alt:
+         combadd(%r14,%rcx,%rbx,8(x),24(x))
+         doubladd(%r14,%r13,%r12,%rcx,%rbx)
+         combadd1(%r14,%r13,%r12,16(x))
+-        movq    %r12, 32(z)
++        movq    %r12, 32(%rsp)
+ 
+ // Result term 5
+ 
+@@ -145,7 +146,7 @@ _bignum_sqr_p521_alt:
+         combadd(%r15,%rcx,%rbx,8(x),32(x))
+         combadd(%r15,%rcx,%rbx,16(x),24(x))
+         doubladd(%r15,%r14,%r13,%rcx,%rbx)
+-        movq    %r13, 40(z)
++        movq    %r13, 40(%rsp)
+ 
+ // Result term 6
+ 
+@@ -154,7 +155,7 @@ _bignum_sqr_p521_alt:
+         combadd(%r8,%rcx,%rbx,16(x),32(x))
+         doubladd(%r8,%r15,%r14,%rcx,%rbx)
+         combadd1(%r8,%r15,%r14,24(x))
+-        movq    %r14, 48(z)
++        movq    %r14, 48(%rsp)
+ 
+ // Result term 7
+ 
+@@ -163,7 +164,7 @@ _bignum_sqr_p521_alt:
+         combadd(%r9,%rcx,%rbx,16(x),40(x))
+         combadd(%r9,%rcx,%rbx,24(x),32(x))
+         doubladd(%r9,%r8,%r15,%rcx,%rbx)
+-        movq    %r15, 56(z)
++        movq    %r15, 56(%rsp)
+ 
+ // Result term 8
+ 
+@@ -173,7 +174,7 @@ _bignum_sqr_p521_alt:
+         combadd(%r10,%rcx,%rbx,24(x),40(x))
+         doubladd(%r10,%r9,%r8,%rcx,%rbx)
+         combadd1(%r10,%r9,%r8,32(x))
+-        movq    %r8, 64(z)
++        movq    %r8, 64(%rsp)
+ 
+ // We now stop writing back and keep remaining results in a register window.
+ // Continue with result term 9
+@@ -233,11 +234,11 @@ _bignum_sqr_p521_alt:
+         imulq   %rax, %rax
+         addq    %r8, %rax
+ 
+-// Now the upper portion is [%rax;%r15;%r14;%r13;%r12;%r11;%r10;%r9;[z+64]].
++// Now the upper portion is [%rax;%r15;%r14;%r13;%r12;%r11;%r10;%r9;[%rsp+64]].
+ // Rotate the upper portion right 9 bits since 2^512 == 2^-9 (mod p_521)
+-// Let rotated result %rdx,%r15,%r14,...,%r8 be h (high) and z[0..7] be l (low)
++// Let rotated result %rdx,%r15,%r14,...,%r8 be h (high) and %rsp[0..7] be l (low)
+ 
+-        movq    64(z), %r8
++        movq    64(%rsp), %r8
+         movq    %r8, %rdx
+         andq    $0x1FF, %rdx
+         shrdq   $9, %r9, %r8
+@@ -255,14 +256,14 @@ _bignum_sqr_p521_alt:
+ // but actually add all 1s in the top 53 bits to get simple carry out
+ 
+         stc
+-        adcq    (z), %r8
+-        adcq    8(z), %r9
+-        adcq    16(z), %r10
+-        adcq    24(z), %r11
+-        adcq    32(z), %r12
+-        adcq    40(z), %r13
+-        adcq    48(z), %r14
+-        adcq    56(z), %r15
++        adcq    (%rsp), %r8
++        adcq    8(%rsp), %r9
++        adcq    16(%rsp), %r10
++        adcq    24(%rsp), %r11
++        adcq    32(%rsp), %r12
++        adcq    40(%rsp), %r13
++        adcq    48(%rsp), %r14
++        adcq    56(%rsp), %r15
+         adcq    $~0x1FF, %rdx
+ 
+ // Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
+@@ -294,6 +295,7 @@ _bignum_sqr_p521_alt:
+ 
+ // Restore registers and return
+ 
++        addq    $72, %rsp
+         popq    %r15
+         popq    %r14
+         popq    %r13

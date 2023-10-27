@@ -1,0 +1,152 @@
+From 99089925a0bbb8054ee4b63a5826ef2b7b1aa8ae Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Tue, 30 May 2023 11:46:40 -0700
+Subject: [PATCH] Add few compatability functions needed for HAProxy (#1032)
+
+* Add few compatability functions needed for HAProxy:
+* RAND_keep_random_devices_open which does nothing
+* SSL_CTX_get_tlsext_status_cb returns the legacy OpenSSL OCSP callback
+* X509_OBJECT_get0_X509_CRL returns the certificate revocation list (CRL) from an X509_OBJECT
+---
+ crypto/rand_extra/rand_extra.c |  2 ++
+ crypto/x509/x509_lu.c          |  7 +++++++
+ crypto/x509/x509_test.cc       | 11 +++++++++++
+ include/openssl/rand.h         |  3 +++
+ include/openssl/ssl.h          |  4 ++++
+ include/openssl/x509.h         |  2 ++
+ ssl/ssl_lib.cc                 |  5 +++++
+ ssl/test/test_config.cc        |  5 +++++
+ 8 files changed, 39 insertions(+)
+
+diff --git a/crypto/rand_extra/rand_extra.c b/crypto/rand_extra/rand_extra.c
+index e73b99e30..5a0fb63f5 100644
+--- a/crypto/rand_extra/rand_extra.c
++++ b/crypto/rand_extra/rand_extra.c
+@@ -71,4 +71,6 @@ const RAND_METHOD *RAND_get_rand_method(void) { return RAND_SSLeay(); }
+ 
+ int RAND_set_rand_method(const RAND_METHOD *method) { return 1; }
+ 
++void RAND_keep_random_devices_open(int a) { }
++
+ void RAND_cleanup(void) {}
+diff --git a/crypto/x509/x509_lu.c b/crypto/x509/x509_lu.c
+index cd4ed1247..a9ee622ad 100644
+--- a/crypto/x509/x509_lu.c
++++ b/crypto/x509/x509_lu.c
+@@ -391,6 +391,13 @@ X509 *X509_OBJECT_get0_X509(const X509_OBJECT *a) {
+   return a->data.x509;
+ }
+ 
++X509_CRL *X509_OBJECT_get0_X509_CRL(const X509_OBJECT *a) {
++  if (a == NULL || a->type != X509_LU_CRL) {
++    return NULL;
++  }
++  return a->data.crl;
++}
++
+ static int x509_object_idx_cnt(STACK_OF(X509_OBJECT) *h, int type,
+                                X509_NAME *name, int *pnmatch) {
+   X509_OBJECT stmp;
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index e9d298085..bdf29d9a1 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -1931,6 +1931,17 @@ TEST(X509Test, TestCRL) {
+ 
+   // Parsing kBadExtensionCRL should fail.
+   EXPECT_FALSE(CRLFromPEM(kBadExtensionCRL));
++
++  // Ensure X509_OBJECT_get0_X509_CRL only returns a CRL if the X509 object is valid
++  X509_OBJECT validCRL;
++  validCRL.type = X509_LU_CRL;
++  validCRL.data.crl = basic_crl.get();
++  ASSERT_EQ(basic_crl.get(), X509_OBJECT_get0_X509_CRL(&validCRL));
++
++  X509_OBJECT invalidCRL;
++  invalidCRL.type = X509_LU_X509;
++  invalidCRL.data.x509 = leaf.get();
++  ASSERT_EQ(nullptr, X509_OBJECT_get0_X509_CRL(&invalidCRL));
+ }
+ 
+ TEST(X509Test, ManyNamesAndConstraints) {
+diff --git a/include/openssl/rand.h b/include/openssl/rand.h
+index 586274d12..3f678d572 100644
+--- a/include/openssl/rand.h
++++ b/include/openssl/rand.h
+@@ -117,6 +117,9 @@ OPENSSL_EXPORT const RAND_METHOD *RAND_get_rand_method(void);
+ // RAND_set_rand_method returns one.
+ OPENSSL_EXPORT int RAND_set_rand_method(const RAND_METHOD *);
+ 
++// RAND_keep_random_devices_open does nothing.
++OPENSSL_EXPORT void RAND_keep_random_devices_open(int a);
++
+ 
+ #if defined(__cplusplus)
+ }  // extern C
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index 25fcf786b..69235cb60 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -5286,6 +5286,9 @@ OPENSSL_EXPORT int SSL_CTX_set_tlsext_status_cb(SSL_CTX *ctx,
+                                                 int (*callback)(SSL *ssl,
+                                                                 void *arg));
+ 
++// SSL_CTX_get_tlsext_status_cb returns the legacy OpenSSL OCSP callback if set.
++OPENSSL_EXPORT int SSL_CTX_get_tlsext_status_cb(SSL_CTX *ctx, int (**callback)(SSL *, void *));
++
+ // SSL_CTX_set_tlsext_status_arg sets additional data for
+ // |SSL_CTX_set_tlsext_status_cb|'s callback and returns one.
+ OPENSSL_EXPORT int SSL_CTX_set_tlsext_status_arg(SSL_CTX *ctx, void *arg);
+@@ -5408,6 +5411,7 @@ OPENSSL_EXPORT uint16_t SSL_CIPHER_get_value(const SSL_CIPHER *cipher);
+ #define SSL_CTX_get_options SSL_CTX_get_options
+ #define SSL_CTX_get_read_ahead SSL_CTX_get_read_ahead
+ #define SSL_CTX_get_session_cache_mode SSL_CTX_get_session_cache_mode
++#define SSL_CTX_get_tlsext_status_cb SSL_CTX_get_tlsext_status_cb
+ #define SSL_CTX_get_tlsext_ticket_keys SSL_CTX_get_tlsext_ticket_keys
+ #define SSL_CTX_need_tmp_RSA SSL_CTX_need_tmp_RSA
+ #define SSL_CTX_sess_get_cache_size SSL_CTX_sess_get_cache_size
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index 53ba80c46..5f06aa2e7 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -2625,6 +2625,8 @@ OPENSSL_EXPORT int X509_OBJECT_up_ref_count(X509_OBJECT *a);
+ OPENSSL_EXPORT void X509_OBJECT_free_contents(X509_OBJECT *a);
+ OPENSSL_EXPORT int X509_OBJECT_get_type(const X509_OBJECT *a);
+ OPENSSL_EXPORT X509 *X509_OBJECT_get0_X509(const X509_OBJECT *a);
++// X509_OBJECT_get0_X509_CRL returns the |X509_CRL| associated with |a|
++OPENSSL_EXPORT X509_CRL *X509_OBJECT_get0_X509_CRL(const X509_OBJECT *a);
+ OPENSSL_EXPORT X509_STORE *X509_STORE_new(void);
+ OPENSSL_EXPORT int X509_STORE_up_ref(X509_STORE *store);
+ OPENSSL_EXPORT void X509_STORE_free(X509_STORE *v);
+diff --git a/ssl/ssl_lib.cc b/ssl/ssl_lib.cc
+index 0e146d616..d9b29f254 100644
+--- a/ssl/ssl_lib.cc
++++ b/ssl/ssl_lib.cc
+@@ -3164,6 +3164,11 @@ int SSL_CTX_set_tlsext_status_cb(SSL_CTX *ctx,
+   return 1;
+ }
+ 
++int SSL_CTX_get_tlsext_status_cb(SSL_CTX *ctx, int (**callback)(SSL *, void *)) {
++  *callback = ctx->legacy_ocsp_callback;
++  return 1;
++}
++
+ int SSL_CTX_set_tlsext_status_arg(SSL_CTX *ctx, void *arg) {
+   ctx->legacy_ocsp_callback_arg = arg;
+   return 1;
+diff --git a/ssl/test/test_config.cc b/ssl/test/test_config.cc
+index 538b2c380..509207cee 100644
+--- a/ssl/test/test_config.cc
++++ b/ssl/test/test_config.cc
+@@ -1494,6 +1494,11 @@ bssl::UniquePtr<SSL_CTX> TestConfig::SetupCtx(SSL_CTX *old_ctx) const {
+ 
+   if (use_ocsp_callback) {
+     SSL_CTX_set_tlsext_status_cb(ssl_ctx.get(), LegacyOCSPCallback);
++    int (*cb)(SSL *, void *) = nullptr;
++    if(!SSL_CTX_get_tlsext_status_cb(ssl_ctx.get(), &cb) ||
++        cb != LegacyOCSPCallback){
++      return nullptr;
++    }
+   }
+ 
+   if (old_ctx) {

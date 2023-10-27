@@ -1,0 +1,471 @@
+From 0ca969a07b66967b6de498deead603e70d559790 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Wed, 1 Feb 2023 13:10:52 -0800
+Subject: [PATCH] Add CI that uses M1 Mac ec2 Instance (#773)
+
+The framework of this was taken from our original benchmarking
+framework. The CDK stack creates a Codebuild, Cloudwatch, and
+M1 ec2 instance resources, while we use the aws cli to spin up
+an M1 ec2.
+When a Codebuild job is kicked off, we use SSM (Systems Manager)
+to send a command document to our M1 ec2. The results of this
+can be observed in a Cloudwatch URL printed on the Console.
+I envision this CI stack as something temporary we can use to
+address our M1 CI gap. The end goal would be for us to migrate
+to GIthub Action's M1 Mac workflows when they make that
+available. This seems to be very near on the horizon (set for
+Q3 2023).
+---
+ tests/ci/cdk/app.py                           |   3 +
+ tests/ci/cdk/cdk/aws_lc_mac_arm_ci_stack.py   | 112 ++++++++++++++++++
+ .../codebuild/github_ci_macos_m1_omnibus.yaml |  16 +++
+ .../ci/cdk/cdk/ssm/m1_tests_ssm_document.yaml |  27 +++++
+ tests/ci/cdk/util/iam_policies.py             |   4 +-
+ .../ci/codebuild/macos-aarch/run_m1_tests.yml |   9 ++
+ tests/ci/common_ssm_setup.sh                  |  23 ++++
+ tests/ci/run_bm_framework.sh                  |  37 ++----
+ tests/ci/run_m1_ec2_instance.sh               |  87 ++++++++++++++
+ tests/ci/setup.py                             |   8 +-
+ 10 files changed, 292 insertions(+), 34 deletions(-)
+ create mode 100644 tests/ci/cdk/cdk/aws_lc_mac_arm_ci_stack.py
+ create mode 100644 tests/ci/cdk/cdk/codebuild/github_ci_macos_m1_omnibus.yaml
+ create mode 100644 tests/ci/cdk/cdk/ssm/m1_tests_ssm_document.yaml
+ create mode 100644 tests/ci/codebuild/macos-aarch/run_m1_tests.yml
+ create mode 100644 tests/ci/common_ssm_setup.sh
+ create mode 100755 tests/ci/run_m1_ec2_instance.sh
+
+diff --git a/tests/ci/cdk/app.py b/tests/ci/cdk/app.py
+index d73be7c61..d8a3aa71f 100644
+--- a/tests/ci/cdk/app.py
++++ b/tests/ci/cdk/app.py
+@@ -6,6 +6,7 @@
+ from aws_cdk import core
+ 
+ # from cdk.bm_framework_stack import BmFrameworkStack
++from cdk.aws_lc_mac_arm_ci_stack import AwsLcMacArmCIStack
+ from cdk.aws_lc_analytics_stack import  AwsLcGitHubAnalyticsStack
+ from cdk.aws_lc_github_ci_stack import AwsLcGitHubCIStack
+ from cdk.aws_lc_github_fuzz_ci_stack import  AwsLcGitHubFuzzCIStack
+@@ -47,6 +48,8 @@ analytics_build_spec_file = "cdk/codebuild/github_ci_analytics_omnibus.yaml"
+ AwsLcGitHubAnalyticsStack(app, "aws-lc-ci-analytics", analytics_build_spec_file, env=env)
+ # bm_framework_build_spec_file = "cdk/codebuild/bm_framework_omnibus.yaml"
+ # BmFrameworkStack(app, "aws-lc-ci-bm-framework", bm_framework_build_spec_file, env=env)
++mac_arm_build_spec_file = "cdk/codebuild/github_ci_macos_m1_omnibus.yaml"
++AwsLcMacArmCIStack(app, "aws-lc-ci-macos-arm", mac_arm_build_spec_file, env=env)
+ android_build_spec_file = "cdk/codebuild/github_ci_android_omnibus.yaml"
+ AwsLcAndroidCIStack(app, "aws-lc-ci-devicefarm-android", android_build_spec_file, env=env)
+ 
+diff --git a/tests/ci/cdk/cdk/aws_lc_mac_arm_ci_stack.py b/tests/ci/cdk/cdk/aws_lc_mac_arm_ci_stack.py
+new file mode 100644
+index 000000000..75bf8f2dc
+--- /dev/null
++++ b/tests/ci/cdk/cdk/aws_lc_mac_arm_ci_stack.py
+@@ -0,0 +1,112 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++import subprocess
++import boto3
++
++from botocore.exceptions import ClientError
++from aws_cdk import core, aws_ec2 as ec2, aws_codebuild as codebuild, aws_iam as iam, aws_s3 as s3, aws_logs as logs
++from util.metadata import AWS_ACCOUNT, AWS_REGION, GITHUB_REPO_OWNER, GITHUB_REPO_NAME
++from util.iam_policies import code_build_batch_policy_in_json, ec2_policies_in_json, ssm_policies_in_json
++from util.build_spec_loader import BuildSpecLoader
++
++# detailed documentation can be found here: https://docs.aws.amazon.com/cdk/api/latest/docs/aws-ec2-readme.html
++
++class AwsLcMacArmCIStack(core.Stack):
++    """Define a stack used to create a CodeBuild instance on which to execute the AWS-LC m1 ci ec2 instance"""
++
++    def __init__(self,
++                 scope: core.Construct,
++                 id: str,
++                 spec_file_path: str,
++                 **kwargs) -> None:
++        super().__init__(scope, id, **kwargs)
++
++        # Define some variables that will be commonly used
++        CLOUDWATCH_LOGS = "{}-cw-logs".format(id)
++
++        # Define CodeBuild resource.
++        git_hub_source = codebuild.Source.git_hub(
++            owner=GITHUB_REPO_OWNER,
++            repo=GITHUB_REPO_NAME,
++            webhook=True,
++            webhook_filters=[
++                codebuild.FilterGroup.in_event_of(
++                    codebuild.EventAction.PULL_REQUEST_CREATED,
++                    codebuild.EventAction.PULL_REQUEST_UPDATED,
++                    codebuild.EventAction.PULL_REQUEST_REOPENED)
++            ],
++            webhook_triggers_batch_build=True)
++
++        # Define a IAM role for this stack.
++        code_build_batch_policy = iam.PolicyDocument.from_json(code_build_batch_policy_in_json([id]))
++        ec2_policy = iam.PolicyDocument.from_json(ec2_policies_in_json())
++        ssm_policy = iam.PolicyDocument.from_json(ssm_policies_in_json())
++        codebuild_inline_policies = {"code_build_batch_policy": code_build_batch_policy,
++                                     "ec2_policy": ec2_policy,
++                                     "ssm_policy": ssm_policy}
++        codebuild_role = iam.Role(scope=self,
++                                  id="{}-codebuild-role".format(id),
++                                  assumed_by=iam.ServicePrincipal("codebuild.amazonaws.com"),
++                                  inline_policies=codebuild_inline_policies,
++                                  managed_policies=[
++                                      iam.ManagedPolicy.from_aws_managed_policy_name("CloudWatchAgentServerPolicy")
++                                  ])
++
++        # Define CodeBuild.
++        project = codebuild.Project(
++            scope=self,
++            id=id,
++            project_name=id,
++            source=git_hub_source,
++            role=codebuild_role,
++            timeout=core.Duration.minutes(120),
++            environment=codebuild.BuildEnvironment(compute_type=codebuild.ComputeType.SMALL,
++                                                   privileged=False,
++                                                   build_image=codebuild.LinuxBuildImage.STANDARD_4_0),
++            build_spec=BuildSpecLoader.load(spec_file_path))
++        project.enable_batch_builds()
++
++        ec2_role = iam.Role(scope=self, id="{}-ec2-role".format(id),
++                            role_name="{}-ec2-role".format(id),
++                            assumed_by=iam.ServicePrincipal("ec2.amazonaws.com"),
++                            managed_policies=[
++                                iam.ManagedPolicy.from_aws_managed_policy_name("AmazonSSMManagedInstanceCore"),
++                                iam.ManagedPolicy.from_aws_managed_policy_name("CloudWatchAgentServerPolicy")
++                            ])
++        iam.CfnInstanceProfile(scope=self, id="{}-ec2-profile".format(id),
++                               roles=["{}-ec2-role".format(id)],
++                               instance_profile_name="{}-ec2-profile".format(id))
++
++        # create vpc for ec2s
++        vpc = ec2.Vpc(self, id="{}-ec2-vpc".format(id))
++        selection = vpc.select_subnets()
++
++        # create security group with default rules
++        security_group = ec2.SecurityGroup(self, id="{}-ec2-sg".format(id),
++                          allow_all_outbound=True,
++                          vpc=vpc,
++                          security_group_name='macos_arm_ec2_sg')
++
++        # Dedicated Hosts are required for Mac ec2 instances.
++        cfn_host = ec2.CfnHost(self, id="{}-dedicated-host".format(id),
++                                availability_zone="us-west-2a",
++                                auto_placement="off",
++                                instance_type="mac2.metal")
++        core.Tags.of(cfn_host).add("Name", "{}-dedicated-host".format(id))
++
++        # AMI is for M1 MacOS Monterey.
++        ami_id="ami-084c6ab9d03ad4d46"
++        cfn_instance = ec2.CfnInstance(self, "{}-ec2-instance".format(id),
++                        availability_zone="us-west-2a",
++                        tenancy="host",
++                        host_id=cfn_host.attr_host_id,
++                        iam_instance_profile="{}-ec2-profile".format(id),
++                        image_id=ami_id,
++                        instance_type="mac2.metal",
++                        security_group_ids=[security_group.security_group_id],
++                        subnet_id=selection.subnet_ids[0],
++                        tags=[core.CfnTag(key="Name",value="aws-lc-ci-macos-arm-ec2-instance")])
++
++        # Define logs for SSM.
++        logs.LogGroup(self, "{}-cw-logs".format(id), log_group_name=CLOUDWATCH_LOGS)
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_macos_m1_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_macos_m1_omnibus.yaml
+new file mode 100644
+index 000000000..7fa5a78be
+--- /dev/null
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_macos_m1_omnibus.yaml
+@@ -0,0 +1,16 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++version: 0.2
++
++# Doc for batch https://docs.aws.amazon.com/codebuild/latest/userguide/batch-build-buildspec.html#build-spec.batch.build-list
++batch:
++  build-list:
++    # Actual tests are ran on an m1 ec2 instance via SSM Commands.
++    - identifier: macos_arm_tests
++      buildspec: ./tests/ci/codebuild/macos-aarch/run_m1_tests.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: true
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-20.04_clang-7x-bm-framework_latest
+diff --git a/tests/ci/cdk/cdk/ssm/m1_tests_ssm_document.yaml b/tests/ci/cdk/cdk/ssm/m1_tests_ssm_document.yaml
+new file mode 100644
+index 000000000..836ef2c49
+--- /dev/null
++++ b/tests/ci/cdk/cdk/ssm/m1_tests_ssm_document.yaml
+@@ -0,0 +1,27 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++---
++schemaVersion: '2.2'
++description: aws-lc:bmFrameworkEc2Benchmark
++mainSteps:
++  - action: aws:runShellScript
++    name: runShellScript
++    inputs:
++      timeoutSeconds: '7200'
++      runCommand:
++        - eval $(/opt/homebrew/bin/brew shellenv)
++        - sudo su
++        - BUILD_ROOT=$(mktemp -d)
++        - cd ${BUILD_ROOT}
++        - export HOME="/var/root"
++        - trap "rm -rf ${BUILD_ROOT}" EXIT
++        - git clone {GITHUB_REPO} aws-lc-pr
++        - cd aws-lc-pr
++        # Fetch PR contents
++        - git fetch origin pull/{PR_NUM}/head:temp
++        - git checkout temp
++        - chmod +x ./tests/ci/run_posix_tests.sh
++        - ./tests/ci/run_posix_tests.sh
++        - chmod +x ./tests/ci/run_fips_tests.sh
++        - ./tests/ci/run_fips_tests.sh
+diff --git a/tests/ci/cdk/util/iam_policies.py b/tests/ci/cdk/util/iam_policies.py
+index 8c85d2553..ebc0d1634 100644
+--- a/tests/ci/cdk/util/iam_policies.py
++++ b/tests/ci/cdk/util/iam_policies.py
+@@ -5,7 +5,7 @@
+ 
+ from util.metadata import AWS_REGION, AWS_ACCOUNT
+ 
+-def ec2_bm_framework_policies_in_json():
++def ec2_policies_in_json():
+     """
+     Define an IAM policy that gives permissions for starting, stopping, and getting details of EC2 instances and their Vpcs
+     :return: an IAM policy statement in json.
+@@ -51,7 +51,7 @@ def s3_bm_framework_policies_in_json(s3_bucket_name):
+     }
+ 
+ 
+-def ssm_bm_framework_policies_in_json():
++def ssm_policies_in_json():
+     """
+     Define an IAM policy that gives permissions to creating documents and running commands.
+     :return: an IAM policy statement in json.
+diff --git a/tests/ci/codebuild/macos-aarch/run_m1_tests.yml b/tests/ci/codebuild/macos-aarch/run_m1_tests.yml
+new file mode 100644
+index 000000000..a3950119c
+--- /dev/null
++++ b/tests/ci/codebuild/macos-aarch/run_m1_tests.yml
+@@ -0,0 +1,9 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++version: 0.2
++
++phases:
++  build:
++    commands:
++      - ./tests/ci/run_m1_ec2_instance.sh
+diff --git a/tests/ci/common_ssm_setup.sh b/tests/ci/common_ssm_setup.sh
+new file mode 100644
+index 000000000..9fe0c479e
+--- /dev/null
++++ b/tests/ci/common_ssm_setup.sh
+@@ -0,0 +1,23 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++#$1 is the prefix for the ssm document, echos the doc name so we can capture the output
++create_ssm_document() {
++  local doc_name
++  doc_name="$1"_ssm_document_"${CODEBUILD_SOURCE_VERSION}"
++  aws ssm create-document --content file://tests/ci/cdk/cdk/ssm/"$1"_ssm_document.yaml \
++    --name "${doc_name}" \
++    --document-type Command \
++    --document-format YAML >/dev/null
++  echo "${doc_name}"
++}
++
++#$1 is the document name, $2 is the instance ids, $3 is the cloudwatch log group name.
++function run_ssm_command() {
++  local command_id
++  command_id="$(aws ssm send-command --instance-ids "${2}" \
++    --document-name "${1}" \
++    --cloud-watch-output-config CloudWatchLogGroupName="${3}",CloudWatchOutputEnabled=true \
++    --query Command.CommandId --output text)"
++  echo "${command_id}"
++}
+diff --git a/tests/ci/run_bm_framework.sh b/tests/ci/run_bm_framework.sh
+index 64b6a3efb..3aafffef3 100755
+--- a/tests/ci/run_bm_framework.sh
++++ b/tests/ci/run_bm_framework.sh
+@@ -5,6 +5,7 @@ set -exo pipefail
+ 
+ # Please run from project root folder!
+ # You'll want to set the codebuild env variables set if running locally
++source tests/ci/common_ssm_setup.sh
+ 
+ # cleanup code
+ cleanup() {
+@@ -100,41 +101,21 @@ for i in {1..30}; do
+   sleep 60
+ done
+ 
+-#$1 is NOHW_TYPE, echos the doc name so we can capture the output
+-create_ssm_document() {
+-  local doc_name
+-  doc_name=bm_framework_"$1"_ssm_document_"${CODEBUILD_SOURCE_VERSION}"
+-  aws ssm create-document --content file://tests/ci/cdk/cdk/ssm/bm_framework_"$1"_ssm_document.yaml \
+-    --name "${doc_name}" \
+-    --document-type Command \
+-    --document-format YAML >/dev/null
+-  echo "${doc_name}"
+-}
+-
+ # Create, and run ssm command for arm & x86
+-ssm_doc_name=$(create_ssm_document "")
+-nosha_ssm_doc_name=$(create_ssm_document "nosha")
+-noavx_ssm_doc_name=$(create_ssm_document "noavx")
++ssm_doc_name=$(create_ssm_document "bm_framework_")
++nosha_ssm_doc_name=$(create_ssm_document "bm_framework_nosha")
++noavx_ssm_doc_name=$(create_ssm_document "bm_framework_noavx")
+ ssm_document_names="${ssm_doc_name} ${nosha_ssm_doc_name} ${noavx_ssm_doc_name}"
+ 
+ # delete contents of 'latest' folders before uploading anything new to them
+ aws s3 rm s3://"${AWS_ACCOUNT_ID}-aws-lc-ci-bm-framework-pr-bucket/latest-${CODEBUILD_WEBHOOK_TRIGGER}" --recursive
+ aws s3 rm s3://"${AWS_ACCOUNT_ID}-aws-lc-ci-bm-framework-prod-bucket/latest" --recursive
+ 
+-#$1 is the document name, $2 is the instance ids
+-run_ssm_command() {
+-  local command_id
+-  command_id="$(aws ssm send-command --instance-ids "${2}" \
+-    --document-name "${1}" \
+-    --cloud-watch-output-config CloudWatchLogGroupName="aws-lc-ci-bm-framework-cw-logs",CloudWatchOutputEnabled=true \
+-    --query Command.CommandId --output text)"
+-  echo "${command_id}"
+-}
+-
+-x86_ssm_command_id=$(run_ssm_command "${ssm_doc_name}" "${x86_id}")
+-arm_ssm_command_id=$(run_ssm_command "${ssm_doc_name}" "${arm_id}")
+-nosha_ssm_command_id=$(run_ssm_command "${nosha_ssm_doc_name}" "${x86_nosha_id}")
+-noavx_ssm_command_id=$(run_ssm_command "${noavx_ssm_doc_name}" "${x86_noavx_id}")
++cloudwatch_group_name="aws-lc-ci-bm-framework-cw-logs"
++x86_ssm_command_id=$(run_ssm_command "${ssm_doc_name}" "${x86_id}" "${cloudwatch_group_name}")
++arm_ssm_command_id=$(run_ssm_command "${ssm_doc_name}" "${arm_id}" "${cloudwatch_group_name}")
++nosha_ssm_command_id=$(run_ssm_command "${nosha_ssm_doc_name}" "${x86_nosha_id}" "${cloudwatch_group_name}")
++noavx_ssm_command_id=$(run_ssm_command "${noavx_ssm_doc_name}" "${x86_noavx_id}" "${cloudwatch_group_name}")
+ ssm_command_ids="${x86_ssm_command_id} ${arm_ssm_command_id} ${nosha_ssm_command_id} ${noavx_ssm_command_id}"
+ 
+ # Give some time for the commands to run
+diff --git a/tests/ci/run_m1_ec2_instance.sh b/tests/ci/run_m1_ec2_instance.sh
+new file mode 100755
+index 000000000..995c692cb
+--- /dev/null
++++ b/tests/ci/run_m1_ec2_instance.sh
+@@ -0,0 +1,87 @@
++#!/bin/bash
++set -exo pipefail
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++# Please run from project root folder!
++# You'll want to set the codebuild env variables set if running locally
++source tests/ci/common_ssm_setup.sh
++
++# cleanup code
++cleanup() {
++  set +e
++  # delete the various documents that we created
++  for name in ${ssm_document_names};do
++    aws ssm delete-document --name "${name}"
++  done
++}
++
++# we wanna run the cleanup code on exit
++trap cleanup EXIT
++
++# print some information for reference
++echo GitHub PR Number: "${CODEBUILD_WEBHOOK_TRIGGER}"
++echo GitHub Branch Name: "${CODEBUILD_WEBHOOK_HEAD_REF}"
++AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
++echo AWS Account ID: "${AWS_ACCOUNT_ID}"
++echo GitHub Repo Link: "${CODEBUILD_SOURCE_REPO_URL}"
++export cloudwatch_group_name="aws-lc-ci-macos-arm-cw-logs"
++
++# get information for ec2 instances
++ec2_instance="$(aws ec2 describe-instances --filter "Name=tag:Name,Values=aws-lc-ci-macos-arm-ec2-instance" "Name=instance-state-name,Values=running" --query Reservations[*].Instances[*].InstanceId --output text)"
++
++generate_ssm_document_file() {
++  # use sed to replace placeholder values inside preexisting document
++  sed -e "s,{AWS_ACCOUNT_ID},${AWS_ACCOUNT_ID},g" \
++    -e "s,{PR_NUM},${CODEBUILD_WEBHOOK_TRIGGER//pr\/},g" \
++    -e "s,{GITHUB_REPO},${CODEBUILD_SOURCE_REPO_URL},g" \
++    tests/ci/cdk/cdk/ssm/m1_tests_ssm_document.yaml \
++    >tests/ci/cdk/cdk/ssm/macos_arm_ssm_document.yaml
++}
++
++# create the ssm documents that will be used for the various ssm commands
++generate_ssm_document_file
++
++# Create, and run ssm command.
++ssm_doc_name=$(create_ssm_document "macos_arm")
++ssm_document_names="${ssm_doc_name}"
++
++m1_ssm_command_id=$(run_ssm_command "${ssm_doc_name}" "${ec2_instance}" ${cloudwatch_group_name})
++
++run_url="https://${AWS_REGION}.console.aws.amazon.com/cloudwatch/home?region=${AWS_REGION}\
++#logsV2:log-groups/log-group/${cloudwatch_group_name}/log-events/\
++${m1_ssm_command_id}\$252F${ec2_instance}\$252FrunShellScript\$252Fstdout"
++
++echo "Actual Run in EC2 can be observered at CloudWatch URL: ${run_url}"
++
++# Give some time for the commands to run
++done=true
++success=true
++for i in {1..45}; do
++  echo "${i}: Continue to wait 2 min for SSM commands to finish."
++  sleep 120
++
++  ssm_command_status="$(aws ssm list-commands --command-id "${m1_ssm_command_id}" --query Commands[*].Status --output text)"
++  ssm_target_count="$(aws ssm list-commands --command-id "${m1_ssm_command_id}" --query Commands[*].TargetCount --output text)"
++  ssm_completed_count="$(aws ssm list-commands --command-id "${m1_ssm_command_id}" --query Commands[*].CompletedCount --output text)"
++  if [[ ${ssm_command_status} == 'Success' && ${ssm_completed_count} == "${ssm_target_count}" ]]; then
++    echo "SSM command ${m1_ssm_command_id} finished successfully."
++  elif [[ ${ssm_command_status} == 'Failed' && ${ssm_completed_count} == "${ssm_target_count}" ]]; then
++    echo "SSM command ${m1_ssm_command_id} failed."
++    success=false
++  else
++    done=false
++  fi
++
++  # if after the loop finish and done is still true, then we're done
++  if [ "${done}" = true ]; then
++    echo "M1 SSM command has finished."
++
++    # if success is still true here, then none of the commands failed
++    if [ "${success}" != true ]; then
++      echo "M1 SSM command failed!"
++      exit 1
++    fi
++    break
++  fi
++done
+\ No newline at end of file
+diff --git a/tests/ci/setup.py b/tests/ci/setup.py
+index 712ae3bd5..278a9d58b 100644
+--- a/tests/ci/setup.py
++++ b/tests/ci/setup.py
+@@ -20,10 +20,10 @@ setuptools.setup(
+ 
+     install_requires=[
+         # CDK dependencies.
+-        "aws-cdk.core==1.97.0",
+-        "aws-cdk.aws-codebuild==1.97.0",
+-        "aws-cdk.aws-ecr==1.97.0",
+-        "aws-cdk.aws-iam==1.97.0",
++        "aws-cdk.core==1.190.0",
++        "aws-cdk.aws-codebuild==1.190.0",
++        "aws-cdk.aws-ecr==1.190.0",
++        "aws-cdk.aws-iam==1.190.0",
+         # PyYAML is a YAML parser and emitter for Python. Used to read build_spec.yaml.
+         "pyyaml==5.3.1",
+         # A formatter for Python code.

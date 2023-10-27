@@ -1,0 +1,992 @@
+From 046363f85b9aae3187799d53acc21a11a5c6ce4d Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Wed, 19 Apr 2023 13:56:00 -0700
+Subject: [PATCH] Update CI to AL2023 (#961)
+
+* Update images to AL2023
+* Add SSM Agent to AL2023 images
+---
+ tests/ci/README.md                            | 160 +++++++++---------
+ .../codebuild/github_ci_fuzzing_omnibus.yaml  |  16 +-
+ .../github_ci_linux_arm_omnibus.yaml          |  48 +++---
+ .../github_ci_linux_x86_omnibus.yaml          |  24 +--
+ .../amazonlinux-2022_clang-14x/Dockerfile     |  19 ---
+ .../Dockerfile                                |  15 +-
+ .../amazonlinux-2023_clang-15x/Dockerfile     |  19 +++
+ .../Dockerfile                                |  12 +-
+ .../Dockerfile                                |  15 +-
+ .../amazonlinux-2023_gcc-11x}/Dockerfile      |  12 +-
+ .../docker_images/linux-aarch/build_images.sh |  10 +-
+ .../docker_images/linux-aarch/push_images.sh  |   8 +-
+ .../amazonlinux-2022_clang-14x/Dockerfile     |  19 ---
+ .../Dockerfile                                |  24 ++-
+ .../amazonlinux-2023_clang-15x/Dockerfile     |  19 +++
+ .../Dockerfile                                |  15 +-
+ .../Dockerfile                                |  14 +-
+ .../amazonlinux-2023_gcc-11x}/Dockerfile      |  12 +-
+ .../docker_images/linux-x86/build_images.sh   |  10 +-
+ .../ci/docker_images/linux-x86/push_images.sh |   8 +-
+ 20 files changed, 242 insertions(+), 237 deletions(-)
+ delete mode 100644 tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x/Dockerfile
+ rename tests/ci/docker_images/linux-aarch/{amazonlinux-2022_base => amazonlinux-2023_base}/Dockerfile (74%)
+ create mode 100644 tests/ci/docker_images/linux-aarch/amazonlinux-2023_clang-15x/Dockerfile
+ rename tests/ci/docker_images/{linux-x86/amazonlinux-2022_clang-14x_cryptofuzz => linux-aarch/amazonlinux-2023_clang-15x_cryptofuzz}/Dockerfile (71%)
+ rename tests/ci/docker_images/linux-aarch/{amazonlinux-2022_clang-14x_sanitizer => amazonlinux-2023_clang-15x_sanitizer}/Dockerfile (68%)
+ rename tests/ci/docker_images/{linux-x86/amazonlinux-2022_gcc-11x => linux-aarch/amazonlinux-2023_gcc-11x}/Dockerfile (61%)
+ delete mode 100644 tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x/Dockerfile
+ rename tests/ci/docker_images/linux-x86/{amazonlinux-2022_base => amazonlinux-2023_base}/Dockerfile (68%)
+ create mode 100644 tests/ci/docker_images/linux-x86/amazonlinux-2023_clang-15x/Dockerfile
+ rename tests/ci/docker_images/{linux-aarch/amazonlinux-2022_clang-14x_cryptofuzz => linux-x86/amazonlinux-2023_clang-15x_cryptofuzz}/Dockerfile (68%)
+ rename tests/ci/docker_images/linux-x86/{amazonlinux-2022_clang-14x_sanitizer => amazonlinux-2023_clang-15x_sanitizer}/Dockerfile (69%)
+ rename tests/ci/docker_images/{linux-aarch/amazonlinux-2022_gcc-11x => linux-x86/amazonlinux-2023_gcc-11x}/Dockerfile (61%)
+
+diff --git a/tests/ci/README.md b/tests/ci/README.md
+index 5c25232bf..4d424c511 100644
+--- a/tests/ci/README.md
++++ b/tests/ci/README.md
+@@ -50,84 +50,84 @@ to different platforms (linux-x86, linux-aarch, windows, rust).
+ General test suite with a varying set of build options (FIPS (shared-build), non-FIPS, debug,
+ shared, static, etc.) is executed on the following combinations:
+ 
+-CI Tool|Compiler|CPU|OS
+------------- | -------------| -------------|-------------
+-CodeBuild|gcc 4.1.3|x86|Ubuntu 10.04
+-CodeBuild|gcc 4.8.5|x86|Centos 7
+-CodeBuild|gcc 4.8.5|x86-64|Centos 7
+-CodeBuild|gcc 5.4.0|x86|Ubuntu 16.04
+-CodeBuild|gcc 7.3.1|x86-64|AL2
+-CodeBuild|gcc 7.3.1|aarch64|AL2
+-CodeBuild|gcc 7.5.0|x86-64|Ubuntu 18.04
+-CodeBuild|gcc 7.5.0|x86-64|Ubuntu 20.04
+-CodeBuild|gcc 7.5.0|aarch64|Ubuntu 20.04
+-CodeBuild|gcc 8.4.0|x86-64|Ubuntu 20.04
+-CodeBuild|gcc 8.4.0|aarch64|Ubuntu 20.04
+-CodeBuild|gcc 11|x86-64|AL2022
+-CodeBuild|gcc 11|aarch64|AL2022
+-CodeBuild|gcc 11|x86-64|Ubuntu 22.04
+-CodeBuild|gcc 11|aarch64|Ubuntu 22.04
+-CodeBuild|gcc 12|x86-64|Ubuntu 22.04
+-CodeBuild|gcc 12|aarch64|Ubuntu 22.04
+-CodeBuild|clang 7.0.1|x86-64|AL2
+-CodeBuild|clang 7.0.1|aarch64|AL2
+-CodeBuild|clang 6.0.0|x86-64|Ubuntu 18.04
+-CodeBuild|clang 9.0.1|x86-64|Fedora 31
+-CodeBuild|clang 7.0.1|x86-64|Ubuntu 20.04
+-CodeBuild|clang 7.0.1|aarch64|Ubuntu 20.04
+-CodeBuild|clang 8.0.1|x86-64|Ubuntu 20.04
+-CodeBuild|clang 8.0.1|aarch64|Ubuntu 20.04
+-CodeBuild|clang 9.0.1|x86-64|Ubuntu 20.04
+-CodeBuild|clang 9.0.1|aarch64|Ubuntu 20.04
+-CodeBuild|clang 10.0.0|x86-64|Ubuntu 20.04
+-CodeBuild|clang 10.0.0|aarch64|Ubuntu 20.04
+-CodeBuild|clang 14.0.0|x86-64|AL2022
+-CodeBuild|clang 14.0.0|aarch64|AL2022
+-CodeBuild|Visual Studio 2015|x86-64|Windows Server 19
+-CodeBuild|Visual Studio 2017|x86-64|Windows Server 19
+-GitHub Workflow|AppleClang 13.0.0|x86-64|macOS 11
+-SSM->EC2 Instance|AppleClang 14.0.0|aarch64|macOS 12
+-AWS Device Farm|Android ndkVersion "21.0.6113669"|aarch64|Android 10
+-AWS Device Farm|Android ndkVersion "21.0.6113669"|aarch64|Android 11
+-AWS Device Farm|Android ndkVersion "21.0.6113669"|aarch64|Android 12
++CI Tool| Compiler                          |CPU|OS
++------------ |-----------------------------------| -------------|-------------
++CodeBuild| gcc 4.1.3                         |x86|Ubuntu 10.04
++CodeBuild| gcc 4.8.5                         |x86|Centos 7
++CodeBuild| gcc 4.8.5                         |x86-64|Centos 7
++CodeBuild| gcc 5.4.0                         |x86|Ubuntu 16.04
++CodeBuild| gcc 7.3.1                         |x86-64|AL2
++CodeBuild| gcc 7.3.1                         |aarch64|AL2
++CodeBuild| gcc 7.5.0                         |x86-64|Ubuntu 18.04
++CodeBuild| gcc 7.5.0                         |x86-64|Ubuntu 20.04
++CodeBuild| gcc 7.5.0                         |aarch64|Ubuntu 20.04
++CodeBuild| gcc 8.4.0                         |x86-64|Ubuntu 20.04
++CodeBuild| gcc 8.4.0                         |aarch64|Ubuntu 20.04
++CodeBuild| gcc 11                            |x86-64|AL2023
++CodeBuild| gcc 11                            |aarch64|AL2023
++CodeBuild| gcc 11                            |x86-64|Ubuntu 22.04
++CodeBuild| gcc 11                            |aarch64|Ubuntu 22.04
++CodeBuild| gcc 12                            |x86-64|Ubuntu 22.04
++CodeBuild| gcc 12                            |aarch64|Ubuntu 22.04
++CodeBuild| clang 7.0.1                       |x86-64|AL2
++CodeBuild| clang 7.0.1                       |aarch64|AL2
++CodeBuild| clang 6.0.0                       |x86-64|Ubuntu 18.04
++CodeBuild| clang 9.0.1                       |x86-64|Fedora 31
++CodeBuild| clang 7.0.1                       |x86-64|Ubuntu 20.04
++CodeBuild| clang 7.0.1                       |aarch64|Ubuntu 20.04
++CodeBuild| clang 8.0.1                       |x86-64|Ubuntu 20.04
++CodeBuild| clang 8.0.1                       |aarch64|Ubuntu 20.04
++CodeBuild| clang 9.0.1                       |x86-64|Ubuntu 20.04
++CodeBuild| clang 9.0.1                       |aarch64|Ubuntu 20.04
++CodeBuild| clang 10.0.0                      |x86-64|Ubuntu 20.04
++CodeBuild| clang 10.0.0                      |aarch64|Ubuntu 20.04
++CodeBuild| clang 15.0.6                      |x86-64|AL2023
++CodeBuild| clang 15.0.6                      |aarch64|AL2023
++CodeBuild| Visual Studio 2015                |x86-64|Windows Server 19
++CodeBuild| Visual Studio 2017                |x86-64|Windows Server 19
++GitHub Workflow| AppleClang 13.0.0                 |x86-64|macOS 11
++SSM->EC2 Instance| AppleClang 14.0.0                 |aarch64|macOS 12
++AWS Device Farm| Android ndkVersion "21.0.6113669" |aarch64|Android 10
++AWS Device Farm| Android ndkVersion "21.0.6113669" |aarch64|Android 11
++AWS Device Farm| Android ndkVersion "21.0.6113669" |aarch64|Android 12
+ 
+ ### FIPS static build tests
+ 
+ Unfortunately, it's a known issue that the FIPS build has limited support when producing a static library. The static AWS-LC FIPS build is only supported on Linux based platforms for x86_64 and aarch64.
+ 
+-CI Tool|Compiler|CPU|OS
+------------- | -------------| -------------|-------------
+-CodeBuild|gcc 4.8.5|x86-64|Centos 7
+-CodeBuild|gcc 7.3.1|x86-64|AL2
+-CodeBuild|gcc 7.3.1|aarch64|AL2
+-CodeBuild|gcc 7.5.0|x86-64|Ubuntu 18.04
+-CodeBuild|gcc 7.5.0|x86-64|Ubuntu 20.04
+-CodeBuild|gcc 7.5.0|aarch64|Ubuntu 20.04
+-CodeBuild|gcc 8.4.0|x86-64|Ubuntu 20.04
+-CodeBuild|gcc 8.4.0|aarch64|Ubuntu 20.04
+-CodeBuild|gcc 11|x86-64|AL2022
+-CodeBuild|gcc 11|aarch64|AL2022
+-CodeBuild|gcc 11|x86-64|Ubuntu 22.04
+-CodeBuild|gcc 11|aarch64|Ubuntu 22.04
+-CodeBuild|gcc 12|x86-64|Ubuntu 22.04
+-CodeBuild|gcc 12|aarch64|Ubuntu 22.04
+-CodeBuild|clang 7.0.1|x86-64|AL2
+-CodeBuild|clang 7.0.1|aarch64|AL2
+-CodeBuild|clang 6.0.0|x86-64|Ubuntu 18.04
+-CodeBuild|clang 9.0.1|x86-64|Fedora 31
+-CodeBuild|clang 7.0.1|x86-64|Ubuntu 20.04
+-CodeBuild|clang 7.0.1|aarch64|Ubuntu 20.04
+-CodeBuild|clang 8.0.1|x86-64|Ubuntu 20.04
+-CodeBuild|clang 8.0.1|aarch64|Ubuntu 20.04
+-CodeBuild|clang 9.0.1|x86-64|Ubuntu 20.04
+-CodeBuild|clang 9.0.1|aarch64|Ubuntu 20.04
+-CodeBuild|clang 10.0.0|x86-64|Ubuntu 20.04
+-CodeBuild|clang 10.0.0|aarch64|Ubuntu 20.04
+-CodeBuild|clang 14.0.0|x86-64|AL2022
+-CodeBuild|clang 14.0.0|aarch64|AL2022
+-AWS Device Farm|Android ndkVersion "21.0.6113669"|aarch64|Android 10
+-AWS Device Farm|Android ndkVersion "21.0.6113669"|aarch64|Android 11
+-AWS Device Farm|Android ndkVersion "21.0.6113669"|aarch64|Android 12
++CI Tool| Compiler                          |CPU|OS
++------------ |-----------------------------------| -------------|-------------
++CodeBuild| gcc 4.8.5                         |x86-64|Centos 7
++CodeBuild| gcc 7.3.1                         |x86-64|AL2
++CodeBuild| gcc 7.3.1                         |aarch64|AL2
++CodeBuild| gcc 7.5.0                         |x86-64|Ubuntu 18.04
++CodeBuild| gcc 7.5.0                         |x86-64|Ubuntu 20.04
++CodeBuild| gcc 7.5.0                         |aarch64|Ubuntu 20.04
++CodeBuild| gcc 8.4.0                         |x86-64|Ubuntu 20.04
++CodeBuild| gcc 8.4.0                         |aarch64|Ubuntu 20.04
++CodeBuild| gcc 11                            |x86-64|AL2023
++CodeBuild| gcc 11                            |aarch64|AL2023
++CodeBuild| gcc 11                            |x86-64|Ubuntu 22.04
++CodeBuild| gcc 11                            |aarch64|Ubuntu 22.04
++CodeBuild| gcc 12                            |x86-64|Ubuntu 22.04
++CodeBuild| gcc 12                            |aarch64|Ubuntu 22.04
++CodeBuild| clang 7.0.1                       |x86-64|AL2
++CodeBuild| clang 7.0.1                       |aarch64|AL2
++CodeBuild| clang 6.0.0                       |x86-64|Ubuntu 18.04
++CodeBuild| clang 9.0.1                       |x86-64|Fedora 31
++CodeBuild| clang 7.0.1                       |x86-64|Ubuntu 20.04
++CodeBuild| clang 7.0.1                       |aarch64|Ubuntu 20.04
++CodeBuild| clang 8.0.1                       |x86-64|Ubuntu 20.04
++CodeBuild| clang 8.0.1                       |aarch64|Ubuntu 20.04
++CodeBuild| clang 9.0.1                       |x86-64|Ubuntu 20.04
++CodeBuild| clang 9.0.1                       |aarch64|Ubuntu 20.04
++CodeBuild| clang 10.0.0                      |x86-64|Ubuntu 20.04
++CodeBuild| clang 10.0.0                      |aarch64|Ubuntu 20.04
++CodeBuild| clang 15.0.6                      |x86-64|AL2023
++CodeBuild| clang 15.0.6                      |aarch64|AL2023
++AWS Device Farm| Android ndkVersion "21.0.6113669" |aarch64|Android 10
++AWS Device Farm| Android ndkVersion "21.0.6113669" |aarch64|Android 11
++AWS Device Farm| Android ndkVersion "21.0.6113669" |aarch64|Android 12
+ 
+ ### Sanitizer tests
+ 
+@@ -138,18 +138,18 @@ Runs all tests with:
+ * Thread sanitizer
+ * Undefined behavior sanitizer
+ 
+-CI Tool|Compiler|CPU platform|OS
+------------- | -------------| -------------|-------------
+-CodeBuild|clang 14.0.0|x86-64|AL2022
+-CodeBuild|clang 14.0.0|aarch64|AL2022
++CI Tool| Compiler     |CPU platform|OS
++------------ |--------------| -------------|-------------
++CodeBuild| clang 15.0.6 |x86-64|AL2023
++CodeBuild| clang 15.0.6 |aarch64|AL2023
+ 
+ ### Valgrind tests
+ 
+ The following Valgrind tests are run for a subset of targets in `utils/all_tests.json` using the debug build of AWS-LC:
+ 
+-CI Tool|Compiler|CPU platform|OS| memcheck 
+------------- | -------------| -------------|-------------|-------------
+-CodeBuild|gcc 11|x86-64|AL2022 | X
++CI Tool|Compiler|CPU platform| OS     | memcheck 
++------------ | -------------| -------------|--------|-------------
++CodeBuild|gcc 11|x86-64| AL2023 | X
+ 
+ ### Fuzz tests
+ 
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_fuzzing_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_fuzzing_omnibus.yaml
+index f97706431..1cdf74115 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_fuzzing_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_fuzzing_omnibus.yaml
+@@ -7,34 +7,34 @@ version: 0.2
+ batch:
+   build-list:
+ 
+-    - identifier: al2022_clang14_x86_64_fuzz
++    - identifier: al2023_clang15_x86_64_fuzz
+       buildspec: ./tests/ci/codebuild/linux-x86/run_fuzz_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_clang-14x_sanitizer_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_sanitizer_latest
+ 
+-    - identifier: al2022_clang14_arm_fuzz
++    - identifier: al2023_clang14_arm_fuzz
+       buildspec: ./tests/ci/codebuild/linux-x86/run_fuzz_tests.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_clang-14x_sanitizer_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_sanitizer_latest
+ 
+-    - identifier: al2022_clang14_x86_64_cryptofuzz
++    - identifier: al2023_clang15_x86_64_cryptofuzz
+       buildspec: ./tests/ci/codebuild/linux-x86/run_cryptofuzz.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_clang-14x_cryptofuzz_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_cryptofuzz_latest
+ 
+-    - identifier: al2022_clang14_arm_cryptofuzz
++    - identifier: al2023_clang15_arm_cryptofuzz
+       buildspec: ./tests/ci/codebuild/linux-x86/run_cryptofuzz.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_clang-14x_cryptofuzz_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_cryptofuzz_latest
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
+index d315d2da7..062b874fe 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
+@@ -198,101 +198,101 @@ batch:
+           # https://github.com/aws/aws-lc/pull/120#issuecomment-808439279
+           AWSLC_NO_ASM_FIPS: 0
+ 
+-    - identifier: amazonlinux2022_gcc11x_aarch
++    - identifier: amazonlinux2023_gcc11x_aarch
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_gcc-11x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_gcc-11x_latest
+ 
+-    - identifier: amazonlinux2022_gcc11x_aarch_fips
++    - identifier: amazonlinux2023_gcc11x_aarch_fips
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_gcc-11x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_gcc-11x_latest
+ 
+-    - identifier: amazonlinux2022_clang14x_aarch
++    - identifier: amazonlinux2023_clang15x_aarch
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_posix_tests.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_clang-14x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_latest
+ 
+-    - identifier: amazonlinux2022_clang14x_aarch_fips
++    - identifier: amazonlinux2023_clang15x_aarch_fips
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_fips_tests.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: false
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_clang-14x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_latest
+ 
+-    - identifier: amazonlinux_2022_clang_14x_sanitizer
++    - identifier: amazonlinux_2023_clang_14x_sanitizer
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_sanitizer_tests.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_clang-14x_sanitizer_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_sanitizer_latest
+ 
+     # BoringSSL has 7k+ ssl runner tests, and the total number of the runner tests keep increasing.
+     # When ASAN enabled, the tests take more than 1 hour to finish. The cause relates to https://github.com/google/sanitizers/issues/1331,
+     # https://github.com/google/sanitizers/issues/703, and fixed in https://reviews.llvm.org/D60243 which is pending a review.
+     # To reduce the total time, these tests will be executed in below CodeBuild dimensions:
+-    #   1. amazonlinux_2022_clang_14x_ssl_asan1
+-    #   2. amazonlinux_2022_clang_14x_ssl_asan2
+-    #   3. amazonlinux_2022_clang_14x_ssl_asan3
+-    #   4. amazonlinux_2022_clang_14x_ssl_asan4
++    #   1. amazonlinux_2023_clang_14x_ssl_asan1
++    #   2. amazonlinux_2023_clang_14x_ssl_asan2
++    #   3. amazonlinux_2023_clang_14x_ssl_asan3
++    #   4. amazonlinux_2023_clang_14x_ssl_asan4
+     # Env var |AWS_LC_SSL_RUNNER_START_INDEX| and |AWS_LC_SSL_RUNNER_END_INDEX| are used to filter the runner tests.
+-    - identifier: amazonlinux_2022_clang_14x_ssl_asan1
++    - identifier: amazonlinux_2023_clang_14x_ssl_asan1
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_clang-14x_sanitizer_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_sanitizer_latest
+         variables:
+           AWS_LC_SSL_RUNNER_END_INDEX: 3500
+ 
+-    - identifier: amazonlinux_2022_clang_14x_ssl_asan2
++    - identifier: amazonlinux_2023_clang_14x_ssl_asan2
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_clang-14x_sanitizer_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_sanitizer_latest
+         variables:
+           AWS_LC_SSL_RUNNER_START_INDEX: 3501
+           AWS_LC_SSL_RUNNER_END_INDEX: 5500
+ 
+-    - identifier: amazonlinux_2022_clang_14x_ssl_asan3
++    - identifier: amazonlinux_2023_clang_14x_ssl_asan3
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_clang-14x_sanitizer_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_sanitizer_latest
+         variables:
+           AWS_LC_SSL_RUNNER_START_INDEX: 5501
+           AWS_LC_SSL_RUNNER_END_INDEX: 7000
+ 
+-    - identifier: amazonlinux_2022_clang_14x_ssl_asan4
++    - identifier: amazonlinux_2023_clang_14x_ssl_asan4
+       buildspec: ./tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
+       env:
+         type: ARM_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_clang-14x_sanitizer_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_clang-15x_sanitizer_latest
+         variables:
+           AWS_LC_SSL_RUNNER_START_INDEX: 7001
+ 
+-#    - identifier: amazonlinux2022_gcc11x_aarch_valgrind
++#    - identifier: amazonlinux2023_gcc11x_aarch_valgrind
+ #      buildspec: ./tests/ci/codebuild/common/run_valgrind_tests.yml
+ #      env:
+ #        type: ARM_CONTAINER
+ #        privileged-mode: true
+ #        compute-type: BUILD_GENERAL1_LARGE
+-#        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2022_gcc-11x_latest
++#        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_gcc-11x_latest
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+index 6e24ee381..7e46c1ac5 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+@@ -289,53 +289,53 @@ batch:
+         compute-type: BUILD_GENERAL1_2XLARGE
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2_gcc-7x_intel-sde_latest
+ 
+-    - identifier: amazonlinux2022_gcc11x_x86_64_valgrind
++    - identifier: amazonlinux2023_gcc11x_x86_64_valgrind
+       buildspec: ./tests/ci/codebuild/common/run_valgrind_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_2XLARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_gcc-11x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_gcc-11x_latest
+ 
+-    - identifier: amazonlinux2022_gcc11x_x86_64
++    - identifier: amazonlinux2023_gcc11x_x86_64
+       buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_gcc-11x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_gcc-11x_latest
+ 
+-    - identifier: amazonlinux2022_gcc11x_x86_64_fips
++    - identifier: amazonlinux2023_gcc11x_x86_64_fips
+       buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_gcc-11x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_gcc-11x_latest
+ 
+-    - identifier: amazonlinux2022_clang14x_x86_64
++    - identifier: amazonlinux2023_clang15x_x86_64
+       buildspec: ./tests/ci/codebuild/linux-x86/run_posix_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_clang-14x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_latest
+ 
+-    - identifier: amazonlinux2022_clang14x_x86_64_fips
++    - identifier: amazonlinux2023_clang15x_x86_64_fips
+       buildspec: ./tests/ci/codebuild/linux-x86/run_fips_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_clang-14x_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_latest
+ 
+-    - identifier: amazonlinux2022_clang14x_x86_64_sanitizer
++    - identifier: amazonlinux2023_clang15x_x86_64_sanitizer
+       buildspec: ./tests/ci/codebuild/linux-x86/run_sanitizer_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+         compute-type: BUILD_GENERAL1_LARGE
+-        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2022_clang-14x_sanitizer_latest
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_clang-15x_sanitizer_latest
+ 
+     - identifier: s2n_integration
+       buildspec: ./tests/ci/codebuild/linux-x86/s2n_integration.yml
+diff --git a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x/Dockerfile b/tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x/Dockerfile
+deleted file mode 100644
+index 6579812ce..000000000
+--- a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x/Dockerfile
++++ /dev/null
+@@ -1,19 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-FROM amazonlinux-2022-aarch:base
+-
+-SHELL ["/bin/bash", "-c"]
+-
+-# clang 14.0.5 is the latest version versions `yum --showduplicates list clang`
+-RUN set -ex && \
+-    yum -y update && yum install -y \
+-    clang && \
+-    yum clean packages && \
+-    yum clean metadata && \
+-    yum clean all && \
+-    rm -rf /tmp/* && \
+-    rm -rf /var/cache/yum
+-
+-ENV CC=clang
+-ENV CXX=clang++
+diff --git a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_base/Dockerfile b/tests/ci/docker_images/linux-aarch/amazonlinux-2023_base/Dockerfile
+similarity index 74%
+rename from tests/ci/docker_images/linux-aarch/amazonlinux-2022_base/Dockerfile
+rename to tests/ci/docker_images/linux-aarch/amazonlinux-2023_base/Dockerfile
+index f50b10641..34b264575 100644
+--- a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_base/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/amazonlinux-2023_base/Dockerfile
+@@ -1,7 +1,7 @@
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ # SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+-FROM arm64v8/amazonlinux:2022
++FROM arm64v8/amazonlinux:2023
+ 
+ SHELL ["/bin/bash", "-c"]
+ ENV GOROOT=/usr/local/go
+@@ -9,10 +9,11 @@ ENV PATH="$GOROOT/bin:$PATH"
+ 
+ ENV DEPENDENCIES_DIR=/home/dependencies
+ 
++# AL2023 Upgrade Information https://docs.aws.amazon.com/linux/al2023/ug/deterministic-upgrades-usage.html
+ # Install Valgrind for Valgrind test target even though it is not needed for the base test target.
+ RUN set -ex && \
+-    yum -y update && yum install -y \
+-    cmake3 \
++    dnf -y upgrade --releasever=latest && dnf install -y \
++    cmake \
+     ninja-build \
+     perl \
+     which \
+@@ -27,11 +28,11 @@ RUN set -ex && \
+     unzip awscliv2.zip && \
+     ./aws/install --bin-dir /usr/bin && \
+     rm -rf awscliv2.zip aws/ && \
+-    yum clean packages && \
+-    yum clean metadata && \
+-    yum clean all && \
++    dnf clean packages && \
++    dnf clean metadata && \
++    dnf clean all && \
+     rm -rf /tmp/* && \
+-    rm -rf /var/cache/yum
++    rm -rf /var/cache/dnf
+ 
+ COPY install_common_dependencies.sh /
+ RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-aarch/amazonlinux-2023_clang-15x/Dockerfile b/tests/ci/docker_images/linux-aarch/amazonlinux-2023_clang-15x/Dockerfile
+new file mode 100644
+index 000000000..7b3bd8544
+--- /dev/null
++++ b/tests/ci/docker_images/linux-aarch/amazonlinux-2023_clang-15x/Dockerfile
+@@ -0,0 +1,19 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++FROM amazonlinux-2023-aarch:base
++
++SHELL ["/bin/bash", "-c"]
++
++# clang 15.0.6 is the latest version versions `yum --showduplicates list clang`
++RUN set -ex && \
++    dnf -y upgrade --releasever=latest && dnf install -y \
++    clang && \
++    dnf clean packages && \
++    dnf clean metadata && \
++    dnf clean all && \
++    rm -rf /tmp/* && \
++    rm -rf /var/cache/dnf
++
++ENV CC=clang
++ENV CXX=clang++
+diff --git a/tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile b/tests/ci/docker_images/linux-aarch/amazonlinux-2023_clang-15x_cryptofuzz/Dockerfile
+similarity index 71%
+rename from tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile
+rename to tests/ci/docker_images/linux-aarch/amazonlinux-2023_clang-15x_cryptofuzz/Dockerfile
+index 42e28ed0f..061adfb89 100644
+--- a/tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/amazonlinux-2023_clang-15x_cryptofuzz/Dockerfile
+@@ -1,12 +1,12 @@
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ # SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+-FROM amazonlinux-2022:clang-14x
++FROM amazonlinux-2023-aarch:clang-15x
+ 
+ SHELL ["/bin/bash", "-c"]
+ 
+ RUN set -ex && \
+-    yum -y update && yum install -y \
++    dnf -y upgrade --releasever=latest && dnf install -y \
+     make \
+     automake \
+     autoconf \
+@@ -16,11 +16,11 @@ RUN set -ex && \
+     llvm \
+     llvm-devel \
+     lld && \
+-    yum clean packages && \
+-    yum clean metadata && \
+-    yum clean all && \
++    dnf clean packages && \
++    dnf clean metadata && \
++    dnf clean all && \
+     rm -rf /tmp/* && \
+-    rm -rf /var/cache/yum
++    rm -rf /var/cache/dnf
+ 
+ ENV FUZZ_ROOT=${DEPENDENCIES_DIR}
+ ENV MODULE_ROOT="${FUZZ_ROOT}/modules"
+diff --git a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x_sanitizer/Dockerfile b/tests/ci/docker_images/linux-aarch/amazonlinux-2023_clang-15x_sanitizer/Dockerfile
+similarity index 68%
+rename from tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x_sanitizer/Dockerfile
+rename to tests/ci/docker_images/linux-aarch/amazonlinux-2023_clang-15x_sanitizer/Dockerfile
+index 9f52dfcca..e9f8379f2 100644
+--- a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x_sanitizer/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/amazonlinux-2023_clang-15x_sanitizer/Dockerfile
+@@ -1,25 +1,24 @@
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ # SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+-FROM amazonlinux-2022-aarch:clang-14x
++FROM amazonlinux-2023-aarch:clang-15x
+ 
+ SHELL ["/bin/bash", "-c"]
+ 
+ ENV LLVM_PROJECT_HOME=${DEPENDENCIES_DIR}/llvm-project
+ 
+ RUN set -ex && \
+-    yum -y update && yum install -y \
++    dnf -y upgrade --releasever=latest && dnf install -y \
+     compiler-rt \
+     llvm \
+     llvm-devel \
+     lld && \
+     mkdir -p ${DEPENDENCIES_DIR} && \
+     cd ${DEPENDENCIES_DIR} && \
+-    git clone https://github.com/llvm/llvm-project.git --branch llvmorg-14.0.5  --depth 1 && \
++    git clone https://github.com/llvm/llvm-project.git --branch llvmorg-15.0.6  --depth 1 && \
+     cd llvm-project && rm -rf $(ls -A | grep -Ev "(libcxx|libcxxabi)") && \
+-    yum clean packages && \
+-    yum clean metadata && \
+-    yum clean all && \
++    dnf clean packages && \
++    dnf clean metadata && \
++    dnf clean all && \
+     rm -rf /tmp/* && \
+-    rm -rf /var/cache/yum
+-
++    rm -rf /var/cache/dnf
+diff --git a/tests/ci/docker_images/linux-x86/amazonlinux-2022_gcc-11x/Dockerfile b/tests/ci/docker_images/linux-aarch/amazonlinux-2023_gcc-11x/Dockerfile
+similarity index 61%
+rename from tests/ci/docker_images/linux-x86/amazonlinux-2022_gcc-11x/Dockerfile
+rename to tests/ci/docker_images/linux-aarch/amazonlinux-2023_gcc-11x/Dockerfile
+index e57e946d8..df1bb19cc 100644
+--- a/tests/ci/docker_images/linux-x86/amazonlinux-2022_gcc-11x/Dockerfile
++++ b/tests/ci/docker_images/linux-aarch/amazonlinux-2023_gcc-11x/Dockerfile
+@@ -1,20 +1,20 @@
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ # SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+-FROM amazonlinux-2022:base
++FROM amazonlinux-2023-aarch:base
+ 
+ SHELL ["/bin/bash", "-c"]
+ 
+ # gcc 11.3.1 is the latest version versions `yum --showduplicates list gcc`
+ RUN set -ex && \
+-    yum -y update && yum install -y \
++    dnf -y upgrade --releasever=latest && dnf install -y \
+     gcc \
+     gcc-c++ && \
+-    yum clean packages && \
+-    yum clean metadata && \
+-    yum clean all && \
++    dnf clean packages && \
++    dnf clean metadata && \
++    dnf clean all && \
+     rm -rf /tmp/* && \
+-    rm -rf /var/cache/yum
++    rm -rf /var/cache/dnf
+ 
+ ENV CC=gcc
+ ENV CXX=g++
+diff --git a/tests/ci/docker_images/linux-aarch/build_images.sh b/tests/ci/docker_images/linux-aarch/build_images.sh
+index 8062522d8..f5f1549d9 100755
+--- a/tests/ci/docker_images/linux-aarch/build_images.sh
++++ b/tests/ci/docker_images/linux-aarch/build_images.sh
+@@ -11,11 +11,11 @@ curl --head -H "Authorization: Bearer $TOKEN" https://registry-1.docker.io/v2/ra
+ docker build -t amazonlinux-2-aarch:base -f amazonlinux-2_base/Dockerfile ../dependencies
+ docker build -t amazonlinux-2-aarch:gcc-7x amazonlinux-2_gcc-7x
+ docker build -t amazonlinux-2-aarch:clang-7x amazonlinux-2_clang-7x
+-docker build -t amazonlinux-2022-aarch:base -f amazonlinux-2022_base/Dockerfile ../dependencies
+-docker build -t amazonlinux-2022-aarch:gcc-11x amazonlinux-2022_gcc-11x
+-docker build -t amazonlinux-2022-aarch:clang-14x amazonlinux-2022_clang-14x
+-docker build -t amazonlinux-2022-aarch:clang-14x-sanitizer amazonlinux-2022_clang-14x_sanitizer
+-docker build -t amazonlinux-2022-aarch:cryptofuzz -f amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile ../dependencies
++docker build -t amazonlinux-2023-aarch:base -f amazonlinux-2023_base/Dockerfile ../dependencies
++docker build -t amazonlinux-2023-aarch:gcc-11x amazonlinux-2023_gcc-11x
++docker build -t amazonlinux-2023-aarch:clang-15x amazonlinux-2023_clang-15x
++docker build -t amazonlinux-2023-aarch:clang-15x-sanitizer amazonlinux-2023_clang-15x_sanitizer
++docker build -t amazonlinux-2023-aarch:cryptofuzz -f amazonlinux-2023_clang-15x_cryptofuzz/Dockerfile ../dependencies
+ docker build -t ubuntu-20.04-aarch:base -f ubuntu-20.04_base/Dockerfile ../dependencies
+ docker build -t ubuntu-20.04-aarch:gcc-7x ubuntu-20.04_gcc-7x
+ docker build -t ubuntu-20.04-aarch:gcc-8x ubuntu-20.04_gcc-8x
+diff --git a/tests/ci/docker_images/linux-aarch/push_images.sh b/tests/ci/docker_images/linux-aarch/push_images.sh
+index f559afe77..3f3cbe61a 100755
+--- a/tests/ci/docker_images/linux-aarch/push_images.sh
++++ b/tests/ci/docker_images/linux-aarch/push_images.sh
+@@ -17,10 +17,10 @@ $(aws ecr get-login --no-include-email --region us-west-2)
+ # Tag images with date to help find old images, CodeBuild uses the latest tag and gets updated automatically
+ tag_and_push_img 'amazonlinux-2-aarch:gcc-7x' "${ECS_REPO}:amazonlinux-2_gcc-7x"
+ tag_and_push_img 'amazonlinux-2-aarch:clang-7x' "${ECS_REPO}:amazonlinux-2_clang-7x"
+-tag_and_push_img 'amazonlinux-2022-aarch:gcc-11x' "${ECS_REPO}:amazonlinux-2022_gcc-11x"
+-tag_and_push_img 'amazonlinux-2022-aarch:clang-14x' "${ECS_REPO}:amazonlinux-2022_clang-14x"
+-tag_and_push_img 'amazonlinux-2022-aarch:clang-14x-sanitizer' "${ECS_REPO}:amazonlinux-2022_clang-14x_sanitizer"
+-tag_and_push_img 'amazonlinux-2022-aarch:cryptofuzz' "${ECS_REPO}:amazonlinux-2022_clang-14x_cryptofuzz"
++tag_and_push_img 'amazonlinux-2023-aarch:gcc-11x' "${ECS_REPO}:amazonlinux-2023_gcc-11x"
++tag_and_push_img 'amazonlinux-2023-aarch:clang-15x' "${ECS_REPO}:amazonlinux-2023_clang-15x"
++tag_and_push_img 'amazonlinux-2023-aarch:clang-15x-sanitizer' "${ECS_REPO}:amazonlinux-2023_clang-15x_sanitizer"
++tag_and_push_img 'amazonlinux-2023-aarch:cryptofuzz' "${ECS_REPO}:amazonlinux-2023_clang-15x_cryptofuzz"
+ tag_and_push_img 'ubuntu-20.04-aarch:gcc-7x' "${ECS_REPO}:ubuntu-20.04_gcc-7x"
+ tag_and_push_img 'ubuntu-20.04-aarch:gcc-8x' "${ECS_REPO}:ubuntu-20.04_gcc-8x"
+ tag_and_push_img 'ubuntu-20.04-aarch:clang-7x' "${ECS_REPO}:ubuntu-20.04_clang-7x"
+diff --git a/tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x/Dockerfile b/tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x/Dockerfile
+deleted file mode 100644
+index ec7df185a..000000000
+--- a/tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x/Dockerfile
++++ /dev/null
+@@ -1,19 +0,0 @@
+-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-# SPDX-License-Identifier: Apache-2.0 OR ISC
+-
+-FROM amazonlinux-2022:base
+-
+-SHELL ["/bin/bash", "-c"]
+-
+-# clang 14.0.5 is the latest version versions `yum --showduplicates list clang`
+-RUN set -ex && \
+-    yum -y update && yum install -y \
+-    clang && \
+-    yum clean packages && \
+-    yum clean metadata && \
+-    yum clean all && \
+-    rm -rf /tmp/* && \
+-    rm -rf /var/cache/yum
+-
+-ENV CC=clang
+-ENV CXX=clang++
+diff --git a/tests/ci/docker_images/linux-x86/amazonlinux-2022_base/Dockerfile b/tests/ci/docker_images/linux-x86/amazonlinux-2023_base/Dockerfile
+similarity index 68%
+rename from tests/ci/docker_images/linux-x86/amazonlinux-2022_base/Dockerfile
+rename to tests/ci/docker_images/linux-x86/amazonlinux-2023_base/Dockerfile
+index 9504e8e6d..01b129e48 100644
+--- a/tests/ci/docker_images/linux-x86/amazonlinux-2022_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/amazonlinux-2023_base/Dockerfile
+@@ -1,7 +1,7 @@
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ # SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+-FROM amazonlinux:2022
++FROM amazonlinux:2023
+ 
+ SHELL ["/bin/bash", "-c"]
+ ENV GOROOT=/usr/local/go
+@@ -10,33 +10,41 @@ ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
+ 
+ ENV DEPENDENCIES_DIR=/home/dependencies
+ 
++# AL2023 Upgrade Information https://docs.aws.amazon.com/linux/al2023/ug/deterministic-upgrades-usage.html
+ # See https://github.com/google/sanitizers/wiki/MemorySanitizerLibcxxHowTo
+ # Install Valgrind for Valgrind test target even though it is not needed for the base test target.
+ RUN set -ex && \
+-    yum -y update && yum install -y \
+-    cmake3 \
++    dnf -y upgrade --releasever=latest && dnf install -y \
++    cmake \
+     ninja-build \
+     perl \
+     which \
+     git \
+     ca-certificates \
+-    wget \
+     tar \
++    zlib-devel \
++    diffutils \
++    make \
++    automake \
++    autoconf \
++    amazon-ssm-agent \
++    wget \
+     # valgrind is just the application and core resources.
+     valgrind \
+     # valgrind/memcheck.h is provided by the valgrind-devel package on AL2. see P63119011.
+     valgrind-devel \
+     unzip && \
++    wget https://raw.githubusercontent.com/aws/aws-codebuild-docker-images/master/al2/x86_64/standard/4.0/amazon-ssm-agent.json -P /etc/amazon/ssm/ && \
+     # Based on https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html
+     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+     unzip awscliv2.zip && \
+     ./aws/install --bin-dir /usr/bin && \
+     rm -rf awscliv2.zip aws/ && \
+-    yum clean packages && \
+-    yum clean metadata && \
+-    yum clean all && \
++    dnf clean packages && \
++    dnf clean metadata && \
++    dnf clean all && \
+     rm -rf /tmp/* && \
+-    rm -rf /var/cache/yum
++    rm -rf /var/cache/dnf
+ 
+ COPY install_common_dependencies.sh /
+ RUN set -ex && /install_common_dependencies.sh && rm install_common_dependencies.sh
+diff --git a/tests/ci/docker_images/linux-x86/amazonlinux-2023_clang-15x/Dockerfile b/tests/ci/docker_images/linux-x86/amazonlinux-2023_clang-15x/Dockerfile
+new file mode 100644
+index 000000000..c5744f36d
+--- /dev/null
++++ b/tests/ci/docker_images/linux-x86/amazonlinux-2023_clang-15x/Dockerfile
+@@ -0,0 +1,19 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++FROM amazonlinux-2023:base
++
++SHELL ["/bin/bash", "-c"]
++
++# clang 15.0.6 is the latest version versions `yum --showduplicates list clang`
++RUN set -ex && \
++    dnf -y upgrade --releasever=latest && dnf install -y \
++    clang && \
++    dnf clean packages && \
++    dnf clean metadata && \
++    dnf clean all && \
++    rm -rf /tmp/* && \
++    rm -rf /var/cache/dnf
++
++ENV CC=clang
++ENV CXX=clang++
+diff --git a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile b/tests/ci/docker_images/linux-x86/amazonlinux-2023_clang-15x_cryptofuzz/Dockerfile
+similarity index 68%
+rename from tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile
+rename to tests/ci/docker_images/linux-x86/amazonlinux-2023_clang-15x_cryptofuzz/Dockerfile
+index 187e66b16..f3c6c5990 100644
+--- a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/amazonlinux-2023_clang-15x_cryptofuzz/Dockerfile
+@@ -1,26 +1,23 @@
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ # SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+-FROM amazonlinux-2022-aarch:clang-14x
++FROM amazonlinux-2023:clang-15x
+ 
+ SHELL ["/bin/bash", "-c"]
+ 
+ RUN set -ex && \
+-    yum -y update && yum install -y \
+-    make \
+-    automake \
+-    autoconf \
++    dnf -y upgrade --releasever=latest && dnf install -y \
+     libtool \
+     boost-devel \
+     unzip \
+     llvm \
+     llvm-devel \
+     lld && \
+-    yum clean packages && \
+-    yum clean metadata && \
+-    yum clean all && \
++    dnf clean packages && \
++    dnf clean metadata && \
++    dnf clean all && \
+     rm -rf /tmp/* && \
+-    rm -rf /var/cache/yum
++    rm -rf /var/cache/dnf
+ 
+ ENV FUZZ_ROOT=${DEPENDENCIES_DIR}
+ ENV MODULE_ROOT="${FUZZ_ROOT}/modules"
+diff --git a/tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x_sanitizer/Dockerfile b/tests/ci/docker_images/linux-x86/amazonlinux-2023_clang-15x_sanitizer/Dockerfile
+similarity index 69%
+rename from tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x_sanitizer/Dockerfile
+rename to tests/ci/docker_images/linux-x86/amazonlinux-2023_clang-15x_sanitizer/Dockerfile
+index a0197b790..85974d58b 100644
+--- a/tests/ci/docker_images/linux-x86/amazonlinux-2022_clang-14x_sanitizer/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/amazonlinux-2023_clang-15x_sanitizer/Dockerfile
+@@ -1,24 +1,24 @@
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ # SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+-FROM amazonlinux-2022:clang-14x
++FROM amazonlinux-2023:clang-15x
+ 
+ SHELL ["/bin/bash", "-c"]
+ 
+ ENV LLVM_PROJECT_HOME=${DEPENDENCIES_DIR}/llvm-project
+ 
+ RUN set -ex && \
+-    yum -y update && yum install -y \
++    dnf -y upgrade --releasever=latest && dnf install -y \
+     compiler-rt \
+     llvm \
+     llvm-devel \
+     lld && \
+     mkdir -p ${DEPENDENCIES_DIR} && \
+     cd ${DEPENDENCIES_DIR} && \
+-    git clone https://github.com/llvm/llvm-project.git --branch llvmorg-14.0.5  --depth 1 && \
++    git clone https://github.com/llvm/llvm-project.git --branch llvmorg-15.0.6  --depth 1 && \
+     cd llvm-project && rm -rf $(ls -A | grep -Ev "(libcxx|libcxxabi)") && \
+-    yum clean packages && \
+-    yum clean metadata && \
+-    yum clean all && \
++    dnf clean packages && \
++    dnf clean metadata && \
++    dnf clean all && \
+     rm -rf /tmp/* && \
+-    rm -rf /var/cache/yum
++    rm -rf /var/cache/dnf
+diff --git a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_gcc-11x/Dockerfile b/tests/ci/docker_images/linux-x86/amazonlinux-2023_gcc-11x/Dockerfile
+similarity index 61%
+rename from tests/ci/docker_images/linux-aarch/amazonlinux-2022_gcc-11x/Dockerfile
+rename to tests/ci/docker_images/linux-x86/amazonlinux-2023_gcc-11x/Dockerfile
+index 1d5cf7969..90b0340a8 100644
+--- a/tests/ci/docker_images/linux-aarch/amazonlinux-2022_gcc-11x/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/amazonlinux-2023_gcc-11x/Dockerfile
+@@ -1,20 +1,20 @@
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ # SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+-FROM amazonlinux-2022-aarch:base
++FROM amazonlinux-2023:base
+ 
+ SHELL ["/bin/bash", "-c"]
+ 
+ # gcc 11.3.1 is the latest version versions `yum --showduplicates list gcc`
+ RUN set -ex && \
+-    yum -y update && yum install -y \
++    dnf -y upgrade --releasever=latest && dnf install -y \
+     gcc \
+     gcc-c++ && \
+-    yum clean packages && \
+-    yum clean metadata && \
+-    yum clean all && \
++    dnf clean packages && \
++    dnf clean metadata && \
++    dnf clean all && \
+     rm -rf /tmp/* && \
+-    rm -rf /var/cache/yum
++    rm -rf /var/cache/dnf
+ 
+ ENV CC=gcc
+ ENV CXX=g++
+diff --git a/tests/ci/docker_images/linux-x86/build_images.sh b/tests/ci/docker_images/linux-x86/build_images.sh
+index 283d735ce..191724876 100755
+--- a/tests/ci/docker_images/linux-x86/build_images.sh
++++ b/tests/ci/docker_images/linux-x86/build_images.sh
+@@ -31,11 +31,11 @@ docker build -t amazonlinux-2:base -f amazonlinux-2_base/Dockerfile ../dependenc
+ docker build -t amazonlinux-2:gcc-7x amazonlinux-2_gcc-7x
+ docker build -t amazonlinux-2:gcc-7x-intel-sde amazonlinux-2_gcc-7x-intel-sde
+ docker build -t amazonlinux-2:clang-7x amazonlinux-2_clang-7x
+-docker build -t amazonlinux-2022:base -f amazonlinux-2022_base/Dockerfile ../dependencies
+-docker build -t amazonlinux-2022:gcc-11x amazonlinux-2022_gcc-11x
+-docker build -t amazonlinux-2022:clang-14x amazonlinux-2022_clang-14x
+-docker build -t amazonlinux-2022:clang-14x-sanitizer amazonlinux-2022_clang-14x_sanitizer
+-docker build -t amazonlinux-2022:cryptofuzz -f amazonlinux-2022_clang-14x_cryptofuzz/Dockerfile ../dependencies
++docker build -t amazonlinux-2023:base -f amazonlinux-2023_base/Dockerfile ../dependencies
++docker build -t amazonlinux-2023:gcc-11x amazonlinux-2023_gcc-11x
++docker build -t amazonlinux-2023:clang-15x amazonlinux-2023_clang-15x
++docker build -t amazonlinux-2023:clang-15x-sanitizer amazonlinux-2023_clang-15x_sanitizer
++docker build -t amazonlinux-2023:cryptofuzz -f amazonlinux-2023_clang-15x_cryptofuzz/Dockerfile ../dependencies
+ docker build -t ubuntu-16.04:gcc-5x -f ubuntu-16.04_gcc-5x/Dockerfile ../dependencies
+ docker build -t centos-7:gcc-4x -f centos-7_gcc-4x/Dockerfile ../dependencies
+ docker build -t centos-8:gcc-8x -f centos-8_gcc-8x/Dockerfile ../dependencies
+diff --git a/tests/ci/docker_images/linux-x86/push_images.sh b/tests/ci/docker_images/linux-x86/push_images.sh
+index 377f3187b..9ea3cab9c 100755
+--- a/tests/ci/docker_images/linux-x86/push_images.sh
++++ b/tests/ci/docker_images/linux-x86/push_images.sh
+@@ -34,9 +34,9 @@ tag_and_push_img 'centos-8:gcc-8x' "${ECS_REPO}:centos-8_gcc-8x"
+ tag_and_push_img 'amazonlinux-2:gcc-7x' "${ECS_REPO}:amazonlinux-2_gcc-7x"
+ tag_and_push_img 'amazonlinux-2:clang-7x' "${ECS_REPO}:amazonlinux-2_clang-7x"
+ tag_and_push_img 'amazonlinux-2:gcc-7x-intel-sde' "${ECS_REPO}:amazonlinux-2_gcc-7x_intel-sde"
+-tag_and_push_img 'amazonlinux-2022:gcc-11x' "${ECS_REPO}:amazonlinux-2022_gcc-11x"
+-tag_and_push_img 'amazonlinux-2022:clang-14x' "${ECS_REPO}:amazonlinux-2022_clang-14x"
+-tag_and_push_img 'amazonlinux-2022:clang-14x-sanitizer' "${ECS_REPO}:amazonlinux-2022_clang-14x_sanitizer"
+-tag_and_push_img 'amazonlinux-2022:cryptofuzz' "${ECS_REPO}:amazonlinux-2022_clang-14x_cryptofuzz"
++tag_and_push_img 'amazonlinux-2023:gcc-11x' "${ECS_REPO}:amazonlinux-2023_gcc-11x"
++tag_and_push_img 'amazonlinux-2023:clang-15x' "${ECS_REPO}:amazonlinux-2023_clang-15x"
++tag_and_push_img 'amazonlinux-2023:clang-15x-sanitizer' "${ECS_REPO}:amazonlinux-2023_clang-15x_sanitizer"
++tag_and_push_img 'amazonlinux-2023:cryptofuzz' "${ECS_REPO}:amazonlinux-2023_clang-15x_cryptofuzz"
+ tag_and_push_img 'fedora-31:clang-9x' "${ECS_REPO}:fedora-31_clang-9x"
+ tag_and_push_img 'ubuntu-10.04_gcc-4.1x' "${ECS_REPO}:ubuntu-10.04_gcc-4.1x"

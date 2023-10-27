@@ -1,0 +1,2856 @@
+From a49bc83d0e3714a2f7b1dcd36de918cd6240887e Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Fri, 10 Sep 2021 12:09:07 -0700
+Subject: [PATCH] Add AT&T syntax versions of x86 P-256 functions
+
+The sed script doing the translation from Intel syntax now also
+adds a few further q size qualifiers (on cmov instructions) and
+systematically strips trailing spaces; the P-384 functions have
+trivial changes in their AT&T versions as a result.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/4f6d1d2fdd70946823ce4ff47bd1eebb68513fa9
+---
+ x86_att/p384/bignum_add_p384.S     |  76 +++++------
+ x86_att/p384/bignum_bigendian_6.S  |  26 ++--
+ x86_att/p384/bignum_cmul_p384.S    | 102 +++++++--------
+ x86_att/p384/bignum_deamont_p384.S |  78 +++++------
+ x86_att/p384/bignum_demont_p384.S  |  28 ++--
+ x86_att/p384/bignum_double_p384.S  |  76 +++++------
+ x86_att/p384/bignum_half_p384.S    |  64 ++++-----
+ x86_att/p384/bignum_mod_n384.S     | 182 +++++++++++++-------------
+ x86_att/p384/bignum_mod_n384_6.S   |  68 +++++-----
+ x86_att/p384/bignum_mod_p384.S     | 178 ++++++++++++-------------
+ x86_att/p384/bignum_mod_p384_6.S   |  58 ++++-----
+ x86_att/p384/bignum_montmul_p384.S | 158 +++++++++++-----------
+ x86_att/p384/bignum_montsqr_p384.S | 202 ++++++++++++++---------------
+ x86_att/p384/bignum_mux_6.S        |  52 ++++----
+ x86_att/p384/bignum_neg_p384.S     |  60 ++++-----
+ x86_att/p384/bignum_nonzero_6.S    |  20 +--
+ x86_att/p384/bignum_optneg_p384.S  |  78 +++++------
+ x86_att/p384/bignum_sub_p384.S     |  58 ++++-----
+ x86_att/p384/bignum_tomont_p384.S  | 152 +++++++++++-----------
+ x86_att/p384/bignum_triple_p384.S  | 120 ++++++++---------
+ 20 files changed, 918 insertions(+), 918 deletions(-)
+
+diff --git a/x86_att/p384/bignum_add_p384.S b/x86_att/p384/bignum_add_p384.S
+index 9c097034a..5a14812e3 100644
+--- a/x86_att/p384/bignum_add_p384.S
++++ b/x86_att/p384/bignum_add_p384.S
+@@ -23,7 +23,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_add_p384
+         .text
+ 
+@@ -53,34 +53,34 @@ bignum_add_p384:
+ // Add the inputs as 2^384 * c + [d5;d4;d3;d2;d1;d0] = x + y
+ // This could be combined with the next block using ADCX and ADOX.
+ 
+-        movq    (x), d0 
+-        addq    (y), d0 
+-        movq    8(x), d1 
+-        adcq    8(y), d1 
+-        movq    16(x), d2 
+-        adcq    16(y), d2 
+-        movq    24(x), d3 
+-        adcq    24(y), d3 
+-        movq    32(x), d4 
+-        adcq    32(y), d4 
+-        movq    40(x), d5 
+-        adcq    40(y), d5 
+-        movl    $0, cshort 
+-        adcq    c, c 
++        movq    (x), d0
++        addq    (y), d0
++        movq    8(x), d1
++        adcq    8(y), d1
++        movq    16(x), d2
++        adcq    16(y), d2
++        movq    24(x), d3
++        adcq    24(y), d3
++        movq    32(x), d4
++        adcq    32(y), d4
++        movq    40(x), d5
++        adcq    40(y), d5
++        movl    $0, cshort
++        adcq    c, c
+ 
+ // Now subtract p_384 from 2^384 * c + [d5;d4;d3;d2;d1;d0] to get x + y - p_384
+ // This is actually done by *adding* the 7-word negation r_384 = 2^448 - p_384
+ // where r_384 = [-1; 0; 0; 0; 1; 0x00000000ffffffff; 0xffffffff00000001]
+ 
+-        movq    $0xffffffff00000001, a 
+-        addq    a, d0 
+-        movl    $0x00000000ffffffff, ashort 
+-        adcq    a, d1 
+-        adcq    $1, d2 
+-        adcq    $0, d3 
+-        adcq    $0, d4 
+-        adcq    $0, d5 
+-        adcq    $-1, c 
++        movq    $0xffffffff00000001, a
++        addq    a, d0
++        movl    $0x00000000ffffffff, ashort
++        adcq    a, d1
++        adcq    $1, d2
++        adcq    $0, d3
++        adcq    $0, d4
++        adcq    $0, d5
++        adcq    $-1, c
+ 
+ // Since by hypothesis x < p_384 we know x + y - p_384 < 2^384, so the top
+ // carry c actually gives us a bitmask for x + y - p_384 < 0, which we
+@@ -89,33 +89,33 @@ bignum_add_p384:
+ // nonzero digits of r while maintaining d0..d5, but make the first two now.
+ 
+         andq    a, c // c = masked 0x00000000ffffffff
+-        xorq    a, a 
++        xorq    a, a
+         subq    c, a // a = masked 0xffffffff00000001
+ 
+ // Do the first two digits of addition and writeback
+ 
+-        subq    a, d0 
+-        movq    d0, (z) 
+-        sbbq    c, d1 
+-        movq    d1, 8(z) 
++        subq    a, d0
++        movq    d0, (z)
++        sbbq    c, d1
++        movq    d1, 8(z)
+ 
+ // Preserve the carry chain while creating the extra masked digit since
+ // the logical operation will clear CF
+ 
+-        sbbq    d0, d0 
++        sbbq    d0, d0
+         andq    a, c // c = masked 0x0000000000000001
+         negq    d0
+ 
+ // Do the rest of the addition and writeback
+ 
+-        sbbq    c, d2 
+-        movq    d2, 16(z) 
+-        sbbq    $0, d3 
+-        movq    d3, 24(z) 
+-        sbbq    $0, d4 
+-        movq    d4, 32(z) 
+-        sbbq    $0, d5 
+-        movq    d5, 40(z) 
++        sbbq    c, d2
++        movq    d2, 16(z)
++        sbbq    $0, d3
++        movq    d3, 24(z)
++        sbbq    $0, d4
++        movq    d4, 32(z)
++        sbbq    $0, d5
++        movq    d5, 40(z)
+ 
+         ret
+ 
+diff --git a/x86_att/p384/bignum_bigendian_6.S b/x86_att/p384/bignum_bigendian_6.S
+index 64e1dba38..3f31b4072 100644
+--- a/x86_att/p384/bignum_bigendian_6.S
++++ b/x86_att/p384/bignum_bigendian_6.S
+@@ -35,7 +35,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_bigendian_6
+         .globl  bignum_frombytes_6
+         .globl  bignum_tobytes_6
+@@ -58,30 +58,30 @@ bignum_tobytes_6:
+ 
+ // 0 and 5 words
+ 
+-                movq    (x), a 
+-                movq    40(x), b 
++                movq    (x), a
++                movq    40(x), b
+                 bswapq  a
+                 bswapq  b
+-                movq    a, 40(z) 
+-                movq    b, (z) 
++                movq    a, 40(z)
++                movq    b, (z)
+ 
+ // 1 and 4 words
+ 
+-                movq    8(x), a 
+-                movq    32(x), b 
++                movq    8(x), a
++                movq    32(x), b
+                 bswapq  a
+                 bswapq  b
+-                movq    a, 32(z) 
+-                movq    b, 8(z) 
++                movq    a, 32(z)
++                movq    b, 8(z)
+ 
+ // 2 and 3 words
+ 
+-                movq    16(x), a 
+-                movq    24(x), b 
++                movq    16(x), a
++                movq    24(x), b
+                 bswapq  a
+                 bswapq  b
+-                movq    a, 24(z) 
+-                movq    b, 16(z) 
++                movq    a, 24(z)
++                movq    b, 16(z)
+ 
+                 ret
+ 
+diff --git a/x86_att/p384/bignum_cmul_p384.S b/x86_att/p384/bignum_cmul_p384.S
+index f16f16490..5da5f57d2 100644
+--- a/x86_att/p384/bignum_cmul_p384.S
++++ b/x86_att/p384/bignum_cmul_p384.S
+@@ -24,7 +24,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = c, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_cmul_p384
+         .text
+ 
+@@ -60,8 +60,8 @@ bignum_cmul_p384:
+ 
+ // Shuffle inputs (since we want multiplier in %rdx)
+ 
+-                movq    %rdx, x 
+-                movq    %rsi, m 
++                movq    %rdx, x
++                movq    %rsi, m
+ 
+ // Multiply, accumulating the result as 2^384 * h + [d5;d4;d3;d2;d1;d0]
+ // but actually immediately producing q = h + 1, our quotient approximation,
+@@ -69,18 +69,18 @@ bignum_cmul_p384:
+ // product is <= (2^64 - 1) * (p_384 - 1) and hence  h <= 2^64 - 2, meaning
+ // there is no danger this addition of 1 could wrap.
+ 
+-                mulxq   (x), d0, d1 
+-                mulxq   8(x), a, d2 
+-                addq    a, d1 
+-                mulxq   16(x), a, d3 
+-                adcq    a, d2 
+-                mulxq   24(x), a, d4 
+-                adcq    a, d3 
+-                mulxq   32(x), a, d5 
+-                adcq    a, d4 
+-                mulxq   40(x), a, q 
+-                adcq    a, d5 
+-                adcq    $1, q 
++                mulxq   (x), d0, d1
++                mulxq   8(x), a, d2
++                addq    a, d1
++                mulxq   16(x), a, d3
++                adcq    a, d2
++                mulxq   24(x), a, d4
++                adcq    a, d3
++                mulxq   32(x), a, d5
++                adcq    a, d4
++                mulxq   40(x), a, q
++                adcq    a, d5
++                adcq    $1, q
+ 
+ // It's easy to see -p_384 <= z - q * p_384 < p_384, so we just need to
+ // subtract q * p_384 and then correct if that is negative by adding p_384.
+@@ -92,24 +92,24 @@ bignum_cmul_p384:
+ //       = 2^384 * (h - q) + (l + q * r)
+ //       = 2^384 * (-1) + (l + q * r)
+ 
+-                xorq    c, c 
+-                movq    $0xffffffff00000001, a 
+-                mulxq   a, a, c 
+-                adcxq   a, d0 
+-                adoxq   c, d1 
+-                movl    $0x00000000ffffffff, ashort 
+-                mulxq   a, a, c 
+-                adcxq   a, d1 
+-                adoxq   c, d2 
+-                adcxq   q, d2 
+-                movl    $0, ashort 
+-                movl    $0, cshort 
+-                adoxq   a, a 
+-                adcq    a, d3 
+-                adcq    c, d4 
+-                adcq    c, d5 
+-                adcq    c, c 
+-                subq    $1, c 
++                xorq    c, c
++                movq    $0xffffffff00000001, a
++                mulxq   a, a, c
++                adcxq   a, d0
++                adoxq   c, d1
++                movl    $0x00000000ffffffff, ashort
++                mulxq   a, a, c
++                adcxq   a, d1
++                adoxq   c, d2
++                adcxq   q, d2
++                movl    $0, ashort
++                movl    $0, cshort
++                adoxq   a, a
++                adcq    a, d3
++                adcq    c, d4
++                adcq    c, d5
++                adcq    c, c
++                subq    $1, c
+ 
+ // The net c value is now the top word of the 7-word answer, hence will
+ // be -1 if we need a corrective addition, 0 otherwise, usable as a mask.
+@@ -117,24 +117,24 @@ bignum_cmul_p384:
+ // fact done by a masked subtraction of 2^384 - p_384, so that we only
+ // have three nonzero digits and so can avoid using another register.
+ 
+-                movl    $0x00000000ffffffff, qshort 
+-                xorq    a, a 
+-                andq    c, q 
+-                subq    q, a 
+-                andq    $1, c 
+-
+-                subq    a, d0 
+-                movq    d0, (z) 
+-                sbbq    q, d1 
+-                movq    d1, 8(z) 
+-                sbbq    c, d2 
+-                movq    d2, 16(z) 
+-                sbbq    $0, d3 
+-                movq    d3, 24(z) 
+-                sbbq    $0, d4 
+-                movq    d4, 32(z) 
+-                sbbq    $0, d5 
+-                movq    d5, 40(z) 
++                movl    $0x00000000ffffffff, qshort
++                xorq    a, a
++                andq    c, q
++                subq    q, a
++                andq    $1, c
++
++                subq    a, d0
++                movq    d0, (z)
++                sbbq    q, d1
++                movq    d1, 8(z)
++                sbbq    c, d2
++                movq    d2, 16(z)
++                sbbq    $0, d3
++                movq    d3, 24(z)
++                sbbq    $0, d4
++                movq    d4, 32(z)
++                sbbq    $0, d5
++                movq    d5, 40(z)
+ 
+ // Return
+ 
+diff --git a/x86_att/p384/bignum_deamont_p384.S b/x86_att/p384/bignum_deamont_p384.S
+index bb682ff68..9c6eff28c 100644
+--- a/x86_att/p384/bignum_deamont_p384.S
++++ b/x86_att/p384/bignum_deamont_p384.S
+@@ -26,7 +26,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_deamont_p384
+         .text
+ 
+@@ -76,7 +76,7 @@
+                 sbbq    $0, d4 ;                                          \
+                 sbbq    $0, d5 ;                                          \
+                 movq    %rdx, d6 ;                                        \
+-                sbbq    $0, d6 
++                sbbq    $0, d6
+ 
+ bignum_deamont_p384:
+ 
+@@ -87,12 +87,12 @@ bignum_deamont_p384:
+ 
+ // Set up an initial window [%r13,%r12,%r11,%r10,%r9,%r8] = x
+ 
+-        movq    (x), %r8 
+-        movq    8(x), %r9 
+-        movq    16(x), %r10 
+-        movq    24(x), %r11 
+-        movq    32(x), %r12 
+-        movq    40(x), %r13 
++        movq    (x), %r8
++        movq    8(x), %r9
++        movq    16(x), %r10
++        movq    24(x), %r11
++        movq    32(x), %r12
++        movq    40(x), %r13
+ 
+ // Montgomery reduce window 0
+ 
+@@ -122,47 +122,47 @@ bignum_deamont_p384:
+ // 2^384 - p_384 = [0;0;0;1;v;u], hence setting CF iff
+ // dd + (2^384 - p_384) >= 2^384, hence iff dd >= p_384.
+ 
+-        movq    $0xffffffff00000001, u 
+-        movl    $0x00000000ffffffff, vshort 
+-
+-        movq    %r8, w 
+-        addq    u, w 
+-        movq    %r9, w 
+-        adcq    v, w 
+-        movq    %r10, w 
+-        adcq    $1, w 
+-        movq    %r11, w 
+-        adcq    $0, w 
+-        movq    %r12, w 
+-        adcq    $0, w 
+-        movq    %r13, w 
+-        adcq    $0, w 
++        movq    $0xffffffff00000001, u
++        movl    $0x00000000ffffffff, vshort
++
++        movq    %r8, w
++        addq    u, w
++        movq    %r9, w
++        adcq    v, w
++        movq    %r10, w
++        adcq    $1, w
++        movq    %r11, w
++        adcq    $0, w
++        movq    %r12, w
++        adcq    $0, w
++        movq    %r13, w
++        adcq    $0, w
+ 
+ // Convert CF to a bitmask in w
+ 
+-        sbbq    w, w 
++        sbbq    w, w
+ 
+ // Masked addition of 2^384 - p_384, hence subtraction of p_384
+ 
+-        andq    w, u 
+-        andq    w, v 
+-        andq    $1, w 
++        andq    w, u
++        andq    w, v
++        andq    $1, w
+ 
+-        addq   u, %r8 
+-        adcq   v, %r9 
+-        adcq   w, %r10 
+-        adcq   $0, %r11 
+-        adcq   $0, %r12 
+-        adcq   $0, %r13 
++        addq   u, %r8
++        adcq   v, %r9
++        adcq   w, %r10
++        adcq   $0, %r11
++        adcq   $0, %r12
++        adcq   $0, %r13
+ 
+ // Write back the result
+ 
+-        movq    %r8, (z) 
+-        movq    %r9, 8(z) 
+-        movq    %r10, 16(z) 
+-        movq    %r11, 24(z) 
+-        movq    %r12, 32(z) 
+-        movq    %r13, 40(z) 
++        movq    %r8, (z)
++        movq    %r9, 8(z)
++        movq    %r10, 16(z)
++        movq    %r11, 24(z)
++        movq    %r12, 32(z)
++        movq    %r13, 40(z)
+ 
+ // Restore registers and return
+ 
+diff --git a/x86_att/p384/bignum_demont_p384.S b/x86_att/p384/bignum_demont_p384.S
+index e4bf04b01..a375417a0 100644
+--- a/x86_att/p384/bignum_demont_p384.S
++++ b/x86_att/p384/bignum_demont_p384.S
+@@ -26,7 +26,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_demont_p384
+         .text
+ 
+@@ -68,7 +68,7 @@
+                 sbbq    $0, d4 ;                                          \
+                 sbbq    $0, d5 ;                                          \
+                 movq    %rdx, d6 ;                                        \
+-                sbbq    $0, d6 
++                sbbq    $0, d6
+ 
+ bignum_demont_p384:
+ 
+@@ -79,12 +79,12 @@ bignum_demont_p384:
+ 
+ // Set up an initial window [%r13,%r12,%r11,%r10,%r9,%r8] = x
+ 
+-        movq    (x), %r8 
+-        movq    8(x), %r9 
+-        movq    16(x), %r10 
+-        movq    24(x), %r11 
+-        movq    32(x), %r12 
+-        movq    40(x), %r13 
++        movq    (x), %r8
++        movq    8(x), %r9
++        movq    16(x), %r10
++        movq    24(x), %r11
++        movq    32(x), %r12
++        movq    40(x), %r13
+ 
+ // Montgomery reduce window 0
+ 
+@@ -112,12 +112,12 @@ bignum_demont_p384:
+ 
+ // Write back the result
+ 
+-        movq    %r8, (z) 
+-        movq    %r9, 8(z) 
+-        movq    %r10, 16(z) 
+-        movq    %r11, 24(z) 
+-        movq    %r12, 32(z) 
+-        movq    %r13, 40(z) 
++        movq    %r8, (z)
++        movq    %r9, 8(z)
++        movq    %r10, 16(z)
++        movq    %r11, 24(z)
++        movq    %r12, 32(z)
++        movq    %r13, 40(z)
+ 
+ // Restore registers and return
+ 
+diff --git a/x86_att/p384/bignum_double_p384.S b/x86_att/p384/bignum_double_p384.S
+index 3c2b4b276..30094eb99 100644
+--- a/x86_att/p384/bignum_double_p384.S
++++ b/x86_att/p384/bignum_double_p384.S
+@@ -23,7 +23,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_double_p384
+         .text
+ 
+@@ -52,34 +52,34 @@ bignum_double_p384:
+ // Could also consider using shld to decouple carries *or* combining this
+ // and the next block into a double carry chain with ADCX and ADOX.
+ 
+-        xorq    c, c 
+-        movq    (x), d0 
+-        addq    d0, d0 
+-        movq    8(x), d1 
+-        adcq    d1, d1 
+-        movq    16(x), d2 
+-        adcq    d2, d2 
+-        movq    24(x), d3 
+-        adcq    d3, d3 
+-        movq    32(x), d4 
+-        adcq    d4, d4 
+-        movq    40(x), d5 
+-        adcq    d5, d5 
+-        adcq    c, c 
++        xorq    c, c
++        movq    (x), d0
++        addq    d0, d0
++        movq    8(x), d1
++        adcq    d1, d1
++        movq    16(x), d2
++        adcq    d2, d2
++        movq    24(x), d3
++        adcq    d3, d3
++        movq    32(x), d4
++        adcq    d4, d4
++        movq    40(x), d5
++        adcq    d5, d5
++        adcq    c, c
+ 
+ // Now subtract p_384 from 2^384 * c + [d5;d4;d3;d2;d1;d0] to get 2 * x - p_384
+ // This is actually done by *adding* the 7-word negation r_384 = 2^448 - p_384
+ // where r_384 = [-1; 0; 0; 0; 1; 0x00000000ffffffff; 0xffffffff00000001]
+ 
+-        movq    $0xffffffff00000001, a 
+-        addq    a, d0 
+-        movl    $0x00000000ffffffff, ashort 
+-        adcq    a, d1 
+-        adcq    $1, d2 
+-        adcq    $0, d3 
+-        adcq    $0, d4 
+-        adcq    $0, d5 
+-        adcq    $-1, c 
++        movq    $0xffffffff00000001, a
++        addq    a, d0
++        movl    $0x00000000ffffffff, ashort
++        adcq    a, d1
++        adcq    $1, d2
++        adcq    $0, d3
++        adcq    $0, d4
++        adcq    $0, d5
++        adcq    $-1, c
+ 
+ // Since by hypothesis x < p_384 we know 2 * x - p_384 < 2^384, so the top
+ // carry c actually gives us a bitmask for 2 * x - p_384 < 0, which we
+@@ -88,33 +88,33 @@ bignum_double_p384:
+ // nonzero digits of r while maintaining d0..d5, but make the first two now.
+ 
+         andq    a, c // c = masked 0x00000000ffffffff
+-        xorq    a, a 
++        xorq    a, a
+         subq    c, a // a = masked 0xffffffff00000001
+ 
+ // Do the first two digits of addition and writeback
+ 
+-        subq    a, d0 
+-        movq    d0, (z) 
+-        sbbq    c, d1 
+-        movq    d1, 8(z) 
++        subq    a, d0
++        movq    d0, (z)
++        sbbq    c, d1
++        movq    d1, 8(z)
+ 
+ // Preserve the carry chain while creating the extra masked digit since
+ // the logical operation will clear CF
+ 
+-        sbbq    d0, d0 
++        sbbq    d0, d0
+         andq    a, c // c = masked 0x0000000000000001
+         negq    d0
+ 
+ // Do the rest of the addition and writeback
+ 
+-        sbbq    c, d2 
+-        movq    d2, 16(z) 
+-        sbbq    $0, d3 
+-        movq    d3, 24(z) 
+-        sbbq    $0, d4 
+-        movq    d4, 32(z) 
+-        sbbq    $0, d5 
+-        movq    d5, 40(z) 
++        sbbq    c, d2
++        movq    d2, 16(z)
++        sbbq    $0, d3
++        movq    d3, 24(z)
++        sbbq    $0, d4
++        movq    d4, 32(z)
++        sbbq    $0, d5
++        movq    d5, 40(z)
+ 
+         ret
+ 
+diff --git a/x86_att/p384/bignum_half_p384.S b/x86_att/p384/bignum_half_p384.S
+index 976879a1c..83dff1b67 100644
+--- a/x86_att/p384/bignum_half_p384.S
++++ b/x86_att/p384/bignum_half_p384.S
+@@ -23,7 +23,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_half_p384
+         .text
+ 
+@@ -47,48 +47,48 @@ bignum_half_p384:
+ 
+ // Load lowest digit and get a mask for its lowest bit in d3
+ 
+-                movq    (x), a 
+-                movl    $1, d3short 
+-                andq    a, d3 
++                movq    (x), a
++                movl    $1, d3short
++                andq    a, d3
+                 negq    d3
+ 
+ // Create a masked version of p_384 (top 3 words = the mask itself)
+ 
+-                movl    $0x00000000ffffffff, d0short 
+-                andq    d3, d0 
+-                movq    d0, d1 
+-                xorq    d3, d1 
+-                movq    d3, d2 
+-                addq    d2, d2 
+-                andq    d3, d2 
+-                movq    d3, d4 
+-                movq    d3, d5 
++                movl    $0x00000000ffffffff, d0short
++                andq    d3, d0
++                movq    d0, d1
++                xorq    d3, d1
++                movq    d3, d2
++                addq    d2, d2
++                andq    d3, d2
++                movq    d3, d4
++                movq    d3, d5
+ 
+ // Perform addition with masked p_384. Catch the carry in a, as a bitmask
+ // for convenience though we only use its LSB below with SHRD
+ 
+-                addq    a, d0 
+-                adcq    8(x), d1 
+-                adcq    16(x), d2 
+-                adcq    24(x), d3 
+-                adcq    32(x), d4 
+-                adcq    40(x), d5 
+-                sbbq    a, a 
++                addq    a, d0
++                adcq    8(x), d1
++                adcq    16(x), d2
++                adcq    24(x), d3
++                adcq    32(x), d4
++                adcq    40(x), d5
++                sbbq    a, a
+ 
+ // Shift right, pushing the carry back down, and store back
+ 
+-                shrdq   $1, d1, d0 
+-                movq    d0, (z) 
+-                shrdq   $1, d2, d1 
+-                movq    d1, 8(z) 
+-                shrdq   $1, d3, d2 
+-                movq    d2, 16(z) 
+-                shrdq   $1, d4, d3 
+-                movq    d3, 24(z) 
+-                shrdq   $1, d5, d4 
+-                movq    d4, 32(z) 
+-                shrdq   $1, a, d5 
+-                movq    d5, 40(z) 
++                shrdq   $1, d1, d0
++                movq    d0, (z)
++                shrdq   $1, d2, d1
++                movq    d1, 8(z)
++                shrdq   $1, d3, d2
++                movq    d2, 16(z)
++                shrdq   $1, d4, d3
++                movq    d3, 24(z)
++                shrdq   $1, d5, d4
++                movq    d4, 32(z)
++                shrdq   $1, a, d5
++                movq    d5, 40(z)
+ 
+ // Return
+ 
+diff --git a/x86_att/p384/bignum_mod_n384.S b/x86_att/p384/bignum_mod_n384.S
+index f0e59fb98..fc08c0a4e 100644
+--- a/x86_att/p384/bignum_mod_n384.S
++++ b/x86_att/p384/bignum_mod_n384.S
+@@ -25,7 +25,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = k, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_mod_n384
+         .text
+ 
+@@ -61,113 +61,113 @@ bignum_mod_n384:
+ 
+ // If the input is already <= 5 words long, go to a trivial "copy" path
+ 
+-                cmpq    $6, k 
++                cmpq    $6, k
+                 jc      shortinput
+ 
+ // Otherwise load the top 6 digits (top-down) and reduce k by 6
+ 
+-                subq    $6, k 
+-                movq    40(%rdx,k,8), m5 
+-                movq    32(%rdx,k,8), m4 
+-                movq    24(%rdx,k,8), m3 
+-                movq    16(%rdx,k,8), m2 
+-                movq    8(%rdx,k,8), m1 
+-                movq    (%rdx,k,8), m0 
++                subq    $6, k
++                movq    40(%rdx,k,8), m5
++                movq    32(%rdx,k,8), m4
++                movq    24(%rdx,k,8), m3
++                movq    16(%rdx,k,8), m2
++                movq    8(%rdx,k,8), m1
++                movq    (%rdx,k,8), m0
+ 
+ // Move x into another register to leave %rdx free for multiplies and use of n2
+ 
+-                movq    %rdx, x 
++                movq    %rdx, x
+ 
+ // Reduce the top 6 digits mod n_384 (a conditional subtraction of n_384)
+ 
+-                movq    $0x1313e695333ad68d, n0 
+-                movq    $0xa7e5f24db74f5885, n1 
+-                movq    $0x389cb27e0bc8d220, n2 
+-
+-                addq    n0, m0 
+-                adcq    n1, m1 
+-                adcq    n2, m2 
+-                adcq    $0, m3 
+-                adcq    $0, m4 
+-                adcq    $0, m5 
+-                sbbq    d, d 
++                movq    $0x1313e695333ad68d, n0
++                movq    $0xa7e5f24db74f5885, n1
++                movq    $0x389cb27e0bc8d220, n2
++
++                addq    n0, m0
++                adcq    n1, m1
++                adcq    n2, m2
++                adcq    $0, m3
++                adcq    $0, m4
++                adcq    $0, m5
++                sbbq    d, d
+                 notq    d
+-                andq    d, n0 
+-                andq    d, n1 
+-                andq    d, n2 
+-                subq    n0, m0 
+-                sbbq    n1, m1 
+-                sbbq    n2, m2 
+-                sbbq    $0, m3 
+-                sbbq    $0, m4 
+-                sbbq    $0, m5 
++                andq    d, n0
++                andq    d, n1
++                andq    d, n2
++                subq    n0, m0
++                sbbq    n1, m1
++                sbbq    n2, m2
++                sbbq    $0, m3
++                sbbq    $0, m4
++                sbbq    $0, m5
+ 
+ // Now do (k-6) iterations of 7->6 word modular reduction
+ 
+-                testq   k, k 
++                testq   k, k
+                 jz      writeback
+ 
+ loop:
+ 
+ // Compute q = min (m5 + 1) (2^64 - 1)
+ 
+-                movl    $1, qshort 
+-                addq    m5, q 
+-                sbbq    d, d 
+-                orq     d, q 
++                movl    $1, qshort
++                addq    m5, q
++                sbbq    d, d
++                orq     d, q
+ 
+ // Load the next digit so current m to reduce = [m5;m4;m3;m2;m1;m0;d]
+ 
+-                movq    -8(x,k,8), d 
++                movq    -8(x,k,8), d
+ 
+ // Now form [m5;m4;m3;m2;m1;m0;d] = m - q * n_384
+ 
+-                subq    q, m5 
+-                xorq    n0, n0 
+-                movq    $0x1313e695333ad68d, n0 
+-                mulxq   n0, n0, n1 
+-                adcxq   n0, d 
+-                adoxq   n1, m0 
+-                movq    $0xa7e5f24db74f5885, n0 
+-                mulxq   n0, n0, n1 
+-                adcxq   n0, m0 
+-                adoxq   n1, m1 
+-                movq    $0x389cb27e0bc8d220, n0 
+-                mulxq   n0, n0, n1 
+-                adcxq   n0, m1 
+-                movl    $0, n0short 
+-                adoxq   n0, n1 
+-                adcxq   n1, m2 
+-                adcq    $0, m3 
+-                adcq    $0, m4 
+-                adcq    $0, m5 
++                subq    q, m5
++                xorq    n0, n0
++                movq    $0x1313e695333ad68d, n0
++                mulxq   n0, n0, n1
++                adcxq   n0, d
++                adoxq   n1, m0
++                movq    $0xa7e5f24db74f5885, n0
++                mulxq   n0, n0, n1
++                adcxq   n0, m0
++                adoxq   n1, m1
++                movq    $0x389cb27e0bc8d220, n0
++                mulxq   n0, n0, n1
++                adcxq   n0, m1
++                movl    $0, n0short
++                adoxq   n0, n1
++                adcxq   n1, m2
++                adcq    $0, m3
++                adcq    $0, m4
++                adcq    $0, m5
+ 
+ // Now our top word m5 is either zero or all 1s. Use it for a masked
+ // addition of n_384, which we can do by a *subtraction* of
+ // 2^384 - n_384 from our portion
+ 
+-                movq    $0x1313e695333ad68d, n0 
+-                andq    m5, n0 
+-                movq    $0xa7e5f24db74f5885, n1 
+-                andq    m5, n1 
+-                movq    $0x389cb27e0bc8d220, n2 
+-                andq    m5, n2 
++                movq    $0x1313e695333ad68d, n0
++                andq    m5, n0
++                movq    $0xa7e5f24db74f5885, n1
++                andq    m5, n1
++                movq    $0x389cb27e0bc8d220, n2
++                andq    m5, n2
+ 
+-                subq    n0, d 
+-                sbbq    n1, m0 
+-                sbbq    n2, m1 
+-                sbbq    $0, m2 
+-                sbbq    $0, m3 
+-                sbbq    $0, m4 
++                subq    n0, d
++                sbbq    n1, m0
++                sbbq    n2, m1
++                sbbq    $0, m2
++                sbbq    $0, m3
++                sbbq    $0, m4
+ 
+ // Now shuffle registers up and loop
+ 
+-                movq    m4, m5 
+-                movq    m3, m4 
+-                movq    m2, m3 
+-                movq    m1, m2 
+-                movq    m0, m1 
+-                movq    d, m0 
++                movq    m4, m5
++                movq    m3, m4
++                movq    m2, m3
++                movq    m1, m2
++                movq    m0, m1
++                movq    d, m0
+ 
+                 decq    k
+                 jnz     loop
+@@ -176,12 +176,12 @@ loop:
+ 
+ writeback:
+ 
+-                movq    m0, (z) 
+-                movq    m1, 8(z) 
+-                movq    m2, 16(z) 
+-                movq    m3, 24(z) 
+-                movq    m4, 32(z) 
+-                movq    m5, 40(z) 
++                movq    m0, (z)
++                movq    m1, 8(z)
++                movq    m2, 16(z)
++                movq    m3, 24(z)
++                movq    m4, 32(z)
++                movq    m5, 40(z)
+ 
+ // Restore registers and return
+ 
+@@ -193,28 +193,28 @@ writeback:
+ 
+ shortinput:
+ 
+-                xorq    m0, m0 
+-                xorq    m1, m1 
+-                xorq    m2, m2 
+-                xorq    m3, m3 
+-                xorq    m4, m4 
+-                xorq    m5, m5 
++                xorq    m0, m0
++                xorq    m1, m1
++                xorq    m2, m2
++                xorq    m3, m3
++                xorq    m4, m4
++                xorq    m5, m5
+ 
+-                testq   k, k 
++                testq   k, k
+                 jz      writeback
+-                movq    (%rdx), m0 
++                movq    (%rdx), m0
+                 decq    k
+                 jz      writeback
+-                movq    8(%rdx), m1 
++                movq    8(%rdx), m1
+                 decq    k
+                 jz      writeback
+-                movq    16(%rdx), m2 
++                movq    16(%rdx), m2
+                 decq    k
+                 jz      writeback
+-                movq    24(%rdx), m3 
++                movq    24(%rdx), m3
+                 decq    k
+                 jz      writeback
+-                movq    32(%rdx), m4 
++                movq    32(%rdx), m4
+                 jmp     writeback
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_mod_n384_6.S b/x86_att/p384/bignum_mod_n384_6.S
+index 8df645ca7..1302f0bc7 100644
+--- a/x86_att/p384/bignum_mod_n384_6.S
++++ b/x86_att/p384/bignum_mod_n384_6.S
+@@ -25,7 +25,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_mod_n384_6
+         .text
+ 
+@@ -51,19 +51,19 @@ bignum_mod_n384_6:
+ 
+ // Load the input and compute x + (2^384 - n_384)
+ 
+-        movq    $0x1313e695333ad68d, a 
+-        movq    (x), d0 
+-        addq    a, d0 
+-        movq    $0xa7e5f24db74f5885, d1 
+-        adcq    8(x), d1 
+-        movq    $0x389cb27e0bc8d220, d2 
+-        adcq    16(x), d2 
+-        movq    24(x), d3 
+-        adcq    $0, d3 
+-        movq    32(x), d4 
+-        adcq    $0, d4 
+-        movq    40(x), d5 
+-        adcq    $0, d5 
++        movq    $0x1313e695333ad68d, a
++        movq    (x), d0
++        addq    a, d0
++        movq    $0xa7e5f24db74f5885, d1
++        adcq    8(x), d1
++        movq    $0x389cb27e0bc8d220, d2
++        adcq    16(x), d2
++        movq    24(x), d3
++        adcq    $0, d3
++        movq    32(x), d4
++        adcq    $0, d4
++        movq    40(x), d5
++        adcq    $0, d5
+ 
+ // Now CF is set iff 2^384 <= x + (2^384 - n_384), i.e. iff n_384 <= x.
+ // Create a mask for the condition x < n. We now want to subtract the
+@@ -71,38 +71,38 @@ bignum_mod_n384_6:
+ // without using a save-restore sequence, we need some contortions.
+ // Create the lowest digit (re-using a kept from above)
+ 
+-        sbbq    c, c 
++        sbbq    c, c
+         notq    c
+-        andq    c, a 
++        andq    c, a
+ 
+ // Do the first digit of addition and writeback
+ 
+-        subq    a, d0 
+-        movq    d0, (z) 
++        subq    a, d0
++        movq    d0, (z)
+ 
+ // Preserve carry chain and do the next digit
+ 
+-        sbbq    d0, d0 
+-        movq    $0xa7e5f24db74f5885, a 
+-        andq    c, a 
++        sbbq    d0, d0
++        movq    $0xa7e5f24db74f5885, a
++        andq    c, a
+         negq    d0
+-        sbbq    a, d1 
+-        movq    d1, 8(z) 
++        sbbq    a, d1
++        movq    d1, 8(z)
+ 
+ // Preserve carry chain once more and do remaining digits
+ 
+-        sbbq    d0, d0 
+-        movq    $0x389cb27e0bc8d220, a 
+-        andq    c, a 
++        sbbq    d0, d0
++        movq    $0x389cb27e0bc8d220, a
++        andq    c, a
+         negq    d0
+-        sbbq    a, d2 
+-        movq    d2, 16(z) 
+-        sbbq    $0, d3 
+-        movq    d3, 24(z) 
+-        sbbq    $0, d4 
+-        movq    d4, 32(z) 
+-        sbbq    $0, d5 
+-        movq    d5, 40(z) 
++        sbbq    a, d2
++        movq    d2, 16(z)
++        sbbq    $0, d3
++        movq    d3, 24(z)
++        sbbq    $0, d4
++        movq    d4, 32(z)
++        sbbq    $0, d5
++        movq    d5, 40(z)
+ 
+         ret
+ 
+diff --git a/x86_att/p384/bignum_mod_p384.S b/x86_att/p384/bignum_mod_p384.S
+index e568ebaf1..e222a141a 100644
+--- a/x86_att/p384/bignum_mod_p384.S
++++ b/x86_att/p384/bignum_mod_p384.S
+@@ -23,7 +23,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = k, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_mod_p384
+         .text
+ 
+@@ -60,113 +60,113 @@ bignum_mod_p384:
+ 
+ // If the input is already <= 5 words long, go to a trivial "copy" path
+ 
+-                cmpq    $6, k 
++                cmpq    $6, k
+                 jc      shortinput
+ 
+ // Otherwise load the top 6 digits (top-down) and reduce k by 6
+ 
+-                subq    $6, k 
+-                movq    40(%rdx,k,8), m5 
+-                movq    32(%rdx,k,8), m4 
+-                movq    24(%rdx,k,8), m3 
+-                movq    16(%rdx,k,8), m2 
+-                movq    8(%rdx,k,8), m1 
+-                movq    (%rdx,k,8), m0 
++                subq    $6, k
++                movq    40(%rdx,k,8), m5
++                movq    32(%rdx,k,8), m4
++                movq    24(%rdx,k,8), m3
++                movq    16(%rdx,k,8), m2
++                movq    8(%rdx,k,8), m1
++                movq    (%rdx,k,8), m0
+ 
+ // Move x into another register to leave %rdx free for multiplies and use of n2
+ 
+-                movq    %rdx, x 
++                movq    %rdx, x
+ 
+ // Reduce the top 6 digits mod p_384 (a conditional subtraction of p_384)
+ 
+-                movl    $0x00000000ffffffff, n0short 
+-                movq    $0xffffffff00000000, n1 
+-                movq    $0xfffffffffffffffe, n2 
+-
+-                subq    n0, m0 
+-                sbbq    n1, m1 
+-                sbbq    n2, m2 
+-                sbbq    $-1, m3 
+-                sbbq    $-1, m4 
+-                sbbq    $-1, m5 
+-
+-                sbbq    d, d 
+-                andq    d, n0 
+-                andq    d, n1 
+-                andq    d, n2 
+-                addq    n0, m0 
+-                adcq    n1, m1 
+-                adcq    n2, m2 
+-                adcq    d, m3 
+-                adcq    d, m4 
+-                adcq    d, m5 
++                movl    $0x00000000ffffffff, n0short
++                movq    $0xffffffff00000000, n1
++                movq    $0xfffffffffffffffe, n2
++
++                subq    n0, m0
++                sbbq    n1, m1
++                sbbq    n2, m2
++                sbbq    $-1, m3
++                sbbq    $-1, m4
++                sbbq    $-1, m5
++
++                sbbq    d, d
++                andq    d, n0
++                andq    d, n1
++                andq    d, n2
++                addq    n0, m0
++                adcq    n1, m1
++                adcq    n2, m2
++                adcq    d, m3
++                adcq    d, m4
++                adcq    d, m5
+ 
+ // Now do (k-6) iterations of 7->6 word modular reduction
+ 
+-                testq   k, k 
++                testq   k, k
+                 jz      writeback
+ 
+ loop:
+ 
+ // Compute q = min (m5 + 1) (2^64 - 1)
+ 
+-                movl    $1, qshort 
+-                addq    m5, q 
+-                sbbq    d, d 
+-                orq     d, q 
++                movl    $1, qshort
++                addq    m5, q
++                sbbq    d, d
++                orq     d, q
+ 
+ // Load the next digit so current m to reduce = [m5;m4;m3;m2;m1;m0;d]
+ 
+-                movq    -8(x,k,8), d 
++                movq    -8(x,k,8), d
+ 
+ // Now form [m5;m4;m3;m2;m1;m0;d] = m - q * p_384. To use an addition for
+ // the main calculation we do (m - 2^384 * q) + q * (2^384 - p_384)
+ // where 2^384 - p_384 = [0;0;0;1;0x00000000ffffffff;0xffffffff00000001].
+ // The extra subtraction of 2^384 * q is the first instruction.
+ 
+-                subq    q, m5 
+-                xorq    n0, n0 
+-                movq    $0xffffffff00000001, n0 
+-                mulxq   n0, n0, n1 
+-                adcxq   n0, d 
+-                adoxq   n1, m0 
+-                movl    $0x00000000ffffffff, n0short 
+-                mulxq   n0, n0, n1 
+-                adcxq   n0, m0 
+-                adoxq   n1, m1 
+-                adcxq   q, m1 
+-                movl    $0, n0short 
+-                adoxq   n0, n0 
+-                adcxq   n0, m2 
+-                adcq    $0, m3 
+-                adcq    $0, m4 
+-                adcq    $0, m5 
++                subq    q, m5
++                xorq    n0, n0
++                movq    $0xffffffff00000001, n0
++                mulxq   n0, n0, n1
++                adcxq   n0, d
++                adoxq   n1, m0
++                movl    $0x00000000ffffffff, n0short
++                mulxq   n0, n0, n1
++                adcxq   n0, m0
++                adoxq   n1, m1
++                adcxq   q, m1
++                movl    $0, n0short
++                adoxq   n0, n0
++                adcxq   n0, m2
++                adcq    $0, m3
++                adcq    $0, m4
++                adcq    $0, m5
+ 
+ // Now our top word m5 is either zero or all 1s. Use it for a masked
+ // addition of p_384, which we can do by a *subtraction* of
+ // 2^384 - p_384 from our portion
+ 
+-                movq    $0xffffffff00000001, n0 
+-                andq    m5, n0 
+-                movl    $0x00000000ffffffff, n1short 
+-                andq    m5, n1 
+-                andq    $1, m5 
++                movq    $0xffffffff00000001, n0
++                andq    m5, n0
++                movl    $0x00000000ffffffff, n1short
++                andq    m5, n1
++                andq    $1, m5
+ 
+-                subq    n0, d 
+-                sbbq    n1, m0 
+-                sbbq    m5, m1 
+-                sbbq    $0, m2 
+-                sbbq    $0, m3 
+-                sbbq    $0, m4 
++                subq    n0, d
++                sbbq    n1, m0
++                sbbq    m5, m1
++                sbbq    $0, m2
++                sbbq    $0, m3
++                sbbq    $0, m4
+ 
+ // Now shuffle registers up and loop
+ 
+-                movq    m4, m5 
+-                movq    m3, m4 
+-                movq    m2, m3 
+-                movq    m1, m2 
+-                movq    m0, m1 
+-                movq    d, m0 
++                movq    m4, m5
++                movq    m3, m4
++                movq    m2, m3
++                movq    m1, m2
++                movq    m0, m1
++                movq    d, m0
+ 
+                 decq    k
+                 jnz     loop
+@@ -175,12 +175,12 @@ loop:
+ 
+ writeback:
+ 
+-                movq    m0, (z) 
+-                movq    m1, 8(z) 
+-                movq    m2, 16(z) 
+-                movq    m3, 24(z) 
+-                movq    m4, 32(z) 
+-                movq    m5, 40(z) 
++                movq    m0, (z)
++                movq    m1, 8(z)
++                movq    m2, 16(z)
++                movq    m3, 24(z)
++                movq    m4, 32(z)
++                movq    m5, 40(z)
+ 
+ // Restore registers and return
+ 
+@@ -192,28 +192,28 @@ writeback:
+ 
+ shortinput:
+ 
+-                xorq    m0, m0 
+-                xorq    m1, m1 
+-                xorq    m2, m2 
+-                xorq    m3, m3 
+-                xorq    m4, m4 
+-                xorq    m5, m5 
++                xorq    m0, m0
++                xorq    m1, m1
++                xorq    m2, m2
++                xorq    m3, m3
++                xorq    m4, m4
++                xorq    m5, m5
+ 
+-                testq   k, k 
++                testq   k, k
+                 jz      writeback
+-                movq    (%rdx), m0 
++                movq    (%rdx), m0
+                 decq    k
+                 jz      writeback
+-                movq    8(%rdx), m1 
++                movq    8(%rdx), m1
+                 decq    k
+                 jz      writeback
+-                movq    16(%rdx), m2 
++                movq    16(%rdx), m2
+                 decq    k
+                 jz      writeback
+-                movq    24(%rdx), m3 
++                movq    24(%rdx), m3
+                 decq    k
+                 jz      writeback
+-                movq    32(%rdx), m4 
++                movq    32(%rdx), m4
+                 jmp     writeback
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_mod_p384_6.S b/x86_att/p384/bignum_mod_p384_6.S
+index 8ef8320f3..5b910e448 100644
+--- a/x86_att/p384/bignum_mod_p384_6.S
++++ b/x86_att/p384/bignum_mod_p384_6.S
+@@ -23,7 +23,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_mod_p384_6
+         .text
+ 
+@@ -50,20 +50,20 @@ bignum_mod_p384_6:
+ 
+ // Load the input and subtract p_384 from it
+ 
+-        movq    (x), d0 
+-        movl    $0x00000000ffffffff, cshort 
+-        subq    c, d0 
+-        movq    8(x), d1 
++        movq    (x), d0
++        movl    $0x00000000ffffffff, cshort
++        subq    c, d0
++        movq    8(x), d1
+         notq    c
+-        sbbq    c, d1 
+-        movq    16(x), d2 
+-        sbbq    $-2, d2 
+-        movq    24(x), d3 
+-        sbbq    $-1, d3 
+-        movq    32(x), d4 
+-        sbbq    $-1, d4 
+-        movq    40(x), d5 
+-        sbbq    $-1, d5 
++        sbbq    c, d1
++        movq    16(x), d2
++        sbbq    $-2, d2
++        movq    24(x), d3
++        sbbq    $-1, d3
++        movq    32(x), d4
++        sbbq    $-1, d4
++        movq    40(x), d5
++        sbbq    $-1, d5
+ 
+ // Capture the top carry as a bitmask to indicate we need to add p_384 back on,
+ // which we actually do in a more convenient way by subtracting r_384
+@@ -72,35 +72,35 @@ bignum_mod_p384_6:
+ // nonzero digits of r while maintaining d0..d5, but make the first two now.
+ 
+         notq    c
+-        sbbq    a, a 
++        sbbq    a, a
+         andq    a, c // c = masked 0x00000000ffffffff
+-        xorq    a, a 
++        xorq    a, a
+         subq    c, a // a = masked 0xffffffff00000001
+ 
+ // Do the first two digits of addition and writeback
+ 
+-        subq    a, d0 
+-        movq    d0, (z) 
+-        sbbq    c, d1 
+-        movq    d1, 8(z) 
++        subq    a, d0
++        movq    d0, (z)
++        sbbq    c, d1
++        movq    d1, 8(z)
+ 
+ // Preserve the carry chain while creating the extra masked digit since
+ // the logical operation will clear CF
+ 
+-        sbbq    d0, d0 
++        sbbq    d0, d0
+         andq    a, c // c = masked 0x0000000000000001
+         negq    d0
+ 
+ // Do the rest of the addition and writeback
+ 
+-        sbbq    c, d2 
+-        movq    d2, 16(z) 
+-        sbbq    $0, d3 
+-        movq    d3, 24(z) 
+-        sbbq    $0, d4 
+-        movq    d4, 32(z) 
+-        sbbq    $0, d5 
+-        movq    d5, 40(z) 
++        sbbq    c, d2
++        movq    d2, 16(z)
++        sbbq    $0, d3
++        movq    d3, 24(z)
++        sbbq    $0, d4
++        movq    d4, 32(z)
++        sbbq    $0, d5
++        movq    d5, 40(z)
+ 
+         ret
+ 
+diff --git a/x86_att/p384/bignum_montmul_p384.S b/x86_att/p384/bignum_montmul_p384.S
+index 94415241c..0b956627d 100644
+--- a/x86_att/p384/bignum_montmul_p384.S
++++ b/x86_att/p384/bignum_montmul_p384.S
+@@ -27,7 +27,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
+ // -----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_montmul_p384
+         .text
+ 
+@@ -52,7 +52,7 @@
+ #define mulpadd(high,low,m)             \
+         mulxq   m, %rax, %rbx ;            \
+         adcxq   %rax, low ;               \
+-        adoxq   %rbx, high 
++        adoxq   %rbx, high
+ 
+ // Core one-step Montgomery reduction macro. Takes input in
+ // [d7;d6;d5;d4;d3;d2;d1;d0] and returns result in [d7;d6;d5;d4;d3;d2;d1],
+@@ -91,7 +91,7 @@
+                 sbbq    $0, d5 ;                                          \
+                 sbbq    $0, %rdx ;                                         \
+                 addq    %rdx, d6 ;                                        \
+-                adcq    $0, d7 
++                adcq    $0, d7
+ 
+ bignum_montmul_p384:
+ 
+@@ -106,26 +106,26 @@ bignum_montmul_p384:
+ 
+ // Copy y into a safe register to start with
+ 
+-        movq    %rdx, y 
++        movq    %rdx, y
+ 
+ // Do row 0 computation, which is a bit different:
+ // set up initial window [%r14,%r13,%r12,%r11,%r10,%r9,%r8] = y[0] * x
+ // Unlike later, we only need a single carry chain
+ 
+-        movq    (y), %rdx 
+-        xorl    %r15d, %r15d 
+-        mulxq   (x), %r8, %r9 
+-        mulxq   8(x), %rbx, %r10 
+-        addq    %rbx, %r9 
+-        mulxq   16(x), %rbx, %r11 
+-        adcq    %rbx, %r10 
+-        mulxq   24(x), %rbx, %r12 
+-        adcq    %rbx, %r11 
+-        mulxq   32(x), %rbx, %r13 
+-        adcq    %rbx, %r12 
+-        mulxq   40(x), %rbx, %r14 
+-        adcq    %rbx, %r13 
+-        adcq    %r15, %r14 
++        movq    (y), %rdx
++        xorl    %r15d, %r15d
++        mulxq   (x), %r8, %r9
++        mulxq   8(x), %rbx, %r10
++        addq    %rbx, %r9
++        mulxq   16(x), %rbx, %r11
++        adcq    %rbx, %r10
++        mulxq   24(x), %rbx, %r12
++        adcq    %rbx, %r11
++        mulxq   32(x), %rbx, %r13
++        adcq    %rbx, %r12
++        mulxq   40(x), %rbx, %r14
++        adcq    %rbx, %r13
++        adcq    %r15, %r14
+ 
+ // Montgomery reduce the zeroth window
+ 
+@@ -133,18 +133,18 @@ bignum_montmul_p384:
+ 
+ // Add row 1
+ 
+-        movq    8(y), %rdx 
+-        xorl    %r8d, %r8d 
++        movq    8(y), %rdx
++        xorl    %r8d, %r8d
+         mulpadd (%r10,%r9,(x))
+         mulpadd (%r11,%r10, 8(x))
+         mulpadd (%r12,%r11,16(x))
+         mulpadd (%r13,%r12,24(x))
+         mulpadd (%r14,%r13,32(x))
+-        adoxq   %r8, %r15 
+-        mulxq   40(x), %rax, %rbx 
+-        adcq    %rax, %r14 
+-        adcq    %rbx, %r15 
+-        adcq    %r8, %r8 
++        adoxq   %r8, %r15
++        mulxq   40(x), %rax, %rbx
++        adcq    %rax, %r14
++        adcq    %rbx, %r15
++        adcq    %r8, %r8
+ 
+ // Montgomery reduce window 1
+ 
+@@ -152,18 +152,18 @@ bignum_montmul_p384:
+ 
+ // Add row 2
+ 
+-        movq    16(y), %rdx 
+-        xorl    %r9d, %r9d 
++        movq    16(y), %rdx
++        xorl    %r9d, %r9d
+         mulpadd (%r11,%r10,(x))
+         mulpadd (%r12,%r11,8(x))
+         mulpadd (%r13,%r12,16(x))
+         mulpadd (%r14,%r13,24(x))
+         mulpadd (%r15,%r14,32(x))
+-        adoxq   %r9, %r8 
+-        mulxq   40(x), %rax, %rbx 
+-        adcq    %rax, %r15 
+-        adcq    %rbx, %r8 
+-        adcq    %r9, %r9 
++        adoxq   %r9, %r8
++        mulxq   40(x), %rax, %rbx
++        adcq    %rax, %r15
++        adcq    %rbx, %r8
++        adcq    %r9, %r9
+ 
+ // Montgomery reduce window 2
+ 
+@@ -171,18 +171,18 @@ bignum_montmul_p384:
+ 
+ // Add row 3
+ 
+-        movq    24(y), %rdx 
+-        xorl    %r10d, %r10d 
++        movq    24(y), %rdx
++        xorl    %r10d, %r10d
+         mulpadd (%r12,%r11,(x))
+         mulpadd (%r13,%r12,8(x))
+         mulpadd (%r14,%r13,16(x))
+         mulpadd (%r15,%r14,24(x))
+         mulpadd (%r8,%r15,32(x))
+-        adoxq   %r10, %r9 
+-        mulxq   40(x), %rax, %rbx 
+-        adcq    %rax, %r8 
+-        adcq    %rbx, %r9 
+-        adcq    %r10, %r10 
++        adoxq   %r10, %r9
++        mulxq   40(x), %rax, %rbx
++        adcq    %rax, %r8
++        adcq    %rbx, %r9
++        adcq    %r10, %r10
+ 
+ // Montgomery reduce window 3
+ 
+@@ -190,18 +190,18 @@ bignum_montmul_p384:
+ 
+ // Add row 4
+ 
+-        movq    32(y), %rdx 
+-        xorl    %r11d, %r11d 
++        movq    32(y), %rdx
++        xorl    %r11d, %r11d
+         mulpadd (%r13,%r12,(x))
+         mulpadd (%r14,%r13,8(x))
+         mulpadd (%r15,%r14,16(x))
+         mulpadd (%r8,%r15,24(x))
+         mulpadd (%r9,%r8,32(x))
+-        adoxq   %r11, %r10 
+-        mulxq   40(x), %rax, %rbx 
+-        adcq    %rax, %r9 
+-        adcq    %rbx, %r10 
+-        adcq    %r11, %r11 
++        adoxq   %r11, %r10
++        mulxq   40(x), %rax, %rbx
++        adcq    %rax, %r9
++        adcq    %rbx, %r10
++        adcq    %r11, %r11
+ 
+ // Montgomery reduce window 4
+ 
+@@ -209,18 +209,18 @@ bignum_montmul_p384:
+ 
+ // Add row 5
+ 
+-        movq    40(y), %rdx 
+-        xorl    %r12d, %r12d 
++        movq    40(y), %rdx
++        xorl    %r12d, %r12d
+         mulpadd (%r14,%r13,(x))
+         mulpadd (%r15,%r14,8(x))
+         mulpadd (%r8,%r15,16(x))
+         mulpadd (%r9,%r8,24(x))
+         mulpadd (%r10,%r9,32(x))
+-        adoxq   %r12, %r11 
+-        mulxq   40(x), %rax, %rbx 
+-        adcq    %rax, %r10 
+-        adcq    %rbx, %r11 
+-        adcq    %r12, %r12 
++        adoxq   %r12, %r11
++        mulxq   40(x), %rax, %rbx
++        adcq    %rax, %r10
++        adcq    %rbx, %r11
++        adcq    %r12, %r12
+ 
+ // Montgomery reduce window 5
+ 
+@@ -231,39 +231,39 @@ bignum_montmul_p384:
+ //
+ //   [%r12; %r13;%rbp;%rdx;%rcx;%rbx;%rax] = z + (2^384 - p_384)
+ 
+-        xorl    %edx, %edx 
+-        xorl    %ebp, %ebp 
+-        xorl    %r13d, %r13d 
+-
+-        movq    $0xffffffff00000001, %rax 
+-        addq    %r14, %rax 
+-        movl    $0x00000000ffffffff, %ebx 
+-        adcq    %r15, %rbx 
+-        movl    $0x0000000000000001, %ecx 
+-        adcq    %r8, %rcx 
+-        adcq    %r9, %rdx 
+-        adcq    %r10, %rbp 
+-        adcq    %r11, %r13 
+-        adcq    $0, %r12 
++        xorl    %edx, %edx
++        xorl    %ebp, %ebp
++        xorl    %r13d, %r13d
++
++        movq    $0xffffffff00000001, %rax
++        addq    %r14, %rax
++        movl    $0x00000000ffffffff, %ebx
++        adcq    %r15, %rbx
++        movl    $0x0000000000000001, %ecx
++        adcq    %r8, %rcx
++        adcq    %r9, %rdx
++        adcq    %r10, %rbp
++        adcq    %r11, %r13
++        adcq    $0, %r12
+ 
+ // ~ZF <=> %r12 >= 1 <=> z + (2^384 - p_384) >= 2^384 <=> z >= p_384, which
+ // determines whether to use the further reduced argument or the original z.
+ 
+-        cmovnz  %rax, %r14 
+-        cmovnz  %rbx, %r15 
+-        cmovnz  %rcx, %r8 
+-        cmovnz  %rdx, %r9 
+-        cmovnz  %rbp, %r10 
+-        cmovnz  %r13, %r11 
++        cmovnzq %rax, %r14
++        cmovnzq %rbx, %r15
++        cmovnzq %rcx, %r8
++        cmovnzq %rdx, %r9
++        cmovnzq %rbp, %r10
++        cmovnzq %r13, %r11
+ 
+ // Write back the result
+ 
+-        movq    %r14, (z) 
+-        movq    %r15, 8(z) 
+-        movq    %r8, 16(z) 
+-        movq    %r9, 24(z) 
+-        movq    %r10, 32(z) 
+-        movq    %r11, 40(z) 
++        movq    %r14, (z)
++        movq    %r15, 8(z)
++        movq    %r8, 16(z)
++        movq    %r9, 24(z)
++        movq    %r10, 32(z)
++        movq    %r11, 40(z)
+ 
+ // Restore registers and return
+ 
+diff --git a/x86_att/p384/bignum_montsqr_p384.S b/x86_att/p384/bignum_montsqr_p384.S
+index 985b19106..3e2cbbdbf 100644
+--- a/x86_att/p384/bignum_montsqr_p384.S
++++ b/x86_att/p384/bignum_montsqr_p384.S
+@@ -26,7 +26,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_montsqr_p384
+         .text
+ 
+@@ -52,7 +52,7 @@
+ #define mulpadd(high,low,m)             \
+         mulxq   m, %rax, %rbx ;            \
+         adcxq   %rax, low ;               \
+-        adoxq   %rbx, high 
++        adoxq   %rbx, high
+ 
+ // Core one-step "short" Montgomery reduction macro. Takes input in
+ // [d5;d4;d3;d2;d1;d0] and returns result in [d6;d5;d4;d3;d2;d1],
+@@ -88,7 +88,7 @@
+                 sbbq    $0, d4 ;                                          \
+                 sbbq    $0, d5 ;                                          \
+                 movq    %rdx, d6 ;                                        \
+-                sbbq    $0, d6 
++                sbbq    $0, d6
+ 
+ bignum_montsqr_p384:
+ 
+@@ -104,112 +104,112 @@ bignum_montsqr_p384:
+ // Set up an initial window [%rcx;%r15;...%r9] = [34;05;03;01]
+ // Note that we are using %rcx as the first step past the rotating window
+ 
+-        movq    (x), %rdx 
+-        mulxq   8(x), %r9, %r10 
+-        mulxq   24(x), %r11, %r12 
+-        mulxq   40(x), %r13, %r14 
+-        movq    24(x), %rdx 
+-        mulxq   32(x), %r15, %rcx 
++        movq    (x), %rdx
++        mulxq   8(x), %r9, %r10
++        mulxq   24(x), %r11, %r12
++        mulxq   40(x), %r13, %r14
++        movq    24(x), %rdx
++        mulxq   32(x), %r15, %rcx
+ 
+ // Clear our zero register, and also initialize the flags for the carry chain
+ 
+-        xorl    zeroe, zeroe 
++        xorl    zeroe, zeroe
+ 
+ // Chain in the addition of 02 + 12 + 13 + 14 + 15 to that window
+ // (no carry-out possible)
+ 
+-        movq    16(x), %rdx 
++        movq    16(x), %rdx
+         mulpadd (%r11,%r10,(x))
+         mulpadd (%r12,%r11,8(x))
+-        movq    8(x), %rdx 
++        movq    8(x), %rdx
+         mulpadd (%r13,%r12,24(x))
+         mulpadd (%r14,%r13,32(x))
+         mulpadd (%r15,%r14,40(x))
+-        adcxq   zero, %r15 
+-        adoxq   zero, %rcx 
+-        adcq    zero, %rcx 
++        adcxq   zero, %r15
++        adoxq   zero, %rcx
++        adcq    zero, %rcx
+ 
+ // Again zero out the flags. Actually they are already cleared but it may
+ // help decouple these in the OOO engine not to wait for the chain above
+ 
+-        xorl    zeroe, zeroe 
++        xorl    zeroe, zeroe
+ 
+ // Now chain in the 04 + 23 + 24 + 25 + 35 + 45 terms
+ // We are running out of registers in our rotating window, so we start
+ // using %rbx (and hence need care with using mulpadd after this). Thus
+ // our result so far is in [%rbp;%rbx;%rcx;%r15;...%r9]
+ 
+-        movq    32(x), %rdx 
++        movq    32(x), %rdx
+         mulpadd (%r13,%r12,(x))
+-        movq    16(x), %rdx 
++        movq    16(x), %rdx
+         mulpadd (%r14,%r13,24(x))
+         mulpadd (%r15,%r14,32(x))
+-        mulxq   40(x), %rax, %rdx 
+-        adcxq   %rax, %r15 
+-        adoxq   %rdx, %rcx 
++        mulxq   40(x), %rax, %rdx
++        adcxq   %rax, %r15
++        adoxq   %rdx, %rcx
+ 
+ // First set up the last couple of spots in our window, [%rbp;%rbx] = 45
+ // then add the last other term 35
+ 
+-        movq    40(x), %rdx 
+-        mulxq   32(x), %rbx, %rbp 
+-        mulxq   24(x), %rax, %rdx 
+-        adcxq   %rax, %rcx 
+-        adoxq   %rdx, %rbx 
+-        movl    $0, %eax 
+-        adcxq   %rax, %rbx 
+-        adoxq   %rax, %rbp 
+-        adcq    %rax, %rbp 
++        movq    40(x), %rdx
++        mulxq   32(x), %rbx, %rbp
++        mulxq   24(x), %rax, %rdx
++        adcxq   %rax, %rcx
++        adoxq   %rdx, %rbx
++        movl    $0, %eax
++        adcxq   %rax, %rbx
++        adoxq   %rax, %rbp
++        adcq    %rax, %rbp
+ 
+ // Just for a clear fresh start for the flags; we don't use the zero
+ 
+-        xorq    %rax, %rax 
++        xorq    %rax, %rax
+ 
+ // Double and add to the 00 + 11 + 22 + 33 + 44 + 55 terms
+ // For one glorious moment the entire squaring result is all in the
+ // register file as [%rsi;%rbp;%rbx;%rcx;%r15;...;%r8]
+ // (since we've now finished with x we can re-use %rsi)
+ 
+-        movq    (x), %rdx 
+-        mulxq   (x), %r8, %rax 
+-        adcxq   %r9, %r9 
+-        adoxq   %rax, %r9 
+-        movq    8(x), %rdx 
+-        mulxq   %rdx, %rax, %rdx 
+-        adcxq   %r10, %r10 
+-        adoxq   %rax, %r10 
+-        adcxq   %r11, %r11 
+-        adoxq   %rdx, %r11 
+-        movq    16(x), %rdx 
+-        mulxq   %rdx, %rax, %rdx 
+-        adcxq   %r12, %r12 
+-        adoxq   %rax, %r12 
+-        adcxq   %r13, %r13 
+-        adoxq   %rdx, %r13 
+-        movq    24(x), %rdx 
+-        mulxq   %rdx, %rax, %rdx 
+-        adcxq   %r14, %r14 
+-        adoxq   %rax, %r14 
+-        adcxq   %r15, %r15 
+-        adoxq   %rdx, %r15 
+-        movq    32(x), %rdx 
+-        mulxq   %rdx, %rax, %rdx 
+-        adcxq   %rcx, %rcx 
+-        adoxq   %rax, %rcx 
+-        adcxq   %rbx, %rbx 
+-        adoxq   %rdx, %rbx 
+-        movq    40(x), %rdx 
+-        mulxq   %rdx, %rax, %rsi 
+-        adcxq   %rbp, %rbp 
+-        adoxq   %rax, %rbp 
+-        movl    $0, %eax 
+-        adcxq   %rax, %rsi 
+-        adoxq   %rax, %rsi 
++        movq    (x), %rdx
++        mulxq   (x), %r8, %rax
++        adcxq   %r9, %r9
++        adoxq   %rax, %r9
++        movq    8(x), %rdx
++        mulxq   %rdx, %rax, %rdx
++        adcxq   %r10, %r10
++        adoxq   %rax, %r10
++        adcxq   %r11, %r11
++        adoxq   %rdx, %r11
++        movq    16(x), %rdx
++        mulxq   %rdx, %rax, %rdx
++        adcxq   %r12, %r12
++        adoxq   %rax, %r12
++        adcxq   %r13, %r13
++        adoxq   %rdx, %r13
++        movq    24(x), %rdx
++        mulxq   %rdx, %rax, %rdx
++        adcxq   %r14, %r14
++        adoxq   %rax, %r14
++        adcxq   %r15, %r15
++        adoxq   %rdx, %r15
++        movq    32(x), %rdx
++        mulxq   %rdx, %rax, %rdx
++        adcxq   %rcx, %rcx
++        adoxq   %rax, %rcx
++        adcxq   %rbx, %rbx
++        adoxq   %rdx, %rbx
++        movq    40(x), %rdx
++        mulxq   %rdx, %rax, %rsi
++        adcxq   %rbp, %rbp
++        adoxq   %rax, %rbp
++        movl    $0, %eax
++        adcxq   %rax, %rsi
++        adoxq   %rax, %rsi
+ 
+ // We need just *one* more register as a temp for the Montgomery steps.
+ // Since we are writing to the z buffer anyway, make use of that to stash %rbx.
+ 
+-        movq    %rbx, (z) 
++        movq    %rbx, (z)
+ 
+ // Montgomery reduce the %r13,...,%r8 window 6 times
+ 
+@@ -222,54 +222,54 @@ bignum_montsqr_p384:
+ 
+ // Now we can safely restore %rbx before accumulating
+ 
+-        movq    (z), %rbx 
++        movq    (z), %rbx
+ 
+-        addq    %r8, %r14 
+-        adcq    %r9, %r15 
+-        adcq    %r10, %rcx 
+-        adcq    %r11, %rbx 
+-        adcq    %r12, %rbp 
+-        adcq    %r13, %rsi 
+-        movl    $0, %r8d 
+-        adcq    %r8, %r8 
++        addq    %r8, %r14
++        adcq    %r9, %r15
++        adcq    %r10, %rcx
++        adcq    %r11, %rbx
++        adcq    %r12, %rbp
++        adcq    %r13, %rsi
++        movl    $0, %r8d
++        adcq    %r8, %r8
+ 
+ // We now have a pre-reduced 7-word form z = [%r8; %rsi;%rbp;%rbx;%rcx;%r15;%r14]
+ // Next, accumulate in different registers z - p_384, or more precisely
+ //
+ //   [%r8; %r13;%r12;%r11;%r10;%r9;%rax] = z + (2^384 - p_384)
+ 
+-        xorq    %r11, %r11 
+-        xorq    %r12, %r12 
+-        xorq    %r13, %r13 
+-        movq    $0xffffffff00000001, %rax 
+-        addq    %r14, %rax 
+-        movl    $0x00000000ffffffff, %r9d 
+-        adcq    %r15, %r9 
+-        movl    $0x0000000000000001, %r10d 
+-        adcq    %rcx, %r10 
+-        adcq    %rbx, %r11 
+-        adcq    %rbp, %r12 
+-        adcq    %rsi, %r13 
+-        adcq    $0, %r8 
++        xorq    %r11, %r11
++        xorq    %r12, %r12
++        xorq    %r13, %r13
++        movq    $0xffffffff00000001, %rax
++        addq    %r14, %rax
++        movl    $0x00000000ffffffff, %r9d
++        adcq    %r15, %r9
++        movl    $0x0000000000000001, %r10d
++        adcq    %rcx, %r10
++        adcq    %rbx, %r11
++        adcq    %rbp, %r12
++        adcq    %rsi, %r13
++        adcq    $0, %r8
+ 
+ // ~ZF <=> %r12 >= 1 <=> z + (2^384 - p_384) >= 2^384 <=> z >= p_384, which
+ // determines whether to use the further reduced argument or the original z.
+ 
+-        cmovnz  %rax, %r14 
+-        cmovnz  %r9, %r15 
+-        cmovnz  %r10, %rcx 
+-        cmovnz  %r11, %rbx 
+-        cmovnz  %r12, %rbp 
+-        cmovnz  %r13, %rsi 
++        cmovnzq %rax, %r14
++        cmovnzq %r9, %r15
++        cmovnzq %r10, %rcx
++        cmovnzq %r11, %rbx
++        cmovnzq %r12, %rbp
++        cmovnzq %r13, %rsi
+ 
+ // Write back the result
+ 
+-        movq    %r14, (z) 
+-        movq    %r15, 8(z) 
+-        movq    %rcx, 16(z) 
+-        movq    %rbx, 24(z) 
+-        movq    %rbp, 32(z) 
+-        movq    %rsi, 40(z) 
++        movq    %r14, (z)
++        movq    %r15, 8(z)
++        movq    %rcx, 16(z)
++        movq    %rbx, 24(z)
++        movq    %rbp, 32(z)
++        movq    %rsi, 40(z)
+ 
+ // Restore registers and return
+ 
+diff --git a/x86_att/p384/bignum_mux_6.S b/x86_att/p384/bignum_mux_6.S
+index 3ea2f0df4..4c614ddc3 100644
+--- a/x86_att/p384/bignum_mux_6.S
++++ b/x86_att/p384/bignum_mux_6.S
+@@ -26,7 +26,7 @@
+ // Standard x86-64 ABI: RDI = p, RSI = z, RDX = x, RCX = y
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_mux_6
+         .text
+ 
+@@ -39,37 +39,37 @@
+ 
+ 
+ bignum_mux_6:
+-                testq   p, p 
++                testq   p, p
+ 
+-                movq    (x), a 
+-                movq    (y), b 
+-                cmovz   b, a 
+-                movq    a, (z) 
++                movq    (x), a
++                movq    (y), b
++                cmovzq  b, a
++                movq    a, (z)
+ 
+-                movq    8(x), a 
+-                movq    8(y), b 
+-                cmovz   b, a 
+-                movq    a, 8(z) 
++                movq    8(x), a
++                movq    8(y), b
++                cmovzq  b, a
++                movq    a, 8(z)
+ 
+-                movq    16(x), a 
+-                movq    16(y), b 
+-                cmovz   b, a 
+-                movq    a, 16(z) 
++                movq    16(x), a
++                movq    16(y), b
++                cmovzq  b, a
++                movq    a, 16(z)
+ 
+-                movq    24(x), a 
+-                movq    24(y), b 
+-                cmovz   b, a 
+-                movq    a, 24(z) 
++                movq    24(x), a
++                movq    24(y), b
++                cmovzq  b, a
++                movq    a, 24(z)
+ 
+-                movq    32(x), a 
+-                movq    32(y), b 
+-                cmovz   b, a 
+-                movq    a, 32(z) 
++                movq    32(x), a
++                movq    32(y), b
++                cmovzq  b, a
++                movq    a, 32(z)
+ 
+-                movq    40(x), a 
+-                movq    40(y), b 
+-                cmovz   b, a 
+-                movq    a, 40(z) 
++                movq    40(x), a
++                movq    40(y), b
++                cmovzq  b, a
++                movq    a, 40(z)
+ 
+                 ret
+ 
+diff --git a/x86_att/p384/bignum_neg_p384.S b/x86_att/p384/bignum_neg_p384.S
+index 62b912cba..3ce1cacc1 100644
+--- a/x86_att/p384/bignum_neg_p384.S
++++ b/x86_att/p384/bignum_neg_p384.S
+@@ -22,7 +22,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_neg_p384
+         .text
+ 
+@@ -43,45 +43,45 @@ bignum_neg_p384:
+ // Or together the input digits and create a bitmask q if this is nonzero, so
+ // that we avoid doing -0 = p_384 and hence maintain strict modular reduction
+ 
+-                movq    (x), n0 
+-                orq     8(x), n0 
+-                movq    16(x), n1 
+-                orq     24(x), n1 
+-                movq    32(x), n2 
+-                orq     40(x), n2 
+-                orq     n1, n0 
+-                orq     n2, n0 
++                movq    (x), n0
++                orq     8(x), n0
++                movq    16(x), n1
++                orq     24(x), n1
++                movq    32(x), n2
++                orq     40(x), n2
++                orq     n1, n0
++                orq     n2, n0
+                 negq    n0
+-                sbbq    q, q 
++                sbbq    q, q
+ 
+ // Let [q;n4;n3;n2;n1;n0] = if q then p_384 else 0
+ 
+-                movl    $0x00000000ffffffff, n0short 
+-                andq    q, n0 
+-                movq    $0xffffffff00000000, n1 
+-                andq    q, n1 
+-                movq    $0xfffffffffffffffe, n2 
+-                andq    q, n2 
+-                movq    q, n3 
+-                movq    q, n4 
++                movl    $0x00000000ffffffff, n0short
++                andq    q, n0
++                movq    $0xffffffff00000000, n1
++                andq    q, n1
++                movq    $0xfffffffffffffffe, n2
++                andq    q, n2
++                movq    q, n3
++                movq    q, n4
+ 
+ // Do the subtraction
+ 
+-                subq    (x), n0 
+-                sbbq    8(x), n1 
+-                sbbq    16(x), n2 
+-                sbbq    24(x), n3 
+-                sbbq    32(x), n4 
+-                sbbq    40(x), q 
++                subq    (x), n0
++                sbbq    8(x), n1
++                sbbq    16(x), n2
++                sbbq    24(x), n3
++                sbbq    32(x), n4
++                sbbq    40(x), q
+ 
+ // Write back
+ 
+-                movq    n0, (z) 
+-                movq    n1, 8(z) 
+-                movq    n2, 16(z) 
+-                movq    n3, 24(z) 
+-                movq    n4, 32(z) 
+-                movq    q, 40(z) 
++                movq    n0, (z)
++                movq    n1, 8(z)
++                movq    n2, 16(z)
++                movq    n3, 24(z)
++                movq    n4, 32(z)
++                movq    q, 40(z)
+ 
+                 ret
+ 
+diff --git a/x86_att/p384/bignum_nonzero_6.S b/x86_att/p384/bignum_nonzero_6.S
+index 99f37115e..e41392f45 100644
+--- a/x86_att/p384/bignum_nonzero_6.S
++++ b/x86_att/p384/bignum_nonzero_6.S
+@@ -22,7 +22,7 @@
+ // Standard x86-64 ABI: RDI = x, returns RAX
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_nonzero_6
+         .text
+ 
+@@ -37,18 +37,18 @@ bignum_nonzero_6:
+ 
+ // Generate a = an OR of all the words in the bignum
+ 
+-                movq    (x), a 
+-                movq    8(x), d 
+-                orq     16(x), a 
+-                orq     24(x), d 
+-                orq     32(x), a 
+-                orq     40(x), d 
+-                orq     d, a 
++                movq    (x), a
++                movq    8(x), d
++                orq     16(x), a
++                orq     24(x), d
++                orq     32(x), a
++                orq     40(x), d
++                orq     d, a
+ 
+ // Set a standard C condition based on whether a is nonzero
+ 
+-                movl    $1, dshort 
+-                cmovnz  d, a 
++                movl    $1, dshort
++                cmovnzq d, a
+ 
+                 ret
+ 
+diff --git a/x86_att/p384/bignum_optneg_p384.S b/x86_att/p384/bignum_optneg_p384.S
+index 34941732d..02a7284f2 100644
+--- a/x86_att/p384/bignum_optneg_p384.S
++++ b/x86_att/p384/bignum_optneg_p384.S
+@@ -24,7 +24,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = p, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_optneg_p384
+         .text
+ 
+@@ -48,61 +48,61 @@ bignum_optneg_p384:
+ // This step is redundant if we know a priori that the input is nonzero, which
+ // is the case for the y coordinate of points on the P-384 curve, for example.
+ 
+-                movq    (x), n0 
+-                orq     8(x), n0 
+-                movq    16(x), n1 
+-                orq     24(x), n1 
+-                movq    32(x), n2 
+-                orq     40(x), n2 
+-                orq     n1, n0 
+-                orq     n2, n0 
++                movq    (x), n0
++                orq     8(x), n0
++                movq    16(x), n1
++                orq     24(x), n1
++                movq    32(x), n2
++                orq     40(x), n2
++                orq     n1, n0
++                orq     n2, n0
+                 negq    n0
+-                sbbq    n0, n0 
+-                andq    n0, q 
++                sbbq    n0, n0
++                andq    n0, q
+ 
+ // Turn q into a bitmask, all 1s for q=false, all 0s for q=true
+ 
+                 negq    q
+-                sbbq    q, q 
++                sbbq    q, q
+                 notq    q
+ 
+ // Let [n5;n4;n3;n2;n1] = if q then p_384 else -1
+ 
+-                movl    $0x00000000ffffffff, n0short 
+-                orq     q, n0 
+-                movq    $0xffffffff00000000, n1 
+-                orq     q, n1 
+-                movq    $0xfffffffffffffffe, n2 
+-                orq     q, n2 
+-                movq    $0xffffffffffffffff, n3 
+-                movq    n3, n4 
+-                movq    n3, n5 
++                movl    $0x00000000ffffffff, n0short
++                orq     q, n0
++                movq    $0xffffffff00000000, n1
++                orq     q, n1
++                movq    $0xfffffffffffffffe, n2
++                orq     q, n2
++                movq    $0xffffffffffffffff, n3
++                movq    n3, n4
++                movq    n3, n5
+ 
+ // Subtract so [n5;n4;n3;n2;n1;n0] = if q then p_384 - x else -1 - x
+ 
+-                subq    (x), n0 
+-                sbbq    8(x), n1 
+-                sbbq    16(x), n2 
+-                sbbq    24(x), n3 
+-                sbbq    32(x), n4 
+-                sbbq    40(x), n5 
++                subq    (x), n0
++                sbbq    8(x), n1
++                sbbq    16(x), n2
++                sbbq    24(x), n3
++                sbbq    32(x), n4
++                sbbq    40(x), n5
+ 
+ // XOR the words with the bitmask, which in the case q = false has the
+ // effect of restoring ~(-1 - x) = -(-1 - x) - 1 = 1 + x - 1 = x
+ // and write back the digits to the output
+ 
+-                xorq    q, n0 
+-                movq    n0, (z) 
+-                xorq    q, n1 
+-                movq    n1, 8(z) 
+-                xorq    q, n2 
+-                movq    n2, 16(z) 
+-                xorq    q, n3 
+-                movq    n3, 24(z) 
+-                xorq    q, n4 
+-                movq    n4, 32(z) 
+-                xorq    q, n5 
+-                movq    n5, 40(z) 
++                xorq    q, n0
++                movq    n0, (z)
++                xorq    q, n1
++                movq    n1, 8(z)
++                xorq    q, n2
++                movq    n2, 16(z)
++                xorq    q, n3
++                movq    n3, 24(z)
++                xorq    q, n4
++                movq    n4, 32(z)
++                xorq    q, n5
++                movq    n5, 40(z)
+ 
+                 ret
+ 
+diff --git a/x86_att/p384/bignum_sub_p384.S b/x86_att/p384/bignum_sub_p384.S
+index 716ee434d..d71ef3cb3 100644
+--- a/x86_att/p384/bignum_sub_p384.S
++++ b/x86_att/p384/bignum_sub_p384.S
+@@ -23,7 +23,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_sub_p384
+         .text
+ 
+@@ -52,54 +52,54 @@ bignum_sub_p384:
+ // Subtract the inputs as [d5;d4;d3;d2;d1;d0] = x - y (modulo 2^384)
+ // Capture the top carry as a bitmask for the condition x < y
+ 
+-        movq    (x), d0 
+-        subq    (y), d0 
+-        movq    8(x), d1 
+-        sbbq    8(y), d1 
+-        movq    16(x), d2 
+-        sbbq    16(y), d2 
+-        movq    24(x), d3 
+-        sbbq    24(y), d3 
+-        movq    32(x), d4 
+-        sbbq    32(y), d4 
+-        movq    40(x), d5 
+-        sbbq    40(y), d5 
+-        sbbq    c, c 
++        movq    (x), d0
++        subq    (y), d0
++        movq    8(x), d1
++        sbbq    8(y), d1
++        movq    16(x), d2
++        sbbq    16(y), d2
++        movq    24(x), d3
++        sbbq    24(y), d3
++        movq    32(x), d4
++        sbbq    32(y), d4
++        movq    40(x), d5
++        sbbq    40(y), d5
++        sbbq    c, c
+ 
+ // Use mask to make r' = mask * (2^384 - p_384) for a compensating subtraction
+ // of r_384 = 2^384 - p_384, equivalent to an addition of p_384.
+ // We don't quite have enough ABI-modifiable registers to create all three
+ // nonzero digits of r while maintaining d0..d5, but make the first two now.
+ 
+-        movl    $0x00000000ffffffff, ashort 
++        movl    $0x00000000ffffffff, ashort
+         andq    a, c // c = masked 0x00000000ffffffff
+-        xorq    a, a 
++        xorq    a, a
+         subq    c, a // a = masked 0xffffffff00000001
+ 
+ // Do the first two digits of addition and writeback
+ 
+-        subq    a, d0 
+-        movq    d0, (z) 
+-        sbbq    c, d1 
+-        movq    d1, 8(z) 
++        subq    a, d0
++        movq    d0, (z)
++        sbbq    c, d1
++        movq    d1, 8(z)
+ 
+ // Preserve the carry chain while creating the extra masked digit since
+ // the logical operation will clear CF
+ 
+-        sbbq    d0, d0 
++        sbbq    d0, d0
+         andq    a, c // c = masked 0x0000000000000001
+         negq    d0
+ 
+ // Do the rest of the addition and writeback
+ 
+-        sbbq    c, d2 
+-        movq    d2, 16(z) 
+-        sbbq    $0, d3 
+-        movq    d3, 24(z) 
+-        sbbq    $0, d4 
+-        movq    d4, 32(z) 
+-        sbbq    $0, d5 
+-        movq    d5, 40(z) 
++        sbbq    c, d2
++        movq    d2, 16(z)
++        sbbq    $0, d3
++        movq    d3, 24(z)
++        sbbq    $0, d4
++        movq    d4, 32(z)
++        sbbq    $0, d5
++        movq    d5, 40(z)
+ 
+         ret
+ 
+diff --git a/x86_att/p384/bignum_tomont_p384.S b/x86_att/p384/bignum_tomont_p384.S
+index ef371b88a..24a90b15f 100644
+--- a/x86_att/p384/bignum_tomont_p384.S
++++ b/x86_att/p384/bignum_tomont_p384.S
+@@ -23,7 +23,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_tomont_p384
+         .text
+ 
+@@ -51,7 +51,7 @@
+ #define mulpadd(high,low,m)             \
+         mulxq   m, %rax, %rcx ;            \
+         adcxq   %rax, low ;               \
+-        adoxq   %rcx, high 
++        adoxq   %rcx, high
+ 
+ // Core one-step Montgomery reduction macro. Takes input in
+ // [d7;d6;d5;d4;d3;d2;d1;d0] and returns result in [d7;d6;d5;d4;d3;d2;d1],
+@@ -90,7 +90,7 @@
+                 sbbq    $0, d5 ;                                          \
+                 sbbq    $0, %rdx ;                                         \
+                 addq    %rdx, d6 ;                                        \
+-                adcq    $0, d7 
++                adcq    $0, d7
+ 
+ bignum_tomont_p384:
+ 
+@@ -110,39 +110,39 @@ bignum_tomont_p384:
+ // set up initial window [%r14,%r13,%r12,%r11,%r10,%r9,%r8] = y[0] * x
+ // Unlike later, we only need a single carry chain
+ 
+-        movq    $0xfffffffe00000001, %rdx 
+-        mulxq   (x), %r8, %r9 
+-        mulxq   8(x), %rcx, %r10 
+-        addq    %rcx, %r9 
+-        mulxq   16(x), %rcx, %r11 
+-        adcq    %rcx, %r10 
+-        mulxq   24(x), %rcx, %r12 
+-        adcq    %rcx, %r11 
+-        mulxq   32(x), %rcx, %r13 
+-        adcq    %rcx, %r12 
+-        mulxq   40(x), %rcx, %r14 
+-        adcq    %rcx, %r13 
+-        adcq    $0, %r14 
++        movq    $0xfffffffe00000001, %rdx
++        mulxq   (x), %r8, %r9
++        mulxq   8(x), %rcx, %r10
++        addq    %rcx, %r9
++        mulxq   16(x), %rcx, %r11
++        adcq    %rcx, %r10
++        mulxq   24(x), %rcx, %r12
++        adcq    %rcx, %r11
++        mulxq   32(x), %rcx, %r13
++        adcq    %rcx, %r12
++        mulxq   40(x), %rcx, %r14
++        adcq    %rcx, %r13
++        adcq    $0, %r14
+ 
+ // Montgomery reduce the zeroth window
+ 
+-        xorq    %r15, %r15 
++        xorq    %r15, %r15
+         montredc (%r15, %r14,%r13,%r12,%r11,%r10,%r9,%r8)
+ 
+ // Add row 1
+ 
+-        xorq    zero, zero 
+-        movq    $0x0000000200000000, %rdx 
+-        xorq    %r8, %r8 
++        xorq    zero, zero
++        movq    $0x0000000200000000, %rdx
++        xorq    %r8, %r8
+         mulpadd (%r10,%r9,(x))
+         mulpadd (%r11,%r10,8(x))
+         mulpadd (%r12,%r11,16(x))
+         mulpadd (%r13,%r12,24(x))
+         mulpadd (%r14,%r13,32(x))
+         mulpadd (%r15,%r14,40(x))
+-        adcxq   zero, %r15 
+-        adoxq   zero, %r8 
+-        adcxq   zero, %r8 
++        adcxq   zero, %r15
++        adoxq   zero, %r8
++        adcxq   zero, %r8
+ 
+ // Montgomery reduce window 1
+ 
+@@ -150,18 +150,18 @@ bignum_tomont_p384:
+ 
+ // Add row 2
+ 
+-        xorq    zero, zero 
+-        movq    $0xfffffffe00000000, %rdx 
+-        xorq    %r9, %r9 
++        xorq    zero, zero
++        movq    $0xfffffffe00000000, %rdx
++        xorq    %r9, %r9
+         mulpadd (%r11,%r10,(x))
+         mulpadd (%r12,%r11,8(x))
+         mulpadd (%r13,%r12,16(x))
+         mulpadd (%r14,%r13,24(x))
+         mulpadd (%r15,%r14,32(x))
+         mulpadd (%r8,%r15,40(x))
+-        adcxq   zero, %r8 
+-        adoxq   zero, %r9 
+-        adcxq   zero, %r9 
++        adcxq   zero, %r8
++        adoxq   zero, %r9
++        adcxq   zero, %r9
+ 
+ // Montgomery reduce window 2
+ 
+@@ -169,18 +169,18 @@ bignum_tomont_p384:
+ 
+ // Add row 3
+ 
+-        xorq    zero, zero 
+-        movq    $0x0000000200000000, %rdx 
+-        xorq    %r10, %r10 
++        xorq    zero, zero
++        movq    $0x0000000200000000, %rdx
++        xorq    %r10, %r10
+         mulpadd (%r12,%r11,(x))
+         mulpadd (%r13,%r12,8(x))
+         mulpadd (%r14,%r13,16(x))
+         mulpadd (%r15,%r14,24(x))
+         mulpadd (%r8,%r15,32(x))
+         mulpadd (%r9,%r8,40(x))
+-        adcxq   zero, %r9 
+-        adoxq   zero, %r10 
+-        adcxq   zero, %r10 
++        adcxq   zero, %r9
++        adoxq   zero, %r10
++        adcxq   zero, %r10
+ 
+ // Montgomery reduce window 3
+ 
+@@ -189,15 +189,15 @@ bignum_tomont_p384:
+ // Add row 4. The multiplier y[4] = 1, so we just add x to the window
+ // while extending it with one more digit, initially this carry
+ 
+-        xorq    %r11, %r11 
+-        addq    (x), %r12 
+-        adcq    8(x), %r13 
+-        adcq    16(x), %r14 
+-        adcq    24(x), %r15 
+-        adcq    32(x), %r8 
+-        adcq    40(x), %r9 
+-        adcq    $0, %r10 
+-        adcq    $0, %r11 
++        xorq    %r11, %r11
++        addq    (x), %r12
++        adcq    8(x), %r13
++        adcq    16(x), %r14
++        adcq    24(x), %r15
++        adcq    32(x), %r8
++        adcq    40(x), %r9
++        adcq    $0, %r10
++        adcq    $0, %r11
+ 
+ // Montgomery reduce window 4
+ 
+@@ -206,7 +206,7 @@ bignum_tomont_p384:
+ // Add row 5, The multiplier y[5] = 0, so this is trivial: all we do is
+ // bring down another zero digit into the window.
+ 
+-        xorq    %r12, %r12 
++        xorq    %r12, %r12
+ 
+ // Montgomery reduce window 5
+ 
+@@ -221,30 +221,30 @@ bignum_tomont_p384:
+ // comparison to catch cases where the residue is >= p.
+ // First set [0;0;0;w;v;u] = 2^384 - p_384
+ 
+-        movq    $0xffffffff00000001, u 
+-        movl    $0x00000000ffffffff, vshort 
+-        movl    $0x0000000000000001, wshort 
++        movq    $0xffffffff00000001, u
++        movl    $0x00000000ffffffff, vshort
++        movl    $0x0000000000000001, wshort
+ 
+ // Let dd = [%r11;%r10;%r9;%r8;%r15;%r14] be the topless 6-word intermediate result.
+ // Set CF if the addition dd + (2^384 - p_384) >= 2^384, hence iff dd >= p_384.
+ 
+-        movq    %r14, d 
+-        addq    u, d 
+-        movq    %r15, d 
+-        adcq    v, d 
+-        movq    %r8, d 
+-        adcq    w, d 
+-        movq    %r9, d 
+-        adcq    $0, d 
+-        movq    %r10, d 
+-        adcq    $0, d 
+-        movq    %r11, d 
+-        adcq    $0, d 
++        movq    %r14, d
++        addq    u, d
++        movq    %r15, d
++        adcq    v, d
++        movq    %r8, d
++        adcq    w, d
++        movq    %r9, d
++        adcq    $0, d
++        movq    %r10, d
++        adcq    $0, d
++        movq    %r11, d
++        adcq    $0, d
+ 
+ // Now just add this new carry into the existing %r12. It's easy to see they
+ // can't both be 1 by our range assumptions, so this gives us a {0,1} flag
+ 
+-        adcq    $0, %r12 
++        adcq    $0, %r12
+ 
+ // Now convert it into a bitmask
+ 
+@@ -252,25 +252,25 @@ bignum_tomont_p384:
+ 
+ // Masked addition of 2^384 - p_384, hence subtraction of p_384
+ 
+-        andq    %r12, u 
+-        andq    %r12, v 
+-        andq    %r12, w 
++        andq    %r12, u
++        andq    %r12, v
++        andq    %r12, w
+ 
+-        addq   u, %r14 
+-        adcq   v, %r15 
+-        adcq   w, %r8 
+-        adcq   $0, %r9 
+-        adcq   $0, %r10 
+-        adcq   $0, %r11 
++        addq   u, %r14
++        adcq   v, %r15
++        adcq   w, %r8
++        adcq   $0, %r9
++        adcq   $0, %r10
++        adcq   $0, %r11
+ 
+ // Write back the result
+ 
+-        movq    %r14, (z) 
+-        movq    %r15, 8(z) 
+-        movq    %r8, 16(z) 
+-        movq    %r9, 24(z) 
+-        movq    %r10, 32(z) 
+-        movq    %r11, 40(z) 
++        movq    %r14, (z)
++        movq    %r15, 8(z)
++        movq    %r8, 16(z)
++        movq    %r9, 24(z)
++        movq    %r10, 32(z)
++        movq    %r11, 40(z)
+ 
+ // Restore registers and return
+ 
+diff --git a/x86_att/p384/bignum_triple_p384.S b/x86_att/p384/bignum_triple_p384.S
+index 3c3ce48bb..515da2f77 100644
+--- a/x86_att/p384/bignum_triple_p384.S
++++ b/x86_att/p384/bignum_triple_p384.S
+@@ -26,7 +26,7 @@
+ // Standard x86-64 ABI: RDI = z, RSI = x
+ // ----------------------------------------------------------------------------
+ 
+-        
++
+         .globl  bignum_triple_p384
+         .text
+ 
+@@ -59,79 +59,79 @@ bignum_triple_p384:
+ // product is <= (2^64 - 1) * (p_384 - 1) and hence  h <= 2^64 - 2, meaning
+ // there is no danger this addition of 1 could wrap.
+ 
+-                xorl    ashort, ashort 
+-
+-                movq    (x), q 
+-                movq    q, d0 
+-                adcxq   q, q 
+-                adoxq   q, d0 
+-                movq    8(x), q 
+-                movq    q, d1 
+-                adcxq   q, q 
+-                adoxq   q, d1 
+-                movq    16(x), q 
+-                movq    q, d2 
+-                adcxq   q, q 
+-                adoxq   q, d2 
+-                movq    24(x), q 
+-                movq    q, d3 
+-                adcxq   q, q 
+-                adoxq   q, d3 
+-                movq    32(x), q 
+-                movq    q, d4 
+-                adcxq   q, q 
+-                adoxq   q, d4 
+-                movq    40(x), q 
+-                movq    q, d5 
+-                adcxq   q, q 
+-                adoxq   q, d5 
+-
+-                movl    $1, qshort 
+-                adcxq   a, q 
+-                adoxq   a, q 
++                xorl    ashort, ashort
++
++                movq    (x), q
++                movq    q, d0
++                adcxq   q, q
++                adoxq   q, d0
++                movq    8(x), q
++                movq    q, d1
++                adcxq   q, q
++                adoxq   q, d1
++                movq    16(x), q
++                movq    q, d2
++                adcxq   q, q
++                adoxq   q, d2
++                movq    24(x), q
++                movq    q, d3
++                adcxq   q, q
++                adoxq   q, d3
++                movq    32(x), q
++                movq    q, d4
++                adcxq   q, q
++                adoxq   q, d4
++                movq    40(x), q
++                movq    q, d5
++                adcxq   q, q
++                adoxq   q, d5
++
++                movl    $1, qshort
++                adcxq   a, q
++                adoxq   a, q
+ 
+ // Initial subtraction of z - q * p_384, with bitmask c for the carry
+ // Actually done as an addition of (z - 2^384 * h) + q * (2^384 - p_384)
+ // which, because q = h + 1, is exactly 2^384 + (z - q * p_384), and
+ // therefore CF <=> 2^384 + (z - q * p_384) >= 2^384 <=> z >= q * p_384.
+ 
+-                movq    q, c 
+-                shlq    $32, c 
+-                movq    q, a 
+-                subq    c, a 
+-                sbbq    $0, c 
+-
+-                addq    a, d0 
+-                adcq    c, d1 
+-                adcq    q, d2 
+-                adcq    $0, d3 
+-                adcq    $0, d4 
+-                adcq    $0, d5 
+-                sbbq    c, c 
++                movq    q, c
++                shlq    $32, c
++                movq    q, a
++                subq    c, a
++                sbbq    $0, c
++
++                addq    a, d0
++                adcq    c, d1
++                adcq    q, d2
++                adcq    $0, d3
++                adcq    $0, d4
++                adcq    $0, d5
++                sbbq    c, c
+                 notq    c
+ 
+ // Now use that mask for a masked addition of p_384, which again is in
+ // fact done by a masked subtraction of 2^384 - p_384, so that we only
+ // have three nonzero digits and so can avoid using another register.
+ 
+-                movl    $0x00000000ffffffff, qshort 
+-                xorl    ashort, ashort 
+-                andq    c, q 
+-                subq    q, a 
++                movl    $0x00000000ffffffff, qshort
++                xorl    ashort, ashort
++                andq    c, q
++                subq    q, a
+                 negq    c
+ 
+-                subq    a, d0 
+-                movq    d0, (z) 
+-                sbbq    q, d1 
+-                movq    d1, 8(z) 
+-                sbbq    c, d2 
+-                movq    d2, 16(z) 
+-                sbbq    $0, d3 
+-                movq    d3, 24(z) 
+-                sbbq    $0, d4 
+-                movq    d4, 32(z) 
+-                sbbq    $0, d5 
+-                movq    d5, 40(z) 
++                subq    a, d0
++                movq    d0, (z)
++                sbbq    q, d1
++                movq    d1, 8(z)
++                sbbq    c, d2
++                movq    d2, 16(z)
++                sbbq    $0, d3
++                movq    d3, 24(z)
++                sbbq    $0, d4
++                movq    d4, 32(z)
++                sbbq    $0, d5
++                movq    d5, 40(z)
+ 
+ // Return
+ 

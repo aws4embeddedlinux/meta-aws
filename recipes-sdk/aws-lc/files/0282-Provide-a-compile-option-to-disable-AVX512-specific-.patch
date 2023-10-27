@@ -1,0 +1,185 @@
+From 301dce973b26d5ea0be24757bb9b0f46adc4315d Mon Sep 17 00:00:00 2001
+From: Nevine Ebeid <66388554+nebeid@users.noreply.github.com>
+Date: Wed, 12 Apr 2023 17:53:42 -0400
+Subject: [PATCH] Provide a compile option to disable AVX512-specific
+ optimizations. (#945)
+
+- The new flag name ends with "512AVX" instead of "AVX512" so that it doesn't include the entire flag
+-DMY_ASSEMBLER_IS_TOO_OLD_FOR_AVX and match it in the Perl files checks.
+
+- avx512 is disabled when avx is.
+---
+ CMakeLists.txt                                  | 15 +++++++++++++++
+ crypto/CMakeLists.txt                           |  4 ++++
+ crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl |  3 ++-
+ crypto/fipsmodule/modes/gcm.c                   |  3 ++-
+ crypto/fipsmodule/modes/gcm_test.cc             |  2 ++
+ crypto/fipsmodule/modes/internal.h              |  4 +---
+ crypto/impl_dispatch_test.cc                    | 10 +++++++++-
+ tests/ci/run_posix_tests.sh                     |  5 +++++
+ 8 files changed, 40 insertions(+), 6 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index cbaa1c6fd..de126a3f6 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -219,11 +219,26 @@ endmacro()
+ # assumption we make for some of the assembly implementations. This flag
+ # can be set to handle such cases.
+ option(MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX "Exclude AVX code from the build" OFF)
++
++# Some assemblers know about AVX but not AVX512 instructions, e.g. gcc 4.8.2.
++# This flag can be set to handle such cases.
++# Note that the flag's name has "512AVX" instead of "AVX512" so that it doesn't
++# include the entire flag -DMY_ASSEMBLER_IS_TOO_OLD_FOR_AVX and match it
++# in the Perl files checks.
++option(MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX "Exclude AVX512 code from the build" OFF)
++
+ if(MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX)
+   add_definitions(-DMY_ASSEMBLER_IS_TOO_OLD_FOR_AVX)
++  add_definitions(-DMY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX)
++  set(MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX ON)
+   message(STATUS "MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX selected, removing AVX optimisations")
+ endif()
+ 
++if(MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX)
++  add_definitions(-DMY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX)
++  message(STATUS "MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX selected, removing AVX512 optimisations")
++endif()
++
+ # Detect if memcmp is wrongly stripped like strcmp.
+ # If exists, let CMake generate a warning.
+ # memcmp bug link https://gcc.gnu.org/bugzilla/show_bug.cgi?id=95189.
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index 1c4e212f6..1c64967d7 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -79,6 +79,10 @@ if(PERL_EXECUTABLE)
+       set(PERLASM_FLAGS "${PERLASM_FLAGS} -DMY_ASSEMBLER_IS_TOO_OLD_FOR_AVX")
+     endif()
+ 
++    if(MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX)
++      set(PERLASM_FLAGS "${PERLASM_FLAGS} -DMY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX")
++    endif()
++
+     add_custom_command(
+       OUTPUT ${dest}
+       COMMAND ${CMAKE_COMMAND} -E make_directory ${dir}
+diff --git a/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl b/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl
+index b728dc3fc..ba69fb608 100644
+--- a/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl
++++ b/crypto/fipsmodule/modes/asm/aesni-gcm-avx512.pl
+@@ -48,7 +48,8 @@ $win64 = 0;
+ $win64 = 1 if ($flavour =~ /[nm]asm|mingw64/ || $output =~ /\.asm$/);
+ 
+ $avx512vaes = 1;
+-for (@ARGV) { $avx512vaes = 0 if (/-DMY_ASSEMBLER_IS_TOO_OLD_FOR_AVX/); }
++for (@ARGV) { $avx512vaes = 0 if
++   (/-DMY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX/); }
+ 
+ # TODO(awslc, CryptoAlg-1701): fix the script to generate assembly that
+ # can be handled by MSVC2015 linker. Currently, the linker chokes on
+diff --git a/crypto/fipsmodule/modes/gcm.c b/crypto/fipsmodule/modes/gcm.c
+index 0368784d9..e454859a3 100644
+--- a/crypto/fipsmodule/modes/gcm.c
++++ b/crypto/fipsmodule/modes/gcm.c
+@@ -796,7 +796,8 @@ int crypto_gcm_clmul_enabled(void) {
+ 
+ int crypto_gcm_avx512_enabled(void) {
+ #if defined(GHASH_ASM_X86_64) && \
+-    !defined(OPENSSL_WINDOWS) && !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX)
++    !defined(OPENSSL_WINDOWS) && \
++    !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX)
+     // TODO(awslc): remove the Windows guard once CryptoAlg-1701 is resolved.
+   return (CRYPTO_is_VAES_capable() &&
+           CRYPTO_is_AVX512_capable() &&
+diff --git a/crypto/fipsmodule/modes/gcm_test.cc b/crypto/fipsmodule/modes/gcm_test.cc
+index 0f9a5e7a5..2e82abfee 100644
+--- a/crypto/fipsmodule/modes/gcm_test.cc
++++ b/crypto/fipsmodule/modes/gcm_test.cc
+@@ -189,6 +189,7 @@ TEST(GCMTest, ABI) {
+         }
+       }
+     }
++#if !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX)
+     if (crypto_gcm_avx512_enabled()) {
+       CHECK_ABI_SEH(gcm_init_avx512, Htable, kH);
+       CHECK_ABI_SEH(gcm_gmult_avx512, X, Htable);
+@@ -223,6 +224,7 @@ TEST(GCMTest, ABI) {
+         }
+       }
+     }
++#endif // !MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX)
+ #endif  // GHASH_ASM_X86_64
+   }
+ #endif  // GHASH_ASM_X86 || GHASH_ASM_X86_64
+diff --git a/crypto/fipsmodule/modes/internal.h b/crypto/fipsmodule/modes/internal.h
+index 5e793495c..09b416b5b 100644
+--- a/crypto/fipsmodule/modes/internal.h
++++ b/crypto/fipsmodule/modes/internal.h
+@@ -290,8 +290,6 @@ void gcm_init_avx512(u128 Htable[16], const uint64_t Xi[2]);
+ void gcm_gmult_avx512(uint64_t Xi[2], const u128 Htable[16]);
+ void gcm_ghash_avx512(uint64_t Xi[2], const u128 Htable[16], const uint8_t *in,
+                       size_t len);
+-
+-
+ #define HW_GCM
+ size_t aesni_gcm_encrypt(const uint8_t *in, uint8_t *out, size_t len,
+                          const AES_KEY *key, uint8_t ivec[16], uint64_t *Xi);
+@@ -305,7 +303,7 @@ void aes_gcm_encrypt_avx512(const AES_KEY *key, const GCM128_CONTEXT *ctx,
+ void aes_gcm_decrypt_avx512(const AES_KEY *key, const GCM128_CONTEXT *ctx,
+                             unsigned *pblocklen, const uint8_t *in, size_t len,
+                             uint8_t *out);
+-#endif  // OPENSSL_X86_64
++#endif  // OPENSSL_X86_64 && !MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX
+ 
+ #if defined(OPENSSL_X86)
+ #define GHASH_ASM_X86
+diff --git a/crypto/impl_dispatch_test.cc b/crypto/impl_dispatch_test.cc
+index e8b80d3e9..e7d136530 100644
+--- a/crypto/impl_dispatch_test.cc
++++ b/crypto/impl_dispatch_test.cc
+@@ -55,6 +55,12 @@ class ImplDispatchTest : public ::testing::Test {
+ #else
+         false;
+ #endif // MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX
++    is_assembler_too_old_avx512 =
++#if defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX)
++        true;
++#else
++        false;
++#endif // MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX
+ #endif  // X86 || X86_64
+   }
+ 
+@@ -90,6 +96,7 @@ class ImplDispatchTest : public ::testing::Test {
+   bool sha_ext_ = false;
+   bool is_x86_64_ = false;
+   bool is_assembler_too_old = false;
++  bool is_assembler_too_old_avx512 = false;
+ #endif
+ };
+ 
+@@ -118,7 +125,8 @@ TEST_F(ImplDispatchTest, AEAD_AES_GCM) {
+           {kFlag_vpaes_encrypt, ssse3_ && !aesni_},
+           {kFlag_vpaes_set_encrypt_key, ssse3_ && !aesni_},
+           {kFlag_aes_gcm_encrypt_avx512,
+-           is_x86_64_ && aesni_ && !is_assembler_too_old &&
++           is_x86_64_ && aesni_ &&
++           !is_assembler_too_old_avx512 &&
+            vaes_vpclmulqdq_},
+       },
+       [] {
+diff --git a/tests/ci/run_posix_tests.sh b/tests/ci/run_posix_tests.sh
+index 2d8994705..0ac68291f 100755
+--- a/tests/ci/run_posix_tests.sh
++++ b/tests/ci/run_posix_tests.sh
+@@ -46,3 +46,8 @@ build_options_to_test=("" "-DBUILD_SHARED_LIBS=1" "-DCMAKE_BUILD_TYPE=Release" "
+ for build_option in "${build_options_to_test[@]}"; do
+   run_build ${build_option} -DMY_ASSEMBLER_IS_TOO_OLD_FOR_AVX=ON
+ done
++
++## Build option: MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX
++for build_option in "${build_options_to_test[@]}"; do
++  run_build ${build_option} -DMY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX=ON
++done

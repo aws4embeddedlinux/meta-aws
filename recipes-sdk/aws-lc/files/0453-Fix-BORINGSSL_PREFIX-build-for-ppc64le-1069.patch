@@ -1,0 +1,70 @@
+From eb44d342e79ef1c3a89481874b5e1bdb6cdc91e5 Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Tue, 27 Jun 2023 17:48:01 -0700
+Subject: [PATCH] Fix BORINGSSL_PREFIX build for ppc64le (#1069)
+
+* Fix BORINGSSL_PREFIX build for ppc64le
+* Regenerate generated-src
+---
+ crypto/perlasm/ppc-xlate.pl                                 | 3 +++
+ generated-src/linux-ppc64le/crypto/fipsmodule/aesp8-ppc.S   | 3 +++
+ generated-src/linux-ppc64le/crypto/fipsmodule/ghashp8-ppc.S | 3 +++
+ generated-src/linux-ppc64le/crypto/test/trampoline-ppc.S    | 3 +++
+ 4 files changed, 12 insertions(+)
+
+diff --git a/crypto/perlasm/ppc-xlate.pl b/crypto/perlasm/ppc-xlate.pl
+index 1c51577ed..249834ccf 100644
+--- a/crypto/perlasm/ppc-xlate.pl
++++ b/crypto/perlasm/ppc-xlate.pl
+@@ -266,6 +266,9 @@ print <<___;
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__powerpc64__) && defined(__ELF__)
++#if defined(BORINGSSL_PREFIX)
++#include <boringssl_prefix_symbols_asm.h>
++#endif
+ ___
+ 
+ while($line=<>) {
+diff --git a/generated-src/linux-ppc64le/crypto/fipsmodule/aesp8-ppc.S b/generated-src/linux-ppc64le/crypto/fipsmodule/aesp8-ppc.S
+index aa39b4234..4866c7a3c 100644
+--- a/generated-src/linux-ppc64le/crypto/fipsmodule/aesp8-ppc.S
++++ b/generated-src/linux-ppc64le/crypto/fipsmodule/aesp8-ppc.S
+@@ -8,6 +8,9 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__powerpc64__) && defined(__ELF__)
++#if defined(BORINGSSL_PREFIX)
++#include <boringssl_prefix_symbols_asm.h>
++#endif
+ .machine	"any"
+ 
+ .abiversion	2
+diff --git a/generated-src/linux-ppc64le/crypto/fipsmodule/ghashp8-ppc.S b/generated-src/linux-ppc64le/crypto/fipsmodule/ghashp8-ppc.S
+index 1af118d6e..08377b309 100644
+--- a/generated-src/linux-ppc64le/crypto/fipsmodule/ghashp8-ppc.S
++++ b/generated-src/linux-ppc64le/crypto/fipsmodule/ghashp8-ppc.S
+@@ -8,6 +8,9 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__powerpc64__) && defined(__ELF__)
++#if defined(BORINGSSL_PREFIX)
++#include <boringssl_prefix_symbols_asm.h>
++#endif
+ .machine	"any"
+ 
+ .abiversion	2
+diff --git a/generated-src/linux-ppc64le/crypto/test/trampoline-ppc.S b/generated-src/linux-ppc64le/crypto/test/trampoline-ppc.S
+index dc58d55e5..0d7430683 100644
+--- a/generated-src/linux-ppc64le/crypto/test/trampoline-ppc.S
++++ b/generated-src/linux-ppc64le/crypto/test/trampoline-ppc.S
+@@ -8,6 +8,9 @@
+ #endif
+ 
+ #if !defined(OPENSSL_NO_ASM) && defined(__powerpc64__) && defined(__ELF__)
++#if defined(BORINGSSL_PREFIX)
++#include <boringssl_prefix_symbols_asm.h>
++#endif
+ .machine	"any"
+ .abiversion	2
+ .text

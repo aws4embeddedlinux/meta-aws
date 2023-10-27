@@ -1,0 +1,44 @@
+From cfbc38bfbd72cfb1a680d0483381b2e93b9a3e73 Mon Sep 17 00:00:00 2001
+From: torben-hansen <50673096+torben-hansen@users.noreply.github.com>
+Date: Tue, 7 Feb 2023 12:17:54 -0800
+Subject: [PATCH] Bump release version to v1.4.0 (#792)
+
+---
+ crypto/fipsmodule/service_indicator/service_indicator_test.cc | 4 ++--
+ include/openssl/base.h                                        | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/crypto/fipsmodule/service_indicator/service_indicator_test.cc b/crypto/fipsmodule/service_indicator/service_indicator_test.cc
+index 845fd9002..0c6605613 100644
+--- a/crypto/fipsmodule/service_indicator/service_indicator_test.cc
++++ b/crypto/fipsmodule/service_indicator/service_indicator_test.cc
+@@ -3899,7 +3899,7 @@ TEST(ServiceIndicatorTest, DRBG) {
+ // Since this is running in FIPS mode it should end in FIPS
+ // Update this when the AWS-LC version number is modified
+ TEST(ServiceIndicatorTest, AWSLCVersionString) {
+-  ASSERT_STREQ(awslc_version_string(), "AWS-LC FIPS 1.3.0");
++  ASSERT_STREQ(awslc_version_string(), "AWS-LC FIPS 1.4.0");
+ }
+ 
+ #else
+@@ -3942,6 +3942,6 @@ TEST(ServiceIndicatorTest, BasicTest) {
+ // Since this is not running in FIPS mode it shouldn't end in FIPS
+ // Update this when the AWS-LC version number is modified
+ TEST(ServiceIndicatorTest, AWSLCVersionString) {
+-  ASSERT_STREQ(awslc_version_string(), "AWS-LC 1.3.0");
++  ASSERT_STREQ(awslc_version_string(), "AWS-LC 1.4.0");
+ }
+ #endif // AWSLC_FIPS
+diff --git a/include/openssl/base.h b/include/openssl/base.h
+index 288553831..ffae488dc 100644
+--- a/include/openssl/base.h
++++ b/include/openssl/base.h
+@@ -212,7 +212,7 @@ extern "C" {
+ // ServiceIndicatorTest.AWSLCVersionString
+ // Note: there are two versions of this test. Only one test is compiled
+ // depending on FIPS mode.
+-#define AWSLC_VERSION_NUMBER_STRING "1.3.0"
++#define AWSLC_VERSION_NUMBER_STRING "1.4.0"
+ 
+ #if defined(BORINGSSL_SHARED_LIBRARY)
+ 

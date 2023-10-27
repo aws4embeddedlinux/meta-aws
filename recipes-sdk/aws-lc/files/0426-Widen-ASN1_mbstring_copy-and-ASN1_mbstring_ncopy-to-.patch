@@ -1,0 +1,268 @@
+From 83578c0adf0e879a6c780eb9ae61446ece657d3f Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sat, 25 Mar 2023 01:42:18 -0400
+Subject: [PATCH] Widen ASN1_mbstring_copy and ASN1_mbstring_ncopy to
+ ossl_ssize_t
+
+Bug: 516
+Change-Id: I3f374f05188bebe7aa4cbf45c81a6f945d3ce97c
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58549
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit 32b51305debe43e38e7bf2c2b13c4ebf3b474e80)
+---
+ crypto/asn1/a_mbstr.c  | 17 +++++++++--------
+ crypto/asn1/a_strnid.c |  2 +-
+ crypto/x509/x509name.c | 25 +++++++++++--------------
+ include/openssl/asn1.h | 10 ++++++----
+ include/openssl/x509.h | 23 ++++++++++++++---------
+ 5 files changed, 41 insertions(+), 36 deletions(-)
+
+diff --git a/crypto/asn1/a_mbstr.c b/crypto/asn1/a_mbstr.c
+index 85a7b98a7..8fc82ab5c 100644
+--- a/crypto/asn1/a_mbstr.c
++++ b/crypto/asn1/a_mbstr.c
+@@ -73,18 +73,19 @@
+ // horrible: it has to be :-( The 'ncopy' form checks minimum and maximum
+ // size limits too.
+ 
+-int ASN1_mbstring_copy(ASN1_STRING **out, const unsigned char *in, int len,
+-                       int inform, unsigned long mask) {
+-  return ASN1_mbstring_ncopy(out, in, len, inform, mask, 0, 0);
++int ASN1_mbstring_copy(ASN1_STRING **out, const unsigned char *in,
++                       ossl_ssize_t len, int inform, unsigned long mask) {
++  return ASN1_mbstring_ncopy(out, in, len, inform, mask, /*minsize=*/0,
++                             /*maxsize=*/0);
+ }
+ 
+ OPENSSL_DECLARE_ERROR_REASON(ASN1, INVALID_BMPSTRING)
+ OPENSSL_DECLARE_ERROR_REASON(ASN1, INVALID_UNIVERSALSTRING)
+ OPENSSL_DECLARE_ERROR_REASON(ASN1, INVALID_UTF8STRING)
+ 
+-int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+-                        int inform, unsigned long mask, long minsize,
+-                        long maxsize) {
++int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in,
++                        ossl_ssize_t len, int inform, unsigned long mask,
++                        ossl_ssize_t minsize, ossl_ssize_t maxsize) {
+   if (len == -1) {
+     len = strlen((const char *)in);
+   }
+@@ -164,14 +165,14 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
+     utf8_len += cbb_get_utf8_len(c);
+     if (maxsize > 0 && nchar > (size_t)maxsize) {
+       OPENSSL_PUT_ERROR(ASN1, ASN1_R_STRING_TOO_LONG);
+-      ERR_add_error_dataf("maxsize=%ld", maxsize);
++      ERR_add_error_dataf("maxsize=%zu", (size_t)maxsize);
+       return -1;
+     }
+   }
+ 
+   if (minsize > 0 && nchar < (size_t)minsize) {
+     OPENSSL_PUT_ERROR(ASN1, ASN1_R_STRING_TOO_SHORT);
+-    ERR_add_error_dataf("minsize=%ld", minsize);
++    ERR_add_error_dataf("minsize=%zu", (size_t)minsize);
+     return -1;
+   }
+ 
+diff --git a/crypto/asn1/a_strnid.c b/crypto/asn1/a_strnid.c
+index 3be266e8d..48c223d6a 100644
+--- a/crypto/asn1/a_strnid.c
++++ b/crypto/asn1/a_strnid.c
+@@ -87,7 +87,7 @@ static const ASN1_STRING_TABLE *asn1_string_table_get(int nid);
+ // a corresponding OID. For example certificates and certificate requests.
+ 
+ ASN1_STRING *ASN1_STRING_set_by_NID(ASN1_STRING **out, const unsigned char *in,
+-                                    int len, int inform, int nid) {
++                                    ossl_ssize_t len, int inform, int nid) {
+   ASN1_STRING *str = NULL;
+   int ret;
+   if (!out) {
+diff --git a/crypto/x509/x509name.c b/crypto/x509/x509name.c
+index cc86e289a..25f7b8b35 100644
+--- a/crypto/x509/x509name.c
++++ b/crypto/x509/x509name.c
+@@ -178,8 +178,8 @@ X509_NAME_ENTRY *X509_NAME_delete_entry(X509_NAME *name, int loc) {
+ }
+ 
+ int X509_NAME_add_entry_by_OBJ(X509_NAME *name, const ASN1_OBJECT *obj,
+-                               int type, const unsigned char *bytes, int len,
+-                               int loc, int set) {
++                               int type, const unsigned char *bytes,
++                               ossl_ssize_t len, int loc, int set) {
+   X509_NAME_ENTRY *ne =
+       X509_NAME_ENTRY_create_by_OBJ(NULL, obj, type, bytes, len);
+   if (!ne) {
+@@ -191,8 +191,8 @@ int X509_NAME_add_entry_by_OBJ(X509_NAME *name, const ASN1_OBJECT *obj,
+ }
+ 
+ int X509_NAME_add_entry_by_NID(X509_NAME *name, int nid, int type,
+-                               const unsigned char *bytes, int len, int loc,
+-                               int set) {
++                               const unsigned char *bytes, ossl_ssize_t len,
++                               int loc, int set) {
+   X509_NAME_ENTRY *ne =
+       X509_NAME_ENTRY_create_by_NID(NULL, nid, type, bytes, len);
+   if (!ne) {
+@@ -204,8 +204,8 @@ int X509_NAME_add_entry_by_NID(X509_NAME *name, int nid, int type,
+ }
+ 
+ int X509_NAME_add_entry_by_txt(X509_NAME *name, const char *field, int type,
+-                               const unsigned char *bytes, int len, int loc,
+-                               int set) {
++                               const unsigned char *bytes, ossl_ssize_t len,
++                               int loc, int set) {
+   X509_NAME_ENTRY *ne =
+       X509_NAME_ENTRY_create_by_txt(NULL, field, type, bytes, len);
+   if (!ne) {
+@@ -282,7 +282,7 @@ err:
+ X509_NAME_ENTRY *X509_NAME_ENTRY_create_by_txt(X509_NAME_ENTRY **ne,
+                                                const char *field, int type,
+                                                const unsigned char *bytes,
+-                                               int len) {
++                                               ossl_ssize_t len) {
+   ASN1_OBJECT *obj;
+   X509_NAME_ENTRY *nentry;
+ 
+@@ -300,7 +300,7 @@ X509_NAME_ENTRY *X509_NAME_ENTRY_create_by_txt(X509_NAME_ENTRY **ne,
+ X509_NAME_ENTRY *X509_NAME_ENTRY_create_by_NID(X509_NAME_ENTRY **ne, int nid,
+                                                int type,
+                                                const unsigned char *bytes,
+-                                               int len) {
++                                               ossl_ssize_t len) {
+   const ASN1_OBJECT *obj = OBJ_nid2obj(nid);
+   if (obj == NULL) {
+     OPENSSL_PUT_ERROR(X509, X509_R_UNKNOWN_NID);
+@@ -312,7 +312,7 @@ X509_NAME_ENTRY *X509_NAME_ENTRY_create_by_NID(X509_NAME_ENTRY **ne, int nid,
+ X509_NAME_ENTRY *X509_NAME_ENTRY_create_by_OBJ(X509_NAME_ENTRY **ne,
+                                                const ASN1_OBJECT *obj, int type,
+                                                const unsigned char *bytes,
+-                                               int len) {
++                                               ossl_ssize_t len) {
+   X509_NAME_ENTRY *ret;
+ 
+   if ((ne == NULL) || (*ne == NULL)) {
+@@ -352,9 +352,7 @@ int X509_NAME_ENTRY_set_object(X509_NAME_ENTRY *ne, const ASN1_OBJECT *obj) {
+ }
+ 
+ int X509_NAME_ENTRY_set_data(X509_NAME_ENTRY *ne, int type,
+-                             const unsigned char *bytes, int len) {
+-  int i;
+-
++                             const unsigned char *bytes, ossl_ssize_t len) {
+   if ((ne == NULL) || ((bytes == NULL) && (len != 0))) {
+     return 0;
+   }
+@@ -367,8 +365,7 @@ int X509_NAME_ENTRY_set_data(X509_NAME_ENTRY *ne, int type,
+   if (len < 0) {
+     len = strlen((const char *)bytes);
+   }
+-  i = ASN1_STRING_set(ne->value, bytes, len);
+-  if (!i) {
++  if (!ASN1_STRING_set(ne->value, bytes, len)) {
+     return 0;
+   }
+   if (type != V_ASN1_UNDEF) {
+diff --git a/include/openssl/asn1.h b/include/openssl/asn1.h
+index c9e06f8c7..8cdded0b4 100644
+--- a/include/openssl/asn1.h
++++ b/include/openssl/asn1.h
+@@ -767,15 +767,17 @@ OPENSSL_EXPORT int ASN1_STRING_to_UTF8(unsigned char **out,
+ // the result. If |out| is NULL, it returns the selected output type without
+ // constructing an |ASN1_STRING|. On error, this function returns -1.
+ OPENSSL_EXPORT int ASN1_mbstring_copy(ASN1_STRING **out, const uint8_t *in,
+-                                      int len, int inform, unsigned long mask);
++                                      ossl_ssize_t len, int inform,
++                                      unsigned long mask);
+ 
+ // ASN1_mbstring_ncopy behaves like |ASN1_mbstring_copy| but returns an error if
+ // the input is less than |minsize| or greater than |maxsize| codepoints long. A
+ // |maxsize| value of zero is ignored. Note the sizes are measured in
+ // codepoints, not output bytes.
+ OPENSSL_EXPORT int ASN1_mbstring_ncopy(ASN1_STRING **out, const uint8_t *in,
+-                                       int len, int inform, unsigned long mask,
+-                                       long minsize, long maxsize);
++                                       ossl_ssize_t len, int inform,
++                                       unsigned long mask, ossl_ssize_t minsize,
++                                       ossl_ssize_t maxsize);
+ 
+ // ASN1_STRING_set_by_NID behaves like |ASN1_mbstring_ncopy|, but determines
+ // |mask|, |minsize|, and |maxsize| based on |nid|. When |nid| is a recognized
+@@ -801,7 +803,7 @@ OPENSSL_EXPORT int ASN1_mbstring_ncopy(ASN1_STRING **out, const uint8_t *in,
+ // to call |ASN1_mbstring_ncopy| directly instead.
+ OPENSSL_EXPORT ASN1_STRING *ASN1_STRING_set_by_NID(ASN1_STRING **out,
+                                                    const unsigned char *in,
+-                                                   int len, int inform,
++                                                   ossl_ssize_t len, int inform,
+                                                    int nid);
+ 
+ // STABLE_NO_MASK causes |ASN1_STRING_TABLE_add| to allow types other than
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index c15dcff7a..d324c5374 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -948,22 +948,25 @@ OPENSSL_EXPORT int X509_NAME_add_entry(X509_NAME *name,
+ // |set| as in |X509_NAME_add_entry|.
+ OPENSSL_EXPORT int X509_NAME_add_entry_by_OBJ(X509_NAME *name,
+                                               const ASN1_OBJECT *obj, int type,
+-                                              const uint8_t *bytes, int len,
+-                                              int loc, int set);
++                                              const uint8_t *bytes,
++                                              ossl_ssize_t len, int loc,
++                                              int set);
+ 
+ // X509_NAME_add_entry_by_NID behaves like |X509_NAME_add_entry_by_OBJ| but sets
+ // the entry's attribute type to |nid|, which should be one of the |NID_*|
+ // constants.
+ OPENSSL_EXPORT int X509_NAME_add_entry_by_NID(X509_NAME *name, int nid,
+                                               int type, const uint8_t *bytes,
+-                                              int len, int loc, int set);
++                                              ossl_ssize_t len, int loc,
++                                              int set);
+ 
+ // X509_NAME_add_entry_by_txt behaves like |X509_NAME_add_entry_by_OBJ| but sets
+ // the entry's attribute type to |field|, which is passed to |OBJ_txt2obj|.
+ OPENSSL_EXPORT int X509_NAME_add_entry_by_txt(X509_NAME *name,
+                                               const char *field, int type,
+-                                              const uint8_t *bytes, int len,
+-                                              int loc, int set);
++                                              const uint8_t *bytes,
++                                              ossl_ssize_t len, int loc,
++                                              int set);
+ 
+ // X509_NAME_ENTRY is an |ASN1_ITEM| whose ASN.1 type is AttributeTypeAndValue
+ // (RFC 5280) and C type is |X509_NAME_ENTRY*|.
+@@ -1029,7 +1032,8 @@ OPENSSL_EXPORT ASN1_STRING *X509_NAME_ENTRY_get_data(
+ // See |ASN1_STRING| for how to format ASN.1 types as an |ASN1_STRING|. If
+ // |type| is |V_ASN1_UNDEF| the previous |ASN1_STRING| type is reused.
+ OPENSSL_EXPORT int X509_NAME_ENTRY_set_data(X509_NAME_ENTRY *entry, int type,
+-                                            const uint8_t *bytes, int len);
++                                            const uint8_t *bytes,
++                                            ossl_ssize_t len);
+ 
+ // X509_NAME_ENTRY_set returns the zero-based index of the RDN which contains
+ // |entry|. Consecutive entries with the same index are part of the same RDN.
+@@ -1045,19 +1049,20 @@ OPENSSL_EXPORT int X509_NAME_ENTRY_set(const X509_NAME_ENTRY *entry);
+ // object at |*out| instead of allocating a new one.
+ OPENSSL_EXPORT X509_NAME_ENTRY *X509_NAME_ENTRY_create_by_OBJ(
+     X509_NAME_ENTRY **out, const ASN1_OBJECT *obj, int type,
+-    const uint8_t *bytes, int len);
++    const uint8_t *bytes, ossl_ssize_t len);
+ 
+ // X509_NAME_ENTRY_create_by_NID behaves like |X509_NAME_ENTRY_create_by_OBJ|
+ // except the attribute type is |nid|, which should be one of the |NID_*|
+ // constants.
+ OPENSSL_EXPORT X509_NAME_ENTRY *X509_NAME_ENTRY_create_by_NID(
+-    X509_NAME_ENTRY **out, int nid, int type, const uint8_t *bytes, int len);
++    X509_NAME_ENTRY **out, int nid, int type, const uint8_t *bytes,
++    ossl_ssize_t len);
+ 
+ // X509_NAME_ENTRY_create_by_txt behaves like |X509_NAME_ENTRY_create_by_OBJ|
+ // except the attribute type is |field|, which is passed to |OBJ_txt2obj|.
+ OPENSSL_EXPORT X509_NAME_ENTRY *X509_NAME_ENTRY_create_by_txt(
+     X509_NAME_ENTRY **out, const char *field, int type, const uint8_t *bytes,
+-    int len);
++    ossl_ssize_t len);
+ 
+ 
+ // Extensions.

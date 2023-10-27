@@ -1,0 +1,254 @@
+From 66bc075bfc277c193a1257d009d1d72510d1e2b9 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Tue, 27 Jun 2023 20:57:17 -0700
+Subject: [PATCH] align X509_VERIFY_PARAM host and email behavior with OpenSSL
+ (#1062)
+
+A dig into some of the mySQL/AWS-LC test failures revealed that this
+was the root cause.
+* https://github.com/mysql/mysql-server/blob/711dfe7397d205ae17fc1f77d82f7ec9a23c3dad/router/src/harness/src/tls_client_context.cc#L100
+
+Our upstream briefly made this backwards compatible, but enforced
+the stricter check a week later since Chrome was not effected by this.
+
+* https://github.com/aws/aws-lc/commit/e759a9cd84198613199259dbed401f4951747cff
+* https://github.com/aws/aws-lc/commit/1902d818ac4fef9497dfe5d0ce6f2c99f585bdff
+
+This doesn't apply to us however, so we're reverting the strict check in
+an attempt to be more compatible with OpenSSL. I've reverted the check
+for `X509_VERIFY_PARAM_set1_email` while I was at it as well.
+`X509_VERIFY_PARAM_set1_ip` was using the same underlying logic as
+`X509_VERIFY_PARAM_set1_email` which made things a bit complicated.
+`X509_VERIFY_PARAM_set1_ip` takes an `unsigned char *`, but changes
+to make it more compatible with OpenSSL required `strlen` to detect the
+length of the string. I've separated the logic for
+`X509_VERIFY_PARAM_set1_email/ip` into two functions to get around
+this. `X509_VERIFY_PARAM_set1_ip` now maintains the original
+BoringSSL behavior, while `X509_VERIFY_PARAM_set1_email` is
+compatible with OpenSSL now. We can look into making
+`X509_VERIFY_PARAM_set1_ip` more compatible with OpenSSL later on
+if needed, but those usages were most likely resulting in fatal failures.
+---
+ crypto/x509/x509_test.cc | 31 +++++++++++-------
+ crypto/x509/x509_vpm.c   | 68 ++++++++++++++++++++++++++++++++++------
+ include/openssl/x509.h   | 32 +++++++++++++++++++
+ 3 files changed, 111 insertions(+), 20 deletions(-)
+
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 243d7b9e6..5be608377 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -1730,21 +1730,20 @@ TEST(X509Test, ZeroLengthsWithX509PARAM) {
+                                              test.incorrect_value_len));
+                      }));
+ 
+-    // Passing zero as the length, unlike OpenSSL, should trigger an error and
+-    // should cause verification to fail.
+-    ASSERT_EQ(X509_V_ERR_INVALID_CALL,
++    // AWS-LC supports passing zero as the length for host and email for
++    // backwards compatibility with OpenSSL.
++    ASSERT_EQ(X509_V_OK,
+               Verify(leaf.get(), {root.get()}, {}, empty_crls, 0,
+                      [&test](X509_VERIFY_PARAM *param) {
+-                       ASSERT_FALSE(test.func(param, test.correct_value, 0));
++                       ASSERT_TRUE(test.func(param, test.correct_value, 0));
+                      }));
+ 
+-    // Passing an empty value should be an error when setting and should cause
+-    // verification to fail.
+-    ASSERT_EQ(X509_V_ERR_INVALID_CALL,
+-              Verify(leaf.get(), {root.get()}, {}, empty_crls, 0,
+-                     [&test](X509_VERIFY_PARAM *param) {
+-                       ASSERT_FALSE(test.func(param, nullptr, 0));
+-                     }));
++    // AWS-LC allows an empty value with zero as the length for backwards
++    // compatibility with OpenSSL.
++    ASSERT_EQ(X509_V_OK, Verify(leaf.get(), {root.get()}, {}, empty_crls, 0,
++                                [&test](X509_VERIFY_PARAM *param) {
++                                  ASSERT_TRUE(test.func(param, nullptr, 0));
++                                }));
+ 
+     // Passing a value with embedded NULs should also be an error and should
+     // also cause verification to fail.
+@@ -1755,6 +1754,16 @@ TEST(X509Test, ZeroLengthsWithX509PARAM) {
+                      }));
+   }
+ 
++  // |X509_VERIFY_PARAM_set1_host| has additional strange behavior.
++
++  // AWS-LC/OpenSSL allows an empty value with a non-zero length for backwards
++  // compatibility with OpenSSL. We do not recommend this behavior.
++  ASSERT_EQ(X509_V_OK, Verify(leaf.get(), {root.get()}, {}, empty_crls, 0,
++                              [](X509_VERIFY_PARAM *param) {
++                                ASSERT_TRUE(X509_VERIFY_PARAM_set1_host(
++                                    param, nullptr, strlen(kHostname)));
++                              }));
++
+   // IP addresses work slightly differently:
+ 
+   // The correct value should still work.
+diff --git a/crypto/x509/x509_vpm.c b/crypto/x509/x509_vpm.c
+index 57c9bc0c8..0dce17650 100644
+--- a/crypto/x509/x509_vpm.c
++++ b/crypto/x509/x509_vpm.c
+@@ -80,9 +80,11 @@ static int int_x509_param_set_hosts(X509_VERIFY_PARAM *param, int mode,
+                                     const char *name, size_t namelen) {
+   char *copy;
+ 
+-  if (name == NULL || namelen == 0) {
+-    // Unlike OpenSSL, we reject trying to set or add an empty name.
+-    return 0;
++  // Setting 0 to automatically detect the length of |name| is an OpenSSL quirk
++  // that AWS-LC isn't keen on supporting. However, consumers often assume
++  // OpenSSL semantics from AWS-LC, so it's supported in this case.
++  if (name != NULL && namelen == 0) {
++    namelen = strlen(name);
+   }
+ 
+   // Refuse names with embedded NUL bytes.
+@@ -95,6 +97,12 @@ static int int_x509_param_set_hosts(X509_VERIFY_PARAM *param, int mode,
+     string_stack_free(param->hosts);
+     param->hosts = NULL;
+   }
++  // OpenSSL returns 1 when trying to set or add an empty name. This is also a
++  // quirk that AWS-LC isn't keen on supporting, but we maintain for backwards
++  // compatibility.
++  if (name == NULL || namelen == 0) {
++    return 1;
++  }
+ 
+   copy = OPENSSL_strndup(name, namelen);
+   if (copy == NULL) {
+@@ -313,8 +321,50 @@ int X509_VERIFY_PARAM_set1(X509_VERIFY_PARAM *to,
+   return ret;
+ }
+ 
+-static int int_x509_param_set1(char **pdest, size_t *pdestlen, const char *src,
+-                               size_t srclen) {
++static int int_x509_param_set1_email(char **pdest, size_t *pdestlen,
++                                     const char *src, size_t srclen) {
++  void *tmp;
++  if (src != NULL) {
++    // Setting |srclen| to 0 to automatically detect the length of |src| is an
++    // OpenSSL quirk that AWS-LC isn't keen on supporting. However, consumers
++    // often assume OpenSSL semantics from AWS-LC, so it's supported in this
++    // case.
++    if (srclen == 0) {
++      srclen = strlen(src);
++    }
++
++    tmp = OPENSSL_memdup(src, srclen);
++    if (tmp == NULL) {
++      return 0;
++    }
++  } else {
++    // This allows an empty string to disable previously configured checks.
++    // This is an OpenSSL quirk that AWS-LC isn't keen on supporting. However,
++    // consumers often assume OpenSSL semantics from AWS-LC, so it's supported
++    // in this case.
++    tmp = NULL;
++    srclen = 0;
++  }
++
++  if (*pdest != NULL) {
++    OPENSSL_free(*pdest);
++  }
++  *pdest = tmp;
++  if (pdestlen != NULL) {
++    *pdestlen = srclen;
++  }
++  return 1;
++}
++
++// IP addresses work slightly differently, so we use another function to
++// differentiate from emails. |X509_VERIFY_PARAM_set1_ip| takes a const
++// unsigned char*, instead of a const char*, so the same strlen logic that was
++// being used is not quite suitable here.
++// We keep the original behavior that BoringSSL left, but only for IP addresses.
++// We can align the behavior with |int_x509_param_set1_email| like OpenSSL has
++// been doing if needed.
++static int int_x509_param_set1_ip(unsigned char **pdest, size_t *pdestlen,
++                                  const unsigned char *src, size_t srclen) {
+   void *tmp;
+   if (src == NULL || srclen == 0) {
+     // Unlike OpenSSL, we do not allow an empty string to disable previously
+@@ -455,7 +505,8 @@ char *X509_VERIFY_PARAM_get0_peername(X509_VERIFY_PARAM *param) {
+ int X509_VERIFY_PARAM_set1_email(X509_VERIFY_PARAM *param, const char *email,
+                                  size_t emaillen) {
+   if (OPENSSL_memchr(email, '\0', emaillen) != NULL ||
+-      !int_x509_param_set1(&param->email, &param->emaillen, email, emaillen)) {
++      !int_x509_param_set1_email(&param->email, &param->emaillen, email,
++                                 emaillen)) {
+     param->poison = 1;
+     return 0;
+   }
+@@ -465,9 +516,8 @@ int X509_VERIFY_PARAM_set1_email(X509_VERIFY_PARAM *param, const char *email,
+ 
+ int X509_VERIFY_PARAM_set1_ip(X509_VERIFY_PARAM *param, const unsigned char *ip,
+                               size_t iplen) {
+-  if ((iplen != 4 && iplen != 16) ||
+-      !int_x509_param_set1((char **)&param->ip, &param->iplen, (char *)ip,
+-                           iplen)) {
++  if ((iplen != 0 && iplen != 4 && iplen != 16) ||
++      !int_x509_param_set1_ip(&param->ip, &param->iplen, ip, iplen)) {
+     param->poison = 1;
+     return 0;
+   }
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index c35363ffd..e86a6e640 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -2923,21 +2923,53 @@ OPENSSL_EXPORT int X509_VERIFY_PARAM_add0_policy(X509_VERIFY_PARAM *param,
+ OPENSSL_EXPORT int X509_VERIFY_PARAM_set1_policies(
+     X509_VERIFY_PARAM *param, const STACK_OF(ASN1_OBJECT) *policies);
+ 
++
++// X509_VERIFY_PARAM_set1_host sets the expected DNS hostname to |name| and
++// clears any previously specified hostname. If |name| is NULL or empty, the
++// list of hostnames is cleared and name checks are not performed on the peer
++// certificate.
++// |namelen| should be set to the length of |name|. It may be zero if |name| is
++// NUL-terminated, but this is only maintained for backwards compatibility with
++// OpenSSL.
+ OPENSSL_EXPORT int X509_VERIFY_PARAM_set1_host(X509_VERIFY_PARAM *param,
+                                                const char *name,
+                                                size_t namelen);
++
++// X509_VERIFY_PARAM_add1_host adds |name| as an additional DNS hostname
++// reference identifier that can match the peer's certificate.
++// Any previous names set via |X509_VERIFY_PARAM_set1_host| or
++// |X509_VERIFY_PARAM_add1_host| are retained, no change is made if |name| is
++// NULL or empty. When multiple names are configured, the peer is considered
++// verified when any name matches.
++// |namelen| should be set to the length of |name|. It may be zero if |name| is
++// NUL-terminated, but this is only maintained for backwards compatibility with
++// OpenSSL.
+ OPENSSL_EXPORT int X509_VERIFY_PARAM_add1_host(X509_VERIFY_PARAM *param,
+                                                const char *name,
+                                                size_t namelen);
+ OPENSSL_EXPORT void X509_VERIFY_PARAM_set_hostflags(X509_VERIFY_PARAM *param,
+                                                     unsigned int flags);
+ OPENSSL_EXPORT char *X509_VERIFY_PARAM_get0_peername(X509_VERIFY_PARAM *);
++
++// X509_VERIFY_PARAM_set1_email sets the expected RFC822 email address to
++// |email|.
++// |emaillen| should be set to the length of |email|. It may be zero if |email|
++// is NUL-terminated, but this is only maintained for backwards compatibility
++// with OpenSSL.
+ OPENSSL_EXPORT int X509_VERIFY_PARAM_set1_email(X509_VERIFY_PARAM *param,
+                                                 const char *email,
+                                                 size_t emaillen);
++
++// X509_VERIFY_PARAM_set1_ip sets the expected IP address to |ip|. |iplen| MUST
++// be set to the length of |email|.
+ OPENSSL_EXPORT int X509_VERIFY_PARAM_set1_ip(X509_VERIFY_PARAM *param,
+                                              const unsigned char *ip,
+                                              size_t iplen);
++
++// X509_VERIFY_PARAM_set1_ip_asc sets the expected IP address to |ipasc|.
++// |ipasc| MUST be a NUL-terminal ASCII string: dotted decimal quad for IPv4 and
++// colon-separated hexadecimal for IPv6. The condensed "::" notation is
++// supported for IPv6 addresses.
+ OPENSSL_EXPORT int X509_VERIFY_PARAM_set1_ip_asc(X509_VERIFY_PARAM *param,
+                                                  const char *ipasc);
+ 

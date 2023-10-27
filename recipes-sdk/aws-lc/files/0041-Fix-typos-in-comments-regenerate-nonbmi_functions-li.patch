@@ -1,0 +1,111 @@
+From cae1183962e5950804be74621fea47a27843541c Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Fri, 7 Jan 2022 16:58:16 -0800
+Subject: [PATCH] Fix typos in comments, regenerate nonbmi_functions list
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/fd05acc7344c574318d348b51545332b381cd93c
+---
+ arm/p521/bignum_mod_n521_9.S       | 2 +-
+ x86_att/p521/bignum_mod_n521_9.S   | 2 +-
+ x86_att/p521/bignum_montmul_p521.S | 2 +-
+ x86_att/p521/bignum_montsqr_p521.S | 4 ++--
+ x86_att/p521/bignum_mul_p521.S     | 2 +-
+ x86_att/p521/bignum_sqr_p521.S     | 4 ++--
+ 6 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/arm/p521/bignum_mod_n521_9.S b/arm/p521/bignum_mod_n521_9.S
+index 9e28e2d90..8e3a1b97a 100644
+--- a/arm/p521/bignum_mod_n521_9.S
++++ b/arm/p521/bignum_mod_n521_9.S
+@@ -113,7 +113,7 @@ bignum_mod_n521_9:
+ 
+ // We already know r < n_521, but if it actually went negative then
+ // we need to add back n_521 again. Recycle q as a bitmask for r < n_521,
+-// and just subtract r_521 and mask rather than literally addding 2^521.
++// and just subtract r_521 and mask rather than literally adding 2^521.
+ // This also gets rid of the bit-stuffing above.
+ 
+                 csetm   q, cc
+diff --git a/x86_att/p521/bignum_mod_n521_9.S b/x86_att/p521/bignum_mod_n521_9.S
+index 7db0ab1ce..11069d164 100644
+--- a/x86_att/p521/bignum_mod_n521_9.S
++++ b/x86_att/p521/bignum_mod_n521_9.S
+@@ -114,7 +114,7 @@ bignum_mod_n521_9:
+ 
+ // We already know r < n_521, but if it actually went negative then
+ // we need to add back n_521 again. Recycle q as a bitmask for r < n_521,
+-// and just subtract r_521 and mask rather than literally addding 2^521.
++// and just subtract r_521 and mask rather than literally adding 2^521.
+ // This also gets rid of the bit-stuffing above.
+ 
+         cmc
+diff --git a/x86_att/p521/bignum_montmul_p521.S b/x86_att/p521/bignum_montmul_p521.S
+index 05728824e..df5e4f1de 100644
+--- a/x86_att/p521/bignum_montmul_p521.S
++++ b/x86_att/p521/bignum_montmul_p521.S
+@@ -347,7 +347,7 @@ bignum_montmul_p521:
+ 
+ // Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
+ // in which case the lower 521 bits are already right. Otherwise if
+-// CF is clear, we want to subtract 1. Hence suntract the complement
++// CF is clear, we want to subtract 1. Hence subtract the complement
+ // of the carry flag then mask the top word, which scrubs the
+ // padding in either case.
+ 
+diff --git a/x86_att/p521/bignum_montsqr_p521.S b/x86_att/p521/bignum_montsqr_p521.S
+index a90b4c48b..3149f5205 100644
+--- a/x86_att/p521/bignum_montsqr_p521.S
++++ b/x86_att/p521/bignum_montsqr_p521.S
+@@ -49,7 +49,7 @@
+         adcxq   %rax, low ;               \
+         adoxq   %rcx, high
+ 
+-// mulpade(hight,low,i) adds %rdx * x[i] to a register-pair (high,low)
++// mulpade(high,low,i) adds %rdx * x[i] to a register-pair (high,low)
+ // maintaining consistent double-carrying with adcx and adox,
+ // using %rax as a temporary, assuming high created from scratch
+ // and that zero has value zero.
+@@ -258,7 +258,7 @@ bignum_montsqr_p521:
+ 
+ // Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
+ // in which case the lower 521 bits are already right. Otherwise if
+-// CF is clear, we want to subtract 1. Hence suntract the complement
++// CF is clear, we want to subtract 1. Hence subtract the complement
+ // of the carry flag then mask the top word, which scrubs the
+ // padding in either case.
+ 
+diff --git a/x86_att/p521/bignum_mul_p521.S b/x86_att/p521/bignum_mul_p521.S
+index 5f1fd0ac3..7fce1650a 100644
+--- a/x86_att/p521/bignum_mul_p521.S
++++ b/x86_att/p521/bignum_mul_p521.S
+@@ -342,7 +342,7 @@ bignum_mul_p521:
+ 
+ // Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
+ // in which case the lower 521 bits are already right. Otherwise if
+-// CF is clear, we want to subtract 1. Hence suntract the complement
++// CF is clear, we want to subtract 1. Hence subtract the complement
+ // of the carry flag then mask the top word, which scrubs the
+ // padding in either case. Write digits back as they are created.
+ 
+diff --git a/x86_att/p521/bignum_sqr_p521.S b/x86_att/p521/bignum_sqr_p521.S
+index afc145d4f..ed0fb9c46 100644
+--- a/x86_att/p521/bignum_sqr_p521.S
++++ b/x86_att/p521/bignum_sqr_p521.S
+@@ -43,7 +43,7 @@
+         adcxq   %rax, low ;               \
+         adoxq   %rcx, high
+ 
+-// mulpade(hight,low,i) adds %rdx * x[i] to a register-pair (high,low)
++// mulpade(high,low,i) adds %rdx * x[i] to a register-pair (high,low)
+ // maintaining consistent double-carrying with adcx and adox,
+ // using %rax as a temporary, assuming high created from scratch
+ // and that zero has value zero.
+@@ -252,7 +252,7 @@ bignum_sqr_p521:
+ 
+ // Now CF is set <=> h + l + 1 >= 2^521 <=> h + l >= p_521,
+ // in which case the lower 521 bits are already right. Otherwise if
+-// CF is clear, we want to subtract 1. Hence suntract the complement
++// CF is clear, we want to subtract 1. Hence subtract the complement
+ // of the carry flag then mask the top word, which scrubs the
+ // padding in either case. Write digits back as they are created.
+ 

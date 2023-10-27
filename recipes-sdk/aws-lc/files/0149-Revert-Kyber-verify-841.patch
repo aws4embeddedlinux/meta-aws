@@ -1,0 +1,59 @@
+From 92c56fbc15f9bb43c4ff062c6c02f7991fd417f6 Mon Sep 17 00:00:00 2001
+From: Brian Jarvis <92757966+brian-jarvis-aws@users.noreply.github.com>
+Date: Mon, 27 Feb 2023 19:11:51 -0500
+Subject: [PATCH] Revert Kyber verify (#841)
+
+* Revert the modification to Kyber's reference verify function.
+
+* Add C4146 to list of MSVC warnings to suppress.
+
+* Update Kyber readme to remove the line about having changed verify.c
+---
+ CMakeLists.txt                                    | 1 +
+ crypto/kyber/README.md                            | 1 -
+ crypto/kyber/pqcrystals_kyber_ref_common/verify.c | 8 +-------
+ 3 files changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d1c555a72..70404e9d8 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -375,6 +375,7 @@ elseif(MSVC)
+               # Disable this because it flags even when there is a default.
+       "C4100" # 'exarg' : unreferenced formal parameter
+       "C4127" # conditional expression is constant
++      "C4146" # unary minus operator applied to unsigned type, result still unsigned
+       "C4200" # nonstandard extension used : zero-sized array in
+               # struct/union.
+       "C4204" # nonstandard extension used: non-constant aggregate initializer
+diff --git a/crypto/kyber/README.md b/crypto/kyber/README.md
+index c9e507166..8be35b876 100644
+--- a/crypto/kyber/README.md
++++ b/crypto/kyber/README.md
+@@ -21,7 +21,6 @@ The following changes were made to the source code in `pqcrystals_kyber_ref_comm
+ * `sha2.h, sha256.c, sha512.c, symmetric-aes.c` are removed because we are using only the SHA3 based Kyber (SHA2 and AES are used in the 90s variants only).
+ * `indcpa.c`: call to `randombytes` function is replaced with a call to `pq_custom_randombytes` and the appropriate header file is included (`crypto/rand_extra/pq_custom_randombytes.h`).
+ * `kem.c`: calls to `randombytes` function is replaced with calls to `pq_custom_randombytes` and the appropriate header file is included (`crypto/rand_extra/pq_custom_randombytes.h`).
+-* `verify.c`: change to fix MSVC compiler warning (see the file for details).
+ * `symmetric-shake.c`: unnecessary include of `fips202.h` is removed.
+ * `api.h`, `fips202.h`, `params.h`: modified [in this PR](https://github.com/aws/aws-lc/pull/655) to support our [prefixed symbols build](https://github.com/aws/aws-lc/blob/main/BUILDING.md#building-with-prefixed-symbols).
+ 
+diff --git a/crypto/kyber/pqcrystals_kyber_ref_common/verify.c b/crypto/kyber/pqcrystals_kyber_ref_common/verify.c
+index dcc5369ac..ed4a6541f 100644
+--- a/crypto/kyber/pqcrystals_kyber_ref_common/verify.c
++++ b/crypto/kyber/pqcrystals_kyber_ref_common/verify.c
+@@ -21,13 +21,7 @@ int verify(const uint8_t *a, const uint8_t *b, size_t len)
+   for(i=0;i<len;i++)
+     r |= a[i] ^ b[i];
+ 
+-  /*
+-   * The original logic: return (-(uint64_t)r) >> 63;
+-   * It's been modified to preserve constant time and the intended logic, but
+-   * avoids the compiler warning (which turns to an error on in MSVC) for
+-   * performing a negation on an unsigned value.
+-   */
+-  return (-(int16_t)((uint16_t)r & 0x7FFF)) >> 15;
++  return (-(uint64_t)r) >> 63;
+ }
+ 
+ /*************************************************

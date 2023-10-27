@@ -1,0 +1,312 @@
+From 14daff9d3ac213551d08d5bcc2d64aae50536d1d Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Thu, 4 May 2023 14:23:25 -0700
+Subject: [PATCH] Fix various minor memory leaks in speed.cc (#988)
+
+* Update AEAD init benchmark to free the context each loop
+* Update ECKeyGen to reuse the allocated EVP_PKEY
+* Update ECMULCurve to use unique pointers that free resources at the end
+* Update PKCS8 to free the parsed key each loop
+---
+ tests/ci/run_benchmark_build_tests.sh | 20 +++---
+ tool/ossl_bm.h                        |  1 +
+ tool/speed.cc                         | 87 ++++++++++++---------------
+ 3 files changed, 51 insertions(+), 57 deletions(-)
+
+diff --git a/tests/ci/run_benchmark_build_tests.sh b/tests/ci/run_benchmark_build_tests.sh
+index f04aebe5c..f23470bd0 100755
+--- a/tests/ci/run_benchmark_build_tests.sh
++++ b/tests/ci/run_benchmark_build_tests.sh
+@@ -15,7 +15,7 @@ openssl_3_0_branch='openssl-3.0.5'
+ 
+ function build_aws_lc_fips {
+   echo "building aws-lc in FIPS mode"
+-  run_build -DCMAKE_INSTALL_PREFIX="${install_dir}/aws-lc-fips" -DFIPS=1 -DCMAKE_BUILD_TYPE=Release
++  run_build -DCMAKE_INSTALL_PREFIX="${install_dir}/aws-lc-fips" -DFIPS=1 -DCMAKE_BUILD_TYPE=RelWithDebInfo
+   pushd "$BUILD_ROOT"
+   ninja install
+   popd
+@@ -26,7 +26,7 @@ function build_openssl_1_0 {
+     git clone --depth 1 --branch "${openssl_1_0_branch}" "${openssl_url}" "../openssl-1.0"
+     pushd "../openssl-1.0"
+     mkdir -p "${install_dir}/openssl-1.0"
+-    ./config --prefix="${install_dir}/openssl-1.0" --openssldir="${install_dir}/openssl-1.0"
++    ./config --prefix="${install_dir}/openssl-1.0" --openssldir="${install_dir}/openssl-1.0" -d
+     make "-j${NUM_CPU_THREADS}" > /dev/null
+     make install_sw
+     popd
+@@ -38,7 +38,7 @@ function build_openssl_1_1 {
+     git clone --depth 1 --branch "${openssl_1_1_branch}" "${openssl_url}" "../openssl-1.1"
+     pushd "../openssl-1.1"
+     mkdir -p "${install_dir}/openssl-1.1"
+-    ./config --prefix="${install_dir}/openssl-1.1" --openssldir="${install_dir}/openssl-1.1"
++    ./config --prefix="${install_dir}/openssl-1.1" --openssldir="${install_dir}/openssl-1.1" -d
+     make "-j${NUM_CPU_THREADS}" > /dev/null
+     make install_sw
+     popd
+@@ -50,7 +50,7 @@ function build_openssl_3_0 {
+     git clone --depth 1 --branch "${openssl_3_0_branch}" "${openssl_url}" "../openssl-3.0"
+     pushd "../openssl-3.0"
+     mkdir -p "${install_dir}/openssl-3.0"
+-    ./Configure --prefix="${install_dir}/openssl-3.0" --openssldir="${install_dir}/openssl-3.0"
++    ./Configure --prefix="${install_dir}/openssl-3.0" --openssldir="${install_dir}/openssl-3.0" -d
+     make "-j${NUM_CPU_THREADS}" > /dev/null
+     make install_sw
+     popd
+@@ -66,20 +66,24 @@ function build_openssl_3_0 {
+ # algorithms have been added to speed.cc
+ build_aws_lc_fips
+ echo "Testing awslc_bm with AWS-LC FIPS"
+-run_build -DAWSLC_INSTALL_DIR="${install_dir}/aws-lc-fips"
++run_build -DAWSLC_INSTALL_DIR="${install_dir}/aws-lc-fips" -DASAN=1 -DCMAKE_BUILD_TYPE=RelWithDebInfo
+ "${BUILD_ROOT}/tool/awslc_bm"
+ 
++# Run the "local" benchmark that was built with the AWS-LC FIPS benchmark, only do this once because this tool
++# is always the same regardless of what additional external libcrypto is built
++"${BUILD_ROOT}/tool/bssl" speed
++
+ build_openssl_1_0
+ echo "Testing ossl_bm with OpenSSL 1.0"
+-run_build -DOPENSSL_1_0_INSTALL_DIR="${install_dir}/openssl-1.0"
++run_build -DOPENSSL_1_0_INSTALL_DIR="${install_dir}/openssl-1.0" -DASAN=1 -DCMAKE_BUILD_TYPE=RelWithDebInfo
+ "${BUILD_ROOT}/tool/ossl_1_0_bm"
+ 
+ build_openssl_1_1
+ echo "Testing ossl_bm with OpenSSL 1.1"
+-run_build -DOPENSSL_1_1_INSTALL_DIR="${install_dir}/openssl-1.1"
++run_build -DOPENSSL_1_1_INSTALL_DIR="${install_dir}/openssl-1.1" -DASAN=1 -DCMAKE_BUILD_TYPE=RelWithDebInfo
+ "${BUILD_ROOT}/tool/ossl_1_1_bm"
+ 
+ build_openssl_3_0
+ echo "Testing ossl_bm with OpenSSL 3.0"
+-run_build -DOPENSSL_3_0_INSTALL_DIR="${install_dir}/openssl-3.0"
++run_build -DOPENSSL_3_0_INSTALL_DIR="${install_dir}/openssl-3.0" -DASAN=1 -DCMAKE_BUILD_TYPE=RelWithDebInfo
+ "${BUILD_ROOT}/tool/ossl_3_0_bm"
+diff --git a/tool/ossl_bm.h b/tool/ossl_bm.h
+index 77f2572e8..0ccf0f2bd 100644
+--- a/tool/ossl_bm.h
++++ b/tool/ossl_bm.h
+@@ -58,6 +58,7 @@ OSSL_MAKE_DELETER(DH, DH_free)
+ OSSL_MAKE_DELETER(RSA, RSA_free)
+ OSSL_MAKE_DELETER(BIGNUM, BN_free)
+ OSSL_MAKE_DELETER(EC_KEY, EC_KEY_free)
++OSSL_MAKE_DELETER(EC_GROUP, EC_GROUP_free)
+ OSSL_MAKE_DELETER(EC_POINT, EC_POINT_free)
+ OSSL_MAKE_DELETER(BN_CTX, BN_CTX_free)
+ OSSL_MAKE_DELETER(EVP_CIPHER_CTX, EVP_CIPHER_CTX_free)
+diff --git a/tool/speed.cc b/tool/speed.cc
+index d27178b33..d83e703f7 100644
+--- a/tool/speed.cc
++++ b/tool/speed.cc
+@@ -692,14 +692,14 @@ static bool SpeedAEAD(const EVP_AEAD *aead, const std::string &name,
+   }
+ 
+   TimeResults results;
+-  BM_NAMESPACE::ScopedEVP_AEAD_CTX ctx;
+   const size_t key_len = EVP_AEAD_key_length(aead);
+   std::unique_ptr<uint8_t[]> key(new uint8_t[key_len]);
+ 
+   if (!TimeFunction(&results, [&]() -> bool {
+-    return EVP_AEAD_CTX_init_with_direction(
+-        ctx.get(), aead, key.get(), key_len, EVP_AEAD_DEFAULT_TAG_LENGTH,
+-        evp_aead_seal);
++        BM_NAMESPACE::ScopedEVP_AEAD_CTX ctx;
++        return EVP_AEAD_CTX_init_with_direction(
++            ctx.get(), aead, key.get(), key_len, EVP_AEAD_DEFAULT_TAG_LENGTH,
++            evp_aead_seal);
+   })) {
+     fprintf(stderr, "EVP_AEAD_CTX_init_with_direction failed.\n");
+     ERR_print_errors_fp(stderr);
+@@ -737,7 +737,7 @@ static bool SpeedSingleKEM(const std::string &name, int nid, const std::string &
+     return false;
+   }
+ 
+-  EVP_PKEY *key = NULL;
++  EVP_PKEY *key = EVP_PKEY_new();
+   TimeResults results;
+   if (!TimeFunction(&results, [&a_ctx, &key]() -> bool {
+         return EVP_PKEY_keygen(a_ctx.get(), &key);
+@@ -792,6 +792,8 @@ static bool SpeedSingleKEM(const std::string &name, int nid, const std::string &
+   }
+   results.Print(name + " decaps");
+ 
++  EVP_PKEY_free(key);
++
+   return true;
+ }
+ 
+@@ -1244,7 +1246,7 @@ static bool SpeedECKeyGenCurve(const std::string &name, int nid,
+     return false;
+   }
+ 
+-  EVP_PKEY *key = NULL;
++  EVP_PKEY *key = EVP_PKEY_new();
+ 
+   TimeResults results;
+   if (!TimeFunction(&results, [&pkey_ctx, &key]() -> bool {
+@@ -1252,6 +1254,7 @@ static bool SpeedECKeyGenCurve(const std::string &name, int nid,
+       })) {
+       return false;
+   }
++  EVP_PKEY_free(key);
+   results.Print(name + " with EVP_PKEY_keygen");
+   return true;
+ }
+@@ -1343,29 +1346,28 @@ static bool SpeedECMULCurve(const std::string &name, int nid,
+     return true;
+   }
+ 
+-  EC_GROUP *group = EC_GROUP_new_by_curve_name(nid);
+-  BN_CTX   *ctx = BN_CTX_new();
++  BM_NAMESPACE::UniquePtr<EC_GROUP> group(EC_GROUP_new_by_curve_name(nid));
++  BM_NAMESPACE::UniquePtr<BN_CTX> ctx(BN_CTX_new());
++  BM_NAMESPACE::UniquePtr<BIGNUM> scalar0(BN_new());
++  BM_NAMESPACE::UniquePtr<BIGNUM> scalar1(BN_new());
++  BM_NAMESPACE::UniquePtr<EC_POINT> pin0(EC_POINT_new(group.get()));
++  BM_NAMESPACE::UniquePtr<EC_POINT> pout(EC_POINT_new(group.get()));
+ 
+-  BIGNUM *scalar0 = BN_new();
+-  BIGNUM *scalar1 = BN_new();
+-
+-  EC_POINT *pin0 = EC_POINT_new(group);
+-  EC_POINT *pout = EC_POINT_new(group);
+ 
+   // Generate two random scalars modulo the EC group order.
+-  if (!BN_rand_range(scalar0, EC_GROUP_get0_order(group)) ||
+-      !BN_rand_range(scalar1, EC_GROUP_get0_order(group))) {
++  if (!BN_rand_range(scalar0.get(), EC_GROUP_get0_order(group.get())) ||
++      !BN_rand_range(scalar1.get(), EC_GROUP_get0_order(group.get()))) {
+       return false;
+   }
+ 
+   // Generate one random EC point.
+-  EC_POINT_mul(group, pin0, scalar0, nullptr, nullptr, ctx);
++  EC_POINT_mul(group.get(), pin0.get(), scalar0.get(), nullptr, nullptr, ctx.get());
+ 
+   TimeResults results;
+ 
+   // Measure scalar multiplication of an arbitrary curve point.
+-  if (!TimeFunction(&results, [group, pout, ctx, pin0, scalar0]() -> bool {
+-        if (!EC_POINT_mul(group, pout, nullptr, pin0, scalar0, ctx)) {
++  if (!TimeFunction(&results, [&group, &pout, &ctx, &pin0, &scalar0]() -> bool {
++        if (!EC_POINT_mul(group.get(), pout.get(), nullptr, pin0.get(), scalar0.get(), ctx.get())) {
+           return false;
+         }
+ 
+@@ -1376,8 +1378,8 @@ static bool SpeedECMULCurve(const std::string &name, int nid,
+   results.Print(name + " mul");
+ 
+   // Measure scalar multiplication of the curve based point.
+-  if (!TimeFunction(&results, [group, pout, ctx, scalar0]() -> bool {
+-        if (!EC_POINT_mul(group, pout, scalar0, nullptr, nullptr, ctx)) {
++  if (!TimeFunction(&results, [&group, &pout, &ctx, &scalar0]() -> bool {
++        if (!EC_POINT_mul(group.get(), pout.get(), scalar0.get(), nullptr, nullptr, ctx.get())) {
+           return false;
+         }
+ 
+@@ -1388,8 +1390,8 @@ static bool SpeedECMULCurve(const std::string &name, int nid,
+   results.Print(name + " mul base");
+ 
+   // Measure scalar multiplication of based point and arbitrary point.
+-  if (!TimeFunction(&results, [group, pout, pin0, ctx, scalar0, scalar1]() -> bool {
+-        if (!EC_POINT_mul(group, pout, scalar1, pin0, scalar0, ctx)) {
++  if (!TimeFunction(&results, [&group, &pout, &pin0, &ctx, &scalar0, &scalar1]() -> bool {
++        if (!EC_POINT_mul(group.get(), pout.get(), scalar1.get(), pin0.get(), scalar0.get(), ctx.get())) {
+           return false;
+         }
+ 
+@@ -2090,7 +2092,7 @@ static bool SpeedPKCS8(const std::string &selected) {
+ 
+   ED25519_keypair(pubkey, privkey);
+ 
+-  EVP_PKEY *key = EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519, nullptr, &privkey[0], ED25519_PRIVATE_KEY_SEED_LEN);
++  BM_NAMESPACE::UniquePtr<EVP_PKEY> key(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519, nullptr, &privkey[0], ED25519_PRIVATE_KEY_SEED_LEN));
+ 
+   if(!key) {
+     return false;
+@@ -2103,12 +2105,11 @@ static bool SpeedPKCS8(const std::string &selected) {
+ 
+   TimeResults results;
+   if (!TimeFunction(&results, [&out, &key]() -> bool {
+-        if (!EVP_marshal_private_key(&out, key)) {
++        if (!EVP_marshal_private_key(&out, key.get())) {
+           return false;
+         }
+         return true;
+       })) {
+-    EVP_PKEY_free(key);
+     return false;
+   }
+   results.Print("Ed25519 PKCS#8 v1 encode");
+@@ -2117,22 +2118,17 @@ static bool SpeedPKCS8(const std::string &selected) {
+ 
+   CBS_init(&in, CBB_data(&out), CBB_len(&out));
+ 
+-  EVP_PKEY *parsed = NULL;
+ 
+-  if (!TimeFunction(&results, [&in, &parsed]() -> bool {
+-        parsed = EVP_parse_private_key(&in);
+-        if (!parsed) {
+-          return false;
+-        }
+-        return true;
++  if (!TimeFunction(&results, [&in]() -> bool {
++        EVP_PKEY *parsed = EVP_parse_private_key(&in);
++        bool result = parsed != NULL;
++        EVP_PKEY_free(parsed);
++        return result;
+       })) {
+-    EVP_PKEY_free(key);
+     return false;
+   }
+   results.Print("Ed25519 PKCS#8 v1 decode");
+-
+-  EVP_PKEY_free(parsed);
+-
++  
+   CBB_cleanup(&out);
+ 
+   if (!CBB_init(&out, 1024)) {
+@@ -2140,36 +2136,29 @@ static bool SpeedPKCS8(const std::string &selected) {
+   }
+ 
+   if (!TimeFunction(&results, [&out, &key]() -> bool {
+-        if (!EVP_marshal_private_key_v2(&out, key)) {
++        if (!EVP_marshal_private_key_v2(&out, key.get())) {
+           return false;
+         }
+         return true;
+       })) {
+     CBB_cleanup(&out);
+-    EVP_PKEY_free(key);
+     return false;
+   }
+   results.Print("Ed25519 PKCS#8 v2 encode");
+ 
+   CBS_init(&in, CBB_data(&out), CBB_len(&out));
+ 
+-  if (!TimeFunction(&results, [&in, &parsed]() -> bool {
+-        parsed = EVP_parse_private_key(&in);
+-        if (!parsed) {
+-          return false;
+-        }
+-        return true;
++  if (!TimeFunction(&results, [&in]() -> bool {
++        EVP_PKEY *parsed = EVP_parse_private_key(&in);
++        bool result = parsed != NULL;
++        EVP_PKEY_free(parsed);
++        return result;
+       })) {
+     CBB_cleanup(&out);
+-    EVP_PKEY_free(key);
+     return false;
+   }
+   results.Print("Ed25519 PKCS#8 v2 decode");
+-
+-  EVP_PKEY_free(parsed);
+   CBB_cleanup(&out);
+-  EVP_PKEY_free(key);
+-
+   return true;
+ }
+ #endif

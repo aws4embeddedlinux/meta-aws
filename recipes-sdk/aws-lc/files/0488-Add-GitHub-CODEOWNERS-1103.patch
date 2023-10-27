@@ -1,0 +1,18 @@
+From feca63159cbc101266b5aa59ed3da20691622d1e Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Fri, 21 Jul 2023 15:47:14 -0700
+Subject: [PATCH] Add GitHub CODEOWNERS (#1103)
+
+---
+ .github/CODEOWNERS | 2 ++
+ 1 file changed, 2 insertions(+)
+ create mode 100644 .github/CODEOWNERS
+
+diff --git a/.github/CODEOWNERS b/.github/CODEOWNERS
+new file mode 100644
+index 000000000..48d86ddd9
+--- /dev/null
++++ b/.github/CODEOWNERS
+@@ -0,0 +1,2 @@
++# Add core contributors to all PRs by default
++* @aws/aws-lc-dev

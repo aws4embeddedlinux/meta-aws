@@ -1,0 +1,110 @@
+From 2b5a6f15abb3a0029d29ac2662d4108af51b654f Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Tue, 8 Aug 2023 01:43:52 +0800
+Subject: [PATCH] add curl integration test ci dimension (#1134)
+
+---
+ .../github_ci_integration_omnibus.yaml        | 10 ++++
+ .../linux-x86/ubuntu-22.04_base/Dockerfile    |  2 +
+ tests/ci/integration/run_curl_integration.sh  | 53 +++++++++++++++++++
+ 3 files changed, 65 insertions(+)
+ create mode 100755 tests/ci/integration/run_curl_integration.sh
+
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+index 5454d2dad..011fbe891 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+@@ -66,3 +66,13 @@ batch:
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
+         variables:
+           AWS_LC_CI_TARGET: "tests/ci/integration/run_haproxy_integration.sh"
++
++    - identifier: curl_integration
++      buildspec: tests/ci/codebuild/common/run_simple_target.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_MEDIUM
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/integration/run_curl_integration.sh"
+\ No newline at end of file
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+index e8503bb0b..4ec62b902 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+@@ -24,6 +24,7 @@ RUN set -ex && \
+     apt-get -y --no-install-recommends upgrade && \
+     apt-get -y --no-install-recommends install \
+     software-properties-common \
++    automake \
+     cmake \
+     curl \
+     make \
+@@ -43,6 +44,7 @@ RUN set -ex && \
+     libjson-perl \
+     libpcre2-dev \
+     libreadline-dev \
++    libtool \
+     libudev-dev \
+     liblua5.4-dev \
+     socat \
+diff --git a/tests/ci/integration/run_curl_integration.sh b/tests/ci/integration/run_curl_integration.sh
+new file mode 100755
+index 000000000..77d340350
+--- /dev/null
++++ b/tests/ci/integration/run_curl_integration.sh
+@@ -0,0 +1,53 @@
++#!/bin/bash -exu
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++source tests/ci/common_posix_setup.sh
++
++# Set up environment.
++
++# SYS_ROOT
++#  |
++#  - SRC_ROOT(aws-lc)
++#  |
++#  - SCRATCH_FOLDER
++#    |
++#    - curl
++#    - AWS_LC_BUILD_FOLDER
++#    - AWS_LC_INSTALL_FOLDER
++#    - CURL_BUILD_FOLDER
++
++# Assumes script is executed from the root of aws-lc directory
++SCRATCH_FOLDER=${SYS_ROOT}/"CURL_BUILD_ROOT"
++CURL_SRC_FOLDER="${SCRATCH_FOLDER}/curl"
++CURL_BUILD_FOLDER="${SCRATCH_FOLDER}/curl/build"
++AWS_LC_BUILD_FOLDER="${SCRATCH_FOLDER}/aws-lc-build"
++AWS_LC_INSTALL_FOLDER="${CURL_SRC_FOLDER}/aws-lc-install"
++
++mkdir -p ${SCRATCH_FOLDER}
++rm -rf ${SCRATCH_FOLDER}/*
++cd ${SCRATCH_FOLDER}
++
++function curl_build() {
++  autoreconf -fi
++  ./configure --enable-warnings --enable-werror --with-openssl=${AWS_LC_INSTALL_FOLDER}
++  make -j ${NUM_CPU_THREADS}
++  make -j ${NUM_CPU_THREADS} examples
++}
++
++function curl_run_tests() {
++  make -j ${NUM_CPU_THREADS} tests
++  make test-ci
++  cd ${SCRATCH_FOLDER}
++}
++
++# Get latest curl version.
++git clone https://github.com/curl/curl.git ${CURL_SRC_FOLDER}
++mkdir -p ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER} ${CURL_BUILD_FOLDER}
++ls
++
++aws_lc_build ${SRC_ROOT} ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER}
++cd ${CURL_SRC_FOLDER}
++curl_build
++curl_run_tests
++

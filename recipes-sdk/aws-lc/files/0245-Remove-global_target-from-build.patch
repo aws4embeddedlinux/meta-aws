@@ -1,0 +1,306 @@
+From a813c45aa0e158ae67be9a69774a5c7829171c58 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Sun, 5 Feb 2023 13:44:26 -0500
+Subject: [PATCH] Remove global_target from build.
+
+This was added with the generated symbol-prefixing header. But it
+seems to be sufficient for crypto to have a dependency on the
+generated header, along with some of the stray bits of delocate.
+
+It's a little unclear from CMake documentation how these are processed;
+normally .o files can be built before libraries are built or linked,
+only the link step depends on.
+
+But, empirically, if A links B, and B has a dependency on C, then CMake
+seems to run C before building any of A. I tested this by making a small
+project where the generation step slept for three seconds and running
+with enough parallelism that we'd have tripped.
+
+Interestingly, in the Makefile output, the individual object file
+targets didn't have that dependency, but the target itself did. But this
+was true on both A and B, so I think that just might not work.
+
+Also fix the dependency in the custom target. The old formulation broke
+when using an absolute path to the symbols file.
+
+Change-Id: I2053d44949f907d465da403a5ec69c191740268f
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56928
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+---
+ CMakeLists.txt                                   |  9 ++-------
+ crypto/CMakeLists.txt                            |  9 +--------
+ crypto/fipsmodule/CMakeLists.txt                 | 12 ++++++------
+ crypto/test/CMakeLists.txt                       |  3 ---
+ fuzz/CMakeLists.txt                              |  1 -
+ ssl/CMakeLists.txt                               |  3 ---
+ ssl/test/CMakeLists.txt                          |  4 ----
+ tool/CMakeLists.txt                              |  2 --
+ util/fipstools/CMakeLists.txt                    |  2 --
+ util/fipstools/acvp/modulewrapper/CMakeLists.txt |  3 ---
+ 10 files changed, 9 insertions(+), 39 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index e74417fe9..ba346b150 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -35,11 +35,6 @@ elseif(CMAKE_C_COMPILER_ID MATCHES "GNU")
+   set(GCC 1)
+ endif()
+ 
+-# This is a dummy target which all other targets depend on (manually - see other
+-# CMakeLists.txt files). This gives us a hook to add any targets which need to
+-# run before all other targets.
+-add_custom_target(global_target)
+-
+ if (UNIX AND NOT APPLE)
+   include(GNUInstallDirs)
+ elseif(NOT DEFINED CMAKE_INSTALL_LIBDIR)
+@@ -157,7 +152,6 @@ if(BORINGSSL_PREFIX AND BORINGSSL_PREFIX_SYMBOLS AND GO_EXECUTABLE)
+     COMMAND sed -i.bak '/ bignum_/d' ${CMAKE_CURRENT_BINARY_DIR}/symbol_prefix_include/boringssl_prefix_symbols_nasm.inc
+     DEPENDS util/make_prefix_headers.go
+             ${BORINGSSL_PREFIX_SYMBOLS_PATH})
+-
+   # add_dependencies needs a target, not a file, so we add an intermediate
+   # target.
+   add_custom_target(
+@@ -165,7 +159,6 @@ if(BORINGSSL_PREFIX AND BORINGSSL_PREFIX_SYMBOLS AND GO_EXECUTABLE)
+     DEPENDS symbol_prefix_include/boringssl_prefix_symbols.h
+             symbol_prefix_include/boringssl_prefix_symbols_asm.h
+             symbol_prefix_include/boringssl_prefix_symbols_nasm.inc)
+-  add_dependencies(global_target boringssl_prefix_symbols)
+ elseif(BORINGSSL_PREFIX AND BORINGSSL_PREFIX_HEADERS)
+ 
+   if(IS_ABSOLUTE ${BORINGSSL_PREFIX_HEADERS})
+@@ -179,6 +172,8 @@ elseif(BORINGSSL_PREFIX OR BORINGSSL_PREFIX_SYMBOLS)
+   message(FATAL_ERROR "Must specify both or neither of BORINGSSL_PREFIX and BORINGSSL_PREFIX_SYMBOLS")
+ elseif((BORINGSSL_PREFIX AND BORINGSSL_PREFIX_SYMBOLS) AND NOT GO_EXECUTABLE)
+   message(FATAL_ERROR "Must have Go installed when using BORINGSSL_PREFIX and BORINGSSL_PREFIX_SYMBOLS")
++else()
++  add_custom_target(boringssl_prefix_symbols)
+ endif()
+ 
+ if("${CMAKE_SYSTEM_NAME}" STREQUAL "Emscripten")
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index ed4c14770..e285da9f1 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -504,7 +504,7 @@ add_library(
+ target_compile_definitions(crypto_objects PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+ # For the prefix build, the object files need the prefix header files to build.
+-add_dependencies(crypto_objects global_target)
++add_dependencies(crypto_objects boringssl_prefix_symbols)
+ 
+ function(build_libcrypto name module_source)
+   if(FIPS)
+@@ -513,8 +513,6 @@ function(build_libcrypto name module_source)
+     add_library(${name} $<TARGET_OBJECTS:crypto_objects> ${CRYPTO_FIPS_OBJECTS} ${module_source})
+   endif()
+ 
+-  add_dependencies(${name}  global_target)
+-
+   if(FIPS_DELOCATE OR FIPS_SHARED)
+     add_dependencies(${name} bcm_o_target)
+   endif()
+@@ -627,7 +625,6 @@ if(BUILD_TESTING)
+     message(STATUS "Generating test executable ${executable_name}.")
+     add_executable(${executable_name} ${test_file} $<TARGET_OBJECTS:boringssl_gtest_main>)
+     target_compile_definitions(${executable_name} PRIVATE BORINGSSL_IMPLEMENTATION)
+-    add_dependencies(${executable_name} global_target)
+     target_link_libraries(${executable_name} test_support_lib boringssl_gtest crypto)
+     add_dependencies(all_tests ${executable_name})
+   endmacro()
+@@ -643,7 +640,6 @@ if(BUILD_TESTING)
+   # it does.
+   add_executable(
+     ${RANDOM_TEST_EXEC}
+-
+     fipsmodule/rand/urandom_test.cc
+   )
+ 
+@@ -656,7 +652,6 @@ if(BUILD_TESTING)
+ 
+   target_link_libraries(${RANDOM_TEST_EXEC} test_support_lib boringssl_gtest crypto)
+ 
+-  add_dependencies(${RANDOM_TEST_EXEC} global_target)
+   add_dependencies(all_tests ${RANDOM_TEST_EXEC})
+ 
+   add_executable(
+@@ -742,8 +737,6 @@ if(BUILD_TESTING)
+ 
+   )
+ 
+-  add_dependencies(${CRYPTO_TEST_EXEC} global_target)
+-
+   target_link_libraries(${CRYPTO_TEST_EXEC} test_support_lib boringssl_gtest crypto)
+   if(WIN32)
+     target_link_libraries(${CRYPTO_TEST_EXEC} ws2_32)
+diff --git a/crypto/fipsmodule/CMakeLists.txt b/crypto/fipsmodule/CMakeLists.txt
+index e615c0768..ffcf9c90c 100644
+--- a/crypto/fipsmodule/CMakeLists.txt
++++ b/crypto/fipsmodule/CMakeLists.txt
+@@ -291,7 +291,7 @@ if(FIPS_DELOCATE)
+     set(BCM_ASM_PROCESSED_SOURCES ${BCM_ASM_SOURCES})
+   endif()
+ 
+-  add_dependencies(bcm_c_generated_asm global_target)
++  add_dependencies(bcm_c_generated_asm boringssl_prefix_symbols)
+ 
+   set_target_properties(bcm_c_generated_asm PROPERTIES COMPILE_OPTIONS "-S")
+   set_target_properties(bcm_c_generated_asm PROPERTIES POSITION_INDEPENDENT_CODE ON)
+@@ -313,7 +313,7 @@ if(FIPS_DELOCATE)
+   )
+   target_compile_definitions(bcm_hashunset PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+-  add_dependencies(bcm_hashunset global_target)
++  add_dependencies(bcm_hashunset boringssl_prefix_symbols)
+ 
+   set_target_properties(bcm_hashunset PROPERTIES POSITION_INDEPENDENT_CODE ON)
+   set_target_properties(bcm_hashunset PROPERTIES LINKER_LANGUAGE C)
+@@ -343,7 +343,7 @@ if(FIPS_DELOCATE)
+   )
+   target_compile_definitions(fipsmodule PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+-  add_dependencies(fipsmodule global_target)
++  add_dependencies(fipsmodule boringssl_prefix_symbols)
+ 
+   set_target_properties(fipsmodule PROPERTIES LINKER_LANGUAGE C)
+ elseif(FIPS_SHARED)
+@@ -361,7 +361,7 @@ elseif(FIPS_SHARED)
+   )
+   target_compile_definitions(fipsmodule PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+-  add_dependencies(fipsmodule global_target)
++  add_dependencies(fipsmodule boringssl_prefix_symbols)
+ 
+   add_library(
+     bcm_library
+@@ -375,7 +375,7 @@ elseif(FIPS_SHARED)
+   target_compile_definitions(bcm_library PRIVATE BORINGSSL_IMPLEMENTATION)
+   target_include_directories(bcm_library PRIVATE ../../include)
+ 
+-  add_dependencies(bcm_library global_target)
++  add_dependencies(bcm_library boringssl_prefix_symbols)
+   if (APPLE)
+     set(BCM_NAME bcm.o)
+     # The linker on macOS doesn't have the ability to process linker scripts,
+@@ -469,5 +469,5 @@ else()
+   )
+   target_compile_definitions(fipsmodule PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+-  add_dependencies(fipsmodule global_target)
++  add_dependencies(fipsmodule boringssl_prefix_symbols)
+ endif()
+diff --git a/crypto/test/CMakeLists.txt b/crypto/test/CMakeLists.txt
+index dbeb4603d..0ec0b8137 100644
+--- a/crypto/test/CMakeLists.txt
++++ b/crypto/test/CMakeLists.txt
+@@ -19,7 +19,6 @@ if(WIN32)
+   target_link_libraries(test_support_lib dbghelp)
+ endif()
+ target_link_libraries(test_support_lib boringssl_gtest crypto)
+-add_dependencies(test_support_lib global_target)
+ 
+ add_library(
+   boringssl_gtest_main
+@@ -28,6 +27,4 @@ add_library(
+ 
+   gtest_main.cc
+ )
+-
+-add_dependencies(boringssl_gtest_main global_target)
+ target_link_libraries(boringssl_gtest_main boringssl_gtest crypto test_support_lib)
+diff --git a/fuzz/CMakeLists.txt b/fuzz/CMakeLists.txt
+index b21a389ec..b30663c41 100644
+--- a/fuzz/CMakeLists.txt
++++ b/fuzz/CMakeLists.txt
+@@ -4,7 +4,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-missing-prototypes")
+ 
+ macro(fuzzer name)
+   add_executable(${name} ${name}.cc)
+-  add_dependencies(${name} global_target)
+   target_link_libraries(${name} crypto ${ARGN})
+   if(LIBFUZZER_FROM_DEPS)
+     set_target_properties(${name} PROPERTIES LINK_FLAGS "-fsanitize=fuzzer-no-link")
+diff --git a/ssl/CMakeLists.txt b/ssl/CMakeLists.txt
+index 6b12fcd3d..57ab8502f 100644
+--- a/ssl/CMakeLists.txt
++++ b/ssl/CMakeLists.txt
+@@ -44,7 +44,6 @@ add_library(
+   ssl_decrepit.c
+ )
+ target_compile_definitions(ssl PRIVATE BORINGSSL_IMPLEMENTATION)
+-add_dependencies(ssl global_target)
+ 
+ target_link_libraries(ssl crypto)
+ 
+@@ -63,8 +62,6 @@ if(BUILD_TESTING)
+     $<TARGET_OBJECTS:boringssl_gtest_main>
+   )
+ 
+-  add_dependencies(${SSL_TEST_EXEC} global_target)
+-
+   target_link_libraries(${SSL_TEST_EXEC} test_support_lib boringssl_gtest ssl crypto)
+   if(WIN32)
+     target_link_libraries(${SSL_TEST_EXEC} ws2_32)
+diff --git a/ssl/test/CMakeLists.txt b/ssl/test/CMakeLists.txt
+index 1175918e1..91b20f256 100644
+--- a/ssl/test/CMakeLists.txt
++++ b/ssl/test/CMakeLists.txt
+@@ -14,8 +14,6 @@ add_executable(
+   test_state.cc
+ )
+ 
+-add_dependencies(bssl_shim global_target)
+-
+ target_link_libraries(bssl_shim test_support_lib ssl crypto)
+ if(WIN32)
+   target_link_libraries(bssl_shim ws2_32)
+@@ -35,8 +33,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+     test_state.cc
+   )
+ 
+-  add_dependencies(handshaker global_target)
+-
+   target_link_libraries(handshaker test_support_lib ssl crypto)
+ else()
+   # Declare a dummy target for run_tests to depend on.
+diff --git a/tool/CMakeLists.txt b/tool/CMakeLists.txt
+index 414aa8cc1..f15cad5d4 100644
+--- a/tool/CMakeLists.txt
++++ b/tool/CMakeLists.txt
+@@ -23,8 +23,6 @@ add_executable(
+ target_include_directories(bssl PUBLIC ../include)
+ target_compile_options(bssl PUBLIC -DINTERNAL_TOOL)
+ 
+-add_dependencies(bssl global_target)
+-
+ if(WIN32)
+   target_link_libraries(bssl ws2_32)
+ endif()
+diff --git a/util/fipstools/CMakeLists.txt b/util/fipstools/CMakeLists.txt
+index 63593838d..3f8252c9e 100644
+--- a/util/fipstools/CMakeLists.txt
++++ b/util/fipstools/CMakeLists.txt
+@@ -6,7 +6,5 @@ if(FIPS)
+ 
+     test_fips.c
+   )
+-
+-  add_dependencies(test_fips global_target)
+   target_link_libraries(test_fips crypto)
+ endif()
+diff --git a/util/fipstools/acvp/modulewrapper/CMakeLists.txt b/util/fipstools/acvp/modulewrapper/CMakeLists.txt
+index 267f82c37..449acbc4e 100644
+--- a/util/fipstools/acvp/modulewrapper/CMakeLists.txt
++++ b/util/fipstools/acvp/modulewrapper/CMakeLists.txt
+@@ -7,8 +7,5 @@ if(FIPS)
+     main.cc
+     modulewrapper.cc
+   )
+-
+-  add_dependencies(modulewrapper global_target)
+-
+   target_link_libraries(modulewrapper crypto)
+ endif()

@@ -1,0 +1,354 @@
+From 61370c2dab2139ad7c29ab2cbcbf5961a55b686e Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Fri, 18 Aug 2023 00:47:59 +0800
+Subject: [PATCH] add missing symbols for SSLProxy support (#1155)
+
+This pulls in the missing symbols needed to integrate with SSLProxy.
+
+1. I've followed the same pattern with X509V3_EXT_conf_nid and added the
+X509V3_EXT_conf version here as well. The goal is to only maintain it for basic
+compatibility and push users to use X509V3_EXT_nconf* instead.
+2. Added SSL_CTX_set_security_level and CONF_modules_finish as no-ops. We don't
+support security levels and adding any configurations to do so should be it's
+own story.
+3. Added tests and functionality for SSL_SESSION_print. Taken from:
+https://github.com/openssl/openssl/blob/OpenSSL_1_1_1-stable/ssl/ssl_txt.c#L32
+---
+ crypto/conf/conf.c                   |   2 +
+ crypto/decrepit/x509/x509_decrepit.c |   6 ++
+ include/openssl/conf.h               |   3 +
+ include/openssl/ssl.h                |   7 ++
+ include/openssl/x509v3.h             |  16 +++-
+ ssl/CMakeLists.txt                   |   3 +-
+ ssl/ssl_cert.cc                      |   2 +
+ ssl/ssl_test.cc                      |  48 ++++++++++
+ ssl/ssl_text.cc                      | 127 +++++++++++++++++++++++++++
+ 9 files changed, 210 insertions(+), 4 deletions(-)
+ create mode 100644 ssl/ssl_text.cc
+
+diff --git a/crypto/conf/conf.c b/crypto/conf/conf.c
+index 2ca3ea94a..41db6a2f5 100644
+--- a/crypto/conf/conf.c
++++ b/crypto/conf/conf.c
+@@ -814,6 +814,8 @@ void CONF_modules_free(void) {}
+ 
+ void CONF_modules_unload(int all) {}
+ 
++void CONF_modules_finish(void) {}
++
+ void OPENSSL_config(const char *config_name) {}
+ 
+ void OPENSSL_no_config(void) {}
+diff --git a/crypto/decrepit/x509/x509_decrepit.c b/crypto/decrepit/x509/x509_decrepit.c
+index 5af499ed4..9f845595b 100644
+--- a/crypto/decrepit/x509/x509_decrepit.c
++++ b/crypto/decrepit/x509/x509_decrepit.c
+@@ -25,3 +25,9 @@ X509_EXTENSION *X509V3_EXT_conf_nid(LHASH_OF(CONF_VALUE) *conf,
+   assert(conf == NULL);
+   return X509V3_EXT_nconf_nid(NULL, ctx, ext_nid, value);
+ }
++
++X509_EXTENSION *X509V3_EXT_conf(LHASH_OF(CONF_VALUE) *conf, X509V3_CTX *ctx,
++                                const char *name, const char *value) {
++  assert(conf == NULL);
++  return X509V3_EXT_nconf(NULL, ctx, name, value);
++}
+diff --git a/include/openssl/conf.h b/include/openssl/conf.h
+index fe759036d..3b92c0611 100644
+--- a/include/openssl/conf.h
++++ b/include/openssl/conf.h
+@@ -140,6 +140,9 @@ OPENSSL_EXPORT void CONF_modules_free(void);
+ // CONF_modules_unload does nothing.
+ OPENSSL_EXPORT void CONF_modules_unload(int all);
+ 
++// CONF_modules_finish does nothing.
++OPENSSL_EXPORT void CONF_modules_finish(void);
++
+ // OPENSSL_config does nothing.
+ OPENSSL_EXPORT void OPENSSL_config(const char *config_name);
+ 
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index 8616da323..f50e13829 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -5133,6 +5133,13 @@ OPENSSL_EXPORT int SSL_set1_sigalgs_list(SSL *ssl, const char *str);
+ // in AWS-LC.
+ OPENSSL_EXPORT int SSL_CTX_get_security_level(const SSL_CTX *ctx);
+ 
++// SSL_CTX_set_security_level does nothing. See documentation in
++// |SSL_CTX_get_security_level| about implied security levels for AWS-LC.
++OPENSSL_EXPORT void SSL_CTX_set_security_level(const SSL_CTX *ctx, int level);
++
++// SSL_SESSION_print prints the contents of |sess| to |bp|.
++OPENSSL_EXPORT int SSL_SESSION_print(BIO *bp, const SSL_SESSION *sess);
++
+ #define SSL_set_app_data(s, arg) (SSL_set_ex_data(s, 0, (char *)(arg)))
+ #define SSL_get_app_data(s) (SSL_get_ex_data(s, 0))
+ #define SSL_SESSION_set_app_data(s, a) \
+diff --git a/include/openssl/x509v3.h b/include/openssl/x509v3.h
+index 59cc9324c..e73f01921 100644
+--- a/include/openssl/x509v3.h
++++ b/include/openssl/x509v3.h
+@@ -632,14 +632,24 @@ OPENSSL_EXPORT X509_EXTENSION *X509V3_EXT_nconf_nid(const CONF *conf,
+ 
+ // X509V3_EXT_conf_nid calls |X509V3_EXT_nconf_nid|. |conf| must be NULL.
+ //
+-// TODO(davidben): This is the only exposed instance of an LHASH in our public
+-// headers. cryptography.io wraps this function so we cannot, yet, replace the
+-// type with a dummy struct.
++// TODO(davidben): This and |X509V3_EXT_conf| are the only exposed instance of
++// |LHASH| in our public headers. cryptography.io wraps this function so we
++// cannot replace the type with a dummy struct.
+ OPENSSL_EXPORT X509_EXTENSION *X509V3_EXT_conf_nid(LHASH_OF(CONF_VALUE) *conf,
+                                                    const X509V3_CTX *ctx,
+                                                    int ext_nid,
+                                                    const char *value);
+ 
++// X509V3_EXT_conf calls |X509V3_EXT_nconf|. |conf| must be NULL.
++//
++// NOTE: This is only provided for compatibility. See |X509V3_EXT_nconf|
++// instead.
++OPENSSL_EXPORT X509_EXTENSION *X509V3_EXT_conf(LHASH_OF(CONF_VALUE) *conf,
++                                               X509V3_CTX *ctx,
++                                               const char *name,
++                                               const char *value);
++
++
+ // X509V3_EXT_add_nconf_sk looks up the section named |section| in |conf|. For
+ // each |CONF_VALUE| in the section, it constructs an extension as in
+ // |X509V3_EXT_nconf|, taking |name| and |value| from the |CONF_VALUE|. Each new
+diff --git a/ssl/CMakeLists.txt b/ssl/CMakeLists.txt
+index 355949d3a..010b9d57a 100644
+--- a/ssl/CMakeLists.txt
++++ b/ssl/CMakeLists.txt
+@@ -23,12 +23,14 @@ add_library(
+   ssl_buffer.cc
+   ssl_cert.cc
+   ssl_cipher.cc
++  ssl_decrepit.c
+   ssl_file.cc
+   ssl_key_share.cc
+   ssl_lib.cc
+   ssl_privkey.cc
+   ssl_session.cc
+   ssl_stat.cc
++  ssl_text.cc
+   ssl_transcript.cc
+   ssl_transfer_asn1.cc
+   ssl_versions.cc
+@@ -40,7 +42,6 @@ add_library(
+   tls13_client.cc
+   tls13_enc.cc
+   tls13_server.cc
+-  ssl_decrepit.c
+ )
+ target_compile_definitions(ssl PRIVATE BORINGSSL_IMPLEMENTATION)
+ 
+diff --git a/ssl/ssl_cert.cc b/ssl/ssl_cert.cc
+index ec90f43b4..779479c33 100644
+--- a/ssl/ssl_cert.cc
++++ b/ssl/ssl_cert.cc
+@@ -1113,3 +1113,5 @@ int SSL_delegated_credential_used(const SSL *ssl) {
+ }
+ 
+ int SSL_CTX_get_security_level(const SSL_CTX *ctx) { return 3; }
++
++void SSL_CTX_set_security_level(const SSL_CTX *ctx, int level) {}
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index b233b0fc6..88077a0d0 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -18,6 +18,7 @@
+ #include <time.h>
+ 
+ #include <algorithm>
++#include <array>
+ #include <limits>
+ #include <string>
+ #include <utility>
+@@ -9866,5 +9867,52 @@ TEST(SSLTest, NameLists) {
+   }
+ }
+ 
++TEST(SSLTest, SessionPrint) {
++ static const std::array<std::string, 15> kExpectedTLS13{
++      {"SSL-Session:", "    Protocol  :", "    Cipher    : ",
++       "    Session-ID: ", "    Session-ID-ctx:", "    Resumption PSK:",
++       "    PSK identity:", "    TLS session ticket lifetime hint:",
++       "    TLS session ticket:", "    61",
++       "    Start Time:", "    Timeout   :", "    Verify return code:",
++       "    Extended master secret:", "    Max Early Data:"}};
++
++  static const std::array<std::string, 14> kExpectedTLS12{
++      {"SSL-Session:", "    Protocol  :", "    Cipher    : ",
++       "    Session-ID: ", "    Session-ID-ctx:", "    Master-Key:",
++       "    PSK identity:", "    TLS session ticket lifetime hint:",
++       "    TLS session ticket:", "    61",
++       "    Start Time:", "    Timeout   :", "    Verify return code:",
++       "    Extended master secret:"}};
++
++  bssl::UniquePtr<SSL_SESSION> session(
++      CreateSessionWithTicket(TLS1_3_VERSION, 10));
++  bssl::UniquePtr<BIO> bio(BIO_new(BIO_s_mem()));
++  EXPECT_TRUE(SSL_SESSION_print(bio.get(), session.get()));
++  const uint8_t *out;
++  size_t outlen;
++  ASSERT_TRUE(BIO_mem_contents(bio.get(), &out, &outlen));
++
++  // Iterate through |kExpectedTLS13| and verify that |SSL_SESSION_print| has
++  // the expected format.
++  std::istringstream iss_tls13((std::string((char *)out, outlen)));
++  std::string line;
++  for (const auto &expected : kExpectedTLS13) {
++    std::getline(iss_tls13, line);
++    EXPECT_EQ(line.substr(0, expected.length()), expected);
++  }
++
++  session = CreateSessionWithTicket(TLS1_2_VERSION, 10);
++  bio.reset(BIO_new(BIO_s_mem()));
++  EXPECT_TRUE(SSL_SESSION_print(bio.get(), session.get()));
++  ASSERT_TRUE(BIO_mem_contents(bio.get(), &out, &outlen));
++  // Iterate through |kExpectedTLS12| and verify that |SSL_SESSION_print| has
++  // the expected format.
++  std::istringstream iss_tls12((std::string((char *)out, outlen)));
++  for (const auto &expected : kExpectedTLS12) {
++    std::getline(iss_tls12, line);
++    EXPECT_EQ(line.substr(0, expected.length()), expected);
++  }
++}
++
+ }  // namespace
+ BSSL_NAMESPACE_END
+diff --git a/ssl/ssl_text.cc b/ssl/ssl_text.cc
+new file mode 100644
+index 000000000..a2cb0e230
+--- /dev/null
++++ b/ssl/ssl_text.cc
+@@ -0,0 +1,127 @@
++/*
++ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
++ * Copyright 2005 Nokia. All rights reserved.
++ */
++
++// SPDX-License-Identifier: Apache-2.0 OR ISC
++// Modifications Copyright Amazon.com, Inc. or its affiliates.
++
++
++#include <openssl/ssl.h>
++
++#include "internal.h"
++
++
++int SSL_SESSION_print(BIO *bp, const SSL_SESSION *sess) {
++  if (sess == nullptr) {
++    return 0;
++  }
++
++  bool tls13 = (sess->ssl_version == TLS1_3_VERSION);
++  if (BIO_puts(bp, "SSL-Session:\n") <= 0) {
++    return 0;
++  }
++  if (BIO_printf(bp, "    Protocol  : %s\n", SSL_SESSION_get_version(sess)) <=
++      0) {
++    return 0;
++  }
++
++  if (sess->cipher != nullptr) {
++    if (BIO_printf(bp, "    Cipher    : %s\n",
++                   ((sess->cipher->name == nullptr) ? "unknown"
++                                                    : sess->cipher->name)) <=
++        0) {
++      return 0;
++    }
++  }
++  if (BIO_puts(bp, "    Session-ID: ") <= 0) {
++    return 0;
++  }
++  for (size_t i = 0; i < sess->session_id_length; i++) {
++    if (BIO_printf(bp, "%02X", sess->session_id[i]) <= 0) {
++      return 0;
++    }
++  }
++  if (BIO_puts(bp, "\n    Session-ID-ctx: ") <= 0) {
++    return 0;
++  }
++  for (size_t i = 0; i < sess->sid_ctx_length; i++) {
++    if (BIO_printf(bp, "%02X", sess->sid_ctx[i]) <= 0) {
++      return 0;
++    }
++  }
++  if (tls13) {
++    if (BIO_puts(bp, "\n    Resumption PSK: ") <= 0) {
++      return 0;
++    }
++  } else if (BIO_puts(bp, "\n    Master-Key: ") <= 0) {
++    return 0;
++  }
++  for (size_t i = 0; i < sess->secret_length; i++) {
++    if (BIO_printf(bp, "%02X", sess->secret[i]) <= 0) {
++      return 0;
++    }
++  }
++  if (BIO_puts(bp, "\n    PSK identity: ") <= 0) {
++    return 0;
++  }
++  if (BIO_printf(
++          bp, "%s",
++          sess->psk_identity.get() ? sess->psk_identity.get() : "None") <= 0) {
++    return 0;
++  }
++
++  if (sess->ticket_lifetime_hint) {
++    if (BIO_printf(bp, "\n    TLS session ticket lifetime hint: %u (seconds)",
++                   sess->ticket_lifetime_hint) <= 0) {
++      return 0;
++    }
++  }
++  if (!sess->ticket.empty()) {
++    if (BIO_puts(bp, "\n    TLS session ticket:\n    ") <= 0) {
++      return 0;
++    }
++    for (uint8_t i : sess->ticket) {
++      if (BIO_printf(bp, "%02X", i) <= 0) {
++        return 0;
++      }
++    }
++  }
++
++  if (sess->time != 0) {
++    if (BIO_printf(bp, "\n    Start Time: %lld", (long long)sess->time) <= 0) {
++      return 0;
++    }
++  }
++  if (sess->timeout != 0) {
++    if (BIO_printf(bp, "\n    Timeout   : %u (sec)", sess->timeout) <= 0) {
++      return 0;
++    }
++  }
++  if (BIO_puts(bp, "\n") <= 0) {
++    return 0;
++  }
++
++  if (BIO_puts(bp, "    Verify return code: ") <= 0) {
++    return 0;
++  }
++  if (BIO_printf(bp, "%ld (%s)\n", sess->verify_result,
++                 X509_verify_cert_error_string(sess->verify_result)) <= 0) {
++    return 0;
++  }
++
++  if (BIO_printf(bp, "    Extended master secret: %s\n",
++                 sess->extended_master_secret ? "yes" : "no") <= 0) {
++    return 0;
++  }
++
++  if (tls13) {
++    if (BIO_printf(bp, "    Max Early Data: %u\n",
++                   sess->ticket_max_early_data) <= 0) {
++      return 0;
++    }
++  }
++
++  return 1;
++}
++

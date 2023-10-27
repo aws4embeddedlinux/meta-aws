@@ -1,0 +1,57 @@
+From 64afe9b41b7c41112e7849344c5b4a926a015668 Mon Sep 17 00:00:00 2001
+From: Ilya Tokar <tokarip@google.com>
+Date: Mon, 6 Mar 2023 16:20:44 -0500
+Subject: [PATCH] Add prefetch to sha1_block_data_order_shaext
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Similar idea to https://boringssl-review.googlesource.com/c/boringssl/+/55466
+
+Results are pretty close to the current state,
+e.g. tool speed goes from
+Did 74000 SHA-1 (16384 bytes) operations in 1004094us (73698.3 ops/sec): 1207.5 MB/s
+to
+Did 75000 SHA-1 (16384 bytes) operations in 1004022us (74699.6 ops/sec): 1223.9 MB/s
+
+But on AMD with prefetchers disabled and large enough data size,
+to force cache misses this gives ~3x improvement:
+name              old time/op  new time/op  delta
+BM_SHA1Hash/2      141ns ± 1%   143ns ± 2%     ~     (p=0.421 n=5+5)
+BM_SHA1Hash/4      143ns ± 2%   143ns ± 3%     ~     (p=0.841 n=5+5)
+BM_SHA1Hash/8      141ns ± 1%   141ns ± 2%     ~     (p=1.000 n=5+5)
+BM_SHA1Hash/16     141ns ± 1%   141ns ± 1%     ~     (p=0.841 n=5+5)
+BM_SHA1Hash/32     143ns ± 2%   143ns ± 1%     ~     (p=0.690 n=5+5)
+BM_SHA1Hash/64     178ns ± 1%   179ns ± 1%     ~     (p=0.151 n=5+5)
+BM_SHA1Hash/512    454ns ± 1%   454ns ± 1%     ~     (p=0.841 n=5+5)
+BM_SHA1Hash/4k    2.66µs ± 1%  2.65µs ± 1%     ~     (p=1.000 n=5+5)
+BM_SHA1Hash/32k   20.3µs ± 1%  20.3µs ± 2%     ~     (p=1.000 n=5+5)
+BM_SHA1Hash/256k   162µs ± 1%   161µs ± 1%     ~     (p=0.548 n=5+5)
+BM_SHA1Hash/1M     644µs ± 1%   645µs ± 1%     ~     (p=0.841 n=5+5)
+BM_SHA1Hash/2M    1.29ms ± 1%  1.29ms ± 2%     ~     (p=0.690 n=5+5)
+BM_SHA1Hash/4M    2.58ms ± 1%  2.58ms ± 1%     ~     (p=0.841 n=5+5)
+BM_SHA1Hash/8M    5.14ms ± 0%  5.15ms ± 1%     ~     (p=0.286 n=4+5)
+BM_SHA1Hash/16M   11.4ms ± 3%  10.3ms ± 1%   -9.04%  (p=0.016 n=4+5)
+BM_SHA1Hash/128M   249ms ± 0%    83ms ± 1%  -66.73%  (p=0.008 n=5+5)
+
+Change-Id: I7cae746b6d8a705d6bf2d5c5df6a2dca6d44791a
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57826
+Commit-Queue: Adam Langley <agl@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit ecb722aeeb7ec6fcd2d6c60d177b9e952eab51f8)
+---
+ crypto/fipsmodule/sha/asm/sha1-x86_64.pl | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/crypto/fipsmodule/sha/asm/sha1-x86_64.pl b/crypto/fipsmodule/sha/asm/sha1-x86_64.pl
+index 368e3fb1a..60891143c 100755
+--- a/crypto/fipsmodule/sha/asm/sha1-x86_64.pl
++++ b/crypto/fipsmodule/sha/asm/sha1-x86_64.pl
+@@ -393,6 +393,7 @@ $code.=<<___;
+ 	lea		0x40($inp),%r8		# next input block
+ 	paddd		@MSG[0],$E
+ 	cmovne		%r8,$inp
++	prefetcht0	512($inp)
+ 	movdqa		$ABCD,$ABCD_SAVE	# offload $ABCD
+ ___
+ for($i=0;$i<20-4;$i+=2) {

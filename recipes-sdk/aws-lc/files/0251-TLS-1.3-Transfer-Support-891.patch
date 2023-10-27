@@ -1,0 +1,4800 @@
+From aec07944cd70a425723461edc1543065d442b6d9 Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Wed, 5 Apr 2023 09:30:13 -0700
+Subject: [PATCH] TLS 1.3 Transfer Support (#891)
+
+---
+ crypto/bytestring/cbs.c                       |   63 +-
+ crypto/cipher_extra/aead_test.cc              |  206 +--
+ crypto/cipher_extra/e_aesctrhmac.c            |    6 +
+ crypto/cipher_extra/e_aesgcmsiv.c             |   12 +
+ crypto/cipher_extra/e_chacha20poly1305.c      |   26 +-
+ crypto/cipher_extra/e_tls.c                   |  109 +-
+ crypto/err/cipher.errordata                   |    4 +
+ crypto/err/ssl.errordata                      |    1 +
+ crypto/fipsmodule/cipher/aead.c               |  101 ++
+ crypto/fipsmodule/cipher/e_aes.c              |  104 ++
+ crypto/fipsmodule/cipher/e_aesccm.c           |    3 +
+ crypto/fipsmodule/cipher/internal.h           |   68 +
+ generated-src/err_data.c                      | 1214 +++++++++--------
+ include/openssl/bytestring.h                  |   11 +-
+ include/openssl/cipher.h                      |    1 +
+ include/openssl/ssl.h                         |    4 +-
+ ssl/internal.h                                |    4 +
+ ssl/ssl_aead_ctx.cc                           |   57 +
+ ssl/ssl_test.cc                               |  264 +++-
+ ssl/ssl_transfer_asn1.cc                      |  558 +++++++-
+ ssl/test/runner/runner.go                     |   49 +-
+ .../runner/ssl_transfer/test_case_names.txt   |  359 +++++
+ ssl/tls_transfer.asn                          |  132 ++
+ 23 files changed, 2491 insertions(+), 865 deletions(-)
+ create mode 100644 ssl/tls_transfer.asn
+
+diff --git a/crypto/bytestring/cbs.c b/crypto/bytestring/cbs.c
+index 0b161f5bd..96ff18f0c 100644
+--- a/crypto/bytestring/cbs.c
++++ b/crypto/bytestring/cbs.c
+@@ -52,13 +52,9 @@ int CBS_skip(CBS *cbs, size_t len) {
+   return cbs_get(cbs, &dummy, len);
+ }
+ 
+-const uint8_t *CBS_data(const CBS *cbs) {
+-  return cbs->data;
+-}
++const uint8_t *CBS_data(const CBS *cbs) { return cbs->data; }
+ 
+-size_t CBS_len(const CBS *cbs) {
+-  return cbs->len;
+-}
++size_t CBS_len(const CBS *cbs) { return cbs->len; }
+ 
+ int CBS_stow(const CBS *cbs, uint8_t **out_ptr, size_t *out_len) {
+   OPENSSL_free(*out_ptr);
+@@ -80,7 +76,7 @@ int CBS_strdup(const CBS *cbs, char **out_ptr) {
+   if (*out_ptr != NULL) {
+     OPENSSL_free(*out_ptr);
+   }
+-  *out_ptr = OPENSSL_strndup((const char*)cbs->data, cbs->len);
++  *out_ptr = OPENSSL_strndup((const char *)cbs->data, cbs->len);
+   return (*out_ptr != NULL);
+ }
+ 
+@@ -162,9 +158,7 @@ int CBS_get_u32le(CBS *cbs, uint32_t *out) {
+   return 1;
+ }
+ 
+-int CBS_get_u64(CBS *cbs, uint64_t *out) {
+-  return cbs_get_u(cbs, out, 8);
+-}
++int CBS_get_u64(CBS *cbs, uint64_t *out) { return cbs_get_u(cbs, out, 8); }
+ 
+ int CBS_get_u64le(CBS *cbs, uint64_t *out) {
+   if (!cbs_get_u(cbs, out, 8)) {
+@@ -241,7 +235,7 @@ int CBS_get_u64_decimal(CBS *cbs, uint64_t *out) {
+       break;
+     }
+     CBS_skip(cbs, 1);
+-    if (// Forbid stray leading zeros.
++    if (  // Forbid stray leading zeros.
+         (v == 0 && seen_digit) ||
+         // Check for overflow.
+         v > UINT64_MAX / 10 ||  //
+@@ -359,7 +353,7 @@ static int cbs_get_any_asn1_element(CBS *cbs, CBS *out, CBS_ASN1_TAG *out_tag,
+   // 8.1.3.
+   if ((length_byte & 0x80) == 0) {
+     // Short form length.
+-    len = ((size_t) length_byte) + header_len;
++    len = ((size_t)length_byte) + header_len;
+     if (out_header_len != NULL) {
+       *out_header_len = header_len;
+     }
+@@ -438,7 +432,7 @@ int CBS_get_any_asn1(CBS *cbs, CBS *out, CBS_ASN1_TAG *out_tag) {
+ }
+ 
+ int CBS_get_any_asn1_element(CBS *cbs, CBS *out, CBS_ASN1_TAG *out_tag,
+-                                    size_t *out_header_len) {
++                             size_t *out_header_len) {
+   return cbs_get_any_asn1_element(cbs, out, out_tag, out_header_len, NULL, NULL,
+                                   /*ber_ok=*/0);
+ }
+@@ -535,8 +529,7 @@ int CBS_get_asn1_int64(CBS *cbs, int64_t *out) {
+ 
+ int CBS_get_asn1_bool(CBS *cbs, int *out) {
+   CBS bytes;
+-  if (!CBS_get_asn1(cbs, &bytes, CBS_ASN1_BOOLEAN) ||
+-      CBS_len(&bytes) != 1) {
++  if (!CBS_get_asn1(cbs, &bytes, CBS_ASN1_BOOLEAN) || CBS_len(&bytes) != 1) {
+     return 0;
+   }
+ 
+@@ -549,7 +542,8 @@ int CBS_get_asn1_bool(CBS *cbs, int *out) {
+   return 1;
+ }
+ 
+-int CBS_get_optional_asn1(CBS *cbs, CBS *out, int *out_present, CBS_ASN1_TAG tag) {
++int CBS_get_optional_asn1(CBS *cbs, CBS *out, int *out_present,
++                          CBS_ASN1_TAG tag) {
+   int present = 0;
+ 
+   if (CBS_peek_asn1_tag(cbs, tag)) {
+@@ -596,8 +590,7 @@ int CBS_get_optional_asn1_uint64(CBS *cbs, uint64_t *out, CBS_ASN1_TAG tag,
+     return 0;
+   }
+   if (present) {
+-    if (!CBS_get_asn1_uint64(&child, out) ||
+-        CBS_len(&child) != 0) {
++    if (!CBS_get_asn1_uint64(&child, out) || CBS_len(&child) != 0) {
+       return 0;
+     }
+   } else {
+@@ -617,8 +610,7 @@ int CBS_get_optional_asn1_bool(CBS *cbs, int *out, CBS_ASN1_TAG tag,
+     uint8_t boolean;
+ 
+     if (!CBS_get_asn1(&child, &child2, CBS_ASN1_BOOLEAN) ||
+-        CBS_len(&child2) != 1 ||
+-        CBS_len(&child) != 0) {
++        CBS_len(&child2) != 1 || CBS_len(&child) != 0) {
+       return 0;
+     }
+ 
+@@ -639,8 +631,7 @@ int CBS_get_optional_asn1_bool(CBS *cbs, int *out, CBS_ASN1_TAG tag,
+ int CBS_is_valid_asn1_bitstring(const CBS *cbs) {
+   CBS in = *cbs;
+   uint8_t num_unused_bits;
+-  if (!CBS_get_u8(&in, &num_unused_bits) ||
+-      num_unused_bits > 7) {
++  if (!CBS_get_u8(&in, &num_unused_bits) || num_unused_bits > 7) {
+     return 0;
+   }
+ 
+@@ -721,15 +712,13 @@ char *CBS_asn1_oid_to_text(const CBS *cbs) {
+         !add_decimal(&cbb, v - 80)) {
+       goto err;
+     }
+-  } else if (!add_decimal(&cbb, v / 40) ||
+-             !CBB_add_u8(&cbb, '.') ||
++  } else if (!add_decimal(&cbb, v / 40) || !CBB_add_u8(&cbb, '.') ||
+              !add_decimal(&cbb, v % 40)) {
+     goto err;
+   }
+ 
+   while (CBS_len(&copy) != 0) {
+-    if (!parse_base128_integer(&copy, &v) ||
+-        !CBB_add_u8(&cbb, '.') ||
++    if (!parse_base128_integer(&copy, &v) || !CBB_add_u8(&cbb, '.') ||
+         !add_decimal(&cbb, v)) {
+       goto err;
+     }
+@@ -737,8 +726,7 @@ char *CBS_asn1_oid_to_text(const CBS *cbs) {
+ 
+   uint8_t *txt;
+   size_t txt_len;
+-  if (!CBB_add_u8(&cbb, '\0') ||
+-      !CBB_finish(&cbb, &txt, &txt_len)) {
++  if (!CBB_add_u8(&cbb, '\0') || !CBB_finish(&cbb, &txt, &txt_len)) {
+     goto err;
+   }
+ 
+@@ -811,7 +799,7 @@ static int CBS_parse_rfc5280_time_internal(const CBS *cbs, int is_gentime,
+     if (!cbs_get_two_digits(&copy, &tmp)) {
+       return 0;
+     }
+-      year += tmp;
++    year += tmp;
+   } else {
+     year = 1900;
+     if (!cbs_get_two_digits(&copy, &tmp)) {
+@@ -906,3 +894,20 @@ int CBS_parse_utc_time(const CBS *cbs, struct tm *out_tm,
+                        int allow_timezone_offset) {
+   return CBS_parse_rfc5280_time_internal(cbs, 0, allow_timezone_offset, out_tm);
+ }
++
++int CBS_get_optional_asn1_int64(CBS *cbs, int64_t *out, CBS_ASN1_TAG tag,
++                                int64_t default_value) {
++  CBS child;
++  int present;
++  if (!CBS_get_optional_asn1(cbs, &child, &present, tag)) {
++    return 0;
++  }
++  if (present) {
++    if (!CBS_get_asn1_int64(&child, out) || CBS_len(&child) != 0) {
++      return 0;
++    }
++  } else {
++    *out = default_value;
++  }
++  return 1;
++}
+diff --git a/crypto/cipher_extra/aead_test.cc b/crypto/cipher_extra/aead_test.cc
+index d9e779e72..d63d68cb4 100644
+--- a/crypto/cipher_extra/aead_test.cc
++++ b/crypto/cipher_extra/aead_test.cc
+@@ -24,12 +24,12 @@
+ #include <openssl/err.h>
+ 
+ #include "../fipsmodule/cipher/internal.h"
+-#include "internal.h"
+ #include "../internal.h"
+ #include "../test/abi_test.h"
+ #include "../test/file_test.h"
+ #include "../test/test_util.h"
+ #include "../test/wycheproof_util.h"
++#include "internal.h"
+ 
+ // kLimitedImplementation indicates that tests that assume a generic AEAD
+ // interface should not be performed. For example, the key-wrap AEADs only
+@@ -59,9 +59,7 @@ constexpr uint32_t RequiresADLength(size_t length) {
+ 
+ // RequiredADLength returns the AD length requirement encoded in |flags|, or
+ // zero if there isn't one.
+-constexpr size_t RequiredADLength(uint32_t flags) {
+-  return (flags >> 3) & 0xf;
+-}
++constexpr size_t RequiredADLength(uint32_t flags) { return (flags >> 3) & 0xf; }
+ 
+ constexpr uint32_t RequiresMinimumTagLength(size_t length) {
+   // See above for statically checking the size at compile time with future C++
+@@ -283,6 +281,24 @@ TEST_P(PerAEADTest, TestVector) {
+   });
+ }
+ 
++TEST_P(PerAEADTest, TestIdentifier) {
++  const EVP_AEAD *aead = GetParam().func();
++  ASSERT_TRUE(aead->aead_id != AEAD_UNKNOWN_ID);
++}
++
++TEST(EvpAeadCtxIdTest, RetrievesIdentifier) {
++  bssl::ScopedEVP_AEAD_CTX ctx;
++
++  std::string key_hex("809adab149635b22f0a37de146f17dc8");
++  std::vector<uint8_t> key;
++
++  ASSERT_TRUE(DecodeHex(&key, key_hex));
++  ASSERT_TRUE(EVP_AEAD_CTX_init(ctx.get(), EVP_aead_aes_128_gcm(), key.data(),
++                                key.size(), 16, nullptr));
++
++  ASSERT_EQ(EVP_AEAD_CTX_get_aead_id(ctx.get()), AEAD_AES_128_GCM_ID);
++}
++
+ struct KnownTLSLegacyAEAD {
+   const char name[40];
+   const EVP_CIPHER *(*func)(void);
+@@ -295,7 +311,7 @@ static const struct KnownTLSLegacyAEAD kTLSLegacyAEADs[] = {
+      "aes_128_cbc_sha1_tls_stitch_tests.txt",
+      RequiresADLength(EVP_AEAD_TLS1_AAD_LEN)},
+ 
+-     {"AES_128_CBC_SHA1_TLS_IMPLICIT_IV", EVP_aes_128_cbc_hmac_sha1,
++    {"AES_128_CBC_SHA1_TLS_IMPLICIT_IV", EVP_aes_128_cbc_hmac_sha1,
+      "aes_128_cbc_sha1_tls_stitch_implicit_iv_tests.txt",
+      RequiresADLength(EVP_AEAD_TLS1_AAD_LEN)},
+ 
+@@ -311,7 +327,7 @@ static const struct KnownTLSLegacyAEAD kTLSLegacyAEADs[] = {
+      "aes_256_cbc_sha1_tls_stitch_tests.txt",
+      RequiresADLength(EVP_AEAD_TLS1_AAD_LEN)},
+ 
+-     {"AES_256_CBC_SHA1_TLS_IMPLICIT_IV", EVP_aes_256_cbc_hmac_sha1,
++    {"AES_256_CBC_SHA1_TLS_IMPLICIT_IV", EVP_aes_256_cbc_hmac_sha1,
+      "aes_256_cbc_sha1_tls_stitch_implicit_iv_tests.txt",
+      RequiresADLength(EVP_AEAD_TLS1_AAD_LEN)},
+ 
+@@ -324,29 +340,33 @@ static const struct KnownTLSLegacyAEAD kTLSLegacyAEADs[] = {
+      RequiresADLength(EVP_AEAD_TLS1_AAD_LEN)},
+ };
+ 
+-class PerTLSLegacyAEADTest : public testing::TestWithParam<KnownTLSLegacyAEAD> {};
++class PerTLSLegacyAEADTest : public testing::TestWithParam<KnownTLSLegacyAEAD> {
++};
+ 
+-INSTANTIATE_TEST_SUITE_P(All, PerTLSLegacyAEADTest, testing::ValuesIn(kTLSLegacyAEADs),
+-                         [](const testing::TestParamInfo<KnownTLSLegacyAEAD> &params)
+-                             -> std::string { return params.param.name; });
++INSTANTIATE_TEST_SUITE_P(
++    All, PerTLSLegacyAEADTest, testing::ValuesIn(kTLSLegacyAEADs),
++    [](const testing::TestParamInfo<KnownTLSLegacyAEAD> &params)
++        -> std::string { return params.param.name; });
+ 
+-static void set_MAC_key(EVP_CIPHER_CTX *ctx, uint8_t *key, size_t mac_key_size) {
++static void set_MAC_key(EVP_CIPHER_CTX *ctx, uint8_t *key,
++                        size_t mac_key_size) {
+   // In each TLS session, only need to set EVP_CTRL_AEAD_SET_MAC_KEY once.
+-  ASSERT_TRUE(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_MAC_KEY, mac_key_size, key))
+-    << "EVP_CTRL_AEAD_SET_MAC_KEY failed: "
+-    << ERR_reason_error_string(ERR_get_error());
++  ASSERT_TRUE(
++      EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_MAC_KEY, mac_key_size, key))
++      << "EVP_CTRL_AEAD_SET_MAC_KEY failed: "
++      << ERR_reason_error_string(ERR_get_error());
+ }
+ 
+ static void set_TLS1_AAD(EVP_CIPHER_CTX *ctx, uint8_t *ad) {
+-  // In each TLS session, ad should be set before each read/write operation because it includes sequence_num.
+-  // Below ctrl returns hmac|pad len for encryption.
+-  // For decryption, it returns digest size.
++  // In each TLS session, ad should be set before each read/write operation
++  // because it includes sequence_num. Below ctrl returns hmac|pad len for
++  // encryption. For decryption, it returns digest size.
+   EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_TLS1_AAD, EVP_AEAD_TLS1_AAD_LEN, ad);
+ }
+ 
+ // |EVP_aes_128/256_cbc_hmac_sha1/256| tests.
+-// Tests a TLS specific legacy AEAD against a series of test vectors from a file, using the
+-// FileTest format. As an example, here's a valid test case:
++// Tests a TLS specific legacy AEAD against a series of test vectors from a
++// file, using the FileTest format. As an example, here's a valid test case:
+ //
+ // # DIGEST: 918c0df73de553b5bdffb7365f93a430292f6eea
+ // KEY: 2993a340b9b3c589c7481df3f4183aa23fd8d7efd88503f78b8ed1c8e9ba2fd6773e0d0c
+@@ -385,7 +405,8 @@ TEST_P(PerTLSLegacyAEADTest, TestVector) {
+       ASSERT_TRUE(tag_len);
+     }
+     bool explicit_iv = !nonce.empty();
+-    size_t aes_block_size = EVP_CIPHER_block_size(cipher);;
++    size_t aes_block_size = EVP_CIPHER_block_size(cipher);
++    ;
+     size_t key_block_size = EVP_CIPHER_key_length(cipher);
+     size_t e_iv_len = 0;
+     bssl::ScopedEVP_CIPHER_CTX ctx;
+@@ -399,22 +420,27 @@ TEST_P(PerTLSLegacyAEADTest, TestVector) {
+       e_iv_len = aes_block_size;
+       OPENSSL_memcpy(iv.data(), nonce.data(), nonce.size());
+     } else {
+-      OPENSSL_memcpy(iv.data(), key.data() + mac_key_size + key_block_size, aes_block_size);
++      OPENSSL_memcpy(iv.data(), key.data() + mac_key_size + key_block_size,
++                     aes_block_size);
+     }
+     if (!t->HasAttribute("NO_SEAL")) {
+-      // Even without |EVP_CIPHER_CTX_set_padding|, |EVP_Cipher| returns error code because
+-      // |EVP_aes_128/256_cbc_hmac_sha1/256| does not automatically pad the input.
++      // Even without |EVP_CIPHER_CTX_set_padding|, |EVP_Cipher| returns error
++      // code because |EVP_aes_128/256_cbc_hmac_sha1/256| does not automatically
++      // pad the input.
+       ASSERT_TRUE(EVP_CIPHER_CTX_set_padding(ctx.get(), EVP_CIPH_NO_PADDING));
+-      ASSERT_TRUE(EVP_EncryptInit_ex(ctx.get(), cipher, nullptr, aes_key, iv.data()));
++      ASSERT_TRUE(
++          EVP_EncryptInit_ex(ctx.get(), cipher, nullptr, aes_key, iv.data()));
+       set_MAC_key(ctx.get(), key.data(), mac_key_size);
+-      // |EVP_aes_128/256_cbc_hmac_sha1/256| encrypts a TLS record, which should have space for
+-      // explicit_iv(if applicable), payload, tag(hmac and padding).
++      // |EVP_aes_128/256_cbc_hmac_sha1/256| encrypts a TLS record, which should
++      // have space for explicit_iv(if applicable), payload, tag(hmac and
++      // padding).
+       std::vector<uint8_t> record(in.size() + tag.size(), 0);
+       OPENSSL_memcpy(record.data(), in.data(), in.size());
+       set_TLS1_AAD(ctx.get(), ad.data());
+-      ASSERT_TRUE(EVP_Cipher(ctx.get(), encrypted.data(), record.data(), record.size()))
+-        << "EVP_Cipher encryption failed: "
+-        << ERR_reason_error_string(ERR_get_error());
++      ASSERT_TRUE(
++          EVP_Cipher(ctx.get(), encrypted.data(), record.data(), record.size()))
++          << "EVP_Cipher encryption failed: "
++          << ERR_reason_error_string(ERR_get_error());
+       EXPECT_EQ(Bytes(ct), Bytes(encrypted.data(), ct.size()));
+       EXPECT_EQ(Bytes(tag), Bytes(encrypted.data() + ct.size(), tag.size()));
+     } else {
+@@ -425,12 +451,15 @@ TEST_P(PerTLSLegacyAEADTest, TestVector) {
+ 
+     // Decryption side(TLS client/server) always has a separated EVP_CIPHER_CTX.
+     bssl::ScopedEVP_CIPHER_CTX decrypt_ctx;
+-    ASSERT_TRUE(EVP_CIPHER_CTX_set_padding(decrypt_ctx.get(), EVP_CIPH_NO_PADDING));
+-    ASSERT_TRUE(EVP_DecryptInit_ex(decrypt_ctx.get(), cipher, nullptr, aes_key, iv.data()));
++    ASSERT_TRUE(
++        EVP_CIPHER_CTX_set_padding(decrypt_ctx.get(), EVP_CIPH_NO_PADDING));
++    ASSERT_TRUE(EVP_DecryptInit_ex(decrypt_ctx.get(), cipher, nullptr, aes_key,
++                                   iv.data()));
+     set_MAC_key(decrypt_ctx.get(), key.data(), mac_key_size);
+     set_TLS1_AAD(decrypt_ctx.get(), ad.data());
+     std::vector<uint8_t> decrypted(encrypted.size());
+-    int ret = EVP_Cipher(decrypt_ctx.get(), decrypted.data(), encrypted.data(), encrypted.size());
++    int ret = EVP_Cipher(decrypt_ctx.get(), decrypted.data(), encrypted.data(),
++                         encrypted.size());
+     if (t->HasAttribute("FAILS")) {
+       ASSERT_TRUE(ret <= 0) << "Decrypted bad data.";
+       ERR_clear_error();
+@@ -452,25 +481,30 @@ TEST_P(PerTLSLegacyAEADTest, TestVector) {
+       // Modify the cipher text.
+       encrypted[EVP_CIPHER_block_size(cipher)] ^= 0x80;
+       set_TLS1_AAD(decrypt_ctx.get(), ad.data());
+-      ASSERT_FALSE(EVP_Cipher(decrypt_ctx.get(), decrypted.data(), encrypted.data(), encrypted.size()));
++      ASSERT_FALSE(EVP_Cipher(decrypt_ctx.get(), decrypted.data(),
++                              encrypted.data(), encrypted.size()));
+       ASSERT_EQ(ERR_GET_REASON(ERR_get_error()), CIPHER_R_BAD_DECRYPT);
+       ERR_clear_error();
+       // Recover the cipher text.
+       encrypted[EVP_CIPHER_block_size(cipher)] ^= 0x80;
+     }
+ 
+-    // |EVP_aes_128/256_cbc_hmac_sha1/256| requires the input to be the integral multiple of AES_BLOCK_SIZE.
++    // |EVP_aes_128/256_cbc_hmac_sha1/256| requires the input to be the integral
++    // multiple of AES_BLOCK_SIZE.
+     encrypted.resize(encrypted.size() + 1);
+     set_TLS1_AAD(decrypt_ctx.get(), ad.data());
+-    ASSERT_FALSE(EVP_Cipher(decrypt_ctx.get(), decrypted.data(), encrypted.data(), encrypted.size()));
+-    ASSERT_EQ(ERR_GET_REASON(ERR_get_error()), CIPHER_R_DATA_NOT_MULTIPLE_OF_BLOCK_LENGTH);
++    ASSERT_FALSE(EVP_Cipher(decrypt_ctx.get(), decrypted.data(),
++                            encrypted.data(), encrypted.size()));
++    ASSERT_EQ(ERR_GET_REASON(ERR_get_error()),
++              CIPHER_R_DATA_NOT_MULTIPLE_OF_BLOCK_LENGTH);
+     ERR_clear_error();
+ 
+     // Garbage at the end isn't ignored.
+     encrypted.resize(encrypted.size() + EVP_CIPHER_block_size(cipher) - 1);
+     decrypted.resize(encrypted.size());
+     set_TLS1_AAD(decrypt_ctx.get(), ad.data());
+-    ASSERT_FALSE(EVP_Cipher(decrypt_ctx.get(), decrypted.data(), encrypted.data(), encrypted.size()));
++    ASSERT_FALSE(EVP_Cipher(decrypt_ctx.get(), decrypted.data(),
++                            encrypted.data(), encrypted.size()));
+     ASSERT_EQ(ERR_GET_REASON(ERR_get_error()), CIPHER_R_BAD_DECRYPT);
+     ERR_clear_error();
+   });
+@@ -485,8 +519,7 @@ TEST_P(PerAEADTest, TestExtraInput) {
+   const std::string test_vectors =
+       "crypto/cipher_extra/test/" + std::string(aead_config.test_vectors);
+   FileTestGTest(test_vectors.c_str(), [&](FileTest *t) {
+-    if (t->HasAttribute("NO_SEAL") ||
+-        t->HasAttribute("FAILS") ||
++    if (t->HasAttribute("NO_SEAL") || t->HasAttribute("FAILS") ||
+         (aead_config.flags & kNondeterministic)) {
+       t->SkipCurrent();
+       return;
+@@ -591,9 +624,9 @@ TEST_P(PerAEADTest, TestVectorScatterGather) {
+       int err = ERR_peek_error();
+       if (ERR_GET_LIB(err) == ERR_LIB_CIPHER &&
+           ERR_GET_REASON(err) == CIPHER_R_CTRL_NOT_IMPLEMENTED) {
+-          t->SkipCurrent();
+-          return;
+-        }
++        t->SkipCurrent();
++        return;
++      }
+     }
+ 
+     if (t->HasAttribute("FAILS")) {
+@@ -690,8 +723,8 @@ TEST_P(PerAEADTest, TruncatedTags) {
+ 
+   const size_t tag_len = MinimumTagLength(GetParam().flags);
+   bssl::ScopedEVP_AEAD_CTX ctx;
+-  ASSERT_TRUE(EVP_AEAD_CTX_init(ctx.get(), aead(), key, key_len,
+-                                tag_len, NULL /* ENGINE */));
++  ASSERT_TRUE(EVP_AEAD_CTX_init(ctx.get(), aead(), key, key_len, tag_len,
++                                NULL /* ENGINE */));
+ 
+   const uint8_t plaintext[1] = {'A'};
+ 
+@@ -1155,54 +1188,54 @@ static void RunWycheproofTestCase(FileTest *t, const EVP_AEAD *aead) {
+ TEST(AEADTest, WycheproofAESGCMSIV) {
+   FileTestGTest("third_party/wycheproof_testvectors/aes_gcm_siv_test.txt",
+                 [](FileTest *t) {
+-    std::string key_size_str;
+-    ASSERT_TRUE(t->GetInstruction(&key_size_str, "keySize"));
+-    const EVP_AEAD *aead;
+-    switch (atoi(key_size_str.c_str())) {
+-      case 128:
+-        aead = EVP_aead_aes_128_gcm_siv();
+-        break;
+-      case 256:
+-        aead = EVP_aead_aes_256_gcm_siv();
+-        break;
+-      default:
+-        FAIL() << "Unknown key size: " << key_size_str;
+-    }
+-
+-    RunWycheproofTestCase(t, aead);
+-  });
++                  std::string key_size_str;
++                  ASSERT_TRUE(t->GetInstruction(&key_size_str, "keySize"));
++                  const EVP_AEAD *aead;
++                  switch (atoi(key_size_str.c_str())) {
++                    case 128:
++                      aead = EVP_aead_aes_128_gcm_siv();
++                      break;
++                    case 256:
++                      aead = EVP_aead_aes_256_gcm_siv();
++                      break;
++                    default:
++                      FAIL() << "Unknown key size: " << key_size_str;
++                  }
++
++                  RunWycheproofTestCase(t, aead);
++                });
+ }
+ 
+ TEST(AEADTest, WycheproofAESGCM) {
+   FileTestGTest("third_party/wycheproof_testvectors/aes_gcm_test.txt",
+                 [](FileTest *t) {
+-    std::string key_size_str;
+-    ASSERT_TRUE(t->GetInstruction(&key_size_str, "keySize"));
+-    const EVP_AEAD *aead;
+-    switch (atoi(key_size_str.c_str())) {
+-      case 128:
+-        aead = EVP_aead_aes_128_gcm();
+-        break;
+-      case 192:
+-        aead = EVP_aead_aes_192_gcm();
+-        break;
+-      case 256:
+-        aead = EVP_aead_aes_256_gcm();
+-        break;
+-      default:
+-        FAIL() << "Unknown key size: " << key_size_str;
+-    }
+-
+-    RunWycheproofTestCase(t, aead);
+-  });
++                  std::string key_size_str;
++                  ASSERT_TRUE(t->GetInstruction(&key_size_str, "keySize"));
++                  const EVP_AEAD *aead;
++                  switch (atoi(key_size_str.c_str())) {
++                    case 128:
++                      aead = EVP_aead_aes_128_gcm();
++                      break;
++                    case 192:
++                      aead = EVP_aead_aes_192_gcm();
++                      break;
++                    case 256:
++                      aead = EVP_aead_aes_256_gcm();
++                      break;
++                    default:
++                      FAIL() << "Unknown key size: " << key_size_str;
++                  }
++
++                  RunWycheproofTestCase(t, aead);
++                });
+ }
+ 
+ TEST(AEADTest, WycheproofChaCha20Poly1305) {
+   FileTestGTest("third_party/wycheproof_testvectors/chacha20_poly1305_test.txt",
+                 [](FileTest *t) {
+-    t->IgnoreInstruction("keySize");
+-    RunWycheproofTestCase(t, EVP_aead_chacha20_poly1305());
+-  });
++                  t->IgnoreInstruction("keySize");
++                  RunWycheproofTestCase(t, EVP_aead_chacha20_poly1305());
++                });
+ }
+ 
+ TEST(AEADTest, WycheproofXChaCha20Poly1305) {
+@@ -1214,9 +1247,7 @@ TEST(AEADTest, WycheproofXChaCha20Poly1305) {
+       });
+ }
+ 
+-TEST(AEADTest, FreeNull) {
+-  EVP_AEAD_CTX_free(nullptr);
+-}
++TEST(AEADTest, FreeNull) { EVP_AEAD_CTX_free(nullptr); }
+ 
+ // Deterministic IV generation for AES-GCM 256.
+ TEST(AEADTest, AEADAES256GCMDetIVGen) {
+@@ -1226,9 +1257,8 @@ TEST(AEADTest, AEADAES256GCMDetIVGen) {
+   uint64_t fake_time = UINT64_C(0x1122334455667788);
+   uint8_t out[FIPS_AES_GCM_NONCE_LENGTH] = {0};
+   uint8_t expected[FIPS_AES_GCM_NONCE_LENGTH] = {
+-    // Note: Little-endian byte representation.
+-    0x67, 0xf2, 0xfb, 0xcd, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11
+-  };
++      // Note: Little-endian byte representation.
++      0x67, 0xf2, 0xfb, 0xcd, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11};
+ 
+   EXPECT_TRUE(EVP_AEAD_get_iv_from_ipv4_nanosecs(ip_address, fake_time, out));
+   EXPECT_EQ(Bytes(out, sizeof(out)), Bytes(expected, sizeof(expected)));
+diff --git a/crypto/cipher_extra/e_aesctrhmac.c b/crypto/cipher_extra/e_aesctrhmac.c
+index 1f9a2d076..75618ff06 100644
+--- a/crypto/cipher_extra/e_aesctrhmac.c
++++ b/crypto/cipher_extra/e_aesctrhmac.c
+@@ -242,6 +242,7 @@ static const EVP_AEAD aead_aes_128_ctr_hmac_sha256 = {
+     12,                                    // nonce length
+     EVP_AEAD_AES_CTR_HMAC_SHA256_TAG_LEN,  // overhead
+     EVP_AEAD_AES_CTR_HMAC_SHA256_TAG_LEN,  // max tag length
++    AEAD_AES_128_CTR_HMAC_SHA256_ID,       // evp_aead_id
+     0,                                     // seal_scatter_supports_extra_in
+ 
+     aead_aes_ctr_hmac_sha256_init,
+@@ -252,6 +253,8 @@ static const EVP_AEAD aead_aes_128_ctr_hmac_sha256 = {
+     aead_aes_ctr_hmac_sha256_open_gather,
+     NULL /* get_iv */,
+     NULL /* tag_len */,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ static const EVP_AEAD aead_aes_256_ctr_hmac_sha256 = {
+@@ -259,6 +262,7 @@ static const EVP_AEAD aead_aes_256_ctr_hmac_sha256 = {
+     12,                                    // nonce length
+     EVP_AEAD_AES_CTR_HMAC_SHA256_TAG_LEN,  // overhead
+     EVP_AEAD_AES_CTR_HMAC_SHA256_TAG_LEN,  // max tag length
++    AEAD_AES_256_CTR_HMAC_SHA256_ID,       // evp_aead_id
+     0,                                     // seal_scatter_supports_extra_in
+ 
+     aead_aes_ctr_hmac_sha256_init,
+@@ -269,6 +273,8 @@ static const EVP_AEAD aead_aes_256_ctr_hmac_sha256 = {
+     aead_aes_ctr_hmac_sha256_open_gather,
+     NULL /* get_iv */,
+     NULL /* tag_len */,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ const EVP_AEAD *EVP_aead_aes_128_ctr_hmac_sha256(void) {
+diff --git a/crypto/cipher_extra/e_aesgcmsiv.c b/crypto/cipher_extra/e_aesgcmsiv.c
+index 407095c5b..df72b0aca 100644
+--- a/crypto/cipher_extra/e_aesgcmsiv.c
++++ b/crypto/cipher_extra/e_aesgcmsiv.c
+@@ -509,6 +509,7 @@ static const EVP_AEAD aead_aes_128_gcm_siv_asm = {
+     EVP_AEAD_AES_GCM_SIV_NONCE_LEN,  // nonce length
+     EVP_AEAD_AES_GCM_SIV_TAG_LEN,    // overhead
+     EVP_AEAD_AES_GCM_SIV_TAG_LEN,    // max tag length
++    AEAD_AES_128_GCM_SIV_ID,         // evp_aead_id
+     0,                               // seal_scatter_supports_extra_in
+ 
+     aead_aes_gcm_siv_asm_init,
+@@ -519,6 +520,8 @@ static const EVP_AEAD aead_aes_128_gcm_siv_asm = {
+     NULL /* open_gather */,
+     NULL /* get_iv */,
+     NULL /* tag_len */,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ static const EVP_AEAD aead_aes_256_gcm_siv_asm = {
+@@ -526,6 +529,7 @@ static const EVP_AEAD aead_aes_256_gcm_siv_asm = {
+     EVP_AEAD_AES_GCM_SIV_NONCE_LEN,  // nonce length
+     EVP_AEAD_AES_GCM_SIV_TAG_LEN,    // overhead
+     EVP_AEAD_AES_GCM_SIV_TAG_LEN,    // max tag length
++    AEAD_AES_256_GCM_SIV_ID,         // evp_aead_id
+     0,                               // seal_scatter_supports_extra_in
+ 
+     aead_aes_gcm_siv_asm_init,
+@@ -536,6 +540,8 @@ static const EVP_AEAD aead_aes_256_gcm_siv_asm = {
+     NULL /* open_gather */,
+     NULL /* get_iv */,
+     NULL /* tag_len */,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ #endif  // X86_64 && !NO_ASM && !WINDOWS
+@@ -792,6 +798,7 @@ static const EVP_AEAD aead_aes_128_gcm_siv = {
+     EVP_AEAD_AES_GCM_SIV_NONCE_LEN,  // nonce length
+     EVP_AEAD_AES_GCM_SIV_TAG_LEN,    // overhead
+     EVP_AEAD_AES_GCM_SIV_TAG_LEN,    // max tag length
++    AEAD_AES_128_GCM_SIV_ID,         // evp_aead_id
+     0,                               // seal_scatter_supports_extra_in
+ 
+     aead_aes_gcm_siv_init,
+@@ -802,6 +809,8 @@ static const EVP_AEAD aead_aes_128_gcm_siv = {
+     aead_aes_gcm_siv_open_gather,
+     NULL /* get_iv */,
+     NULL /* tag_len */,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ static const EVP_AEAD aead_aes_256_gcm_siv = {
+@@ -809,6 +818,7 @@ static const EVP_AEAD aead_aes_256_gcm_siv = {
+     EVP_AEAD_AES_GCM_SIV_NONCE_LEN,  // nonce length
+     EVP_AEAD_AES_GCM_SIV_TAG_LEN,    // overhead
+     EVP_AEAD_AES_GCM_SIV_TAG_LEN,    // max tag length
++    AEAD_AES_256_GCM_SIV_ID,         // evp_aead_id
+     0,                               // seal_scatter_supports_extra_in
+ 
+     aead_aes_gcm_siv_init,
+@@ -819,6 +829,8 @@ static const EVP_AEAD aead_aes_256_gcm_siv = {
+     aead_aes_gcm_siv_open_gather,
+     NULL /* get_iv */,
+     NULL /* tag_len */,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ #if defined(AES_GCM_SIV_ASM)
+diff --git a/crypto/cipher_extra/e_chacha20poly1305.c b/crypto/cipher_extra/e_chacha20poly1305.c
+index 1ad6ffb9a..c83f51386 100644
+--- a/crypto/cipher_extra/e_chacha20poly1305.c
++++ b/crypto/cipher_extra/e_chacha20poly1305.c
+@@ -300,11 +300,12 @@ static int aead_xchacha20_poly1305_open_gather(
+ }
+ 
+ static const EVP_AEAD aead_chacha20_poly1305 = {
+-    32,                // key len
+-    12,                // nonce len
+-    POLY1305_TAG_LEN,  // overhead
+-    POLY1305_TAG_LEN,  // max tag length
+-    1,                 // seal_scatter_supports_extra_in
++    32,                         // key len
++    12,                         // nonce len
++    POLY1305_TAG_LEN,           // overhead
++    POLY1305_TAG_LEN,           // max tag length
++    AEAD_CHACHA20_POLY1305_ID,  // evp_aead_id
++    1,                          // seal_scatter_supports_extra_in
+ 
+     aead_chacha20_poly1305_init,
+     NULL,  // init_with_direction
+@@ -314,14 +315,17 @@ static const EVP_AEAD aead_chacha20_poly1305 = {
+     aead_chacha20_poly1305_open_gather,
+     NULL,  // get_iv
+     NULL,  // tag_len
++    NULL,  // serialize_state
++    NULL,  // deserialize_state
+ };
+ 
+ static const EVP_AEAD aead_xchacha20_poly1305 = {
+-    32,                // key len
+-    24,                // nonce len
+-    POLY1305_TAG_LEN,  // overhead
+-    POLY1305_TAG_LEN,  // max tag length
+-    1,                 // seal_scatter_supports_extra_in
++    32,                          // key len
++    24,                          // nonce len
++    POLY1305_TAG_LEN,            // overhead
++    POLY1305_TAG_LEN,            // max tag length
++    AEAD_XCHACHA20_POLY1305_ID,  // evp_aead_id
++    1,                           // seal_scatter_supports_extra_in
+ 
+     aead_chacha20_poly1305_init,
+     NULL,  // init_with_direction
+@@ -331,6 +335,8 @@ static const EVP_AEAD aead_xchacha20_poly1305 = {
+     aead_xchacha20_poly1305_open_gather,
+     NULL,  // get_iv
+     NULL,  // tag_len
++    NULL,  // serialize_state
++    NULL,  // deserialize_state
+ };
+ 
+ const EVP_AEAD *EVP_aead_chacha20_poly1305(void) {
+diff --git a/crypto/cipher_extra/e_tls.c b/crypto/cipher_extra/e_tls.c
+index 3557450fb..10494538c 100644
+--- a/crypto/cipher_extra/e_tls.c
++++ b/crypto/cipher_extra/e_tls.c
+@@ -471,11 +471,12 @@ static int aead_null_sha1_tls_init(EVP_AEAD_CTX *ctx, const uint8_t *key,
+ }
+ 
+ static const EVP_AEAD aead_aes_128_cbc_sha1_tls = {
+-    SHA_DIGEST_LENGTH + 16,  // key len (SHA1 + AES128)
+-    16,                      // nonce len (IV)
+-    16 + SHA_DIGEST_LENGTH,  // overhead (padding + SHA1)
+-    SHA_DIGEST_LENGTH,       // max tag length
+-    0,                       // seal_scatter_supports_extra_in
++    SHA_DIGEST_LENGTH + 16,        // key len (SHA1 + AES128)
++    16,                            // nonce len (IV)
++    16 + SHA_DIGEST_LENGTH,        // overhead (padding + SHA1)
++    SHA_DIGEST_LENGTH,             // max tag length
++    AEAD_AES_128_CBC_SHA1_TLS_ID,  // evp_aead_id
++    0,                             // seal_scatter_supports_extra_in
+ 
+     NULL,  // init
+     aead_aes_128_cbc_sha1_tls_init,
+@@ -485,14 +486,17 @@ static const EVP_AEAD aead_aes_128_cbc_sha1_tls = {
+     NULL,  // open_gather
+     NULL,  // get_iv
+     aead_tls_tag_len,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ static const EVP_AEAD aead_aes_128_cbc_sha1_tls_implicit_iv = {
+-    SHA_DIGEST_LENGTH + 16 + 16,  // key len (SHA1 + AES128 + IV)
+-    0,                            // nonce len
+-    16 + SHA_DIGEST_LENGTH,       // overhead (padding + SHA1)
+-    SHA_DIGEST_LENGTH,            // max tag length
+-    0,                            // seal_scatter_supports_extra_in
++    SHA_DIGEST_LENGTH + 16 + 16,               // key len (SHA1 + AES128 + IV)
++    0,                                         // nonce len
++    16 + SHA_DIGEST_LENGTH,                    // overhead (padding + SHA1)
++    SHA_DIGEST_LENGTH,                         // max tag length
++    AEAD_AES_128_CBC_SHA1_TLS_IMPLICIT_IV_ID,  // evp_aead_id
++    0,                                         // seal_scatter_supports_extra_in
+ 
+     NULL,  // init
+     aead_aes_128_cbc_sha1_tls_implicit_iv_init,
+@@ -502,14 +506,17 @@ static const EVP_AEAD aead_aes_128_cbc_sha1_tls_implicit_iv = {
+     NULL,             // open_gather
+     aead_tls_get_iv,  // get_iv
+     aead_tls_tag_len,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ static const EVP_AEAD aead_aes_256_cbc_sha1_tls = {
+-    SHA_DIGEST_LENGTH + 32,  // key len (SHA1 + AES256)
+-    16,                      // nonce len (IV)
+-    16 + SHA_DIGEST_LENGTH,  // overhead (padding + SHA1)
+-    SHA_DIGEST_LENGTH,       // max tag length
+-    0,                       // seal_scatter_supports_extra_in
++    SHA_DIGEST_LENGTH + 32,        // key len (SHA1 + AES256)
++    16,                            // nonce len (IV)
++    16 + SHA_DIGEST_LENGTH,        // overhead (padding + SHA1)
++    SHA_DIGEST_LENGTH,             // max tag length
++    AEAD_AES_256_CBC_SHA1_TLS_ID,  // evp_aead_id
++    0,                             // seal_scatter_supports_extra_in
+ 
+     NULL,  // init
+     aead_aes_256_cbc_sha1_tls_init,
+@@ -519,14 +526,17 @@ static const EVP_AEAD aead_aes_256_cbc_sha1_tls = {
+     NULL,  // open_gather
+     NULL,  // get_iv
+     aead_tls_tag_len,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ static const EVP_AEAD aead_aes_256_cbc_sha1_tls_implicit_iv = {
+-    SHA_DIGEST_LENGTH + 32 + 16,  // key len (SHA1 + AES256 + IV)
+-    0,                            // nonce len
+-    16 + SHA_DIGEST_LENGTH,       // overhead (padding + SHA1)
+-    SHA_DIGEST_LENGTH,            // max tag length
+-    0,                            // seal_scatter_supports_extra_in
++    SHA_DIGEST_LENGTH + 32 + 16,               // key len (SHA1 + AES256 + IV)
++    0,                                         // nonce len
++    16 + SHA_DIGEST_LENGTH,                    // overhead (padding + SHA1)
++    SHA_DIGEST_LENGTH,                         // max tag length
++    AEAD_AES_256_CBC_SHA1_TLS_IMPLICIT_IV_ID,  // evp_aead_id
++    0,                                         // seal_scatter_supports_extra_in
+ 
+     NULL,  // init
+     aead_aes_256_cbc_sha1_tls_implicit_iv_init,
+@@ -536,14 +546,17 @@ static const EVP_AEAD aead_aes_256_cbc_sha1_tls_implicit_iv = {
+     NULL,             // open_gather
+     aead_tls_get_iv,  // get_iv
+     aead_tls_tag_len,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ static const EVP_AEAD aead_aes_128_cbc_sha256_tls = {
+-    SHA256_DIGEST_LENGTH + 16,  // key len (SHA256 + AES128)
+-    16,                         // nonce len (IV)
+-    16 + SHA256_DIGEST_LENGTH,  // overhead (padding + SHA256)
+-    SHA256_DIGEST_LENGTH,       // max tag length
+-    0,                          // seal_scatter_supports_extra_in
++    SHA256_DIGEST_LENGTH + 16,       // key len (SHA256 + AES128)
++    16,                              // nonce len (IV)
++    16 + SHA256_DIGEST_LENGTH,       // overhead (padding + SHA256)
++    SHA256_DIGEST_LENGTH,            // max tag length
++    AEAD_AES_128_CBC_SHA256_TLS_ID,  // evp_aead_id
++    0,                               // seal_scatter_supports_extra_in
+ 
+     NULL,  // init
+     aead_aes_128_cbc_sha256_tls_init,
+@@ -553,6 +566,8 @@ static const EVP_AEAD aead_aes_128_cbc_sha256_tls = {
+     NULL,  // open_gather
+     NULL,  // get_iv
+     aead_tls_tag_len,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ static const EVP_AEAD aead_aes_128_cbc_sha256_tls_implicit_iv = {
+@@ -560,7 +575,8 @@ static const EVP_AEAD aead_aes_128_cbc_sha256_tls_implicit_iv = {
+     0,                               // nonce len
+     16 + SHA256_DIGEST_LENGTH,       // overhead (padding + SHA256)
+     SHA256_DIGEST_LENGTH,            // max tag length
+-    0,                               // seal_scatter_supports_extra_in
++    AEAD_AES_128_CBC_SHA256_TLS_IMPLICIT_IV_ID,  // evp_aead_id
++    0,  // seal_scatter_supports_extra_in
+ 
+     NULL,  // init
+     aead_aes_128_cbc_sha256_tls_implicit_iv_init,
+@@ -570,14 +586,17 @@ static const EVP_AEAD aead_aes_128_cbc_sha256_tls_implicit_iv = {
+     NULL,             // open_gather
+     aead_tls_get_iv,  // get_iv
+     aead_tls_tag_len,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ static const EVP_AEAD aead_des_ede3_cbc_sha1_tls = {
+-    SHA_DIGEST_LENGTH + 24,  // key len (SHA1 + 3DES)
+-    8,                       // nonce len (IV)
+-    8 + SHA_DIGEST_LENGTH,   // overhead (padding + SHA1)
+-    SHA_DIGEST_LENGTH,       // max tag length
+-    0,                       // seal_scatter_supports_extra_in
++    SHA_DIGEST_LENGTH + 24,         // key len (SHA1 + 3DES)
++    8,                              // nonce len (IV)
++    8 + SHA_DIGEST_LENGTH,          // overhead (padding + SHA1)
++    SHA_DIGEST_LENGTH,              // max tag length
++    AEAD_DES_EDE3_CBC_SHA1_TLS_ID,  // evp_aead_id
++    0,                              // seal_scatter_supports_extra_in
+ 
+     NULL,  // init
+     aead_des_ede3_cbc_sha1_tls_init,
+@@ -587,14 +606,17 @@ static const EVP_AEAD aead_des_ede3_cbc_sha1_tls = {
+     NULL,  // open_gather
+     NULL,  // get_iv
+     aead_tls_tag_len,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ static const EVP_AEAD aead_des_ede3_cbc_sha1_tls_implicit_iv = {
+-    SHA_DIGEST_LENGTH + 24 + 8,  // key len (SHA1 + 3DES + IV)
+-    0,                           // nonce len
+-    8 + SHA_DIGEST_LENGTH,       // overhead (padding + SHA1)
+-    SHA_DIGEST_LENGTH,           // max tag length
+-    0,                           // seal_scatter_supports_extra_in
++    SHA_DIGEST_LENGTH + 24 + 8,                 // key len (SHA1 + 3DES + IV)
++    0,                                          // nonce len
++    8 + SHA_DIGEST_LENGTH,                      // overhead (padding + SHA1)
++    SHA_DIGEST_LENGTH,                          // max tag length
++    AEAD_DES_EDE3_CBC_SHA1_TLS_IMPLICIT_IV_ID,  // evp_aead_id
++    0,  // seal_scatter_supports_extra_in
+ 
+     NULL,  // init
+     aead_des_ede3_cbc_sha1_tls_implicit_iv_init,
+@@ -604,14 +626,17 @@ static const EVP_AEAD aead_des_ede3_cbc_sha1_tls_implicit_iv = {
+     NULL,             // open_gather
+     aead_tls_get_iv,  // get_iv
+     aead_tls_tag_len,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ static const EVP_AEAD aead_null_sha1_tls = {
+-    SHA_DIGEST_LENGTH,  // key len
+-    0,                  // nonce len
+-    SHA_DIGEST_LENGTH,  // overhead (SHA1)
+-    SHA_DIGEST_LENGTH,  // max tag length
+-    0,                  // seal_scatter_supports_extra_in
++    SHA_DIGEST_LENGTH,      // key len
++    0,                      // nonce len
++    SHA_DIGEST_LENGTH,      // overhead (SHA1)
++    SHA_DIGEST_LENGTH,      // max tag length
++    AEAD_NULL_SHA1_TLS_ID,  // evp_aead_id
++    0,                      // seal_scatter_supports_extra_in
+ 
+     NULL,  // init
+     aead_null_sha1_tls_init,
+@@ -621,6 +646,8 @@ static const EVP_AEAD aead_null_sha1_tls = {
+     NULL,  // open_gather
+     NULL,  // get_iv
+     aead_tls_tag_len,
++    NULL /* serialize_state */,
++    NULL /* deserialize_state */,
+ };
+ 
+ const EVP_AEAD *EVP_aead_aes_128_cbc_sha1_tls(void) {
+diff --git a/crypto/err/cipher.errordata b/crypto/err/cipher.errordata
+index 8beffb626..c9b803897 100644
+--- a/crypto/err/cipher.errordata
++++ b/crypto/err/cipher.errordata
+@@ -4,6 +4,7 @@ CIPHER,102,BAD_KEY_LENGTH
+ CIPHER,103,BUFFER_TOO_SMALL
+ CIPHER,104,CTRL_NOT_IMPLEMENTED
+ CIPHER,105,CTRL_OPERATION_NOT_IMPLEMENTED
++CIPHER,140,CTRL_OPERATION_NOT_PERFORMED
+ CIPHER,106,DATA_NOT_MULTIPLE_OF_BLOCK_LENGTH
+ CIPHER,107,INITIALIZATION_ERROR
+ CIPHER,108,INPUT_NOT_INITIALIZED
+@@ -16,6 +17,7 @@ CIPHER,113,IV_TOO_LARGE
+ CIPHER,114,NO_CIPHER_SET
+ CIPHER,124,NO_DIRECTION_SET
+ CIPHER,115,OUTPUT_ALIASES_INPUT
++CIPHER,141,SERIALIZATION_INVALID_EVP_AEAD_CTX
+ CIPHER,116,TAG_TOO_LARGE
+ CIPHER,117,TOO_LARGE
+ CIPHER,118,UNSUPPORTED_AD_SIZE
+@@ -24,3 +26,5 @@ CIPHER,120,UNSUPPORTED_KEY_SIZE
+ CIPHER,121,UNSUPPORTED_NONCE_SIZE
+ CIPHER,122,UNSUPPORTED_TAG_SIZE
+ CIPHER,123,WRONG_FINAL_BLOCK_LENGTH
++CIPHER,139,XTS_DATA_UNIT_IS_TOO_LARGE
++CIPHER,138,XTS_DUPLICATED_KEYS
+diff --git a/crypto/err/ssl.errordata b/crypto/err/ssl.errordata
+index f4065acdd..7497e9b81 100644
+--- a/crypto/err/ssl.errordata
++++ b/crypto/err/ssl.errordata
+@@ -161,6 +161,7 @@ SSL,206,SCSV_RECEIVED_WHEN_RENEGOTIATING
+ SSL,288,SECOND_SERVERHELLO_VERSION_MISMATCH
+ SSL,501,SERIALIZATION_INVALID_SSL
+ SSL,503,SERIALIZATION_INVALID_SSL3_STATE
++SSL,506,SERIALIZATION_INVALID_SSL_AEAD_CONTEXT
+ SSL,505,SERIALIZATION_INVALID_SSL_BUFFER
+ SSL,502,SERIALIZATION_INVALID_SSL_CONFIG
+ SSL,500,SERIALIZATION_UNSUPPORTED
+diff --git a/crypto/fipsmodule/cipher/aead.c b/crypto/fipsmodule/cipher/aead.c
+index 86d744434..7d2c20098 100644
+--- a/crypto/fipsmodule/cipher/aead.c
++++ b/crypto/fipsmodule/cipher/aead.c
+@@ -17,6 +17,7 @@
+ #include <assert.h>
+ #include <string.h>
+ 
++#include <openssl/bytestring.h>
+ #include <openssl/cipher.h>
+ #include <openssl/err.h>
+ #include <openssl/mem.h>
+@@ -304,3 +305,103 @@ int EVP_AEAD_get_iv_from_ipv4_nanosecs(
+ 
+   return 1;
+ }
++
++#define EVP_AEAD_CTX_SERDE_VERSION 1
++
++int EVP_AEAD_CTX_serialize_state(const EVP_AEAD_CTX *ctx, CBB *cbb) {
++  // EVP_AEAD_CTX must be initialized by EVP_AEAD_CTX_init first.
++  if (!ctx->aead) {
++    return 0;
++  }
++
++  size_t aead_id = EVP_AEAD_CTX_get_aead_id(ctx);
++
++  // We shouldn't serialize if we don't have a proper identifier
++  if (aead_id == AEAD_UNKNOWN_ID) {
++    OPENSSL_PUT_ERROR(CIPHER, ERR_R_MALLOC_FAILURE);
++    return 0;
++  }
++
++  CBB seq;
++
++  if (!CBB_add_asn1(cbb, &seq, CBS_ASN1_SEQUENCE) ||
++      !CBB_add_asn1_uint64(&seq, EVP_AEAD_CTX_SERDE_VERSION) ||
++      !CBB_add_asn1_uint64(&seq, aead_id)) {
++    OPENSSL_PUT_ERROR(CIPHER, ERR_R_MALLOC_FAILURE);
++    return 0;
++  }
++
++  CBB state;
++
++  // 50 here is just an initial capacity based on some estimated calculations
++  // of the AES GCM state structure encoding with headroom:
++  //
++  // -- 2 bytes for sequence tag+length
++  // AeadAesGCMTls13State ::= SEQUENCE {
++  //   -- 2 bytes for tag+length and 8 bytes if a full uint64
++  //   serializationVersion AeadAesGCMTls13StateSerializationVersion,
++  //   -- 2 bytes for tag+length and 8 bytes if a full uint64
++  //   minNextNonce   INTEGER,
++  //   -- 2 bytes for tag+length and 8 bytes if a full uint64
++  //   mask           INTEGER,
++  //   -- 2 bytes for tag+length and 1 byte
++  //   first          BOOLEAN
++  // }
++  if (!CBB_init(&state, 50)) {
++    OPENSSL_PUT_ERROR(CIPHER, ERR_R_MALLOC_FAILURE);
++    return 0;
++  }
++
++  if (ctx->aead->serialize_state) {
++    if (!ctx->aead->serialize_state(ctx, &state)) {
++      CBB_cleanup(&state);
++      OPENSSL_PUT_ERROR(CIPHER, ERR_R_MALLOC_FAILURE);
++      return 0;
++    }
++  }
++
++  if (!CBB_add_asn1_octet_string(&seq, CBB_data(&state), CBB_len(&state))) {
++    CBB_cleanup(&state);
++    OPENSSL_PUT_ERROR(CIPHER, ERR_R_MALLOC_FAILURE);
++    return 0;
++  }
++
++  CBB_cleanup(&state);
++  return CBB_flush(cbb);
++}
++
++int EVP_AEAD_CTX_deserialize_state(const EVP_AEAD_CTX *ctx, CBS *cbs) {
++  // EVP_AEAD_CTX must be initialized by EVP_AEAD_CTX_init first.
++  if (!ctx->aead) {
++    return 0;
++  }
++
++  CBS seq;
++  uint64_t version;
++  uint64_t aead_id;
++  CBS state;
++
++  if (!CBS_get_asn1(cbs, &seq, CBS_ASN1_SEQUENCE) ||
++      !CBS_get_asn1_uint64(&seq, &version) ||
++      version != EVP_AEAD_CTX_SERDE_VERSION ||
++      !CBS_get_asn1_uint64(&seq, &aead_id) || aead_id > UINT16_MAX ||
++      aead_id != EVP_AEAD_CTX_get_aead_id(ctx) ||
++      !CBS_get_asn1(&seq, &state, CBS_ASN1_OCTETSTRING)) {
++    OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_SERIALIZATION_INVALID_EVP_AEAD_CTX);
++    return 0;
++  }
++
++  if (!ctx->aead->deserialize_state) {
++    return CBS_len(&state) == 0;
++  }
++
++  return ctx->aead->deserialize_state(ctx, &state);
++}
++
++uint16_t EVP_AEAD_CTX_get_aead_id(const EVP_AEAD_CTX *ctx) {
++  if (!ctx->aead) {
++    return AEAD_UNKNOWN_ID;
++  }
++
++  return ctx->aead->aead_id;
++}
+diff --git a/crypto/fipsmodule/cipher/e_aes.c b/crypto/fipsmodule/cipher/e_aes.c
+index 4cea97376..f3d7c3577 100644
+--- a/crypto/fipsmodule/cipher/e_aes.c
++++ b/crypto/fipsmodule/cipher/e_aes.c
+@@ -58,6 +58,7 @@
+ #include <openssl/nid.h>
+ #include <openssl/rand.h>
+ 
++#include <openssl/bytestring.h>
+ #include "../../internal.h"
+ #include "../aes/internal.h"
+ #include "../cpucap/internal.h"
+@@ -1219,6 +1220,7 @@ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_128_gcm) {
+   out->nonce_len = AES_GCM_NONCE_LENGTH;
+   out->overhead = EVP_AEAD_AES_GCM_TAG_LEN;
+   out->max_tag_len = EVP_AEAD_AES_GCM_TAG_LEN;
++  out->aead_id = AEAD_AES_128_GCM_ID;
+   out->seal_scatter_supports_extra_in = 1;
+ 
+   out->init = aead_aes_gcm_init;
+@@ -1234,6 +1236,7 @@ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_192_gcm) {
+   out->nonce_len = AES_GCM_NONCE_LENGTH;
+   out->overhead = EVP_AEAD_AES_GCM_TAG_LEN;
+   out->max_tag_len = EVP_AEAD_AES_GCM_TAG_LEN;
++  out->aead_id = AEAD_AES_192_GCM_ID;
+   out->seal_scatter_supports_extra_in = 1;
+ 
+   out->init = aead_aes_gcm_init;
+@@ -1249,6 +1252,7 @@ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_256_gcm) {
+   out->nonce_len = AES_GCM_NONCE_LENGTH;
+   out->overhead = EVP_AEAD_AES_GCM_TAG_LEN;
+   out->max_tag_len = EVP_AEAD_AES_GCM_TAG_LEN;
++  out->aead_id = AEAD_AES_256_GCM_ID;
+   out->seal_scatter_supports_extra_in = 1;
+ 
+   out->init = aead_aes_gcm_init;
+@@ -1352,6 +1356,7 @@ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_128_gcm_randnonce) {
+   out->nonce_len = 0;
+   out->overhead = EVP_AEAD_AES_GCM_TAG_LEN + AES_GCM_NONCE_LENGTH;
+   out->max_tag_len = EVP_AEAD_AES_GCM_TAG_LEN + AES_GCM_NONCE_LENGTH;
++  out->aead_id = AEAD_AES_128_GCM_RANDNONCE_ID;
+   out->seal_scatter_supports_extra_in = 1;
+ 
+   out->init = aead_aes_gcm_init_randnonce;
+@@ -1367,6 +1372,7 @@ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_256_gcm_randnonce) {
+   out->nonce_len = 0;
+   out->overhead = EVP_AEAD_AES_GCM_TAG_LEN + AES_GCM_NONCE_LENGTH;
+   out->max_tag_len = EVP_AEAD_AES_GCM_TAG_LEN + AES_GCM_NONCE_LENGTH;
++  out->aead_id = AEAD_AES_256_GCM_RANDNONCE_ID;
+   out->seal_scatter_supports_extra_in = 1;
+ 
+   out->init = aead_aes_gcm_init_randnonce;
+@@ -1443,6 +1449,7 @@ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_128_gcm_tls12) {
+   out->nonce_len = AES_GCM_NONCE_LENGTH;
+   out->overhead = EVP_AEAD_AES_GCM_TAG_LEN;
+   out->max_tag_len = EVP_AEAD_AES_GCM_TAG_LEN;
++  out->aead_id = AEAD_AES_128_GCM_TLS12_ID;
+   out->seal_scatter_supports_extra_in = 1;
+ 
+   out->init = aead_aes_gcm_tls12_init;
+@@ -1458,6 +1465,7 @@ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_256_gcm_tls12) {
+   out->nonce_len = AES_GCM_NONCE_LENGTH;
+   out->overhead = EVP_AEAD_AES_GCM_TAG_LEN;
+   out->max_tag_len = EVP_AEAD_AES_GCM_TAG_LEN;
++  out->aead_id = AEAD_AES_256_GCM_TLS12_ID;
+   out->seal_scatter_supports_extra_in = 1;
+ 
+   out->init = aead_aes_gcm_tls12_init;
+@@ -1541,6 +1549,94 @@ static int aead_aes_gcm_tls13_seal_scatter(
+   return 0;
+ }
+ 
++#define AEAD_AES_GCM_TLS13_STATE_SERDE_VERSION 1
++
++/*
++ * AeadAesGCMTls13StateSerializationVersion ::= INTEGER {v1 (1)}
++ *
++ * AeadAesGCMTls13State ::= SEQUENCE {
++ *   serializationVersion AeadAesGCMTls13StateSerializationVersion,
++ *   minNextNonce   INTEGER,
++ *   mask           INTEGER,
++ *   first          BOOLEAN
++ * }
++ */
++static int aead_aes_gcm_tls13_serialize_state(const EVP_AEAD_CTX *ctx,
++                                              CBB *cbb) {
++  struct aead_aes_gcm_tls13_ctx *gcm_ctx =
++      (struct aead_aes_gcm_tls13_ctx *)&ctx->state;
++
++  CBB state;
++
++  if (!CBB_add_asn1(cbb, &state, CBS_ASN1_SEQUENCE) ||
++      !CBB_add_asn1_uint64(&state, AEAD_AES_GCM_TLS13_STATE_SERDE_VERSION)) {
++    OPENSSL_PUT_ERROR(CIPHER, ERR_R_MALLOC_FAILURE);
++    return 0;
++  }
++
++  if (!CBB_add_asn1_uint64(&state, gcm_ctx->min_next_nonce)) {
++    OPENSSL_PUT_ERROR(CIPHER, ERR_R_MALLOC_FAILURE);
++    return 0;
++  }
++
++  if (!CBB_add_asn1_uint64(&state, gcm_ctx->mask)) {
++    OPENSSL_PUT_ERROR(CIPHER, ERR_R_MALLOC_FAILURE);
++    return 0;
++  }
++
++  if (!CBB_add_asn1_bool(&state, gcm_ctx->first ? 1 : 0)) {
++    OPENSSL_PUT_ERROR(CIPHER, ERR_R_MALLOC_FAILURE);
++    return 0;
++  }
++
++  return CBB_flush(cbb);
++}
++
++// See |aead_aes_gcm_tls13_serialize_state| documentation string for
++// serialization format.
++static int aead_aes_gcm_tls13_deserialize_state(const EVP_AEAD_CTX *ctx,
++                                                CBS *cbs) {
++  struct aead_aes_gcm_tls13_ctx *gcm_ctx =
++      (struct aead_aes_gcm_tls13_ctx *)&ctx->state;
++
++  CBS state;
++
++  if (!CBS_get_asn1(cbs, &state, CBS_ASN1_SEQUENCE)) {
++    OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_SERIALIZATION_INVALID_EVP_AEAD_CTX);
++    return 0;
++  }
++
++  uint64_t serde_version;
++  if (!CBS_get_asn1_uint64(&state, &serde_version) ||
++      AEAD_AES_GCM_TLS13_STATE_SERDE_VERSION != serde_version) {
++    OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_SERIALIZATION_INVALID_EVP_AEAD_CTX);
++    return 0;
++  }
++
++  uint64_t min_next_nonce;
++  if (!CBS_get_asn1_uint64(&state, &min_next_nonce)) {
++    OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_SERIALIZATION_INVALID_EVP_AEAD_CTX);
++    return 0;
++  }
++  gcm_ctx->min_next_nonce = min_next_nonce;
++
++  uint64_t mask;
++  if (!CBS_get_asn1_uint64(&state, &mask)) {
++    OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_SERIALIZATION_INVALID_EVP_AEAD_CTX);
++    return 0;
++  }
++  gcm_ctx->mask = mask;
++
++  int first;
++  if (!CBS_get_asn1_bool(&state, &first)) {
++    OPENSSL_PUT_ERROR(CIPHER, CIPHER_R_SERIALIZATION_INVALID_EVP_AEAD_CTX);
++    return 0;
++  }
++  gcm_ctx->first = first ? 1 : 0;
++
++  return 1;
++}
++
+ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_128_gcm_tls13) {
+   memset(out, 0, sizeof(EVP_AEAD));
+ 
+@@ -1548,12 +1644,16 @@ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_128_gcm_tls13) {
+   out->nonce_len = AES_GCM_NONCE_LENGTH;
+   out->overhead = EVP_AEAD_AES_GCM_TAG_LEN;
+   out->max_tag_len = EVP_AEAD_AES_GCM_TAG_LEN;
++  out->aead_id = AEAD_AES_128_GCM_TLS13_ID;
+   out->seal_scatter_supports_extra_in = 1;
+ 
+   out->init = aead_aes_gcm_tls13_init;
+   out->cleanup = aead_aes_gcm_cleanup;
+   out->seal_scatter = aead_aes_gcm_tls13_seal_scatter;
+   out->open_gather = aead_aes_gcm_open_gather;
++
++  out->serialize_state = aead_aes_gcm_tls13_serialize_state;
++  out->deserialize_state = aead_aes_gcm_tls13_deserialize_state;
+ }
+ 
+ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_256_gcm_tls13) {
+@@ -1563,12 +1663,16 @@ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_256_gcm_tls13) {
+   out->nonce_len = AES_GCM_NONCE_LENGTH;
+   out->overhead = EVP_AEAD_AES_GCM_TAG_LEN;
+   out->max_tag_len = EVP_AEAD_AES_GCM_TAG_LEN;
++  out->aead_id = AEAD_AES_256_GCM_TLS13_ID;
+   out->seal_scatter_supports_extra_in = 1;
+ 
+   out->init = aead_aes_gcm_tls13_init;
+   out->cleanup = aead_aes_gcm_cleanup;
+   out->seal_scatter = aead_aes_gcm_tls13_seal_scatter;
+   out->open_gather = aead_aes_gcm_open_gather;
++
++  out->serialize_state = aead_aes_gcm_tls13_serialize_state;
++  out->deserialize_state = aead_aes_gcm_tls13_deserialize_state;
+ }
+ 
+ int EVP_has_aes_hardware(void) {
+diff --git a/crypto/fipsmodule/cipher/e_aesccm.c b/crypto/fipsmodule/cipher/e_aesccm.c
+index 80bf4e9fd..23fa61c94 100644
+--- a/crypto/fipsmodule/cipher/e_aesccm.c
++++ b/crypto/fipsmodule/cipher/e_aesccm.c
+@@ -407,6 +407,7 @@ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_128_ccm_bluetooth) {
+   out->nonce_len = 13;
+   out->overhead = 4;
+   out->max_tag_len = 4;
++  out->aead_id = AEAD_AES_128_CCM_BLUETOOTH_ID;
+   out->seal_scatter_supports_extra_in = 0;
+ 
+   out->init = aead_aes_ccm_bluetooth_init;
+@@ -427,6 +428,7 @@ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_128_ccm_bluetooth_8) {
+   out->nonce_len = 13;
+   out->overhead = 8;
+   out->max_tag_len = 8;
++  out->aead_id = AEAD_AES_128_CCM_BLUETOOTH_8_ID;
+   out->seal_scatter_supports_extra_in = 0;
+ 
+   out->init = aead_aes_ccm_bluetooth_8_init;
+@@ -446,6 +448,7 @@ DEFINE_METHOD_FUNCTION(EVP_AEAD, EVP_aead_aes_128_ccm_matter) {
+   out->key_len = 16;
+   out->nonce_len = 13;
+   out->overhead = 16;
++  out->aead_id = AEAD_AES_128_CCM_MATTER_ID;
+   out->max_tag_len = 16;
+ 
+   out->init = aead_aes_ccm_matter_init;
+diff --git a/crypto/fipsmodule/cipher/internal.h b/crypto/fipsmodule/cipher/internal.h
+index 0edfdd5df..aa1b905ea 100644
+--- a/crypto/fipsmodule/cipher/internal.h
++++ b/crypto/fipsmodule/cipher/internal.h
+@@ -61,6 +61,7 @@
+ 
+ #include <openssl/aead.h>
+ #include <openssl/aes.h>
++#include <openssl/bytestring.h>
+ 
+ #include "../../internal.h"
+ #include "../modes/internal.h"
+@@ -73,12 +74,46 @@ extern "C" {
+ // EVP_CIPH_MODE_MASK contains the bits of |flags| that represent the mode.
+ #define EVP_CIPH_MODE_MASK 0x3f
+ 
++// Set of EVP_AEAD->aead_id identifiers, zero is reserved as the "unknown"
++// value since it is the default for a structure. Implementations of the same
++// algorithms should use the same identifier. For example, machine-optimised
++// assembly versions should use the same identifier as their C counterparts.
++#define AEAD_UNKNOWN_ID 0
++#define AEAD_AES_128_CTR_HMAC_SHA256_ID 1
++#define AEAD_AES_256_CTR_HMAC_SHA256_ID 2
++#define AEAD_AES_128_GCM_SIV_ID 3
++#define AEAD_AES_256_GCM_SIV_ID 4
++#define AEAD_CHACHA20_POLY1305_ID 5
++#define AEAD_XCHACHA20_POLY1305_ID 6
++#define AEAD_AES_128_CBC_SHA1_TLS_ID 7
++#define AEAD_AES_128_CBC_SHA1_TLS_IMPLICIT_IV_ID 8
++#define AEAD_AES_256_CBC_SHA1_TLS_ID 9
++#define AEAD_AES_256_CBC_SHA1_TLS_IMPLICIT_IV_ID 10
++#define AEAD_AES_128_CBC_SHA256_TLS_ID 11
++#define AEAD_AES_128_CBC_SHA256_TLS_IMPLICIT_IV_ID 12
++#define AEAD_DES_EDE3_CBC_SHA1_TLS_ID 13
++#define AEAD_DES_EDE3_CBC_SHA1_TLS_IMPLICIT_IV_ID 14
++#define AEAD_NULL_SHA1_TLS_ID 15
++#define AEAD_AES_128_GCM_ID 16
++#define AEAD_AES_192_GCM_ID 17
++#define AEAD_AES_256_GCM_ID 18
++#define AEAD_AES_128_GCM_RANDNONCE_ID 19
++#define AEAD_AES_256_GCM_RANDNONCE_ID 20
++#define AEAD_AES_128_GCM_TLS12_ID 21
++#define AEAD_AES_256_GCM_TLS12_ID 22
++#define AEAD_AES_128_GCM_TLS13_ID 23
++#define AEAD_AES_256_GCM_TLS13_ID 24
++#define AEAD_AES_128_CCM_BLUETOOTH_ID 25
++#define AEAD_AES_128_CCM_BLUETOOTH_8_ID 26
++#define AEAD_AES_128_CCM_MATTER_ID 27
++
+ // EVP_AEAD represents a specific AEAD algorithm.
+ struct evp_aead_st {
+   uint8_t key_len;
+   uint8_t nonce_len;
+   uint8_t overhead;
+   uint8_t max_tag_len;
++  uint16_t aead_id;
+   int seal_scatter_supports_extra_in;
+ 
+   // init initialises an |EVP_AEAD_CTX|. If this call returns zero then
+@@ -110,6 +145,10 @@ struct evp_aead_st {
+ 
+   size_t (*tag_len)(const EVP_AEAD_CTX *ctx, size_t in_Len,
+                     size_t extra_in_len);
++
++  int (*serialize_state)(const EVP_AEAD_CTX *ctx, CBB *cbb);
++
++  int (*deserialize_state)(const EVP_AEAD_CTX *ctx, CBS *cbs);
+ };
+ 
+ struct evp_cipher_st {
+@@ -170,6 +209,35 @@ void AES_cfb1_encrypt(const uint8_t *in, uint8_t *out, size_t bits,
+ void AES_cfb8_encrypt(const uint8_t *in, uint8_t *out, size_t len,
+                       const AES_KEY *key, uint8_t *ivec, int *num, int enc);
+ 
++// EXPERIMENTAL functions for use in the TLS Transfer function. See
++// |SSL_to_bytes| for more details.
++
++// EVP_AEAD_CTX_serialize_state serializes the state of |ctx|,
++// and writes it to |cbb|. The serialized bytes contains only the subset of data
++// necessary to restore the state of an |EVP_AEAD_CTX| after initializing a new
++// instance using |EVP_AEAD_CTX_init|. Function returns 1 on success or zero for
++// an error.
++//
++// EvpAeadCtxStateSerializationVersion ::= INTEGER {v1 (1)}
++//
++// EvpAeadCtxState ::= SEQUENCE {
++//   serializationVersion EvpAeadCtxStateSerializationVersion,
++//   evpAeadCipherIdentifier INTEGER,
++//   state          OCTET STRING
++// }
++OPENSSL_EXPORT int EVP_AEAD_CTX_serialize_state(const EVP_AEAD_CTX *ctx,
++                                                CBB *cbb);
++
++// EVP_AEAD_CTX_deserialize_state deserializes the state
++// contained in |cbs|, configures the |ctx| to match. The deserialized bytes
++// contains only the subset of data necessary to restore the state of an
++// |EVP_AEAD_CTX| after initializing a new instance using |EVP_AEAD_CTX_init|.
++// The function returns 1 on success or zero for an error.
++OPENSSL_EXPORT int EVP_AEAD_CTX_deserialize_state(const EVP_AEAD_CTX *ctx,
++                                                  CBS *cbs);
++
++OPENSSL_EXPORT uint16_t EVP_AEAD_CTX_get_aead_id(const EVP_AEAD_CTX *ctx);
++
+ #if defined(__cplusplus)
+ }  // extern C
+ #endif
+diff --git a/generated-src/err_data.c b/generated-src/err_data.c
+index 6b129975d..3fe323691 100644
+--- a/generated-src/err_data.c
++++ b/generated-src/err_data.c
+@@ -76,172 +76,172 @@ const uint32_t kOpenSSLReasonValues[] = {
+     0xc3b00f7,
+     0xc3b8921,
+     0x10320892,
+-    0x1032977b,
+-    0x10331787,
+-    0x103397a0,
+-    0x103417b3,
+-    0x10348f72,
+-    0x10350cab,
+-    0x103597c6,
+-    0x103617f0,
+-    0x10369803,
+-    0x10371822,
+-    0x1037983b,
+-    0x10381850,
+-    0x1038986e,
+-    0x1039187d,
+-    0x10399899,
+-    0x103a18b4,
+-    0x103a98c3,
+-    0x103b18df,
+-    0x103b98fa,
+-    0x103c1920,
++    0x103297ea,
++    0x103317f6,
++    0x1033980f,
++    0x10341822,
++    0x10348fe1,
++    0x10350d1a,
++    0x10359835,
++    0x1036185f,
++    0x10369872,
++    0x10371891,
++    0x103798aa,
++    0x103818bf,
++    0x103898dd,
++    0x103918ec,
++    0x10399908,
++    0x103a1923,
++    0x103a9932,
++    0x103b194e,
++    0x103b9969,
++    0x103c198f,
+     0x103c80f7,
+-    0x103d1931,
+-    0x103d9945,
+-    0x103e1964,
+-    0x103e9973,
+-    0x103f198a,
+-    0x103f999d,
+-    0x10400c6f,
+-    0x104099b0,
+-    0x104119ce,
+-    0x104199e1,
+-    0x104219fb,
+-    0x10429a0b,
+-    0x10431a1f,
+-    0x10439a35,
+-    0x10441a4d,
+-    0x10449a62,
+-    0x10451a76,
+-    0x10459a88,
++    0x103d19a0,
++    0x103d99b4,
++    0x103e19d3,
++    0x103e99e2,
++    0x103f19f9,
++    0x103f9a0c,
++    0x10400cde,
++    0x10409a1f,
++    0x10411a3d,
++    0x10419a50,
++    0x10421a6a,
++    0x10429a7a,
++    0x10431a8e,
++    0x10439aa4,
++    0x10441abc,
++    0x10449ad1,
++    0x10451ae5,
++    0x10459af7,
+     0x10460635,
+     0x1046899a,
+-    0x10471a9d,
+-    0x10479ab4,
+-    0x10481ac9,
+-    0x10489ad7,
+-    0x10490ebe,
+-    0x10499911,
+-    0x104a17db,
+-    0x107c0f80,
+-    0x14320c52,
+-    0x14328c60,
+-    0x14330c6f,
+-    0x14338c81,
++    0x10471b0c,
++    0x10479b23,
++    0x10481b38,
++    0x10489b46,
++    0x10490f2d,
++    0x10499980,
++    0x104a184a,
++    0x107c0fef,
++    0x14320cc1,
++    0x14328ccf,
++    0x14330cde,
++    0x14338cf0,
+     0x143400b9,
+     0x143480f7,
+     0x18320090,
+-    0x18328fdd,
++    0x1832904c,
+     0x183300b9,
+-    0x18338ff3,
+-    0x18341007,
++    0x18339062,
++    0x18341076,
+     0x183480f7,
+-    0x18351026,
+-    0x1835903e,
+-    0x18361053,
+-    0x18369067,
+-    0x1837109f,
+-    0x183790b5,
+-    0x183810c9,
+-    0x183890d9,
+-    0x18390ac0,
+-    0x183990e9,
+-    0x183a111e,
+-    0x183a9173,
+-    0x183b0cca,
+-    0x183b91c2,
+-    0x183c11d4,
+-    0x183c91df,
+-    0x183d11ef,
+-    0x183d9200,
+-    0x183e1211,
+-    0x183e9223,
+-    0x183f124c,
+-    0x183f9265,
+-    0x1840127d,
++    0x18351095,
++    0x183590ad,
++    0x183610c2,
++    0x183690d6,
++    0x1837110e,
++    0x18379124,
++    0x18381138,
++    0x18389148,
++    0x18390add,
++    0x18399158,
++    0x183a118d,
++    0x183a91e2,
++    0x183b0d39,
++    0x183b9231,
++    0x183c1243,
++    0x183c924e,
++    0x183d125e,
++    0x183d926f,
++    0x183e1280,
++    0x183e9292,
++    0x183f12bb,
++    0x183f92d4,
++    0x184012ec,
+     0x1840870d,
+-    0x18411196,
+-    0x18419161,
+-    0x18421180,
+-    0x18428cb7,
+-    0x184310fe,
+-    0x184391a8,
+-    0x1844101c,
+-    0x1844908b,
+-    0x18fa110f,
+-    0x18fa9132,
+-    0x18fb1147,
+-    0x203212b7,
+-    0x203292a4,
+-    0x243213cb,
++    0x18411205,
++    0x184191d0,
++    0x184211ef,
++    0x18428d26,
++    0x1843116d,
++    0x18439217,
++    0x1844108b,
++    0x184490fa,
++    0x18fa117e,
++    0x18fa91a1,
++    0x18fb11b6,
++    0x20321326,
++    0x20329313,
++    0x2432143a,
+     0x243289e0,
+-    0x243313dd,
+-    0x243393ea,
+-    0x243413f7,
+-    0x24349409,
+-    0x24351418,
+-    0x24359435,
+-    0x24361442,
+-    0x24369450,
+-    0x2437145e,
+-    0x2437946c,
+-    0x24381475,
+-    0x24389482,
+-    0x24391495,
+-    0x28320c9f,
+-    0x28328cca,
+-    0x28330c6f,
+-    0x28338cdd,
+-    0x28340cab,
++    0x2433144c,
++    0x24339459,
++    0x24341466,
++    0x24349478,
++    0x24351487,
++    0x243594a4,
++    0x243614b1,
++    0x243694bf,
++    0x243714cd,
++    0x243794db,
++    0x243814e4,
++    0x243894f1,
++    0x24391504,
++    0x28320d0e,
++    0x28328d39,
++    0x28330cde,
++    0x28338d4c,
++    0x28340d1a,
+     0x283480b9,
+     0x283500f7,
+-    0x28358cb7,
+-    0x2c3234b1,
+-    0x2c3294ac,
+-    0x2c3334bf,
+-    0x2c33b4d1,
+-    0x2c3434e5,
+-    0x2c34b4f7,
+-    0x2c353512,
+-    0x2c35b524,
+-    0x2c363554,
++    0x28358d26,
++    0x2c323547,
++    0x2c32951b,
++    0x2c333555,
++    0x2c33b567,
++    0x2c34357b,
++    0x2c34b58d,
++    0x2c3535a8,
++    0x2c35b5ba,
++    0x2c3635ea,
+     0x2c36833a,
+-    0x2c373561,
+-    0x2c37b58d,
+-    0x2c3835cb,
+-    0x2c38b5e2,
+-    0x2c393600,
+-    0x2c39b610,
+-    0x2c3a3622,
+-    0x2c3ab636,
+-    0x2c3b3647,
+-    0x2c3bb666,
+-    0x2c3c14be,
+-    0x2c3c94d4,
+-    0x2c3d36ab,
+-    0x2c3d94ed,
+-    0x2c3e36d5,
+-    0x2c3eb6e3,
+-    0x2c3f36fb,
+-    0x2c3fb713,
+-    0x2c40373d,
+-    0x2c4092b7,
+-    0x2c41374e,
+-    0x2c41b761,
+-    0x2c42127d,
+-    0x2c42b772,
++    0x2c3735f7,
++    0x2c37b623,
++    0x2c383661,
++    0x2c38b678,
++    0x2c393696,
++    0x2c39b6a6,
++    0x2c3a36b8,
++    0x2c3ab6cc,
++    0x2c3b36dd,
++    0x2c3bb6fc,
++    0x2c3c152d,
++    0x2c3c9543,
++    0x2c3d3741,
++    0x2c3d955c,
++    0x2c3e376b,
++    0x2c3eb779,
++    0x2c3f3791,
++    0x2c3fb7a9,
++    0x2c4037d3,
++    0x2c409326,
++    0x2c4137e4,
++    0x2c41b7f7,
++    0x2c4212ec,
++    0x2c42b808,
+     0x2c43076d,
+-    0x2c43b658,
+-    0x2c4435a0,
+-    0x2c44b720,
+-    0x2c453537,
+-    0x2c45b573,
+-    0x2c4635f0,
+-    0x2c46b67a,
+-    0x2c47368f,
+-    0x2c47b6c8,
+-    0x2c4835b2,
++    0x2c43b6ee,
++    0x2c443636,
++    0x2c44b7b6,
++    0x2c4535cd,
++    0x2c45b609,
++    0x2c463686,
++    0x2c46b710,
++    0x2c473725,
++    0x2c47b75e,
++    0x2c483648,
+     0x30320000,
+     0x30328015,
+     0x3033001f,
+@@ -339,307 +339,308 @@ const uint32_t kOpenSSLReasonValues[] = {
+     0x30610357,
+     0x3061873a,
+     0x30620392,
+-    0x34320bb0,
+-    0x34328bc4,
+-    0x34330be1,
+-    0x34338bf4,
+-    0x34340c03,
+-    0x34348c3c,
+-    0x34350c20,
++    0x34320c1f,
++    0x34328c33,
++    0x34330c50,
++    0x34338c63,
++    0x34340c72,
++    0x34348cab,
++    0x34350c8f,
+     0x3c320090,
+-    0x3c328d07,
+-    0x3c330d20,
+-    0x3c338d3b,
+-    0x3c340d58,
+-    0x3c348d82,
+-    0x3c350d9d,
+-    0x3c358dc3,
+-    0x3c360ddc,
+-    0x3c368df4,
+-    0x3c370e05,
+-    0x3c378e13,
+-    0x3c380e20,
+-    0x3c388e34,
+-    0x3c390cca,
+-    0x3c398e57,
+-    0x3c3a0e6b,
++    0x3c328d76,
++    0x3c330d8f,
++    0x3c338daa,
++    0x3c340dc7,
++    0x3c348df1,
++    0x3c350e0c,
++    0x3c358e32,
++    0x3c360e4b,
++    0x3c368e63,
++    0x3c370e74,
++    0x3c378e82,
++    0x3c380e8f,
++    0x3c388ea3,
++    0x3c390d39,
++    0x3c398ec6,
++    0x3c3a0eda,
+     0x3c3a895a,
+-    0x3c3b0e7b,
+-    0x3c3b8e96,
+-    0x3c3c0ea8,
+-    0x3c3c8edb,
+-    0x3c3d0ee5,
+-    0x3c3d8ef9,
+-    0x3c3e0f07,
+-    0x3c3e8f2c,
+-    0x3c3f0cf3,
+-    0x3c3f8f15,
++    0x3c3b0eea,
++    0x3c3b8f05,
++    0x3c3c0f17,
++    0x3c3c8f4a,
++    0x3c3d0f54,
++    0x3c3d8f68,
++    0x3c3e0f76,
++    0x3c3e8f9b,
++    0x3c3f0d62,
++    0x3c3f8f84,
+     0x3c4000b9,
+     0x3c4080f7,
+-    0x3c410d73,
+-    0x3c418db2,
+-    0x3c420ebe,
+-    0x3c428e48,
+-    0x40321b69,
+-    0x40329b7f,
+-    0x40331bad,
+-    0x40339bb7,
+-    0x40341bce,
+-    0x40349bec,
+-    0x40351bfc,
+-    0x40359c0e,
+-    0x40361c1b,
+-    0x40369c27,
+-    0x40371c3c,
+-    0x40379c4e,
+-    0x40381c59,
+-    0x40389c6b,
+-    0x40390f72,
+-    0x40399c7b,
+-    0x403a1c8e,
+-    0x403a9caf,
+-    0x403b1cc0,
+-    0x403b9cd0,
++    0x3c410de2,
++    0x3c418e21,
++    0x3c420f2d,
++    0x3c428eb7,
++    0x40321bd8,
++    0x40329bee,
++    0x40331c1c,
++    0x40339c26,
++    0x40341c3d,
++    0x40349c5b,
++    0x40351c6b,
++    0x40359c7d,
++    0x40361c8a,
++    0x40369c96,
++    0x40371cab,
++    0x40379cbd,
++    0x40381cc8,
++    0x40389cda,
++    0x40390fe1,
++    0x40399cea,
++    0x403a1cfd,
++    0x403a9d1e,
++    0x403b1d2f,
++    0x403b9d3f,
+     0x403c0071,
+     0x403c8090,
+-    0x403d1d31,
+-    0x403d9d47,
+-    0x403e1d56,
+-    0x403e9d8e,
+-    0x403f1da8,
+-    0x403f9dd0,
+-    0x40401de5,
+-    0x40409df9,
+-    0x40411e34,
+-    0x40419e4f,
+-    0x40421e68,
+-    0x40429e7b,
+-    0x40431e8f,
+-    0x40439ebd,
+-    0x40441ed4,
++    0x403d1da0,
++    0x403d9db6,
++    0x403e1dc5,
++    0x403e9dfd,
++    0x403f1e17,
++    0x403f9e3f,
++    0x40401e54,
++    0x40409e68,
++    0x40411ea3,
++    0x40419ebe,
++    0x40421ed7,
++    0x40429eea,
++    0x40431efe,
++    0x40439f2c,
++    0x40441f43,
+     0x404480b9,
+-    0x40451ee9,
+-    0x40459efb,
+-    0x40461f1f,
+-    0x40469f3f,
+-    0x40471f4d,
+-    0x40479f74,
+-    0x40481fe5,
+-    0x4048a09f,
+-    0x404920b6,
+-    0x4049a0d0,
+-    0x404a20e7,
+-    0x404aa105,
+-    0x404b211d,
+-    0x404ba14a,
+-    0x404c2160,
+-    0x404ca172,
+-    0x404d2193,
+-    0x404da1cc,
+-    0x404e21e0,
+-    0x404ea1ed,
+-    0x404f2287,
+-    0x404fa2fd,
+-    0x4050236c,
+-    0x4050a380,
+-    0x405123b3,
+-    0x405223c3,
+-    0x4052a3e7,
+-    0x405323ff,
+-    0x4053a412,
+-    0x40542427,
+-    0x4054a44a,
+-    0x40552475,
+-    0x4055a4b2,
+-    0x405624d7,
+-    0x4056a4f0,
+-    0x40572508,
+-    0x4057a51b,
+-    0x40582530,
+-    0x4058a557,
+-    0x40592586,
+-    0x4059a5b3,
+-    0x405a25c7,
+-    0x405aa5d7,
+-    0x405b25ef,
+-    0x405ba600,
+-    0x405c2613,
+-    0x405ca652,
+-    0x405d265f,
+-    0x405da684,
+-    0x405e26c2,
+-    0x405e8afe,
+-    0x405f26e3,
+-    0x405fa6f0,
+-    0x406026fe,
+-    0x4060a720,
+-    0x40612781,
+-    0x4061a7b9,
+-    0x406227d0,
+-    0x4062a7e1,
+-    0x4063282e,
+-    0x4063a843,
+-    0x4064285a,
+-    0x4064a886,
+-    0x406528a1,
+-    0x4065a8b8,
+-    0x406628d0,
+-    0x4066a8fa,
+-    0x40672925,
+-    0x4067aa01,
+-    0x40682a49,
+-    0x4068aa6a,
+-    0x40692a9c,
+-    0x4069aaca,
+-    0x406a2aeb,
+-    0x406aab0b,
+-    0x406b2c93,
+-    0x406bacb6,
+-    0x406c2ccc,
+-    0x406cafd6,
+-    0x406d3005,
+-    0x406db02d,
+-    0x406e305b,
+-    0x406eb0a8,
+-    0x406f3101,
+-    0x406fb139,
+-    0x4070314c,
+-    0x4070b169,
++    0x40451f58,
++    0x40459f6a,
++    0x40461f8e,
++    0x40469fae,
++    0x40471fbc,
++    0x40479fe3,
++    0x40482054,
++    0x4048a10e,
++    0x40492125,
++    0x4049a13f,
++    0x404a2156,
++    0x404aa174,
++    0x404b218c,
++    0x404ba1b9,
++    0x404c21cf,
++    0x404ca1e1,
++    0x404d2202,
++    0x404da23b,
++    0x404e224f,
++    0x404ea25c,
++    0x404f22f6,
++    0x404fa36c,
++    0x405023db,
++    0x4050a3ef,
++    0x40512422,
++    0x40522432,
++    0x4052a456,
++    0x4053246e,
++    0x4053a481,
++    0x40542496,
++    0x4054a4b9,
++    0x405524e4,
++    0x4055a521,
++    0x40562546,
++    0x4056a55f,
++    0x40572577,
++    0x4057a58a,
++    0x4058259f,
++    0x4058a5c6,
++    0x405925f5,
++    0x4059a622,
++    0x405a2636,
++    0x405aa646,
++    0x405b265e,
++    0x405ba66f,
++    0x405c2682,
++    0x405ca6c1,
++    0x405d26ce,
++    0x405da6f3,
++    0x405e2731,
++    0x405e8b1b,
++    0x405f2752,
++    0x405fa75f,
++    0x4060276d,
++    0x4060a78f,
++    0x406127f0,
++    0x4061a828,
++    0x4062283f,
++    0x4062a850,
++    0x4063289d,
++    0x4063a8b2,
++    0x406428c9,
++    0x4064a8f5,
++    0x40652910,
++    0x4065a927,
++    0x4066293f,
++    0x4066a969,
++    0x40672994,
++    0x4067aa97,
++    0x40682adf,
++    0x4068ab00,
++    0x40692b32,
++    0x4069ab60,
++    0x406a2b81,
++    0x406aaba1,
++    0x406b2d29,
++    0x406bad4c,
++    0x406c2d62,
++    0x406cb06c,
++    0x406d309b,
++    0x406db0c3,
++    0x406e30f1,
++    0x406eb13e,
++    0x406f3197,
++    0x406fb1cf,
++    0x407031e2,
++    0x4070b1ff,
+     0x4071084d,
+-    0x4071b17b,
+-    0x4072318e,
+-    0x4072b1c4,
+-    0x407331dc,
+-    0x407396d6,
+-    0x407431f0,
+-    0x4074b20a,
+-    0x4075321b,
+-    0x4075b22f,
+-    0x4076323d,
+-    0x40769482,
+-    0x40773262,
+-    0x4077b2a2,
+-    0x407832bd,
+-    0x4078b2f6,
+-    0x4079330d,
+-    0x4079b323,
+-    0x407a334f,
+-    0x407ab362,
+-    0x407b3377,
+-    0x407bb389,
+-    0x407c33ba,
+-    0x407cb3c3,
+-    0x407d2a85,
+-    0x407da325,
+-    0x407e32d2,
+-    0x407ea567,
+-    0x407f1f61,
+-    0x407fa134,
+-    0x40802297,
+-    0x40809f89,
+-    0x408123d5,
+-    0x4081a23b,
+-    0x40823046,
+-    0x40829cdc,
+-    0x40832542,
+-    0x4083a86b,
+-    0x40841f9d,
+-    0x4084a59f,
+-    0x40852624,
+-    0x4085a748,
+-    0x408626a4,
+-    0x4086a33f,
+-    0x4087308c,
+-    0x4087a796,
+-    0x40881d1a,
+-    0x4088aa14,
+-    0x40891d69,
+-    0x40899cf6,
+-    0x408a2d04,
+-    0x408a9aee,
+-    0x408b339e,
+-    0x408bb116,
+-    0x408c2634,
+-    0x408c9b26,
+-    0x408d2085,
+-    0x408d9fcf,
+-    0x408e21b5,
+-    0x408ea492,
+-    0x408f2a28,
+-    0x408fa764,
+-    0x40902946,
+-    0x4090a676,
+-    0x40912cec,
+-    0x40919b4c,
+-    0x40921db6,
+-    0x4092b0c7,
+-    0x409331a7,
+-    0x4093a350,
+-    0x40941fb1,
+-    0x4094ad1d,
+-    0x409527f2,
+-    0x4095b32f,
+-    0x40963073,
+-    0x4096a2b0,
+-    0x4097239b,
+-    0x4097a204,
+-    0x40981e16,
+-    0x4098a806,
+-    0x409930e3,
+-    0x4099a4bf,
+-    0x409a2458,
+-    0x409a9b0a,
+-    0x409b200b,
+-    0x409ba036,
+-    0x409c3284,
+-    0x409ca05e,
+-    0x409d226c,
+-    0x409da251,
+-    0x409e1ea7,
+-    0x409ea2e5,
+-    0x409f22cd,
+-    0x409f9ffe,
+-    0x40a0230d,
+-    0x40a0a21e,
+-    0x40fa29e7,
+-    0x40faa96a,
+-    0x40fb29c6,
+-    0x40fba984,
+-    0x40fca9a5,
+-    0x41f42bbe,
+-    0x41f92c50,
+-    0x41fe2b43,
+-    0x41feadf9,
+-    0x41ff2f27,
+-    0x42032bd7,
+-    0x42082bf9,
+-    0x4208ac35,
+-    0x42092b27,
+-    0x4209ac6f,
+-    0x420a2b7e,
+-    0x420aab5e,
+-    0x420b2b9e,
+-    0x420bac17,
+-    0x420c2f43,
+-    0x420cad2d,
+-    0x420d2de0,
+-    0x420dae17,
+-    0x42122e4a,
+-    0x42172f0a,
+-    0x4217ae8c,
+-    0x421c2eae,
+-    0x421f2e69,
+-    0x42212fbb,
+-    0x42262eed,
+-    0x422b2f99,
+-    0x422badbb,
+-    0x422c2f7b,
+-    0x422cad6e,
+-    0x422d2d47,
+-    0x422daf5a,
+-    0x422e2d9a,
+-    0x42302ec9,
+-    0x4230ae31,
++    0x4071b211,
++    0x40723224,
++    0x4072b25a,
++    0x40733272,
++    0x40739745,
++    0x40743286,
++    0x4074b2a0,
++    0x407532b1,
++    0x4075b2c5,
++    0x407632d3,
++    0x407694f1,
++    0x407732f8,
++    0x4077b338,
++    0x40783353,
++    0x4078b38c,
++    0x407933a3,
++    0x4079b3b9,
++    0x407a33e5,
++    0x407ab3f8,
++    0x407b340d,
++    0x407bb41f,
++    0x407c3450,
++    0x407cb459,
++    0x407d2b1b,
++    0x407da394,
++    0x407e3368,
++    0x407ea5d6,
++    0x407f1fd0,
++    0x407fa1a3,
++    0x40802306,
++    0x40809ff8,
++    0x40812444,
++    0x4081a2aa,
++    0x408230dc,
++    0x40829d4b,
++    0x408325b1,
++    0x4083a8da,
++    0x4084200c,
++    0x4084a60e,
++    0x40852693,
++    0x4085a7b7,
++    0x40862713,
++    0x4086a3ae,
++    0x40873122,
++    0x4087a805,
++    0x40881d89,
++    0x4088aaaa,
++    0x40891dd8,
++    0x40899d65,
++    0x408a2d9a,
++    0x408a9b5d,
++    0x408b3434,
++    0x408bb1ac,
++    0x408c26a3,
++    0x408c9b95,
++    0x408d20f4,
++    0x408da03e,
++    0x408e2224,
++    0x408ea501,
++    0x408f2abe,
++    0x408fa7d3,
++    0x409029b5,
++    0x4090a6e5,
++    0x40912d82,
++    0x40919bbb,
++    0x40921e25,
++    0x4092b15d,
++    0x4093323d,
++    0x4093a3bf,
++    0x40942020,
++    0x4094adb3,
++    0x40952861,
++    0x4095b3c5,
++    0x40963109,
++    0x4096a31f,
++    0x4097240a,
++    0x4097a273,
++    0x40981e85,
++    0x4098a875,
++    0x40993179,
++    0x4099a52e,
++    0x409a24c7,
++    0x409a9b79,
++    0x409b207a,
++    0x409ba0a5,
++    0x409c331a,
++    0x409ca0cd,
++    0x409d22db,
++    0x409da2c0,
++    0x409e1f16,
++    0x409ea354,
++    0x409f233c,
++    0x409fa06d,
++    0x40a0237c,
++    0x40a0a28d,
++    0x40fa2a7d,
++    0x40faa9d9,
++    0x40fb2a5c,
++    0x40fba9f3,
++    0x40fcaa3b,
++    0x40fd2a14,
++    0x41f42c54,
++    0x41f92ce6,
++    0x41fe2bd9,
++    0x41feae8f,
++    0x41ff2fbd,
++    0x42032c6d,
++    0x42082c8f,
++    0x4208accb,
++    0x42092bbd,
++    0x4209ad05,
++    0x420a2c14,
++    0x420aabf4,
++    0x420b2c34,
++    0x420bacad,
++    0x420c2fd9,
++    0x420cadc3,
++    0x420d2e76,
++    0x420daead,
++    0x42122ee0,
++    0x42172fa0,
++    0x4217af22,
++    0x421c2f44,
++    0x421f2eff,
++    0x42213051,
++    0x42262f83,
++    0x422b302f,
++    0x422bae51,
++    0x422c3011,
++    0x422cae04,
++    0x422d2ddd,
++    0x422daff0,
++    0x422e2e30,
++    0x42302f5f,
++    0x4230aec7,
+     0x44320778,
+     0x44328787,
+     0x44330793,
+@@ -657,179 +658,183 @@ const uint32_t kOpenSSLReasonValues[] = {
+     0x4439084d,
+     0x4439885b,
+     0x443a086e,
+-    0x483214ac,
+-    0x483294be,
+-    0x483314d4,
+-    0x483394ed,
+-    0x4c32152a,
+-    0x4c32953a,
+-    0x4c33154d,
+-    0x4c33956d,
++    0x4832151b,
++    0x4832952d,
++    0x48331543,
++    0x4833955c,
++    0x4c321599,
++    0x4c3295a9,
++    0x4c3315bc,
++    0x4c3395dc,
+     0x4c3400b9,
+     0x4c3480f7,
+-    0x4c351579,
+-    0x4c359587,
+-    0x4c3615a3,
+-    0x4c3695c9,
+-    0x4c3715d8,
+-    0x4c3795e6,
+-    0x4c3815fb,
+-    0x4c389607,
+-    0x4c391627,
+-    0x4c399651,
+-    0x4c3a166a,
+-    0x4c3a9683,
++    0x4c3515e8,
++    0x4c3595f6,
++    0x4c361612,
++    0x4c369638,
++    0x4c371647,
++    0x4c379655,
++    0x4c38166a,
++    0x4c389676,
++    0x4c391696,
++    0x4c3996c0,
++    0x4c3a16d9,
++    0x4c3a96f2,
+     0x4c3b0635,
+-    0x4c3b969c,
+-    0x4c3c16ae,
+-    0x4c3c96bd,
+-    0x4c3d16d6,
+-    0x4c3d8c92,
+-    0x4c3e1743,
+-    0x4c3e96e5,
+-    0x4c3f1765,
+-    0x4c3f9482,
+-    0x4c4016fb,
+-    0x4c409516,
+-    0x4c411733,
+-    0x4c4195b6,
+-    0x4c42171f,
+-    0x4c4294fe,
+-    0x50323784,
+-    0x5032b793,
+-    0x5033379e,
+-    0x5033b7ae,
+-    0x503437c7,
+-    0x5034b7e1,
+-    0x503537ef,
+-    0x5035b805,
+-    0x50363817,
+-    0x5036b82d,
+-    0x50373846,
+-    0x5037b859,
+-    0x50383871,
+-    0x5038b882,
+-    0x50393897,
+-    0x5039b8ab,
+-    0x503a38cb,
+-    0x503ab8e1,
+-    0x503b38f9,
+-    0x503bb90b,
+-    0x503c3927,
+-    0x503cb93e,
+-    0x503d3957,
+-    0x503db96d,
+-    0x503e397a,
+-    0x503eb990,
+-    0x503f39a2,
++    0x4c3b970b,
++    0x4c3c171d,
++    0x4c3c972c,
++    0x4c3d1745,
++    0x4c3d8d01,
++    0x4c3e17b2,
++    0x4c3e9754,
++    0x4c3f17d4,
++    0x4c3f94f1,
++    0x4c40176a,
++    0x4c409585,
++    0x4c4117a2,
++    0x4c419625,
++    0x4c42178e,
++    0x4c42956d,
++    0x5032381a,
++    0x5032b829,
++    0x50333834,
++    0x5033b844,
++    0x5034385d,
++    0x5034b877,
++    0x50353885,
++    0x5035b89b,
++    0x503638ad,
++    0x5036b8c3,
++    0x503738dc,
++    0x5037b8ef,
++    0x50383907,
++    0x5038b918,
++    0x5039392d,
++    0x5039b941,
++    0x503a3961,
++    0x503ab977,
++    0x503b398f,
++    0x503bb9a1,
++    0x503c39bd,
++    0x503cb9d4,
++    0x503d39ed,
++    0x503dba03,
++    0x503e3a10,
++    0x503eba26,
++    0x503f3a38,
+     0x503f83b3,
+-    0x504039b5,
+-    0x5040b9c5,
+-    0x504139df,
+-    0x5041b9ee,
+-    0x50423a08,
+-    0x5042ba25,
+-    0x50433a35,
+-    0x5043ba45,
+-    0x50443a62,
++    0x50403a4b,
++    0x5040ba5b,
++    0x50413a75,
++    0x5041ba84,
++    0x50423a9e,
++    0x5042babb,
++    0x50433acb,
++    0x5043badb,
++    0x50443af8,
+     0x50448469,
+-    0x50453a76,
+-    0x5045ba94,
+-    0x50463aa7,
+-    0x5046babd,
+-    0x50473acf,
+-    0x5047bae4,
+-    0x50483b0a,
+-    0x5048bb18,
+-    0x50493b2b,
+-    0x5049bb40,
+-    0x504a3b56,
+-    0x504abb66,
+-    0x504b3b86,
+-    0x504bbb99,
+-    0x504c3bbc,
+-    0x504cbbea,
+-    0x504d3c17,
+-    0x504dbc34,
+-    0x504e3c4f,
+-    0x504ebc6b,
+-    0x504f3c7d,
+-    0x504fbc94,
+-    0x50503ca3,
++    0x50453b0c,
++    0x5045bb2a,
++    0x50463b3d,
++    0x5046bb53,
++    0x50473b65,
++    0x5047bb7a,
++    0x50483ba0,
++    0x5048bbae,
++    0x50493bc1,
++    0x5049bbd6,
++    0x504a3bec,
++    0x504abbfc,
++    0x504b3c1c,
++    0x504bbc2f,
++    0x504c3c52,
++    0x504cbc80,
++    0x504d3cad,
++    0x504dbcca,
++    0x504e3ce5,
++    0x504ebd01,
++    0x504f3d13,
++    0x504fbd2a,
++    0x50503d39,
+     0x50508729,
+-    0x50513cb6,
+-    0x5051ba54,
+-    0x50523bfc,
+-    0x58320fc5,
+-    0x5c3292c3,
+-    0x5c3312dc,
+-    0x5c3392e7,
+-    0x5c341301,
+-    0x5c349314,
+-    0x5c36132d,
+-    0x5c37934c,
+-    0x5c381371,
+-    0x5c3a9385,
+-    0x5c3b1397,
+-    0x5c3b93b4,
+-    0x5c3c12b7,
+-    0x5c41133e,
+-    0x68320f72,
+-    0x68328cca,
+-    0x68330cdd,
+-    0x68338f95,
+-    0x68340fa5,
++    0x50513d4c,
++    0x5051baea,
++    0x50523c92,
++    0x58321034,
++    0x5c329332,
++    0x5c33134b,
++    0x5c339356,
++    0x5c341370,
++    0x5c349383,
++    0x5c36139c,
++    0x5c3793bb,
++    0x5c3813e0,
++    0x5c3a93f4,
++    0x5c3b1406,
++    0x5c3b9423,
++    0x5c3c1326,
++    0x5c4113ad,
++    0x68320fe1,
++    0x68328d39,
++    0x68330d4c,
++    0x68339004,
++    0x68341014,
+     0x683480f7,
+-    0x68668f80,
+-    0x6c320f38,
+-    0x6c328c81,
+-    0x6c330f43,
+-    0x6c338f5c,
+-    0x74320a66,
++    0x68668fef,
++    0x6c320fa7,
++    0x6c328cf0,
++    0x6c330fb2,
++    0x6c338fcb,
++    0x74320a83,
+     0x743280b9,
+-    0x74330c92,
++    0x74330d01,
+     0x783209cb,
+     0x783289e0,
+     0x783309ec,
+     0x78338090,
+     0x783409fb,
+     0x78348a10,
+-    0x78350a2f,
+-    0x78358a51,
+-    0x78360a66,
+-    0x78368a7c,
+-    0x78370a8c,
+-    0x78378aad,
+-    0x78380ac0,
+-    0x78388ad2,
+-    0x78390adf,
+-    0x78398afe,
+-    0x783a0b13,
+-    0x783a8b21,
+-    0x783b0b2b,
+-    0x783b8b3f,
+-    0x783c0b56,
+-    0x783c8b6b,
+-    0x783d0b82,
+-    0x783d8b97,
+-    0x783e0aed,
+-    0x783e8a9f,
+-    0x7c321293,
+-    0x803215c9,
++    0x78350a4c,
++    0x78358a6e,
++    0x78360a83,
++    0x78368a99,
++    0x78370aa9,
++    0x78378aca,
++    0x78380add,
++    0x78388aef,
++    0x78390afc,
++    0x78398b1b,
++    0x783a0b53,
++    0x783a8b61,
++    0x783b0b6b,
++    0x783b8b7f,
++    0x783c0b96,
++    0x783c8bab,
++    0x783d0bc2,
++    0x783d8bd7,
++    0x783e0b0a,
++    0x783e8abc,
++    0x78450c0b,
++    0x78458bf0,
++    0x78460a2f,
++    0x78468b30,
++    0x7c321302,
++    0x80321638,
+     0x80328090,
+-    0x80333480,
++    0x80333516,
+     0x803380b9,
+-    0x8034348f,
+-    0x8034b3f7,
+-    0x80353415,
+-    0x8035b4a3,
+-    0x80363457,
+-    0x8036b406,
+-    0x80373449,
+-    0x8037b3e4,
+-    0x8038346a,
+-    0x8038b426,
+-    0x8039343b,
++    0x80343525,
++    0x8034b48d,
++    0x803534ab,
++    0x8035b539,
++    0x803634ed,
++    0x8036b49c,
++    0x803734df,
++    0x8037b47a,
++    0x80383500,
++    0x8038b4bc,
++    0x803934d1,
+ };
+ 
+ const size_t kOpenSSLReasonValuesLen = sizeof(kOpenSSLReasonValues) / sizeof(kOpenSSLReasonValues[0]);
+@@ -973,6 +978,7 @@ const char kOpenSSLReasonStringData[] =
+     "BAD_KEY_LENGTH\0"
+     "CTRL_NOT_IMPLEMENTED\0"
+     "CTRL_OPERATION_NOT_IMPLEMENTED\0"
++    "CTRL_OPERATION_NOT_PERFORMED\0"
+     "DATA_NOT_MULTIPLE_OF_BLOCK_LENGTH\0"
+     "INITIALIZATION_ERROR\0"
+     "INPUT_NOT_INITIALIZED\0"
+@@ -985,6 +991,7 @@ const char kOpenSSLReasonStringData[] =
+     "NO_CIPHER_SET\0"
+     "NO_DIRECTION_SET\0"
+     "OUTPUT_ALIASES_INPUT\0"
++    "SERIALIZATION_INVALID_EVP_AEAD_CTX\0"
+     "TAG_TOO_LARGE\0"
+     "TOO_LARGE\0"
+     "UNSUPPORTED_AD_SIZE\0"
+@@ -993,6 +1000,8 @@ const char kOpenSSLReasonStringData[] =
+     "UNSUPPORTED_NONCE_SIZE\0"
+     "UNSUPPORTED_TAG_SIZE\0"
+     "WRONG_FINAL_BLOCK_LENGTH\0"
++    "XTS_DATA_UNIT_IS_TOO_LARGE\0"
++    "XTS_DUPLICATED_KEYS\0"
+     "LIST_CANNOT_BE_NULL\0"
+     "MISSING_CLOSE_SQUARE_BRACKET\0"
+     "MISSING_EQUAL_SIGN\0"
+@@ -1342,6 +1351,7 @@ const char kOpenSSLReasonStringData[] =
+     "SECOND_SERVERHELLO_VERSION_MISMATCH\0"
+     "SERIALIZATION_INVALID_SSL\0"
+     "SERIALIZATION_INVALID_SSL3_STATE\0"
++    "SERIALIZATION_INVALID_SSL_AEAD_CONTEXT\0"
+     "SERIALIZATION_INVALID_SSL_BUFFER\0"
+     "SERIALIZATION_INVALID_SSL_CONFIG\0"
+     "SERIALIZATION_UNSUPPORTED\0"
+diff --git a/include/openssl/bytestring.h b/include/openssl/bytestring.h
+index 100d18b90..8f4e7e32d 100644
+--- a/include/openssl/bytestring.h
++++ b/include/openssl/bytestring.h
+@@ -259,8 +259,7 @@ OPENSSL_EXPORT int CBS_peek_asn1_tag(const CBS *cbs, CBS_ASN1_TAG tag_value);
+ // (not including tag and length bytes), sets |*out_tag| to the tag number, and
+ // advances |*cbs|. It returns one on success and zero on error. Either of |out|
+ // and |out_tag| may be NULL to ignore the value.
+-OPENSSL_EXPORT int CBS_get_any_asn1(CBS *cbs, CBS *out,
+-                                    CBS_ASN1_TAG *out_tag);
++OPENSSL_EXPORT int CBS_get_any_asn1(CBS *cbs, CBS *out, CBS_ASN1_TAG *out_tag);
+ 
+ // CBS_get_any_asn1_element sets |*out| to contain the next ASN.1 element from
+ // |*cbs| (including header bytes) and advances |*cbs|. It sets |*out_tag| to
+@@ -387,6 +386,14 @@ OPENSSL_EXPORT int CBS_parse_generalized_time(const CBS *cbs, struct tm *out_tm,
+ OPENSSL_EXPORT int CBS_parse_utc_time(const CBS *cbs, struct tm *out_tm,
+                                       int allow_timezone_offset);
+ 
++// CBS_get_optional_asn1_int64 gets an optional, explicitly-tagged INTEGER from
++// |cbs|. If present, it sets |*out| to the value. Otherwise, it sets |*out| to
++// |default_value|. It returns one on success and zero on error, where error
++// includes the integer being too large to represent in 64 bits.
++OPENSSL_EXPORT int CBS_get_optional_asn1_int64(CBS *cbs, int64_t *out,
++                                               CBS_ASN1_TAG tag,
++                                               int64_t default_value);
++
+ // CRYPTO ByteBuilder.
+ //
+ // |CBB| objects allow one to build length-prefixed serialisations. A |CBB|
+diff --git a/include/openssl/cipher.h b/include/openssl/cipher.h
+index 39ffa8977..d0f58bb41 100644
+--- a/include/openssl/cipher.h
++++ b/include/openssl/cipher.h
+@@ -694,5 +694,6 @@ BSSL_NAMESPACE_END
+ #define CIPHER_R_XTS_DUPLICATED_KEYS 138
+ #define CIPHER_R_XTS_DATA_UNIT_IS_TOO_LARGE 139
+ #define CIPHER_R_CTRL_OPERATION_NOT_PERFORMED 140
++#define CIPHER_R_SERIALIZATION_INVALID_EVP_AEAD_CTX 141
+ 
+ #endif  // OPENSSL_HEADER_CIPHER_H
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index b8dba95fe..ad67e5837 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -2398,7 +2398,8 @@ OPENSSL_EXPORT const char *SSL_get_curve_name(uint16_t curve_id);
+ // ownership of the buffer and must call |OPENSSL_free| when done. It returns
+ // one on success and zero on error.
+ //
+-// WARNING: Currently only works with TLS 1.2 after handshake finished.
++// WARNING: Currently only works with TLS 1.2 or TLS 1.3 after handshake has
++// finished.
+ // WARNING: Currently only supports |SSL| as server.
+ // WARNING: CRYPTO_EX_DATA |ssl->ex_data| is not encoded. Remember set |ex_data|
+ // back after decode. WARNING: BIO |ssl->rbio| and |ssl->wbio| are not encoded.
+@@ -5724,6 +5725,7 @@ BSSL_NAMESPACE_END
+ #define SSL_R_SERIALIZATION_INVALID_SSL_CONFIG 502
+ #define SSL_R_SERIALIZATION_INVALID_SSL3_STATE 503
+ #define SSL_R_SERIALIZATION_INVALID_SSL_BUFFER 505
++#define SSL_R_SERIALIZATION_INVALID_SSL_AEAD_CONTEXT 506
+ #define SSL_R_SSLV3_ALERT_CLOSE_NOTIFY 1000
+ #define SSL_R_SSLV3_ALERT_UNEXPECTED_MESSAGE 1010
+ #define SSL_R_SSLV3_ALERT_BAD_RECORD_MAC 1020
+diff --git a/ssl/internal.h b/ssl/internal.h
+index 9c409790f..684cf6379 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -877,6 +877,10 @@ class SSLAEADContext {
+ 
+   bool GetIV(const uint8_t **out_iv, size_t *out_iv_len) const;
+ 
++  int SerializeState(CBB *cbb) const;
++
++  int DeserializeState(CBS *cbs) const;
++
+  private:
+   // GetAdditionalData returns the additional data, writing into |storage| if
+   // necessary.
+diff --git a/ssl/ssl_aead_ctx.cc b/ssl/ssl_aead_ctx.cc
+index 2138de961..814839820 100644
+--- a/ssl/ssl_aead_ctx.cc
++++ b/ssl/ssl_aead_ctx.cc
+@@ -21,6 +21,7 @@
+ #include <openssl/err.h>
+ #include <openssl/rand.h>
+ 
++#include "../crypto/fipsmodule/cipher/internal.h"
+ #include "../crypto/internal.h"
+ #include "internal.h"
+ 
+@@ -428,4 +429,60 @@ bool SSLAEADContext::GetIV(const uint8_t **out_iv, size_t *out_iv_len) const {
+          EVP_AEAD_CTX_get_iv(ctx_.get(), out_iv, out_iv_len);
+ }
+ 
++#define SSLAEADCONTEXT_SERDE_VERSION 1
++
++/*
++ * SSLAEADContextVersion ::= INTEGER {v1 (1)}
++ *
++ * SSLAEADContext ::= SEQUENCE {
++ *   serializationVersion SSLAEADContextVersion,
++ *   cipher         INTEGER,
++ *   cipherState    EvpAeadCtxState
++ * }
++ */
++int SSLAEADContext::SerializeState(CBB *cbb) const {
++  uint32_t cipher_id = SSL_CIPHER_get_id(cipher_);
++
++  CBB seq;
++
++  if (!CBB_add_asn1(cbb, &seq, CBS_ASN1_SEQUENCE) ||
++      !CBB_add_asn1_uint64(&seq, SSLAEADCONTEXT_SERDE_VERSION) ||
++      !CBB_add_asn1_uint64(&seq, cipher_id)) {
++    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++    return 0;
++  }
++
++  if (!EVP_AEAD_CTX_serialize_state(ctx_.get(), &seq)) {
++    OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++    return 0;
++  }
++
++  return CBB_flush(cbb);
++}
++
++// See |SSLAEADContext::SerializeState| for a description of the serialization
++// format.
++int SSLAEADContext::DeserializeState(CBS *cbs) const {
++  CBS seq;
++
++  uint64_t serde_version;
++  uint64_t cipher_id;
++
++  if (!CBS_get_asn1(cbs, &seq, CBS_ASN1_SEQUENCE) ||
++      !CBS_get_asn1_uint64(&seq, &serde_version) ||
++      serde_version != SSLAEADCONTEXT_SERDE_VERSION ||
++      !CBS_get_asn1_uint64(&seq, &cipher_id) || cipher_id > UINT32_MAX ||
++      cipher_id != SSL_CIPHER_get_id(cipher_)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL_AEAD_CONTEXT);
++    return 0;
++  }
++
++  if (!EVP_AEAD_CTX_deserialize_state(ctx_.get(), &seq)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL_AEAD_CONTEXT);
++    return 0;
++  }
++
++  return 1;
++}
++
+ BSSL_NAMESPACE_END
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index f2df6cdce..50b8c16d3 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -83,7 +83,8 @@ struct VersionParam {
+   // used to exchange data. This flag is to replay existing tests with the
+   // transferred SSL. If false, the tests use the original server SSL. If true,
+   // the tests are replayed with the transferred server SSL. Note: SSL transfer
+-  // works only with TLS 1.2 after handshake finished.
++  // works only with either TLS 1.2 or TLS 1.3 after handshake finished and all
++  // post-handshake messages have been flushed.
+   bool transfer_ssl;
+ };
+ 
+@@ -93,7 +94,8 @@ struct SSLTestParam {
+   // used to exchange data. This flag is to replay existing tests with the
+   // transferred SSL. If false, the tests use the original server SSL. If true,
+   // the tests are replayed with the transferred server SSL. Note: SSL transfer
+-  // works only with TLS 1.2 after handshake finished.
++  // works only with either TLS 1.2 or TLS 1.3 after handshake finished and all
++  // post-handshake messages have been flushed.
+   bool transfer_ssl;
+ };
+ 
+@@ -110,6 +112,7 @@ static const VersionParam kAllVersions[] = {
+     {DTLS1_VERSION, VersionParam::is_dtls, "DTLS1", !TRANSFER_SSL},
+     {DTLS1_2_VERSION, VersionParam::is_dtls, "DTLS1_2", !TRANSFER_SSL},
+     {TLS1_2_VERSION, VersionParam::is_tls, "TLS1_2_SSL_TRANSFER", TRANSFER_SSL},
++    {TLS1_3_VERSION, VersionParam::is_tls, "TLS1_3_SSL_TRANSFER", TRANSFER_SSL},
+ };
+ 
+ static const SSLTestParam kSSLTestParams[] = {
+@@ -538,13 +541,7 @@ static const char *kTLSv13MustNotIncludeNull[] = {
+ };
+ 
+ static const char *kMustNotInclude3DES[] = {
+-    "ALL",
+-    "DEFAULT",
+-    "HIGH",
+-    "FIPS",
+-    "SSLv3",
+-    "TLSv1",
+-    "TLSv1.2",
++    "ALL", "DEFAULT", "HIGH", "FIPS", "SSLv3", "TLSv1", "TLSv1.2",
+ };
+ 
+ static const CurveTest kCurveTests[] = {
+@@ -1629,6 +1626,18 @@ static bssl::UniquePtr<SSL_CTX> CreateContextWithTestCertificate(
+   return ctx;
+ }
+ 
++static bssl::UniquePtr<SSL_CTX> CreateContextWithCertificate(
++    const SSL_METHOD *method, bssl::UniquePtr<X509> cert,
++    bssl::UniquePtr<EVP_PKEY> key) {
++  bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
++  if (!ctx || !cert || !key ||
++      !SSL_CTX_use_certificate(ctx.get(), cert.get()) ||
++      !SSL_CTX_use_PrivateKey(ctx.get(), key.get())) {
++    return nullptr;
++  }
++  return ctx;
++}
++
+ static bssl::UniquePtr<X509> GetECDSATestCertificate() {
+   static const char kCertPEM[] =
+       "-----BEGIN CERTIFICATE-----\n"
+@@ -3565,7 +3574,7 @@ TEST(SSLTest, ClientHello) {
+     std::vector<uint8_t> expected;
+   } kTests[] = {
+       {TLS1_VERSION,
+-        {0x16, 0x03, 0x01, 0x00, 0x58, 0x01, 0x00, 0x00, 0x54, 0x03, 0x01, 0x00,
++       {0x16, 0x03, 0x01, 0x00, 0x58, 0x01, 0x00, 0x00, 0x54, 0x03, 0x01, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0c, 0xc0, 0x09,
+@@ -3574,7 +3583,7 @@ TEST(SSLTest, ClientHello) {
+         0x0a, 0x00, 0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00, 0x18, 0x00,
+         0x0b, 0x00, 0x02, 0x01, 0x00, 0x00, 0x23, 0x00, 0x00}},
+       {TLS1_1_VERSION,
+-        {0x16, 0x03, 0x01, 0x00, 0x58, 0x01, 0x00, 0x00, 0x54, 0x03, 0x02, 0x00,
++       {0x16, 0x03, 0x01, 0x00, 0x58, 0x01, 0x00, 0x00, 0x54, 0x03, 0x02, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0c, 0xc0, 0x09,
+@@ -3583,7 +3592,7 @@ TEST(SSLTest, ClientHello) {
+         0x0a, 0x00, 0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00, 0x18, 0x00,
+         0x0b, 0x00, 0x02, 0x01, 0x00, 0x00, 0x23, 0x00, 0x00}},
+       {TLS1_2_VERSION,
+-        {0x16, 0x03, 0x01, 0x00, 0x84, 0x01, 0x00, 0x00, 0x80, 0x03, 0x03, 0x00,
++       {0x16, 0x03, 0x01, 0x00, 0x84, 0x01, 0x00, 0x00, 0x80, 0x03, 0x03, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0xcc, 0xa9,
+@@ -5014,6 +5023,116 @@ TEST(SSLTest, EmptyCipherList) {
+   EXPECT_EQ(0u, sk_SSL_CIPHER_num(SSL_CTX_get_ciphers(ctx.get())));
+ }
+ 
++struct MultiTransferReadWriteTestParams {
++  const char suite[50];
++  bool tls13;
++  bssl::UniquePtr<X509> (*certificate)();
++  bssl::UniquePtr<EVP_PKEY> (*key)();
++};
++
++static const MultiTransferReadWriteTestParams kMultiTransferReadWriteTests[] = {
++    {"TLS_AES_128_GCM_SHA256:", true, GetECDSATestCertificate, GetECDSATestKey},
++    {"TLS_AES_256_GCM_SHA384:", true, GetECDSATestCertificate, GetECDSATestKey},
++    {"TLS_CHACHA20_POLY1305_SHA256:", true, GetECDSATestCertificate,
++     GetECDSATestKey},
++    {"TLS_RSA_WITH_NULL_SHA:", false, GetTestCertificate, GetTestKey},
++    {"TLS_RSA_WITH_3DES_EDE_CBC_SHA:", false, GetTestCertificate, GetTestKey},
++    {"TLS_RSA_WITH_AES_128_CBC_SHA:", false, GetTestCertificate, GetTestKey},
++    {"TLS_RSA_WITH_AES_256_CBC_SHA:", false, GetTestCertificate, GetTestKey},
++    {"TLS_RSA_WITH_AES_128_CBC_SHA256:", false, GetTestCertificate, GetTestKey},
++    {"TLS_RSA_WITH_AES_128_GCM_SHA256:", false, GetTestCertificate, GetTestKey},
++    {"TLS_RSA_WITH_AES_256_GCM_SHA384:", false, GetTestCertificate, GetTestKey},
++    {"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA:", false, GetECDSATestCertificate,
++     GetECDSATestKey},
++    {"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:", false, GetECDSATestCertificate,
++     GetECDSATestKey},
++    {"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA:", false, GetTestCertificate,
++     GetTestKey},
++    {"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:", false, GetTestCertificate,
++     GetTestKey},
++    {"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256:", false, GetTestCertificate,
++     GetTestKey},
++    {"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:", false, GetECDSATestCertificate,
++     GetECDSATestKey},
++    {"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:", false, GetECDSATestCertificate,
++     GetECDSATestKey},
++    {"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256:", false, GetTestCertificate,
++     GetTestKey},
++    {"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:", false, GetTestCertificate,
++     GetTestKey},
++    {"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256:", false, GetTestCertificate,
++     GetTestKey},
++    {"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256:", false,
++     GetECDSATestCertificate, GetECDSATestKey}};
++
++class MultiTransferReadWriteTest
++    : public testing::TestWithParam<MultiTransferReadWriteTestParams> {};
++
++INSTANTIATE_TEST_SUITE_P(SuiteTests, MultiTransferReadWriteTest,
++                         testing::ValuesIn(kMultiTransferReadWriteTests));
++
++TEST_P(MultiTransferReadWriteTest, SuiteTransfers) {
++  auto params = GetParam();
++
++  bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
++  bssl::UniquePtr<SSL_CTX> server_ctx(CreateContextWithCertificate(
++      TLS_method(), params.certificate(), params.key()));
++
++  uint16_t version = TLS1_2_VERSION;
++  int (*set_cipher_suites)(SSL_CTX *, const char *) = SSL_CTX_set_cipher_list;
++  if (params.tls13) {
++    version = TLS1_3_VERSION;
++    set_cipher_suites = SSL_CTX_set_ciphersuites;
++  }
++
++  ASSERT_TRUE(set_cipher_suites(client_ctx.get(), params.suite));
++  ASSERT_TRUE(set_cipher_suites(server_ctx.get(), params.suite));
++
++  ASSERT_TRUE(SSL_CTX_set_min_proto_version(client_ctx.get(), version));
++  ASSERT_TRUE(SSL_CTX_set_max_proto_version(client_ctx.get(), version));
++  ASSERT_TRUE(SSL_CTX_set_min_proto_version(server_ctx.get(), version));
++  ASSERT_TRUE(SSL_CTX_set_max_proto_version(server_ctx.get(), version));
++
++  ClientConfig config;
++  bssl::UniquePtr<SSL> client, server;
++
++  ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
++                                     server_ctx.get(), config, true));
++
++  ASSERT_TRUE(CompleteHandshakes(client.get(), server.get()));
++
++  bssl::UniquePtr<SSL> transfer_server;
++  TransferSSL(&server, server_ctx.get(), &transfer_server);
++  server = std::move(transfer_server);
++
++  char buf[3];
++  size_t buf_cap = sizeof(buf);
++
++  for (size_t t = 0; t < 5; t++) {
++    for (size_t i = 0; i < 20; i++) {
++      std::string send_str = std::to_string(i);
++
++      // Assert server open
++      ASSERT_TRUE(SSL_write(client.get(), send_str.c_str(), send_str.length()));
++      int read = SSL_read(server.get(), buf, buf_cap);
++      ASSERT_TRUE(read);
++      ASSERT_TRUE((size_t)read == send_str.length());
++      std::string read_str(buf, read);
++      ASSERT_EQ(send_str, read_str);
++
++      // Assert server seal
++      ASSERT_TRUE(SSL_write(server.get(), send_str.c_str(), send_str.length()));
++      read = SSL_read(client.get(), buf, buf_cap);
++      ASSERT_TRUE(read);
++      ASSERT_TRUE((size_t)read == send_str.length());
++      read_str = std::string(buf, read);
++      ASSERT_EQ(send_str, read_str);
++    }
++    TransferSSL(&server, server_ctx.get(), &transfer_server);
++    server = std::move(transfer_server);
++  }
++}
++
+ // ssl_test_ticket_aead_failure_mode enumerates the possible ways in which the
+ // test |SSL_TICKET_AEAD_METHOD| can fail.
+ enum ssl_test_ticket_aead_failure_mode {
+@@ -5179,11 +5298,6 @@ TEST_P(TicketAEADMethodTest, Resume) {
+   const ssl_test_ticket_aead_failure_mode failure_mode =
+       testing::get<2>(GetParam());
+   const bool transfer_ssl = testing::get<3>(GetParam());
+-  if (transfer_ssl && (version == TLS1_3_VERSION)) {
+-    // TODO: remove this condition when TLS1_3 is supported by SSL
+-    // encode/decode.
+-    return;
+-  }
+ 
+   ASSERT_TRUE(SSL_CTX_set_min_proto_version(client_ctx.get(), version));
+   ASSERT_TRUE(SSL_CTX_set_max_proto_version(client_ctx.get(), version));
+@@ -5931,34 +6045,96 @@ TEST(SSLTest, ApplyHandoffRemovesUnsupportedCurves) {
+   EXPECT_EQ(1u, server->config->supported_group_list.size());
+ }
+ 
+-TEST(SSLTest, EncodeAndDecodeKAT) {
+-  bssl::UniquePtr<SSL_CTX> server_ctx(SSL_CTX_new(TLS_method()));
+-  // In runner.go, the test case "Basic-Server-TLS-Sync-SSL_Transfer" is used to
+-  // generate below bytes by adding print statement on the output of
+-  // |SSL_to_bytes| in bssl_shim.cc.
+-  const std::string data =
+-      "308201173082011302010102020303020240003081fa0201010408000000000000000104"
+-      "08000000"
+-      "00000000010420000004d29e62f41ded4bb33d0faa6ffada380e2c489dfbfb444f574e47"
+-      "52440104"
+-      "20cf3926d1ec5a562a642935a8050222b0aed93ffd9d1cac682274d942e99e42a6040200"
+-      "00020100"
+-      "020103040cb9b409f5129440622f87f84402010c040c1f49e2e989c66a263e9c22750201"
+-      "0c020100"
+-      "020100020100a05b3059020101020203030402cca80400043085668dcf9f0921094ebd7f"
+-      "91bf2a8c"
+-      "60d276e4c279fd85a989402f678682324fd8098dc19d900b856d0a77e048e3ced2a10402"
+-      "0204d2a2"
+-      "0402021c20a4020400b1030101ffb20302011da206040474657374a7030101ff02010802"
+-      "0100a003"
+-      "0101ff";
+-
+-  std::vector<uint8_t> bytes;
+-  ASSERT_TRUE(DecodeHex(&bytes, data));
++struct EncodeDecodeKATTestParam {
++  const char *input;
++  const char *output;
++};
+ 
++static const EncodeDecodeKATTestParam kEncodeDecodeKATs[] = {
++    // V1 input round-trips as V2 output
++    {"308201173082011302010102020303020240003081fa0201010408000000000000000104"
++     "0800000000000000010420000004d29e62f41ded4bb33d0faa6ffada380e2c489dfbfb44"
++     "4f574e475244010420cf3926d1ec5a562a642935a8050222b0aed93ffd9d1cac682274d9"
++     "42e99e42a604020000020100020103040cb9b409f5129440622f87f84402010c040c1f49"
++     "e2e989c66a263e9c227502010c020100020100020100a05b3059020101020203030402cc"
++     "a80400043085668dcf9f0921094ebd7f91bf2a8c60d276e4c279fd85a989402f67868232"
++     "4fd8098dc19d900b856d0a77e048e3ced2a104020204d2a20402021c20a4020400b10301"
++     "01ffb20302011da206040474657374a7030101ff020108020100a0030101ff",
++     "308201173082011302010102020303020240003081fa0201020408000000000000000104"
++     "0800000000000000010420000004d29e62f41ded4bb33d0faa6ffada380e2c489dfbfb44"
++     "4f574e475244010420cf3926d1ec5a562a642935a8050222b0aed93ffd9d1cac682274d9"
++     "42e99e42a604020000020100020103040cb9b409f5129440622f87f84402010c040c1f49"
++     "e2e989c66a263e9c227502010c020100020100020100a05b3059020101020203030402cc"
++     "a80400043085668dcf9f0921094ebd7f91bf2a8c60d276e4c279fd85a989402f67868232"
++     "4fd8098dc19d900b856d0a77e048e3ced2a104020204d2a20402021c20a4020400b10301"
++     "01ffb20302011da206040474657374a7030101ff020108020100a0030101ff"},
++    // In runner.go, the test case "Basic-Server-TLS-Sync-SSL_Transfer" is used
++    // to generate below bytes by adding print statement on the output of
++    // |SSL_to_bytes| in bssl_shim.cc.
++    {"308201173082011302010102020303020240003081fa0201020408000000000000000104"
++     "0800000000000000010420000004d29e62f41ded4bb33d0faa6ffada380e2c489dfbfb44"
++     "4f574e475244010420cf3926d1ec5a562a642935a8050222b0aed93ffd9d1cac682274d9"
++     "42e99e42a604020000020100020103040cb9b409f5129440622f87f84402010c040c1f49"
++     "e2e989c66a263e9c227502010c020100020100020100a05b3059020101020203030402cc"
++     "a80400043085668dcf9f0921094ebd7f91bf2a8c60d276e4c279fd85a989402f67868232"
++     "4fd8098dc19d900b856d0a77e048e3ced2a104020204d2a20402021c20a4020400b10301"
++     "01ffb20302011da206040474657374a7030101ff020108020100a0030101ff",
++     nullptr},
++    // In runner.go, the test case
++    // "TLS-TLS13-AES_128_GCM_SHA256-server-SSL_Transfer" is used to generate
++    // below bytes by adding print statement on the output of |SSL_to_bytes| in
++    // bssl_shim.cc.
++    {"308203883082038402010102020304020240003082036a020102040800000000000000000"
++     "408000000000000000004206beca5c14aff6b92757545948b883c6c175327814bedcf38a6"
++     "b2e4c43bc02d180420a32aee5b7705a19e4bb2b47f4918199c76cee7245f1311bc4ba3888"
++     "3d33f236a04020000020100020101040c000000000000000000000000020100040c000000"
++     "000000000000000000020100020100020100020100a04e304c02010102020304040213010"
++     "40004200b66320d38c8fa1b0dfe9e37fcf2bf0bafb43077fa31ed2f1220dd245cef4c4da1"
++     "04020204d2a205020302a300a4020400b20302011db9050203093a80a206040474657374a"
++     "b03020100ac03010100ad03010100ae03010100af03020100b032043034c0893be938bade"
++     "e7029ca3cfea4c821dde48e03f0d07641cba33b247bc161c0000000000000000000000000"
++     "0000000b103020120b232043094b319ed2f41ee11aa73e141a238e5724c04f2aa8298c16b"
++     "43c910c40cc98d1500000000000000000000000000000000b303020120b432043015a178c"
++     "e69c0110ad36da8d58ca8428d9615ff07fc6a4e1bbab026c1bb0c02180000000000000000"
++     "0000000000000000b503020120b88201700482016c040000b20002a30056355452010000a"
++     "027abfd1f1aa28cee6e8e2396112e8285f150768898158dbce97a1aef0a63fa6dda1002a4"
++     "d75942a3739c11e4b25827f529ab59d22e34e0cf0b59b9336eb60edbb1f686c072ab33c30"
++     "e784f876da5b4c7fddd67f4a2ffa995f8c9ccf2128200ae9668d626866b1b7c6bb111867a"
++     "87ed2a96122736595374f8fe5343e6ca492b278b67b1571423f2c1bcb673922e9044e9094"
++     "9975ff72ab4a0eb659d8de664cac600042a2a0000040000b20002a3009e8c6738010100a0"
++     "27abfd1f1aa28cee6e8e2396112e82851f15c84668b2f1d717681d1a3c6d2ea52d3401d31"
++     "10a04498246480b96a7e5b3c39ea6cef3a2a86b81896f1621950472d858d18796c97e8320"
++     "4daf94c1f30dfe763cd282fbee718a679dca8bff3cc8e11724062232e573bcf0252dc4d39"
++     "0baa2b7f49a164b46d2d685e9fe826465cc135130f3e2e47838658af57173f864070fdce2"
++     "41be58ecbd60d18128dfa28f4b1a00042a2a0000ba2330210201010204030013013016020"
++     "101020117040e300c0201010201000201000101ffbb233021020101020403001301301602"
++     "0101020117040e300c0201010201000201000101ff020108020100a0030101ff",
++     nullptr}};
++
++class EncodeDecodeKATTest
++    : public testing::TestWithParam<EncodeDecodeKATTestParam> {};
++
++INSTANTIATE_TEST_SUITE_P(EncodeAndDecodeKATTests, EncodeDecodeKATTest,
++                         testing::ValuesIn(kEncodeDecodeKATs));
++
++TEST_P(EncodeDecodeKATTest, RoundTrips) {
++  std::string input(GetParam().input);
++  std::string output;
++  if (GetParam().output) {
++    output = std::string(GetParam().output);
++  } else {
++    output = std::string(GetParam().input);
++  }
++
++  std::vector<uint8_t> input_bytes;
++  ASSERT_TRUE(DecodeHex(&input_bytes, input));
++  std::vector<uint8_t> output_bytes;
++  ASSERT_TRUE(DecodeHex(&output_bytes, output));
++
++  bssl::UniquePtr<SSL_CTX> server_ctx(SSL_CTX_new(TLS_method()));
+   // Check the bytes are decoded successfully.
+   bssl::UniquePtr<SSL> ssl(
+-      SSL_from_bytes(bytes.data(), bytes.size(), server_ctx.get()));
++      SSL_from_bytes(input_bytes.data(), input_bytes.size(), server_ctx.get()));
+   ASSERT_TRUE(ssl);
+   // Check the ssl can be encoded successfully.
+   size_t encoded_len;
+@@ -5967,8 +6143,8 @@ TEST(SSLTest, EncodeAndDecodeKAT) {
+   bssl::UniquePtr<uint8_t> encoded_ptr;
+   encoded_ptr.reset(encoded);
+   // Check the encoded bytes are the same as the test input.
+-  ASSERT_EQ(bytes.size(), encoded_len);
+-  ASSERT_EQ(memcmp(bytes.data(), encoded, encoded_len), 0);
++  ASSERT_EQ(output_bytes.size(), encoded_len);
++  ASSERT_EQ(memcmp(output_bytes.data(), encoded, encoded_len), 0);
+ }
+ 
+ TEST(SSLTest, ZeroSizedWiteFlushesHandshakeMessages) {
+diff --git a/ssl/ssl_transfer_asn1.cc b/ssl/ssl_transfer_asn1.cc
+index f5e73f04f..94a2a2368 100644
+--- a/ssl/ssl_transfer_asn1.cc
++++ b/ssl/ssl_transfer_asn1.cc
+@@ -21,19 +21,21 @@ bool ssl_transfer_supported(const SSL *in) {
+   // An SSL connection can't be serialized by current implementation under some
+   // conditions 0) It's not server SSL. 1) It's a DTLS connection. 2) It uses
+   // QUIC 3) Its SSL_SESSION isn't serializable. 4) Handshake hasn't finished
+-  // yet. 5) TLS version is not supported(currently, only TLS 1.2 is supported).
+-  // 6) Write is not in clean state(|SSL_write| should finish the |in| write, no
+-  // pending writes). 7) ssl shutdown state is not ssl_shutdown_none.
+-  //    TODO: support TLS 1.3 and TLS 1.1.
++  // yet. 5) TLS version is not supported(currently, only TLS 1.2 & TLS 1.3 are
++  // supported). 6) Write is not in clean state(|SSL_write| should finish the
++  // |in| write, no pending writes). 7) A handshake message is not in a clean
++  // state. 8) ssl shutdown state is not ssl_shutdown_none.
+   if (!SSL_is_server(in) ||                               // (0)
+       SSL_is_dtls(in) ||                                  // (1)
+       in->quic_method != nullptr ||                       // (2)
+       !in->s3 ||                                          // (3)
+       !in->s3->established_session || SSL_in_init(in) ||  // (4)
+-      in->version != TLS1_2_VERSION ||                    // (5)
+-      in->s3->unreported_bytes_written > 0 ||             // (6)
++      !(in->version == TLS1_2_VERSION ||
++        in->version == TLS1_3_VERSION) ||      // (5)
++      in->s3->unreported_bytes_written > 0 ||  // (6)
+       in->s3->pending_write.size() > 0 ||
+-      in->s3->read_shutdown != ssl_shutdown_none ||  // (7)
++      in->s3->pending_flight_offset > 0 ||           // (7)
++      in->s3->read_shutdown != ssl_shutdown_none ||  // (8)
+       in->s3->write_shutdown != ssl_shutdown_none) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_UNSUPPORTED);
+     return false;
+@@ -112,7 +114,10 @@ static bool SSL3_STATE_get_optional_octet_string(CBS *cbs, void *dst,
+ 
+ // SSL3_STATE serialization.
+ 
+-static const unsigned kS3Version = 1;
++enum SSL3_STATE_SERDE_VERSION {
++  SSL3_STATE_SERDE_VERSION_ONE = 1,
++  SSL3_STATE_SERDE_VERSION_TWO = 2
++};
+ 
+ static const unsigned kS3EstablishedSessionTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 0;
+@@ -136,6 +141,40 @@ static const unsigned kS3ReadBufferTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 9;
+ static const unsigned kS3NotResumableTag =
+     CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 10;
++static const unsigned kS3EarlyDataSkippedTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 11;
++static const unsigned kS3DelegatedCredentialUsedTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 12;
++static const unsigned kS3EarlyDataAcceptedTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 13;
++static const unsigned kS3UsedHelloRetryRequestTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 14;
++static const unsigned kS3TicketAgeSkewTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 15;
++static const unsigned kS3WriteTrafficSecretTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 16;
++static const unsigned kS3WriteTrafficSecretLenTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 17;
++static const unsigned kS3ReadTrafficSecretTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 18;
++static const unsigned kS3ReadTrafficSecretLenTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 19;
++static const unsigned kS3ExporterSecretTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 20;
++static const unsigned kS3ExporterSecretLenTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 21;
++static const unsigned kS3HandshakeBufferTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 22;
++static const unsigned kS3EchStatusTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 23;
++static const unsigned kS3PendingHsDataTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 24;
++static const unsigned kS3PendingFlightTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 25;
++static const unsigned kS3AeadReadCtxTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 26;
++static const unsigned kS3AeadWriteCtxTag =
++    CBS_ASN1_CONSTRUCTED | CBS_ASN1_CONTEXT_SPECIFIC | 27;
+ 
+ // *** EXPERIMENTAL — DO NOT USE WITHOUT CHECKING ***
+ // These SSL3_STATE serialization functions are developed to support SSL
+@@ -144,48 +183,100 @@ static const unsigned kS3NotResumableTag =
+ // ssl3_state_to_bytes serializes |in| to bytes stored in |cbb|.
+ // It returns one on success and zero on failure.
+ //
+-// An SSL3_STATE is serialized as the following ASN.1 structure:
++// An SSL3_STATE is serialized as the following ASN.1 structure, a complete
++// description can be found in tls_transfer.asn:
++//
++// SSL3StateSerializationVersion ::= INTEGER {
++//                   v1 (1),
++//                   v2 (2) -- Added additional fields to support TLS 1.3
++//               }
+ //
+ // SSL3State ::= SEQUENCE {
+-//    version                           INTEGER (1),  -- SSL3_STATE structure
+-//    version readSequence                      OCTET STRING, writeSequence
+-//    OCTET STRING, serverRandom                      OCTET STRING, clientRandom
+-//    OCTET STRING, sendAlert                         OCTET STRING, rwstate
+-//    INTEGER, earlyDataReason                   INTEGER, previousClientFinished
+-//    OCTET STRING, previousClientFinishedLen         INTEGER,
+-//    previousServerFinished            OCTET STRING,
+-//    previousServerFinishedLen         INTEGER,
+-//    emptyRecordCount                  INTEGER,
+-//    warningAlertCount                 INTEGER,
+-//    totalRenegotiations               INTEGER,
+-//    establishedSession                [0] SEQUENCE OPTIONAL,
+-//    sessionReused                     [1] BOOLEAN OPTIONAL,
+-//    hostName                          [2] OCTET STRING OPTIONAL,
+-//    alpnSelected                      [3] OCTET STRING OPTIONAL,
+-//    nextProtoNegotiated               [4] OCTET STRING OPTIONAL,
+-//    channelIdValid                    [5] BOOLEAN OPTIONAL,
+-//    channelId                         [6] OCTET STRING OPTIONAL,
+-//    sendConnectionBinding             [7] BOOLEAN OPTIONAL,
+-//    pendingAppData                    [8] SEQUENCE OPTIONAL,
+-//                                          -- see Span ASN1.
+-//    readBuffer                        [9] SEQUENCE OPTIONAL,
+-//                                          -- see ASN1 struct in the comment of
+-//                                          |DoSerialization|.
+-//    notResumable                      [10] BOOLEAN OPTIONAL,
++//   serializationVersion SSL3StateSerializationVersion,
++//   readSequence   OCTET STRING,
++//   writeSequence  OCTET STRING,
++//   serverRandom   OCTET STRING,
++//   clientRandom   OCTET STRING,
++//   sendAlert      OCTET STRING,
++//   rwstate        INTEGER,
++//   earlyDataReason INTEGER,
++//   previousClientFinished OCTET STRING,
++//   previousClientFinishedLen INTEGER,
++//   previousServerFinished OCTET STRING,
++//   previousServerFinishedLen INTEGER,
++//   emptyRecordCount INTEGER,
++//   warningAlertCount INTEGER,
++//   totalRenegotiations INTEGER,
++//   -- Simplified to SEQUENCE here, uses SSL_SESSION_to_bytes_full
++//   establishedSession [0] SEQUENCE {...},
++//   sessionReused  [1] BOOLEAN OPTIONAL,
++//   hostname       [2] OCTET STRING OPTIONAL,
++//   alpnSelected   [3] OCTET STRING OPTIONAL,
++//   nextProtoNegotiated [4] OCTET STRING OPTIONAL,
++//   channelIdValid [5] BOOLEAN OPTIONAL,
++//   channelId      [6] OCTET STRING OPTIONAL,
++//   sendConnectionBinding [7] BOOLEAN OPTIONAL,
++//   -- pending_app_data is a Span in the SS3_STATE that points into read_buffer
++//   pendingAppData [8] Span OPTIONAL,
++//   readBuffer     [9] SSLBuffer OPTIONAL,
++//   notResumable   [10] BOOLEAN OPTIONAL,
++//   ...,
++//   -- Extension describing v2 serialization format for TLS 1.3 support.
++//   [[ 2:
++//   earlyDataSkipped [11] INTEGER OPTIONAL,
++//   delegatedCredentialUsed [12] BOOLEAN OPTIONAL,
++//   earlyDataAccepted [13] BOOLEAN OPTIONAL,
++//   usedHelloRetryRequest [14] BOOLEAN OPTIONAL,
++//   ticketAgeSkew  [15] INTEGER OPTIONAL,
++//   writeTrafficSecret [16] OCTET STRING OPTIONAL,
++//   writeTrafficSecretLen [17] INTEGER OPTIONAL,
++//   readTrafficSecret [18] OCTET STRING OPTIONAL,
++//   readTrafficSecretLen [19] INTEGER OPTIONAL,
++//   exporterSecret [20] OCTET STRING OPTIONAL,
++//   exporterSecretLen [21] INTEGER OPTIONAL,
++//   hsBuffer       [22] OCTET STRING OPTIONAL,
++//   echStatus      [23] INTEGER OPTIONAL,
++//   pendingHsData  [24] OCTET STRING OPTIONAL,
++//   pendingFlight  [25] OCTET STRING OPTIONAL,
++//   aeadReadCtx    [26] SSLAEADContext OPTIONAL,
++//   aeadWriteCtx   [27] SSLAEADContext OPTIONAL
++//   ]],
++//   ...
+ // }
+ //
+ // Span ::= SEQUENCE {
+-//    offset                           INTEGER,
+-//    size                             INTEGER,
++//   offset         INTEGER,
++//   size           INTEGER
++// }
++//
++// SSLBufferSerializationVersion ::= INTEGER {v1 (1)}
++//
++// SSLBuffer ::= SEQUENCE {
++//   serializationVersion SSLBufferSerializationVersion,
++//   bufferAllocated BOOLEAN,
++//   offset         INTEGER,
++//   size           INTEGER,
++//   capacity       INTEGER
+ // }
+-static int SSL3_STATE_to_bytes(SSL3_STATE *in, CBB *cbb) {
++//
++// SSLConfigSerializationVersion ::= INTEGER {v1 (1)}
++//
++// SSLConfig ::= SEQUENCE {
++//   serializationVersion SSLConfigSerializationVersion,
++//   confMaxVersion INTEGER,
++//   confMinVersion INTEGER,
++//   ocspStaplingEnabled [0] BOOLEAN OPTIONAL,
++//   jdk11Workaround [1] BOOLEAN OPTIONAL
++// }
++static int SSL3_STATE_to_bytes(SSL3_STATE *in, uint16_t protocol_version,
++                               CBB *cbb) {
+   if (in == NULL || cbb == NULL) {
+     return 0;
+   }
+ 
+   CBB s3, child, child2;
+   if (!CBB_add_asn1(cbb, &s3, CBS_ASN1_SEQUENCE) ||
+-      !CBB_add_asn1_uint64(&s3, kS3Version) ||
++      !CBB_add_asn1_uint64(&s3, SSL3_STATE_SERDE_VERSION_TWO) ||
+       !CBB_add_asn1_octet_string(&s3, in->read_sequence, TLS_SEQ_NUM_SIZE) ||
+       !CBB_add_asn1_octet_string(&s3, in->write_sequence, TLS_SEQ_NUM_SIZE) ||
+       !CBB_add_asn1_octet_string(&s3, in->server_random, SSL3_RANDOM_SIZE) ||
+@@ -303,6 +394,124 @@ static int SSL3_STATE_to_bytes(SSL3_STATE *in, CBB *cbb) {
+       return 0;
+     }
+   }
++
++  // Version 2 extensions starts below, all which are optional as they are
++  // TLS 1.3 specific.
++  if (protocol_version >= TLS1_3_VERSION) {
++    if (!CBB_add_asn1(&s3, &child, kS3EarlyDataSkippedTag) ||
++        !CBB_add_asn1_uint64(&child, in->early_data_skipped)) {
++      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++      return 0;
++    }
++
++    if (!CBB_add_asn1(&s3, &child, kS3DelegatedCredentialUsedTag) ||
++        !CBB_add_asn1_bool(&child, in->delegated_credential_used)) {
++      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++      return 0;
++    }
++
++    if (!CBB_add_asn1(&s3, &child, kS3EarlyDataAcceptedTag) ||
++        !CBB_add_asn1_bool(&child, in->early_data_accepted)) {
++      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++      return 0;
++    }
++
++    if (!CBB_add_asn1(&s3, &child, kS3UsedHelloRetryRequestTag) ||
++        !CBB_add_asn1_bool(&child, in->used_hello_retry_request)) {
++      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++      return 0;
++    }
++
++    if (!CBB_add_asn1(&s3, &child, kS3TicketAgeSkewTag) ||
++        !CBB_add_asn1_int64(&child, in->ticket_age_skew)) {
++      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++      return 0;
++    }
++
++    if (!CBB_add_asn1(&s3, &child, kS3WriteTrafficSecretTag) ||
++        !CBB_add_asn1_octet_string(&child, in->write_traffic_secret,
++                                   SSL_MAX_MD_SIZE)) {
++      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++      return 0;
++    }
++
++    if (!CBB_add_asn1(&s3, &child, kS3WriteTrafficSecretLenTag) ||
++        !CBB_add_asn1_uint64(&child, in->write_traffic_secret_len)) {
++      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++      return 0;
++    }
++
++    if (!CBB_add_asn1(&s3, &child, kS3ReadTrafficSecretTag) ||
++        !CBB_add_asn1_octet_string(&child, in->read_traffic_secret,
++                                   SSL_MAX_MD_SIZE)) {
++      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++      return 0;
++    }
++
++    if (!CBB_add_asn1(&s3, &child, kS3ReadTrafficSecretLenTag) ||
++        !CBB_add_asn1_uint64(&child, in->read_traffic_secret_len)) {
++      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++      return 0;
++    }
++
++    if (!CBB_add_asn1(&s3, &child, kS3ExporterSecretTag) ||
++        !CBB_add_asn1_octet_string(&child, in->exporter_secret,
++                                   SSL_MAX_MD_SIZE)) {
++      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++      return 0;
++    }
++
++    if (!CBB_add_asn1(&s3, &child, kS3ExporterSecretLenTag) ||
++        !CBB_add_asn1_uint64(&child, in->exporter_secret_len)) {
++      OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++      return 0;
++    }
++
++    if (in->hs_buf && in->hs_buf->length > 0) {
++      if (!CBB_add_asn1(&s3, &child, kS3HandshakeBufferTag) ||
++          !CBB_add_asn1_octet_string(
++              &child, reinterpret_cast<uint8_t *>(in->hs_buf->data),
++              in->hs_buf->length)) {
++        OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++        return 0;
++      }
++    }
++
++    if (in->ech_status) {
++      if (!CBB_add_asn1(&s3, &child, kS3EchStatusTag) ||
++          !CBB_add_asn1_uint64(&child, in->ech_status)) {
++        OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++        return 0;
++      }
++    }
++
++    if (in->pending_hs_data && in->pending_hs_data->length > 0) {
++      if (!CBB_add_asn1(&s3, &child, kS3PendingHsDataTag) ||
++          !CBB_add_asn1_octet_string(
++              &child, reinterpret_cast<uint8_t *>(in->pending_hs_data->data),
++              in->pending_hs_data->length)) {
++        OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++        return 0;
++      }
++    }
++
++    if (in->aead_read_ctx) {
++      if (!CBB_add_asn1(&s3, &child, kS3AeadReadCtxTag) ||
++          !in->aead_read_ctx.get()->SerializeState(&child)) {
++        OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++        return 0;
++      }
++    }
++
++    if (in->aead_write_ctx) {
++      if (!CBB_add_asn1(&s3, &child, kS3AeadWriteCtxTag) ||
++          !in->aead_write_ctx.get()->SerializeState(&child)) {
++        OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++        return 0;
++      }
++    }
++  }
++
+   return CBB_flush(cbb);
+ }
+ 
+@@ -335,18 +544,29 @@ static int SSL3_STATE_parse_session(CBS *cbs, UniquePtr<SSL_SESSION> *out,
+ // |ssl| is used because |tls1_configure_aead| is used to recover
+ // |aead_read_ctx| and |aead_write_ctx|.
+ static int SSL3_STATE_from_bytes(SSL *ssl, CBS *cbs, const SSL_CTX *ctx) {
++  // We expect the caller to have configured |ssl| with the protocol
++  // version prior to calling us.
++  uint16_t protocol_version;
++  if (!ssl_protocol_version_from_wire(&protocol_version, ssl->version)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++  bool is_tls13 = protocol_version >= TLS1_3_VERSION;
++
+   SSL3_STATE *out = ssl->s3;
+   CBS s3, read_seq, write_seq, server_random, client_random, send_alert,
+       pending_app_data, read_buffer;
+   CBS previous_client_finished, previous_server_finished;
+   int session_reused, channel_id_valid, send_connection_binding, not_resumable;
+-  uint64_t version, early_data_reason, previous_client_finished_len,
++  uint64_t serde_version, early_data_reason, previous_client_finished_len,
+       previous_server_finished_len;
+   uint64_t empty_record_count, warning_alert_count, total_renegotiations;
+   int64_t rwstate;
+   int pending_app_data_present, read_buffer_present;
+   if (!CBS_get_asn1(cbs, &s3, CBS_ASN1_SEQUENCE) ||
+-      !CBS_get_asn1_uint64(&s3, &version) || version != kS3Version ||
++      !CBS_get_asn1_uint64(&s3, &serde_version) ||
++      serde_version > SSL3_STATE_SERDE_VERSION_TWO ||
++      (is_tls13 && serde_version < SSL3_STATE_SERDE_VERSION_TWO) ||
+       !CBS_get_asn1(&s3, &read_seq, CBS_ASN1_OCTETSTRING) ||
+       CBS_len(&read_seq) != TLS_SEQ_NUM_SIZE ||
+       !CBS_get_asn1(&s3, &write_seq, CBS_ASN1_OCTETSTRING) ||
+@@ -392,11 +612,196 @@ static int SSL3_STATE_from_bytes(SSL *ssl, CBS *cbs, const SSL_CTX *ctx) {
+       !CBS_get_optional_asn1(&s3, &read_buffer, &read_buffer_present,
+                              kS3ReadBufferTag) ||
+       !CBS_get_optional_asn1_bool(&s3, &not_resumable, kS3NotResumableTag,
+-                                  0 /* default to false */) ||
+-      CBS_len(&s3) != 0) {
++                                  0 /* default to false */)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  bool is_v2 = serde_version == SSL3_STATE_SERDE_VERSION_TWO;
++
++  // We should have no more data at this point if we are deserializing v1
++  // encoding.
++  if (!is_v2 && CBS_len(&s3) > 0) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  uint64_t early_data_skipped;
++  if (!CBS_get_optional_asn1_uint64(&s3, &early_data_skipped,
++                                    kS3EarlyDataSkippedTag,
++                                    0 /* default to 0 */) ||
++      early_data_skipped > UINT16_MAX) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++  out->early_data_skipped = static_cast<uint16_t>(early_data_skipped);
++
++  int delegated_credential_used;
++  if (!CBS_get_optional_asn1_bool(&s3, &delegated_credential_used,
++                                  kS3DelegatedCredentialUsedTag, 0)) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
+     return 0;
+   }
++  out->delegated_credential_used = delegated_credential_used != 0;
++
++  int early_data_accepted;
++  if (!CBS_get_optional_asn1_bool(&s3, &early_data_accepted,
++                                  kS3EarlyDataAcceptedTag, 0)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++  out->early_data_accepted = early_data_accepted != 0;
++
++  int used_hello_retry_request;
++  if (!CBS_get_optional_asn1_bool(&s3, &used_hello_retry_request,
++                                  kS3UsedHelloRetryRequestTag, 0)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++  out->used_hello_retry_request = used_hello_retry_request != 0;
++
++  int64_t ticket_age_skew;
++  if (!CBS_get_optional_asn1_int64(&s3, &ticket_age_skew, kS3TicketAgeSkewTag,
++                                   0) ||
++      ticket_age_skew > INT32_MAX) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++  out->ticket_age_skew = static_cast<int32_t>(ticket_age_skew);
++
++  CBS write_traffic_secret;
++  int write_traffic_secret_present;
++  if (!CBS_get_optional_asn1_octet_string(&s3, &write_traffic_secret,
++                                          &write_traffic_secret_present,
++                                          kS3WriteTrafficSecretTag)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  uint64_t write_traffic_secret_len;
++  if (!CBS_get_optional_asn1_uint64(&s3, &write_traffic_secret_len,
++                                    kS3WriteTrafficSecretLenTag, 0)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  CBS read_traffic_secret;
++  int read_traffic_secret_present;
++  if (!CBS_get_optional_asn1_octet_string(&s3, &read_traffic_secret,
++                                          &read_traffic_secret_present,
++                                          kS3ReadTrafficSecretTag)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  uint64_t read_traffic_secret_len;
++  if (!CBS_get_optional_asn1_uint64(&s3, &read_traffic_secret_len,
++                                    kS3ReadTrafficSecretLenTag, 0)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  CBS exporter_secret;
++  int exporter_secret_present;
++  if (!CBS_get_optional_asn1_octet_string(&s3, &exporter_secret,
++                                          &exporter_secret_present,
++                                          kS3ExporterSecretTag)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  uint64_t exporter_secret_len;
++  if (!CBS_get_optional_asn1_uint64(&s3, &exporter_secret_len,
++                                    kS3ExporterSecretLenTag, 0)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  CBS hs_buf;
++  int hs_buf_present;
++  if (!CBS_get_optional_asn1_octet_string(&s3, &hs_buf, &hs_buf_present,
++                                          kS3HandshakeBufferTag)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  uint64_t ech_status;
++  if (!CBS_get_optional_asn1_uint64(&s3, &ech_status, kS3EchStatusTag,
++                                    ssl_ech_none)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  CBS pending_hs_data;
++  int pending_hs_data_present;
++  if (!CBS_get_optional_asn1_octet_string(&s3, &pending_hs_data,
++                                          &pending_hs_data_present,
++                                          kS3PendingHsDataTag)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  CBS pending_flight;
++  int pending_flight_present;
++  if (!CBS_get_optional_asn1_octet_string(
++          &s3, &pending_flight, &pending_flight_present, kS3PendingFlightTag)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  CBS aead_read_ctx;
++  int aead_read_ctx_present;
++  if (!CBS_get_optional_asn1(&s3, &aead_read_ctx, &aead_read_ctx_present,
++                             kS3AeadReadCtxTag)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  CBS aead_write_ctx;
++  int aead_write_ctx_present;
++  if (!CBS_get_optional_asn1(&s3, &aead_write_ctx, &aead_write_ctx_present,
++                             kS3AeadWriteCtxTag)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
++  if (is_tls13) {
++    if (!write_traffic_secret_present ||
++        CBS_len(&write_traffic_secret) != SSL_MAX_MD_SIZE ||
++        !write_traffic_secret_len || write_traffic_secret_len > UINT8_MAX ||
++        !read_traffic_secret_present ||
++        CBS_len(&read_traffic_secret) != SSL_MAX_MD_SIZE ||
++        !read_traffic_secret_len || read_traffic_secret_len > UINT8_MAX ||
++        !exporter_secret_present ||
++        CBS_len(&exporter_secret) != SSL_MAX_MD_SIZE || !exporter_secret_len ||
++        exporter_secret_len > UINT8_MAX || ech_status > ssl_ech_rejected ||
++        !aead_read_ctx_present || !aead_write_ctx_present) {
++      OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++      return 0;
++    }
++
++    OPENSSL_memcpy(out->exporter_secret, CBS_data(&exporter_secret),
++                   SSL_MAX_MD_SIZE);
++    out->exporter_secret_len = exporter_secret_len;
++
++    out->hs_buf.reset(BUF_MEM_new());
++    if (hs_buf_present) {
++      if (!BUF_MEM_append(out->hs_buf.get(), CBS_data(&hs_buf),
++                          CBS_len(&hs_buf))) {
++        OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++        return 0;
++      }
++    }
++
++    out->ech_status = static_cast<ssl_ech_status_t>(ech_status);
++  } else if (write_traffic_secret_present || write_traffic_secret_len ||
++             read_traffic_secret_present || read_traffic_secret_len ||
++             exporter_secret_present || exporter_secret_len || hs_buf_present ||
++             ech_status || pending_hs_data_present || pending_flight_present) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
+   if (read_buffer_present &&
+       !out->read_buffer.DoDeserialization(&read_buffer)) {
+     return 0;
+@@ -423,6 +828,12 @@ static int SSL3_STATE_from_bytes(SSL *ssl, CBS *cbs, const SSL_CTX *ctx) {
+         MakeSpan(out->read_buffer.buf_ptr() + pending_app_data_offset,
+                  pending_app_data_size);
+   }
++
++  if (CBS_len(&s3)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
++    return 0;
++  }
++
+   // Initialize some states before call |tls1_configure_aead|.
+   // Below comment is copied from |SSL_do_handshake|.
+   // Destroy the handshake object if the handshake has completely finished.
+@@ -435,14 +846,65 @@ static int SSL3_STATE_from_bytes(SSL *ssl, CBS *cbs, const SSL_CTX *ctx) {
+   OPENSSL_memcpy(out->client_random, CBS_data(&client_random),
+                  SSL3_RANDOM_SIZE);
+   SSL_SESSION *session = out->established_session.get();
+-  // the impl of |SSL_serialize_handback|, which only fetch IV when it's TLS 1.
+-  Array<uint8_t> key_block1, key_block2;
+-  if (!tls1_configure_aead(ssl, evp_aead_seal, &key_block1, session, {})) {
++  if (is_tls13) {
++    if (!tls13_set_traffic_key(ssl, ssl_encryption_application, evp_aead_seal,
++                               session,
++                               MakeSpan(CBS_data(&write_traffic_secret),
++                                        write_traffic_secret_len))) {
++      return 0;
++    }
++    if (!tls13_set_traffic_key(ssl, ssl_encryption_application, evp_aead_open,
++                               session,
++                               MakeSpan(CBS_data(&read_traffic_secret),
++                                        read_traffic_secret_len))) {
++      return 0;
++    }
++
++    // !! We set pending_hs_data and pending_hs_flight after as to avoid
++    // tls13_set_traffic_key from trying to flush their contents if they are not
++    // empty !!
++
++    out->pending_hs_data.reset(BUF_MEM_new());
++    if (pending_hs_data_present) {
++      if (!BUF_MEM_append(out->pending_hs_data.get(),
++                          CBS_data(&pending_hs_data),
++                          CBS_len(&pending_hs_data))) {
++        OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++        return 0;
++      }
++    }
++
++    out->pending_flight.reset(BUF_MEM_new());
++    if (pending_flight_present) {
++      if (!BUF_MEM_append(out->pending_flight.get(), CBS_data(&pending_flight),
++                          CBS_len(&pending_flight))) {
++        OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
++        return 0;
++      }
++    }
++  } else {
++    // the impl of |SSL_serialize_handback|, which only fetch IV when it's
++    // TLS 1.
++    Array<uint8_t> key_block1, key_block2;
++    if (!tls1_configure_aead(ssl, evp_aead_seal, &key_block1, session, {})) {
++      return 0;
++    }
++    if (!tls1_configure_aead(ssl, evp_aead_open, &key_block2, session, {})) {
++      return 0;
++    }
++  }
++  if (aead_read_ctx_present &&
++      !out->aead_read_ctx->DeserializeState(&aead_read_ctx)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
+     return 0;
+   }
+-  if (!tls1_configure_aead(ssl, evp_aead_open, &key_block2, session, {})) {
++  if (aead_write_ctx_present &&
++      !out->aead_write_ctx->DeserializeState(&aead_write_ctx)) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_SERIALIZATION_INVALID_SSL3_STATE);
+     return 0;
+   }
++  // read_sequence & write_sequence must be set AFTER setting the traffic keys,
++  // otherwise would be reset back to zero.
+   OPENSSL_memcpy(out->read_sequence, CBS_data(&read_seq), TLS_SEQ_NUM_SIZE);
+   OPENSSL_memcpy(out->write_sequence, CBS_data(&write_seq), TLS_SEQ_NUM_SIZE);
+   OPENSSL_memcpy(out->send_alert, CBS_data(&send_alert), SSL3_SEND_ALERT_SIZE);
+@@ -592,7 +1054,7 @@ static int SSL_to_bytes_full(const SSL *in, CBB *cbb) {
+       //    FIXME add hash of SSL_CTX
+       !CBB_add_asn1_uint64(&ssl, in->version) ||
+       !CBB_add_asn1_uint64(&ssl, in->max_send_fragment) ||
+-      !SSL3_STATE_to_bytes(in->s3, &ssl) ||
++      !SSL3_STATE_to_bytes(in->s3, ssl_protocol_version(in), &ssl) ||
+       !CBB_add_asn1_uint64(&ssl, in->mode) ||
+       !CBB_add_asn1_uint64(&ssl, in->options)) {
+     OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
+@@ -645,7 +1107,9 @@ static int SSL_parse(SSL *ssl, CBS *cbs, SSL_CTX *ctx) {
+   ssl->version = version;
+   ssl->max_send_fragment = max_send_fragment;
+   SSL_set_accept_state(ssl);
++
+   // This is called separately to avoid overriding error code.
++  // This function expects ssl->version to have been set, otherwise will error!
+   if (!SSL3_STATE_from_bytes(ssl, &ssl_cbs, ssl->ctx.get())) {
+     return 0;
+   }
+diff --git a/ssl/test/runner/runner.go b/ssl/test/runner/runner.go
+index a6f9f957b..617697fae 100644
+--- a/ssl/test/runner/runner.go
++++ b/ssl/test/runner/runner.go
+@@ -82,6 +82,7 @@ var (
+ 	sslFuzzSeedDir     = flag.String("ssl-fuzz-seed-dir", "", "The directory in which to write the output of |SSL_to_bytes|.")
+ 	testCaseStartIndex = flag.Int("test-case-start-index", -1, "If non-negative, test case is filtered in if the index in |testCases| >= test-case-start-index.")
+ 	testCaseEndIndex   = flag.Int("test-case-end-index", -1, "If non-negative, test case is filtered in if the index in |testCases| <= test-case-end-index.")
++	dumpTestCases      = flag.Bool("dump-tests", false, "Outputs all the available test cases after filtering. Useful for producing a new set of ssl transfer tests file.")
+ )
+ 
+ // ShimConfigurations is used with the “json” package and represents a shim
+@@ -491,6 +492,20 @@ const (
+ 	serverTest
+ )
+ 
++func (t testType) MarshalJSON() ([]byte, error) {
++	return json.Marshal(t.String())
++}
++
++func (t testType) String() string {
++	switch t {
++	case clientTest:
++		return "client"
++	case serverTest:
++		return "server"
++	}
++	return "unknown test type"
++}
++
+ type protocol int
+ 
+ const (
+@@ -499,6 +514,10 @@ const (
+ 	quic
+ )
+ 
++func (p protocol) MarshalJSON() ([]byte, error) {
++	return json.Marshal(p.String())
++}
++
+ func (p protocol) String() string {
+ 	switch p {
+ 	case tls:
+@@ -710,6 +729,22 @@ type testCase struct {
+ 	skipVersionNameCheck bool
+ }
+ 
++func (t *testCase) MarshalJSON() ([]byte, error) {
++	type out struct {
++		TestType   testType
++		Protocol   protocol
++		Name       string
++		ShouldFail bool
++	}
++
++	return json.Marshal(&out{
++		TestType:   t.testType,
++		Protocol:   t.protocol,
++		Name:       t.name,
++		ShouldFail: t.shouldFail,
++	})
++}
++
+ var testCases []testCase
+ 
+ func appendTranscript(path string, data []byte) error {
+@@ -19736,6 +19771,16 @@ func main() {
+ 
+ 	testCases = filterTests(testCases, *testCaseStartIndex, *testCaseEndIndex)
+ 
++	if *dumpTestCases {
++		jb, err := json.MarshalIndent(testCases, "", "  ")
++		if err != nil {
++			fmt.Fprintf(os.Stderr, "error encoding json: %v", err)
++			os.Exit(1)
++		}
++		fmt.Printf("%s\n", jb)
++		return
++	}
++
+ 	checkTests()
+ 
+ 	numWorkers := *numWorkersFlag
+@@ -19845,7 +19890,9 @@ func main() {
+ 	if (sslTransferHelper != nil) &&
+ 		// Skip test file content check when the tests are filtered.
+ 		(*testCaseStartIndex < 0) &&
+-		(*testCaseEndIndex < 0) {
++		(*testCaseEndIndex < 0) &&
++		len(*testToRun) == 0 &&
++		len(*skipTest) == 0 {
+ 		sslTransferHelper.RefreshTestFileContent()
+ 	}
+ }
+diff --git a/ssl/test/runner/ssl_transfer/test_case_names.txt b/ssl/test/runner/ssl_transfer/test_case_names.txt
+index 489e669c5..5db2c0e1b 100644
+--- a/ssl/test/runner/ssl_transfer/test_case_names.txt
++++ b/ssl/test/runner/ssl_transfer/test_case_names.txt
+@@ -1,9 +1,29 @@
+ ALPNServer-Async-TLS-TLS12
++ALPNServer-Async-TLS-TLS13
+ ALPNServer-Decline-TLS-TLS12
++ALPNServer-Decline-TLS-TLS13
+ ALPNServer-Preferred-Swapped-TLS-TLS12
+ ALPNServer-Preferred-TLS-TLS12
+ ALPNServer-TLS-TLS12
++ALPNServer-TLS-TLS13
++ALPS-Basic-Server-Defer-TLS-TLS13
++ALPS-Basic-Server-TLS-TLS13
+ ALPS-Decline-Server-TLS-TLS12
++ALPS-EarlyData-Mismatch-DifferentValues-Server-TLS-TLS13
++ALPS-EarlyData-Mismatch-EmptyOff-Server-TLS-TLS13
++ALPS-EarlyData-Mismatch-EmptyOn-Server-TLS-TLS13
++ALPS-EarlyData-Mismatch-OffEmpty-Server-TLS-TLS13
++ALPS-EarlyData-Mismatch-OffOn-Server-TLS-TLS13
++ALPS-EarlyData-Mismatch-OnEmpty-Server-TLS-TLS13
++ALPS-EarlyData-Mismatch-OnOff-Server-TLS-TLS13
++ALPS-EarlyData-SendApplicationSettingsWithEarlyData-Server-Empty-TLS-TLS13
++ALPS-EarlyData-SendApplicationSettingsWithEarlyData-Server-TLS-TLS13
++ALPS-EarlyData-Server-ClientNoOffer-TLS-TLS13
++ALPS-EarlyData-Server-Empty-TLS-TLS13
++ALPS-EarlyData-Server-TLS-TLS13
++ALPS-Empty-Server-TLS-TLS13
++ALPS-UnsupportedProtocol-Server-TLS-TLS13
++Alert
+ Basic-Server-ECDHE-ECDSA-TLS-Async
+ Basic-Server-ECDHE-ECDSA-TLS-Async-ImplicitHandshake
+ Basic-Server-ECDHE-ECDSA-TLS-Async-PackHandshake
+@@ -60,7 +80,13 @@ Basic-Server-TLS-Sync
+ Basic-Server-TLS-Sync-ImplicitHandshake
+ Basic-Server-TLS-Sync-PackHandshake
+ Basic-Server-TLS-Sync-SplitHandshakeRecords
++CECPQ2NotEnabledByDefaultForAServer
++CertCompressionExpands-TLS13
+ CertCompressionIgnoredBefore13-TLS12
++CertCompressionNoCommonAlgs-TLS13
++CertCompressionPriority-TLS13
++CertCompressionRandom-TLS13
++CertCompressionShrinks-TLS13
+ CertificateVerificationDoesNotFailOnResume-Server-TLS12-CustomCallback-TLS-Async
+ CertificateVerificationDoesNotFailOnResume-Server-TLS12-CustomCallback-TLS-Async-ImplicitHandshake
+ CertificateVerificationDoesNotFailOnResume-Server-TLS12-CustomCallback-TLS-Async-PackHandshake
+@@ -77,6 +103,22 @@ CertificateVerificationDoesNotFailOnResume-Server-TLS12-TLS-Sync
+ CertificateVerificationDoesNotFailOnResume-Server-TLS12-TLS-Sync-ImplicitHandshake
+ CertificateVerificationDoesNotFailOnResume-Server-TLS12-TLS-Sync-PackHandshake
+ CertificateVerificationDoesNotFailOnResume-Server-TLS12-TLS-Sync-SplitHandshakeRecords
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-CustomCallback-TLS-Async
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-CustomCallback-TLS-Async-ImplicitHandshake
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-CustomCallback-TLS-Async-PackHandshake
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-CustomCallback-TLS-Async-SplitHandshakeRecords
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-CustomCallback-TLS-Sync
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-CustomCallback-TLS-Sync-ImplicitHandshake
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-CustomCallback-TLS-Sync-PackHandshake
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-CustomCallback-TLS-Sync-SplitHandshakeRecords
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-TLS-Async
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-TLS-Async-ImplicitHandshake
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-TLS-Async-PackHandshake
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-TLS-Async-SplitHandshakeRecords
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-TLS-Sync
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-TLS-Sync-ImplicitHandshake
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-TLS-Sync-PackHandshake
++CertificateVerificationDoesNotFailOnResume-Server-TLS13-TLS-Sync-SplitHandshakeRecords
+ CertificateVerificationSucceed-Server-TLS12-CustomCallback-TLS-Async
+ CertificateVerificationSucceed-Server-TLS12-CustomCallback-TLS-Async-ImplicitHandshake
+ CertificateVerificationSucceed-Server-TLS12-CustomCallback-TLS-Async-PackHandshake
+@@ -93,6 +135,22 @@ CertificateVerificationSucceed-Server-TLS12-TLS-Sync
+ CertificateVerificationSucceed-Server-TLS12-TLS-Sync-ImplicitHandshake
+ CertificateVerificationSucceed-Server-TLS12-TLS-Sync-PackHandshake
+ CertificateVerificationSucceed-Server-TLS12-TLS-Sync-SplitHandshakeRecords
++CertificateVerificationSucceed-Server-TLS13-CustomCallback-TLS-Async
++CertificateVerificationSucceed-Server-TLS13-CustomCallback-TLS-Async-ImplicitHandshake
++CertificateVerificationSucceed-Server-TLS13-CustomCallback-TLS-Async-PackHandshake
++CertificateVerificationSucceed-Server-TLS13-CustomCallback-TLS-Async-SplitHandshakeRecords
++CertificateVerificationSucceed-Server-TLS13-CustomCallback-TLS-Sync
++CertificateVerificationSucceed-Server-TLS13-CustomCallback-TLS-Sync-ImplicitHandshake
++CertificateVerificationSucceed-Server-TLS13-CustomCallback-TLS-Sync-PackHandshake
++CertificateVerificationSucceed-Server-TLS13-CustomCallback-TLS-Sync-SplitHandshakeRecords
++CertificateVerificationSucceed-Server-TLS13-TLS-Async
++CertificateVerificationSucceed-Server-TLS13-TLS-Async-ImplicitHandshake
++CertificateVerificationSucceed-Server-TLS13-TLS-Async-PackHandshake
++CertificateVerificationSucceed-Server-TLS13-TLS-Async-SplitHandshakeRecords
++CertificateVerificationSucceed-Server-TLS13-TLS-Sync
++CertificateVerificationSucceed-Server-TLS13-TLS-Sync-ImplicitHandshake
++CertificateVerificationSucceed-Server-TLS13-TLS-Sync-PackHandshake
++CertificateVerificationSucceed-Server-TLS13-TLS-Sync-SplitHandshakeRecords
+ ChannelID-ECDHE-TLS12-TLS-Async
+ ChannelID-ECDHE-TLS12-TLS-Async-PackHandshake
+ ChannelID-ECDHE-TLS12-TLS-Async-SplitHandshakeRecords
+@@ -123,6 +181,14 @@ ChannelID-Server-TLS12-TLS-Sync
+ ChannelID-Server-TLS12-TLS-Sync-ImplicitHandshake
+ ChannelID-Server-TLS12-TLS-Sync-PackHandshake
+ ChannelID-Server-TLS12-TLS-Sync-SplitHandshakeRecords
++ChannelID-Server-TLS13-TLS-Async
++ChannelID-Server-TLS13-TLS-Async-ImplicitHandshake
++ChannelID-Server-TLS13-TLS-Async-PackHandshake
++ChannelID-Server-TLS13-TLS-Async-SplitHandshakeRecords
++ChannelID-Server-TLS13-TLS-Sync
++ChannelID-Server-TLS13-TLS-Sync-ImplicitHandshake
++ChannelID-Server-TLS13-TLS-Sync-PackHandshake
++ChannelID-Server-TLS13-TLS-Sync-SplitHandshakeRecords
+ CipherNegotiation-0
+ CipherNegotiation-1
+ CipherNegotiation-2
+@@ -141,6 +207,14 @@ ClientAuth-NoCertificate-Server-TLS-Sync
+ ClientAuth-NoCertificate-Server-TLS-Sync-ImplicitHandshake
+ ClientAuth-NoCertificate-Server-TLS-Sync-PackHandshake
+ ClientAuth-NoCertificate-Server-TLS-Sync-SplitHandshakeRecords
++ClientAuth-NoCertificate-Server-TLS13-TLS-Async
++ClientAuth-NoCertificate-Server-TLS13-TLS-Async-ImplicitHandshake
++ClientAuth-NoCertificate-Server-TLS13-TLS-Async-PackHandshake
++ClientAuth-NoCertificate-Server-TLS13-TLS-Async-SplitHandshakeRecords
++ClientAuth-NoCertificate-Server-TLS13-TLS-Sync
++ClientAuth-NoCertificate-Server-TLS13-TLS-Sync-ImplicitHandshake
++ClientAuth-NoCertificate-Server-TLS13-TLS-Sync-PackHandshake
++ClientAuth-NoCertificate-Server-TLS13-TLS-Sync-SplitHandshakeRecords
+ ClientAuth-Server-TLS-Async
+ ClientAuth-Server-TLS-Async-ImplicitHandshake
+ ClientAuth-Server-TLS-Async-PackHandshake
+@@ -149,15 +223,50 @@ ClientAuth-Server-TLS-Sync
+ ClientAuth-Server-TLS-Sync-ImplicitHandshake
+ ClientAuth-Server-TLS-Sync-PackHandshake
+ ClientAuth-Server-TLS-Sync-SplitHandshakeRecords
++ClientAuth-Server-TLS13-TLS-Async
++ClientAuth-Server-TLS13-TLS-Async-ImplicitHandshake
++ClientAuth-Server-TLS13-TLS-Async-PackHandshake
++ClientAuth-Server-TLS13-TLS-Async-SplitHandshakeRecords
++ClientAuth-Server-TLS13-TLS-Sync
++ClientAuth-Server-TLS13-TLS-Sync-ImplicitHandshake
++ClientAuth-Server-TLS13-TLS-Sync-PackHandshake
++ClientAuth-Server-TLS13-TLS-Sync-SplitHandshakeRecords
+ ClientHelloVersionTooHigh
+ ConflictingVersionNegotiation-2
+ CorruptTicket-TLS-TLS12
++CorruptTicket-TLS-TLS13
+ CurveID-Resume-Server
++CurveID-Resume-Server-TLS13
++CurveTest-Server-CECPQ2-TLS13
+ CurveTest-Server-P-224-TLS12
++CurveTest-Server-P-224-TLS13
+ CurveTest-Server-P-256-TLS12
++CurveTest-Server-P-256-TLS13
+ CurveTest-Server-P-384-TLS12
++CurveTest-Server-P-384-TLS13
+ CurveTest-Server-P-521-TLS12
++CurveTest-Server-P-521-TLS13
+ CurveTest-Server-X25519-TLS12
++CurveTest-Server-X25519-TLS13
++DelegatedCredentials-Basic
++DelegatedCredentials-NoClientSupport
++DelegatedCredentials-SigAlgoMissing
++DoubleAlert
++ECDSACurveMismatch-Sign-TLS13
++EarlyData-ALPNMismatch-Server-TLS13
++EarlyData-ALPNOmitted1-Server-TLS13
++EarlyData-ALPNOmitted2-Server-TLS13
++EarlyData-FirstTicket-Server-TLS13
++EarlyData-HRR-RejectTicket-Server-TLS13
++EarlyData-HRR-Server-TLS13
++EarlyData-NonZeroRTTSession-Server-TLS13
++EarlyData-RejectTicket-Server-TLS13
++EarlyData-Server-BadFinished-TLS13
++EarlyData-Server-TLS13
++EarlyData-SkipEndOfEarlyData-TLS13
++EarlyData-UnexpectedHandshake-Server-TLS13
++EarlyDataChannelID-OfferBoth-Server-TLS13
++EarlyDataChannelID-OfferEarlyData-Server-TLS13
+ EarlyDataEnabled-Server-MaxTLS12
+ EarlyDataEnabled-Server-NegotiateTLS12
+ EmptyExtensions-ClientHello-TLS12
+@@ -169,27 +278,51 @@ EmptyPSKHint-Server-TLS-Sync
+ EmptyPSKHint-Server-TLS-Sync-ImplicitHandshake
+ EmptyPSKHint-Server-TLS-Sync-PackHandshake
+ EmptyPSKHint-Server-TLS-Sync-SplitHandshakeRecords
++EmptySessionID-TLS13
++ExportKeyingMaterial-Server-HalfRTT-TLS13
+ ExtendedMasterSecret-NoToNo-Server
+ ExtendedMasterSecret-NoToYes-Server
+ ExtendedMasterSecret-TLS12-Server
++ExtendedMasterSecret-TLS13-Server
+ ExtendedMasterSecret-YesToNo-Server
+ ExtendedMasterSecret-YesToYes-Server
+ ExtraCompressionMethods-TLS12
++ExtraHandshake-Server-EarlyData-TLS13
+ ExtraHandshake-Server-TLS12
++ExtraHandshake-Server-TLS13
++ExtraPSKIdentity-TLS13
+ FallbackSCSV-VersionMatch-TLS12
++FallbackSCSV-VersionMatch-TLS13
+ FilterExtraAlgorithms
+ FragmentAcrossChangeCipherSpec-Server-Resume
+ FragmentAcrossChangeCipherSpec-Server-Resume-Packed
++FragmentAlert
++FragmentedClientVersion
++GREASE-Server-TLS13
++IgnoreClientVersionOrder
++KeyUpdate-FromServer
++KeyUpdate-ToServer
+ LooseInitialRecordVersion-TLS12
++LooseInitialRecordVersion-TLS13
+ MajorVersionTolerance
+ MaxSendFragment-TLS12
++MaxSendFragment-TLS13
+ MinimumVersion-Server-TLS1-TLS12-TLS
++MinimumVersion-Server-TLS1-TLS13-TLS
+ MinimumVersion-Server-TLS11-TLS12-TLS
++MinimumVersion-Server-TLS11-TLS13-TLS
+ MinimumVersion-Server-TLS12-TLS12-TLS
++MinimumVersion-Server-TLS12-TLS13-TLS
++MinimumVersion-Server-TLS13-TLS13-TLS
+ MinimumVersion-Server2-TLS1-TLS12-TLS
++MinimumVersion-Server2-TLS1-TLS13-TLS
+ MinimumVersion-Server2-TLS11-TLS12-TLS
++MinimumVersion-Server2-TLS11-TLS13-TLS
+ MinimumVersion-Server2-TLS12-TLS12-TLS
++MinimumVersion-Server2-TLS12-TLS13-TLS
++MinimumVersion-Server2-TLS13-TLS13-TLS
+ MinorVersionTolerance
++NPN-Declined-TLS13
+ NPN-Server-TLS-Async
+ NPN-Server-TLS-Async-ImplicitHandshake
+ NPN-Server-TLS-Async-PackHandshake
+@@ -199,9 +332,12 @@ NPN-Server-TLS-Sync-ImplicitHandshake
+ NPN-Server-TLS-Sync-PackHandshake
+ NPN-Server-TLS-Sync-SplitHandshakeRecords
+ NoClientCertificate-Server-TLS12
++NoClientCertificate-Server-TLS13
+ NoClientCertificateRequested-Server-TLS12
++NoClientCertificateRequested-Server-TLS13
+ NoCommonCurves
+ NoExtendedMasterSecret-TLS12-Server
++NoExtendedMasterSecret-TLS13-Server
+ Null-Client-CA-List
+ OCSPStapling-Server-TLS12-TLS-Async
+ OCSPStapling-Server-TLS12-TLS-Async-ImplicitHandshake
+@@ -211,45 +347,91 @@ OCSPStapling-Server-TLS12-TLS-Sync
+ OCSPStapling-Server-TLS12-TLS-Sync-ImplicitHandshake
+ OCSPStapling-Server-TLS12-TLS-Sync-PackHandshake
+ OCSPStapling-Server-TLS12-TLS-Sync-SplitHandshakeRecords
++OCSPStapling-Server-TLS13-TLS-Async
++OCSPStapling-Server-TLS13-TLS-Async-ImplicitHandshake
++OCSPStapling-Server-TLS13-TLS-Async-PackHandshake
++OCSPStapling-Server-TLS13-TLS-Async-SplitHandshakeRecords
++OCSPStapling-Server-TLS13-TLS-Sync
++OCSPStapling-Server-TLS13-TLS-Sync-ImplicitHandshake
++OCSPStapling-Server-TLS13-TLS-Sync-PackHandshake
++OCSPStapling-Server-TLS13-TLS-Sync-SplitHandshakeRecords
+ OmitExtensions-ClientHello-TLS12
++PackedEncryptedHandshake-TLS13
+ PartialClientFinishedWithClientHello-TLS12-Resume
++PartialEndOfEarlyDataWithClientHello
+ Peek-Basic-Server
+ Peek-ImplicitHandshake-Server
+ Peek-Shutdown-Server
+ PointFormat-Server-Missing
+ PointFormat-Server-Tolerance
+ QUICTransportParams-NonQUICServer-ClientLegacy-ServerLegacy-TLS-TLS12
++QUICTransportParams-NonQUICServer-ClientLegacy-ServerLegacy-TLS-TLS13
+ QUICTransportParams-NonQUICServer-ClientLegacy-ServerStandard-TLS-TLS12
++QUICTransportParams-NonQUICServer-ClientLegacy-ServerStandard-TLS-TLS13
+ QUICTransportParams-NonQUICServer-ClientNeither-ServerLegacy-TLS-TLS12
++QUICTransportParams-NonQUICServer-ClientNeither-ServerLegacy-TLS-TLS13
+ QUICTransportParams-NonQUICServer-ClientNeither-ServerStandard-TLS-TLS12
++QUICTransportParams-NonQUICServer-ClientNeither-ServerStandard-TLS-TLS13
+ RSA-PSS-Default-Sign
+ RSAKeyUsage-Server-WantSignature-GotSignature-TLS12
++RSAKeyUsage-Server-WantSignature-GotSignature-TLS13
+ Renegotiate-Server-Forbidden
+ Renegotiate-Server-NoExt-SCSV
++Resume-Server-BinderWrongLength
++Resume-Server-BinderWrongLength-SecondBinder
+ Resume-Server-CipherNotPreferred
++Resume-Server-CipherNotPreferred-TLS13
+ Resume-Server-DeclineBadCipher
+ Resume-Server-DeclineBadCipher-2
++Resume-Server-DeclineBadCipher-TLS13
+ Resume-Server-DeclineCrossVersion
++Resume-Server-DeclineCrossVersion-TLS13
++Resume-Server-ExtraIdentityNoBinder
++Resume-Server-ExtraIdentityNoBinder-SecondBinder
++Resume-Server-ExtraPSKBinder
++Resume-Server-ExtraPSKBinder-SecondBinder
++Resume-Server-InvalidPSKBinder
++Resume-Server-InvalidPSKBinder-SecondBinder
++Resume-Server-NoPSKBinder
++Resume-Server-NoPSKBinder-SecondBinder
+ Resume-Server-NoTickets-TLS1-TLS12-TLS
+ Resume-Server-NoTickets-TLS11-TLS12-TLS
+ Resume-Server-NoTickets-TLS12-TLS1-TLS
+ Resume-Server-NoTickets-TLS12-TLS11-TLS
+ Resume-Server-NoTickets-TLS12-TLS12-TLS
++Resume-Server-OmitPSKsOnSecondClientHello
++Resume-Server-PSKBinderFirstExtension
++Resume-Server-PSKBinderFirstExtension-SecondBinder
+ Resume-Server-TLS1-TLS12-TLS
++Resume-Server-TLS1-TLS13-TLS
+ Resume-Server-TLS11-TLS12-TLS
++Resume-Server-TLS11-TLS13-TLS
+ Resume-Server-TLS12-TLS1-TLS
+ Resume-Server-TLS12-TLS11-TLS
+ Resume-Server-TLS12-TLS12-TLS
+ Resume-Server-TLS12-TLS13-TLS
++Resume-Server-TLS13-TLS1-TLS
++Resume-Server-TLS13-TLS11-TLS
+ Resume-Server-TLS13-TLS12-TLS
++Resume-Server-TLS13-TLS13-TLS
+ Resume-Server-UnofferedCipher
++Resume-Server-UnofferedCipher-TLS13
+ RetainOnlySHA256-Cert-TLS12
++RetainOnlySHA256-Cert-TLS13
+ RetainOnlySHA256-NoCert-TLS12
++RetainOnlySHA256-NoCert-TLS13
+ RetainOnlySHA256-OffOn-TLS12
++RetainOnlySHA256-OffOn-TLS13
+ RetainOnlySHA256-OnOff-TLS12
++RetainOnlySHA256-OnOff-TLS13
+ SRTP-Server-Ignore-TLS-TLS12
++SRTP-Server-Ignore-TLS-TLS13
+ SendClientVersion-RSA
++SendHelloRetryRequest-2-TLS13
++SendHelloRetryRequest-TLS13
++SendNoExtensionsOnIntermediate-TLS13
+ SendReceiveIntermediate-Server-TLS12
++SendReceiveIntermediate-Server-TLS13
+ SendV2ClientHello-16-TLS-Async
+ SendV2ClientHello-16-TLS-Async-ImplicitHandshake
+ SendV2ClientHello-16-TLS-Async-PackHandshake
+@@ -291,15 +473,34 @@ SendV2ClientHello-48-TLS-Sync-ImplicitHandshake
+ SendV2ClientHello-48-TLS-Sync-PackHandshake
+ SendV2ClientHello-48-TLS-Sync-SplitHandshakeRecords
+ Server-DDoS-OK-NoResume
++Server-DDoS-OK-NoResume-TLS13
+ Server-DDoS-OK-Resume
++Server-DDoS-OK-Resume-TLS13
+ Server-DDoS-Reject-NoResume
++Server-DDoS-Reject-NoResume-TLS13
++Server-FullSessionID-TLS13
+ Server-JDK11-0
++Server-JDK11-1
+ Server-JDK11-10
++Server-JDK11-2
+ Server-JDK11-3
+ Server-JDK11-4
+ Server-JDK11-5
+ Server-JDK11-6
+ Server-JDK11-7
++Server-JDK11-8
++Server-JDK11-9
++Server-JDK11-NoWorkaround-0
++Server-JDK11-NoWorkaround-1
++Server-JDK11-NoWorkaround-10
++Server-JDK11-NoWorkaround-2
++Server-JDK11-NoWorkaround-3
++Server-JDK11-NoWorkaround-4
++Server-JDK11-NoWorkaround-5
++Server-JDK11-NoWorkaround-6
++Server-JDK11-NoWorkaround-7
++Server-JDK11-NoWorkaround-8
++Server-JDK11-NoWorkaround-9
+ Server-JDK11-TLS12-0
+ Server-JDK11-TLS12-1
+ Server-JDK11-TLS12-10
+@@ -311,60 +512,91 @@ Server-JDK11-TLS12-6
+ Server-JDK11-TLS12-7
+ Server-JDK11-TLS12-8
+ Server-JDK11-TLS12-9
++Server-NonEmptyEndOfEarlyData-TLS13
++Server-ShortSessionID-TLS13
+ Server-Sign-ECDSA_P224_SHA256-TLS12
+ Server-Sign-ECDSA_P256_SHA256-TLS12
++Server-Sign-ECDSA_P256_SHA256-TLS13
+ Server-Sign-ECDSA_P384_SHA384-TLS12
++Server-Sign-ECDSA_P384_SHA384-TLS13
+ Server-Sign-ECDSA_P521_SHA512-TLS12
++Server-Sign-ECDSA_P521_SHA512-TLS13
+ Server-Sign-ECDSA_SHA1-TLS12
+ Server-Sign-Ed25519-TLS12
++Server-Sign-Ed25519-TLS13
+ Server-Sign-Negotiate-ECDSA_P224_SHA256-TLS12
+ Server-Sign-Negotiate-ECDSA_P256_SHA256-TLS12
++Server-Sign-Negotiate-ECDSA_P256_SHA256-TLS13
+ Server-Sign-Negotiate-ECDSA_P384_SHA384-TLS12
++Server-Sign-Negotiate-ECDSA_P384_SHA384-TLS13
+ Server-Sign-Negotiate-ECDSA_P521_SHA512-TLS12
++Server-Sign-Negotiate-ECDSA_P521_SHA512-TLS13
+ Server-Sign-Negotiate-ECDSA_SHA1-TLS12
+ Server-Sign-Negotiate-Ed25519-TLS12
++Server-Sign-Negotiate-Ed25519-TLS13
+ Server-Sign-Negotiate-RSA_PKCS1_SHA1-TLS12
+ Server-Sign-Negotiate-RSA_PKCS1_SHA256-TLS12
+ Server-Sign-Negotiate-RSA_PKCS1_SHA384-TLS12
+ Server-Sign-Negotiate-RSA_PKCS1_SHA512-TLS12
+ Server-Sign-Negotiate-RSA_PSS_SHA256-TLS12
++Server-Sign-Negotiate-RSA_PSS_SHA256-TLS13
+ Server-Sign-Negotiate-RSA_PSS_SHA384-TLS12
++Server-Sign-Negotiate-RSA_PSS_SHA384-TLS13
+ Server-Sign-Negotiate-RSA_PSS_SHA512-TLS12
++Server-Sign-Negotiate-RSA_PSS_SHA512-TLS13
+ Server-Sign-RSA_PKCS1_SHA1-TLS12
+ Server-Sign-RSA_PKCS1_SHA256-TLS12
+ Server-Sign-RSA_PKCS1_SHA384-TLS12
+ Server-Sign-RSA_PKCS1_SHA512-TLS12
+ Server-Sign-RSA_PSS_SHA256-TLS12
++Server-Sign-RSA_PSS_SHA256-TLS13
+ Server-Sign-RSA_PSS_SHA384-TLS12
++Server-Sign-RSA_PSS_SHA384-TLS13
+ Server-Sign-RSA_PSS_SHA512-TLS12
++Server-Sign-RSA_PSS_SHA512-TLS13
+ Server-Verify-ECDSA_P224_SHA256-TLS12
+ Server-Verify-ECDSA_P256_SHA256-TLS12
++Server-Verify-ECDSA_P256_SHA256-TLS13
+ Server-Verify-ECDSA_P384_SHA384-TLS12
++Server-Verify-ECDSA_P384_SHA384-TLS13
+ Server-Verify-ECDSA_P521_SHA512-TLS12
++Server-Verify-ECDSA_P521_SHA512-TLS13
+ Server-Verify-ECDSA_SHA1-TLS12
+ Server-Verify-Ed25519-TLS12
++Server-Verify-Ed25519-TLS13
+ Server-Verify-RSA_PKCS1_SHA1-TLS12
+ Server-Verify-RSA_PKCS1_SHA256-TLS12
+ Server-Verify-RSA_PKCS1_SHA384-TLS12
+ Server-Verify-RSA_PKCS1_SHA512-TLS12
+ Server-Verify-RSA_PSS_SHA256-TLS12
++Server-Verify-RSA_PSS_SHA256-TLS13
+ Server-Verify-RSA_PSS_SHA384-TLS12
++Server-Verify-RSA_PSS_SHA384-TLS13
+ Server-Verify-RSA_PSS_SHA512-TLS12
++Server-Verify-RSA_PSS_SHA512-TLS13
+ Server-VerifyDefault-ECDSA_P224_SHA256-TLS12
+ Server-VerifyDefault-ECDSA_P256_SHA256-TLS12
++Server-VerifyDefault-ECDSA_P256_SHA256-TLS13
+ Server-VerifyDefault-ECDSA_P384_SHA384-TLS12
++Server-VerifyDefault-ECDSA_P384_SHA384-TLS13
+ Server-VerifyDefault-RSA_PKCS1_SHA1-TLS12
+ Server-VerifyDefault-RSA_PKCS1_SHA256-TLS12
+ Server-VerifyDefault-RSA_PKCS1_SHA384-TLS12
+ Server-VerifyDefault-RSA_PKCS1_SHA512-TLS12
+ Server-VerifyDefault-RSA_PSS_SHA256-TLS12
++Server-VerifyDefault-RSA_PSS_SHA256-TLS13
+ Server-VerifyDefault-RSA_PSS_SHA384-TLS12
++Server-VerifyDefault-RSA_PSS_SHA384-TLS13
+ Server-VerifyDefault-RSA_PSS_SHA512-TLS12
++Server-VerifyDefault-RSA_PSS_SHA512-TLS13
+ ServerAuth-PeerVerifyPrefs-TLS12
++ServerAuth-PeerVerifyPrefs-TLS13
+ ServerAuth-SHA1-Fallback-ECDSA
+ ServerAuth-SHA1-Fallback-RSA
+ ServerAuth-SignatureType
++ServerAuth-SignatureType-TLS13
+ ServerNameExtensionServer-TLS-TLS12
++ServerNameExtensionServer-TLS-TLS13
+ ServerOCSPCallback-Decline-TLS12-TLS-Async
+ ServerOCSPCallback-Decline-TLS12-TLS-Async-ImplicitHandshake
+ ServerOCSPCallback-Decline-TLS12-TLS-Async-PackHandshake
+@@ -373,6 +605,14 @@ ServerOCSPCallback-Decline-TLS12-TLS-Sync
+ ServerOCSPCallback-Decline-TLS12-TLS-Sync-ImplicitHandshake
+ ServerOCSPCallback-Decline-TLS12-TLS-Sync-PackHandshake
+ ServerOCSPCallback-Decline-TLS12-TLS-Sync-SplitHandshakeRecords
++ServerOCSPCallback-Decline-TLS13-TLS-Async
++ServerOCSPCallback-Decline-TLS13-TLS-Async-ImplicitHandshake
++ServerOCSPCallback-Decline-TLS13-TLS-Async-PackHandshake
++ServerOCSPCallback-Decline-TLS13-TLS-Async-SplitHandshakeRecords
++ServerOCSPCallback-Decline-TLS13-TLS-Sync
++ServerOCSPCallback-Decline-TLS13-TLS-Sync-ImplicitHandshake
++ServerOCSPCallback-Decline-TLS13-TLS-Sync-PackHandshake
++ServerOCSPCallback-Decline-TLS13-TLS-Sync-SplitHandshakeRecords
+ ServerOCSPCallback-SetInCallback-TLS12-TLS-Async
+ ServerOCSPCallback-SetInCallback-TLS12-TLS-Async-ImplicitHandshake
+ ServerOCSPCallback-SetInCallback-TLS12-TLS-Async-PackHandshake
+@@ -381,6 +621,14 @@ ServerOCSPCallback-SetInCallback-TLS12-TLS-Sync
+ ServerOCSPCallback-SetInCallback-TLS12-TLS-Sync-ImplicitHandshake
+ ServerOCSPCallback-SetInCallback-TLS12-TLS-Sync-PackHandshake
+ ServerOCSPCallback-SetInCallback-TLS12-TLS-Sync-SplitHandshakeRecords
++ServerOCSPCallback-SetInCallback-TLS13-TLS-Async
++ServerOCSPCallback-SetInCallback-TLS13-TLS-Async-ImplicitHandshake
++ServerOCSPCallback-SetInCallback-TLS13-TLS-Async-PackHandshake
++ServerOCSPCallback-SetInCallback-TLS13-TLS-Async-SplitHandshakeRecords
++ServerOCSPCallback-SetInCallback-TLS13-TLS-Sync
++ServerOCSPCallback-SetInCallback-TLS13-TLS-Sync-ImplicitHandshake
++ServerOCSPCallback-SetInCallback-TLS13-TLS-Sync-PackHandshake
++ServerOCSPCallback-SetInCallback-TLS13-TLS-Sync-SplitHandshakeRecords
+ SessionTicketsDisabled-Server-TLS-Async
+ SessionTicketsDisabled-Server-TLS-Async-ImplicitHandshake
+ SessionTicketsDisabled-Server-TLS-Async-PackHandshake
+@@ -397,14 +645,62 @@ Shutdown-Shim-Renegotiate-Server-Forbidden-TLS-Sync
+ Shutdown-Shim-Renegotiate-Server-Forbidden-TLS-Sync-PackHandshake
+ Shutdown-Shim-Renegotiate-Server-Forbidden-TLS-Sync-SplitHandshakeRecords
+ SignedCertificateTimestampList-Server-TLS-TLS12
++SignedCertificateTimestampList-Server-TLS-TLS13
++SkipChangeCipherSpec-Server-TLS13
++SkipEarlyData-HRR-TLS13
++SkipEarlyData-TLS13
+ SupportTicketsWithSessionID
++TLS-ECH-Server
++TLS-ECH-Server-AsyncEarlyCallback
++TLS-ECH-Server-Cipher-HKDF-SHA256-AES-128-GCM
++TLS-ECH-Server-Cipher-HKDF-SHA256-AES-256-GCM
++TLS-ECH-Server-Cipher-HKDF-SHA256-ChaCha20-Poly1305
++TLS-ECH-Server-ClientAuth
++TLS-ECH-Server-CorruptEncryptedClientHello
++TLS-ECH-Server-Decline
++TLS-ECH-Server-Decline-ClientAuth
++TLS-ECH-Server-Decline-HelloRetryRequest
++TLS-ECH-Server-Disabled
++TLS-ECH-Server-DisabledCipher-HKDF-SHA256-AES-128-GCM
++TLS-ECH-Server-DisabledCipher-HKDF-SHA256-AES-256-GCM
++TLS-ECH-Server-DisabledCipher-HKDF-SHA256-ChaCha20-Poly1305
++TLS-ECH-Server-ECHInner
++TLS-ECH-Server-ECHInner-HelloRetryRequest
++TLS-ECH-Server-EarlyData
++TLS-ECH-Server-EarlyDataRejected
++TLS-ECH-Server-HelloRetryRequest
++TLS-ECH-Server-MessageCallback
++TLS-ECH-Server-MessageCallback-HelloRetryRequest
++TLS-ECH-Server-MinimalClientHelloOuter
++TLS-ECH-Server-MinimalClientHelloOuter-HelloRetryRequest
++TLS-ECH-Server-OuterExtensions
++TLS-ECH-Server-OuterExtensions-HelloRetryRequest
++TLS-ECH-Server-OuterExtensions-Interleaved
++TLS-ECH-Server-OuterExtensions-Interleaved-HelloRetryRequest
++TLS-ECH-Server-Padding
++TLS-ECH-Server-RepeatedConfigID
++TLS-ECH-Server-SecondECHConfig
++TLS-ECH-Server-ShortEnc
++TLS-HintMismatch-CertificateCompression-AlgorithmMismatch
++TLS-HintMismatch-CertificateCompression-HandshakerOnly
++TLS-HintMismatch-CertificateCompression-InputMismatch
++TLS-HintMismatch-CertificateCompression-ShimOnly
++TLS-HintMismatch-CertificateRequest
+ TLS-HintMismatch-CipherMismatch1
+ TLS-HintMismatch-CipherMismatch2
+ TLS-HintMismatch-ECDHE-Group
++TLS-HintMismatch-HandshakerHelloRetryRequest
++TLS-HintMismatch-KeyShare
+ TLS-HintMismatch-NoTickets1-TLS12
++TLS-HintMismatch-NoTickets1-TLS13
+ TLS-HintMismatch-NoTickets2-TLS12
++TLS-HintMismatch-NoTickets2-TLS13
++TLS-HintMismatch-ShimHelloRetryRequest
+ TLS-HintMismatch-SignatureAlgorithm-TLS12
++TLS-HintMismatch-SignatureAlgorithm-TLS13
++TLS-HintMismatch-SignatureInput
+ TLS-HintMismatch-Version1
++TLS-HintMismatch-Version2
+ TLS-TLS12-ECDHE_ECDSA_WITH_AES_128_CBC_SHA-server
+ TLS-TLS12-ECDHE_ECDSA_WITH_AES_128_GCM_SHA256-server
+ TLS-TLS12-ECDHE_ECDSA_WITH_AES_256_CBC_SHA-server
+@@ -428,27 +724,90 @@ TLS-TLS12-RSA_WITH_AES_128_GCM_SHA256-server
+ TLS-TLS12-RSA_WITH_AES_256_CBC_SHA-server
+ TLS-TLS12-RSA_WITH_AES_256_GCM_SHA384-server
+ TLS-TLS12-RSA_WITH_NULL_SHA-server
++TLS-TLS13-AES_128_GCM_SHA256-server
++TLS-TLS13-AES_256_GCM_SHA384-server
++TLS-TLS13-CHACHA20_POLY1305_SHA256-server
+ TLS12-NoTicket-NoAccept
+ TLS12-NoTicket-NoMint
+ TLS12-Server-CertReq-CA-List
+ TLS12-Server-ClientAuth-ECDSA
+ TLS12-Server-ClientAuth-RSA
++TLS13-1RTT-Server-TLS-Async
++TLS13-1RTT-Server-TLS-Async-ImplicitHandshake
++TLS13-1RTT-Server-TLS-Async-PackHandshake
++TLS13-1RTT-Server-TLS-Async-SplitHandshakeRecords
++TLS13-1RTT-Server-TLS-Sync
++TLS13-1RTT-Server-TLS-Sync-ImplicitHandshake
++TLS13-1RTT-Server-TLS-Sync-PackHandshake
++TLS13-1RTT-Server-TLS-Sync-SplitHandshakeRecords
++TLS13-CipherPreference-Server-AES-ChaCha20
++TLS13-CipherPreference-Server-ChaCha20-AES
++TLS13-Configured-Ciphersuites-Server-TLS_AES_128_GCM_SHA256
++TLS13-Configured-Ciphersuites-Server-TLS_AES_256_GCM_SHA384
++TLS13-Configured-Ciphersuites-Server-TLS_CHACHA20_POLY1305_SHA256
++TLS13-Empty-Client-CA-List
++TLS13-ExpectNoSessionTicketOnBadKEMode-Server
++TLS13-ExpectTicketEarlyDataSupport
++TLS13-HelloRetryRequest-Server-TLS-Async
++TLS13-HelloRetryRequest-Server-TLS-Async-ImplicitHandshake
++TLS13-HelloRetryRequest-Server-TLS-Async-PackHandshake
++TLS13-HelloRetryRequest-Server-TLS-Async-SplitHandshakeRecords
++TLS13-HelloRetryRequest-Server-TLS-Sync
++TLS13-HelloRetryRequest-Server-TLS-Sync-ImplicitHandshake
++TLS13-HelloRetryRequest-Server-TLS-Sync-PackHandshake
++TLS13-HelloRetryRequest-Server-TLS-Sync-SplitHandshakeRecords
++TLS13-MaxEarlyData-Server-TLS-Async
++TLS13-MaxEarlyData-Server-TLS-Async-ImplicitHandshake
++TLS13-MaxEarlyData-Server-TLS-Async-PackHandshake
++TLS13-MaxEarlyData-Server-TLS-Async-SplitHandshakeRecords
++TLS13-MaxEarlyData-Server-TLS-Sync
++TLS13-MaxEarlyData-Server-TLS-Sync-ImplicitHandshake
++TLS13-MaxEarlyData-Server-TLS-Sync-PackHandshake
++TLS13-MaxEarlyData-Server-TLS-Sync-SplitHandshakeRecords
++TLS13-NoTicket-NoAccept
++TLS13-NoTicket-NoMint
++TLS13-SendBadKEModeSessionTicket-Server
++TLS13-SendNoKEMModesWithPSK-Server
++TLS13-SendUnknownModeSessionTicket-Server
++TLS13-Server-CertReq-CA-List
++TLS13-Server-ClientAuth-ECDSA
++TLS13-Server-ClientAuth-RSA
++TLS13-TicketAgeSkew-Backward
++TLS13-TicketAgeSkew-Backward-60-Accept
++TLS13-TicketAgeSkew-Backward-61-Reject
++TLS13-TicketAgeSkew-Forward
++TLS13-TicketAgeSkew-Forward-60-Accept
++TLS13-TicketAgeSkew-Forward-61-Reject
+ TicketCallback-Renew-TLS-TLS12
++TicketCallback-Renew-TLS-TLS13
+ TicketCallback-SingleCall-TLS-TLS12
++TicketCallback-SingleCall-TLS-TLS13
+ TicketCallback-TLS-TLS12
++TicketCallback-TLS-TLS13
+ TicketSessionIDLength-0-TLS-TLS12
+ TicketSessionIDLength-16-TLS-TLS12
+ TicketSessionIDLength-32-TLS-TLS12
+ TicketSessionIDLength-33-TLS-TLS12
+ TrailingDataWithFinished-Resume-Server-TLS12
++TrailingDataWithFinished-Resume-Server-TLS13
++TrailingMessageData-TLS13-EndOfEarlyData-TLS
+ UnknownCipher
++UnknownCipher-TLS13
+ UnknownCurve
++UnknownCurve-TLS13
+ UnsolicitedCertificateExtensions-TLS-TLS12
++UnsolicitedCertificateExtensions-TLS-TLS13
+ VerifyPeerIfNoOBC-ChannelID-TLS12
++VerifyPeerIfNoOBC-ChannelID-TLS13
+ VersionNegotiation-Server-TLS12-TLS12-TLS
+ VersionNegotiation-Server-TLS12-TLS13-TLS
+ VersionNegotiation-Server-TLS13-TLS12-TLS
++VersionNegotiation-Server-TLS13-TLS13-TLS
+ VersionNegotiation-Server2-TLS12-TLS12-TLS
+ VersionNegotiation-Server2-TLS12-TLS13-TLS
+ VersionNegotiation-Server2-TLS13-TLS12-TLS
++VersionNegotiation-Server2-TLS13-TLS13-TLS
+ VersionNegotiationExtension-TLS12-TLS
++VersionNegotiationExtension-TLS13-TLS
++VersionTolerance-TLS13
++WrongMessageType-TLS13-EndOfEarlyData-TLS
+diff --git a/ssl/tls_transfer.asn b/ssl/tls_transfer.asn
+new file mode 100644
+index 000000000..52611cff9
+--- /dev/null
++++ b/ssl/tls_transfer.asn
+@@ -0,0 +1,132 @@
++AwsLcTlsTransfer DEFINITIONS EXPLICIT TAGS ::= BEGIN
++
++TransferPackage ::= SEQUENCE {
++    ssl            SSL
++}
++
++SSLSerializationVersion ::= INTEGER {v1 (1)}
++
++SSL ::= SEQUENCE {
++    serializationVersion SSLSerializationVersion,
++    protocolVersionn INTEGER,
++    maxSendFragement INTEGER,
++    state          SSL3State,
++    mode           INTEGER,
++    options        INTEGER,
++    quietShutdown  [0] INTEGER OPTIONAL,
++    config         [1] SSLConfig OPTIONAL
++}
++
++SSL3StateSerializationVersion ::= INTEGER {
++                   v1 (1),
++                   v2 (2)  -- Added additional fields to support TLS 1.3
++               }
++
++SSL3State ::= SEQUENCE {
++    serializationVersion SSL3StateSerializationVersion,
++    readSequence   OCTET STRING,
++    writeSequence  OCTET STRING,
++    serverRandom   OCTET STRING,
++    clientRandom   OCTET STRING,
++    sendAlert      OCTET STRING,
++    rwstate        INTEGER,
++    earlyDataReason INTEGER,
++    previousClientFinished OCTET STRING,
++    previousClientFinishedLen INTEGER,
++    previousServerFinished OCTET STRING,
++    previousServerFinishedLen INTEGER,
++    emptyRecordCount INTEGER,
++    warningAlertCount INTEGER,
++    totalRenegotiations INTEGER,
++    -- Simplified to SEQUENCE here, uses SSL_SESSION_to_bytes_full
++    establishedSession [0] SEQUENCE {...},
++    sessionReused  [1] BOOLEAN OPTIONAL,
++    hostname       [2] OCTET STRING OPTIONAL,
++    alpnSelected   [3] OCTET STRING OPTIONAL,
++    nextProtoNegotiated [4] OCTET STRING OPTIONAL,
++    channelIdValid [5] BOOLEAN OPTIONAL,
++    channelId      [6] OCTET STRING OPTIONAL,
++    sendConnectionBinding [7] BOOLEAN OPTIONAL,
++    -- pending_app_data is a Span in the SS3_STATE that points into read_buffer
++    pendingAppData [8] Span OPTIONAL,
++    readBuffer     [9] SSLBuffer OPTIONAL,
++    -- An artifact of reusing the session ticket serialization, this is a member that is not included so we put it here.
++    -- This is used to indicate whether the session is actually resumable or not when reconstructing the established session
++    notResumable   [10] BOOLEAN OPTIONAL,
++    ...,
++    -- Extension describing v2 serialization format for TLS 1.3 support.
++    [[ 2:
++    earlyDataSkipped [11] INTEGER OPTIONAL,
++    delegatedCredentialUsed [12] BOOLEAN OPTIONAL,
++    earlyDataAccepted [13] BOOLEAN OPTIONAL,
++    usedHelloRetryRequest [14] BOOLEAN OPTIONAL,
++    ticketAgeSkew  [15] INTEGER OPTIONAL,
++    writeTrafficSecret [16] OCTET STRING OPTIONAL,
++    writeTrafficSecretLen [17] INTEGER OPTIONAL,
++    readTrafficSecret [18] OCTET STRING OPTIONAL,
++    readTrafficSecretLen [19] INTEGER OPTIONAL,
++    exporterSecret [20] OCTET STRING OPTIONAL,
++    exporterSecretLen [21] INTEGER OPTIONAL,
++    hsBuffer       [22] OCTET STRING OPTIONAL,
++    echStatus      [23] INTEGER OPTIONAL,
++    pendingHsData  [24] OCTET STRING OPTIONAL,
++    pendingFlight  [25] OCTET STRING OPTIONAL,
++    aeadReadCtx    [26] SSLAEADContext OPTIONAL,
++    aeadWriteCtx   [27] SSLAEADContext OPTIONAL
++    ]],
++    ...
++}
++
++SSLAEADContextVersion ::= INTEGER {v1 (1)}
++
++SSLAEADContext ::= SEQUENCE {
++    serializationVersion SSLAEADContextVersion,
++    cipher         INTEGER,
++    cipherState    EvpAeadCtxState
++}
++
++EvpAeadCtxStateSerializationVersion ::= INTEGER {v1 (1)}
++
++EvpAeadCtxState ::= SEQUENCE {
++    serializationVersion EvpAeadCtxStateSerializationVersion,
++    evpAeadCipherIdentifier INTEGER,
++    -- This OCTET STRING wraps whatever the underlying state encoding is, which is dependent on the configured cipher.
++    -- For example AeadAesGCMTls13State describe the state encoding for AES-GCM with TLS 1.3.
++    state          OCTET STRING
++}
++
++AeadAesGCMTls13StateSerializationVersion ::= INTEGER {v1 (1)}
++
++AeadAesGCMTls13State ::= SEQUENCE {
++    serializationVersion AeadAesGCMTls13StateSerializationVersion,
++    minNextNonce   INTEGER,
++    mask           INTEGER,
++    first          BOOLEAN
++}
++
++Span ::= SEQUENCE {
++    offset         INTEGER,
++    size           INTEGER
++}
++
++SSLBufferSerializationVersion ::= INTEGER {v1 (1)}
++
++SSLBuffer ::= SEQUENCE {
++    serializationVersion SSLBufferSerializationVersion,
++    bufferAllocated BOOLEAN,
++    offset         INTEGER,
++    size           INTEGER,
++    capacity       INTEGER
++}
++
++SSLConfigSerializationVersion ::= INTEGER {v1 (1)}
++
++SSLConfig ::= SEQUENCE {
++    serializationVersion SSLConfigSerializationVersion,
++    confMaxVersion INTEGER,
++    confMinVersion INTEGER,
++    ocspStaplingEnabled [0] BOOLEAN OPTIONAL,
++    jdk11Workaround [1] BOOLEAN OPTIONAL
++}
++
++END
+\ No newline at end of file

@@ -1,0 +1,150 @@
+From b01b3d4d571d2e93d4997b58888ef4708fcf4d5a Mon Sep 17 00:00:00 2001
+From: Juneyoung Lee <136006969+aqjune-aws@users.noreply.github.com>
+Date: Wed, 23 Aug 2023 10:43:10 -0500
+Subject: [PATCH] Conditionally enable Neon version of s2n-bignum
+ implementations for montgomery multiplications (#1164)
+
+This conditionally enables the the Neon versions of verified primitives of s2n-bignum when `CRYPTO_is_NEON_capable()` is true.
+The scalar versions of s2n-bignum primitives are already merged in b706d7e.
+
+The performance improvements of RSA signatures on Graviton 2 are as follows (Unit: ops/sec).
+
+| Bits | Operation          | before b706d7e | after b706d7e | this patch | speedup vs. before b706d7e|
+| 2048 | RSA sign           |   299.3 |   399   |   495.8 | 65.65% |
+|      | verify (fresh key) | 10736.3 | 15491   | 18836.6 | 75.45% |
+| 3072 | RSA sign           |    95.4 |   113.2 |   126.4 | 32.49% |
+|      | verify (fresh key) |  4917.7 |  6001.7 |  6579.1 | 33.78% |
+| 4096 | RSA sign           |    41.7 |    63.2 |    78.3 | 87.77% |
+|      | verify (fresh key) |  2781.6 |  3451   |  3800.3 | 36.62% |
+---
+ crypto/fipsmodule/CMakeLists.txt              |  6 ++++
+ crypto/fipsmodule/bn/montgomery.c             | 35 +++++++++++++------
+ .../s2n-bignum/include/s2n-bignum_aws-lc.h    | 16 +++++++++
+ 3 files changed, 47 insertions(+), 10 deletions(-)
+
+diff --git a/crypto/fipsmodule/CMakeLists.txt b/crypto/fipsmodule/CMakeLists.txt
+index 7bea12fb5..229d68566 100644
+--- a/crypto/fipsmodule/CMakeLists.txt
++++ b/crypto/fipsmodule/CMakeLists.txt
+@@ -243,6 +243,12 @@ if((((ARCH STREQUAL "x86_64") AND NOT MY_ASSEMBLER_IS_TOO_OLD_FOR_AVX) OR
+                 generic/bignum_mul.S
+                 generic/bignum_optsub.S
+                 generic/bignum_sqr.S
++
++                fastmul/bignum_kmul_16_32_neon.S
++                fastmul/bignum_kmul_32_64_neon.S
++                fastmul/bignum_ksqr_16_32_neon.S
++                fastmul/bignum_ksqr_32_64_neon.S
++                fastmul/bignum_emontredc_8n_neon.S
+                 )
+   endif()
+ endif()
+diff --git a/crypto/fipsmodule/bn/montgomery.c b/crypto/fipsmodule/bn/montgomery.c
+index b6afa5571..e8d22fb5b 100644
+--- a/crypto/fipsmodule/bn/montgomery.c
++++ b/crypto/fipsmodule/bn/montgomery.c
+@@ -477,15 +477,29 @@ static void montgomery_s2n_bignum_mul_mont(BN_ULONG *rp, const BN_ULONG *ap,
+   uint64_t w = n0[0];
+ 
+   if (num == 32) {
+-    if (ap == bp)
+-      bignum_ksqr_32_64(mulres, ap, t);
+-    else
+-      bignum_kmul_32_64(mulres, ap, bp, t);
++    if (CRYPTO_is_NEON_capable()) {
++      if (ap == bp)
++        bignum_ksqr_32_64_neon(mulres, ap, t);
++      else
++        bignum_kmul_32_64_neon(mulres, ap, bp, t);
++    } else {
++      if (ap == bp)
++        bignum_ksqr_32_64(mulres, ap, t);
++      else
++        bignum_kmul_32_64(mulres, ap, bp, t);
++    }
+   } else if (num == 16) {
+-    if (ap == bp)
+-      bignum_ksqr_16_32(mulres, ap, t);
+-    else
+-      bignum_kmul_16_32(mulres, ap, bp, t);
++    if (CRYPTO_is_NEON_capable()) {
++      if (ap == bp)
++        bignum_ksqr_16_32_neon(mulres, ap, t);
++      else
++        bignum_kmul_16_32_neon(mulres, ap, bp, t);
++    } else {
++      if (ap == bp)
++        bignum_ksqr_16_32(mulres, ap, t);
++      else
++        bignum_kmul_16_32(mulres, ap, bp, t);
++    }
+   } else {
+     if (ap == bp)
+       bignum_sqr(num * 2, mulres, num, ap);
+@@ -504,8 +518,9 @@ static void montgomery_s2n_bignum_mul_mont(BN_ULONG *rp, const BN_ULONG *ap,
+   //    A. The result of step 1 >= 2^(64*num), meaning that bignum_emontredc_8n
+   //       returned 1. Since m is less than 2^(64*num), (result of step 1) >= m holds.
+   //    B. The result of step 1 fits in 2^(64*num), and the result >= m.
+-  uint64_t c;
+-  c = bignum_emontredc_8n(num, mulres, np, w); // c: case A
++  uint64_t c = CRYPTO_is_NEON_capable() ? 
++               bignum_emontredc_8n_neon(num, mulres, np, w) :
++               bignum_emontredc_8n(num, mulres, np, w); // c: case A
+   c |= bignum_ge(num, mulres + num, num, np);  // c: case B
+   // Optionally subtract and store the result at rp
+   bignum_optsub(num, rp, mulres + num, c, np);
+diff --git a/third_party/s2n-bignum/include/s2n-bignum_aws-lc.h b/third_party/s2n-bignum/include/s2n-bignum_aws-lc.h
+index 290fdb66f..9a202cf3a 100644
+--- a/third_party/s2n-bignum/include/s2n-bignum_aws-lc.h
++++ b/third_party/s2n-bignum/include/s2n-bignum_aws-lc.h
+@@ -137,6 +137,9 @@ extern void curve25519_x25519base_byte_alt(uint8_t res[static 32], const uint8_t
+ extern void
+ bignum_ksqr_32_64(uint64_t z[static 64], const uint64_t x[static 32],
+                   uint64_t t[static S2NBIGNUM_KSQR_32_64_TEMP_NWORDS]);
++extern void
++bignum_ksqr_32_64_neon(uint64_t z[static 64], const uint64_t x[static 32],
++                       uint64_t t[static S2NBIGNUM_KSQR_32_64_TEMP_NWORDS]);
+ 
+ // Evaluate z := x^2 where x is a 1024-bit integer.
+ // Input: x[16]; output: z[32]; temporary buffer: t[>=24]
+@@ -144,6 +147,9 @@ bignum_ksqr_32_64(uint64_t z[static 64], const uint64_t x[static 32],
+ extern void
+ bignum_ksqr_16_32(uint64_t z[static 32], const uint64_t x[static 16],
+                   uint64_t t[static S2NBIGNUM_KSQR_16_32_TEMP_NWORDS]);
++extern void
++bignum_ksqr_16_32_neon(uint64_t z[static 32], const uint64_t x[static 16],
++                       uint64_t t[static S2NBIGNUM_KSQR_16_32_TEMP_NWORDS]);
+ 
+ // Evaluate z := x * y where x and y are 2048-bit integers.
+ // Inputs: x[32], y[32]; output: z[64]; temporary buffer t[>=96]
+@@ -152,6 +158,10 @@ extern void
+ bignum_kmul_32_64(uint64_t z[static 64], const uint64_t x[static 32],
+                   const uint64_t y[static 32],
+                   uint64_t t[static S2NBIGNUM_KMUL_32_64_TEMP_NWORDS]);
++extern void
++bignum_kmul_32_64_neon(uint64_t z[static 64], const uint64_t x[static 32],
++                       const uint64_t y[static 32],
++                       uint64_t t[static S2NBIGNUM_KMUL_32_64_TEMP_NWORDS]);
+ 
+ // Evaluate z := x * y where x and y are 1024-bit integers.
+ // Inputs: x[16], y[16]; output: z[32]; temporary buffer t[>=32]
+@@ -160,6 +170,10 @@ extern void
+ bignum_kmul_16_32(uint64_t z[static 32], const uint64_t x[static 16],
+                   const uint64_t y[static 16],
+                   uint64_t t[static S2NBIGNUM_KMUL_16_32_TEMP_NWORDS]);
++extern void
++bignum_kmul_16_32_neon(uint64_t z[static 32], const uint64_t x[static 16],
++                       const uint64_t y[static 16],
++                       uint64_t t[static S2NBIGNUM_KMUL_16_32_TEMP_NWORDS]);
+ 
+ // Extended Montgomery reduce in 8-digit blocks.
+ // Assumes that z initially holds a 2k-digit bignum z_0, m is a k-digit odd
+@@ -178,6 +192,8 @@ bignum_kmul_16_32(uint64_t z[static 32], const uint64_t x[static 16],
+ // Inputs: z[2*k], m[k], w; outputs: function return (extra result bit) and z[2*k]
+ extern uint64_t bignum_emontredc_8n(uint64_t k, uint64_t *z, const uint64_t *m,
+                                     uint64_t w);
++extern uint64_t bignum_emontredc_8n_neon(uint64_t k, uint64_t *z, const uint64_t *m,
++                                         uint64_t w);
+ 
+ // Optionally subtract, z := x - y (if p nonzero) or z := x (if p zero)
+ // Inputs: x[k], p, y[k]; outputs: function return (carry-out) and z[k]

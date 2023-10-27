@@ -1,0 +1,985 @@
+From a6e09ba1a4ccb75940f59289f4a2b2b7a7bb4188 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Tue, 8 Aug 2023 13:06:18 +0800
+Subject: [PATCH] Retrieve multiple certificate slot for TLS1.2/1.3 based on
+ negotiated sigalgs (#1120)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+There are two issues with our SSL handshake blocking us from supporting
+automated certificate slot selection.
+
+1. We set the server certificate too early in the configuration.
+2. We computes the signature algorithms too late in the handshake.
+
+OpenSSL’s multiple certificate functionality depends on switching to a
+valid configured certificate based on what signature algorithms the
+client indicates support for. They negotiate the available cipher suites
+first. They then negotiate the signature algorithm right after and
+decide which certificate to use while doing so.
+
+This will require a small restructure of our TLS handshakes. We would
+basically have to move our TLS certificate selection configuration
+during signature algorithm negotiation like what OpenSSL is doing. This
+gets convoluted since we have some behavior that relies on the public
+key extracted from the certificate we’ve decided to use earlier,
+instead of the private key like OpenSSL is relying on.
+
+BoringSSL/AWS-LC sets the certificate for all TLS versions early in
+do_select_certificate. We branch out to TLS1.3 later if supported, or
+move further on within the TLS1.0-1.2 handshake.
+`ssl_on_certificate_selected` should be called once we know which
+certificate we wish to use.
+
+### Changes
+
+1. TLS 1.0-1.2 has to determine the key exchange and authentication
+cipher suite masks compatible with the server configuration during
+cipher suite negotiation. This is done in
+ssl_get_compatible_server_ciphers, where we return a mask based on the
+extracted public key. To let our server configuration know that we
+support more authentication cipher suites, we can just additionally
+loop over the available private keys and add masks accordingly. This
+isn’t needed for TLS1.3 since all cipher suites are compatible with
+available authentication schemes.
+2. BoringSSL/AWS-LC signature algorithm negotiation is done on demand
+right before the signature is calculated. We can replicate what OpenSSL
+is doing by moving the signature algorithm negotiation right after
+cipher suite negotiation. Our current signature algorithm negotiation
+uses the handshake’s certificate to check for support. We will have to
+reconfigure this to check against all available certificates in the
+connection instead, and switch to one that is supported when a signature
+algorithm is negotiated. We have support for signature algorithm
+priority in the handshake, so stronger signature schemes are already
+prioritized. We will need to move signature algorithm negotiation after
+cipher suite negotiation for both TLS1.0-1.2 and TLS1.3. Since
+certificate selection is now done later, we will have to move
+`ssl_on_certificate_selected` till after signature algorithm negotiation
+ is done.
+3. OCSP stapling data should be configured after the certificate is
+finalized. We will have to move the OCSP stapling callback function to
+after `ssl_on_certificate_selected` is called.
+---
+ ssl/extensions.cc                             |  40 ++++-
+ ssl/handshake_client.cc                       |   7 +-
+ ssl/handshake_server.cc                       |  76 +++++----
+ ssl/internal.h                                |  36 +++-
+ ssl/ssl_cert.cc                               |  18 +-
+ ssl/ssl_privkey.cc                            |  59 ++++++-
+ ssl/ssl_test.cc                               |  70 ++++++--
+ ssl/test/runner/runner.go                     | 156 +++++++++++++++++-
+ .../runner/ssl_transfer/test_case_names.txt   |  18 ++
+ ssl/test/test_config.cc                       |  39 +++++
+ ssl/test/test_config.h                        |   4 +
+ ssl/tls13_both.cc                             |   9 +-
+ ssl/tls13_client.cc                           |   5 +
+ ssl/tls13_server.cc                           |  14 ++
+ 14 files changed, 467 insertions(+), 84 deletions(-)
+
+diff --git a/ssl/extensions.cc b/ssl/extensions.cc
+index df441a358..49b070c83 100644
+--- a/ssl/extensions.cc
++++ b/ssl/extensions.cc
+@@ -4119,14 +4119,16 @@ bool tls1_choose_signature_algorithm(SSL_HANDSHAKE *hs, uint16_t *out) {
+   Span<const uint16_t> peer_sigalgs = tls1_get_peer_verify_algorithms(hs);
+ 
+   for (uint16_t sigalg : sigalgs) {
+-    if (!ssl_private_key_supports_signature_algorithm(hs, sigalg)) {
+-      continue;
+-    }
+-
+-    for (uint16_t peer_sigalg : peer_sigalgs) {
+-      if (sigalg == peer_sigalg) {
+-        *out = sigalg;
+-        return true;
++    // We check the extracted public key for support first. If not, we go
++    // through our available private keys to check for support.
++    if (ssl_public_key_supports_signature_algorithm(hs, sigalg) ||
++        ssl_cert_private_keys_supports_signature_algorithm(hs, sigalg)) {
++      // Check if peer supports negotiated signature algorithms.
++      for (uint16_t peer_sigalg : peer_sigalgs) {
++        if (sigalg == peer_sigalg) {
++          *out = sigalg;
++          return true;
++        }
+       }
+     }
+   }
+@@ -4135,6 +4137,28 @@ bool tls1_choose_signature_algorithm(SSL_HANDSHAKE *hs, uint16_t *out) {
+   return false;
+ }
+ 
++bool tls1_call_ocsp_stapling_callback(SSL_HANDSHAKE *hs) {
++  SSL *const ssl = hs->ssl;
++
++  if (hs->ocsp_stapling_requested &&
++      ssl->ctx->legacy_ocsp_callback != nullptr) {
++    switch (ssl->ctx->legacy_ocsp_callback(
++        ssl, ssl->ctx->legacy_ocsp_callback_arg)) {
++      case SSL_TLSEXT_ERR_OK:
++        break;
++      case SSL_TLSEXT_ERR_NOACK:
++        hs->ocsp_stapling_requested = false;
++        break;
++      default:
++        OPENSSL_PUT_ERROR(SSL, SSL_R_OCSP_CB_ERROR);
++        ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
++        return false;
++    }
++  }
++
++  return true;
++}
++
+ Span<const uint16_t> tls1_get_peer_verify_algorithms(const SSL_HANDSHAKE *hs) {
+   Span<const uint16_t> peer_sigalgs = hs->peer_sigalgs;
+   if (peer_sigalgs.empty() && ssl_protocol_version(hs->ssl) < TLS1_3_VERSION) {
+diff --git a/ssl/handshake_client.cc b/ssl/handshake_client.cc
+index 2d40b7947..c73fb241c 100644
+--- a/ssl/handshake_client.cc
++++ b/ssl/handshake_client.cc
+@@ -1579,14 +1579,13 @@ static enum ssl_hs_wait_t do_send_client_certificate_verify(SSL_HANDSHAKE *hs) {
+     return ssl_hs_error;
+   }
+ 
+-  uint16_t signature_algorithm;
+-  if (!tls1_choose_signature_algorithm(hs, &signature_algorithm)) {
++  if (!tls1_choose_signature_algorithm(hs, &hs->signature_algorithm)) {
+     ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_HANDSHAKE_FAILURE);
+     return ssl_hs_error;
+   }
+   if (ssl_protocol_version(ssl) >= TLS1_2_VERSION) {
+     // Write out the digest type in TLS 1.2.
+-    if (!CBB_add_u16(&body, signature_algorithm)) {
++    if (!CBB_add_u16(&body, hs->signature_algorithm)) {
+       OPENSSL_PUT_ERROR(SSL, ERR_R_INTERNAL_ERROR);
+       return ssl_hs_error;
+     }
+@@ -1602,7 +1601,7 @@ static enum ssl_hs_wait_t do_send_client_certificate_verify(SSL_HANDSHAKE *hs) {
+ 
+   size_t sig_len = max_sig_len;
+   switch (ssl_private_key_sign(hs, ptr, &sig_len, max_sig_len,
+-                               signature_algorithm,
++                               hs->signature_algorithm,
+                                hs->transcript.buffer())) {
+     case ssl_private_key_success:
+       break;
+diff --git a/ssl/handshake_server.cc b/ssl/handshake_server.cc
+index b4d8071f9..c346ba06f 100644
+--- a/ssl/handshake_server.cc
++++ b/ssl/handshake_server.cc
+@@ -303,10 +303,23 @@ static void ssl_get_compatible_server_ciphers(SSL_HANDSHAKE *hs,
+   uint32_t mask_a = 0;
+ 
+   if (ssl_has_certificate(hs)) {
++    CERT *cert = hs->config->cert.get();
+     mask_a |= ssl_cipher_auth_mask_for_key(hs->local_pubkey.get());
+     if (EVP_PKEY_id(hs->local_pubkey.get()) == EVP_PKEY_RSA) {
+       mask_k |= SSL_kRSA;
+     }
++    // Also loop through all available private keys and set authentication masks
++    // accordingly to indicate support.
++    // |cert_private_keys| is already checked above in |ssl_has_certificate|.
++    for (auto & cert_private_key : cert->cert_private_keys) {
++      EVP_PKEY *private_key = cert_private_key.privatekey.get();
++      if(private_key != nullptr) {
++        mask_a |= ssl_cipher_auth_mask_for_key(private_key);
++        if (EVP_PKEY_id(private_key) == EVP_PKEY_RSA) {
++          mask_k |= SSL_kRSA;
++        }
++      }
++    }
+   }
+ 
+   // Check for a shared group to consider ECDHE ciphers.
+@@ -770,26 +783,14 @@ static enum ssl_hs_wait_t do_select_certificate(SSL_HANDSHAKE *hs) {
+     }
+   }
+ 
+-  if (!ssl_on_certificate_selected(hs)) {
++  // Load |hs->local_pubkey| from the cert prematurely. The certificate could be
++  // subject to change once we negotiate signature algorithms later. If it
++  // changes to another leaf certificate the server and client has support for,
++  // we reload it.
++  if (!ssl_handshake_load_local_pubkey(hs)) {
+     return ssl_hs_error;
+   }
+ 
+-  if (hs->ocsp_stapling_requested &&
+-      ssl->ctx->legacy_ocsp_callback != nullptr) {
+-    switch (ssl->ctx->legacy_ocsp_callback(
+-        ssl, ssl->ctx->legacy_ocsp_callback_arg)) {
+-      case SSL_TLSEXT_ERR_OK:
+-        break;
+-      case SSL_TLSEXT_ERR_NOACK:
+-        hs->ocsp_stapling_requested = false;
+-        break;
+-      default:
+-        OPENSSL_PUT_ERROR(SSL, SSL_R_OCSP_CB_ERROR);
+-        ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
+-        return ssl_hs_error;
+-    }
+-  }
+-
+   if (ssl_protocol_version(ssl) >= TLS1_3_VERSION) {
+     // Jump to the TLS 1.3 state machine.
+     hs->state = state12_tls13;
+@@ -821,6 +822,29 @@ static enum ssl_hs_wait_t do_select_certificate(SSL_HANDSHAKE *hs) {
+     return ssl_hs_error;
+   }
+ 
++  // Determine the signature algorithm.
++  if (ssl_cipher_uses_certificate_auth(hs->new_cipher)) {
++    if (!ssl_has_private_key(hs)) {
++      ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
++      return ssl_hs_error;
++    }
++
++    if (!tls1_choose_signature_algorithm(hs, &hs->signature_algorithm)) {
++      ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_HANDSHAKE_FAILURE);
++      return ssl_hs_error;
++    }
++  }
++
++  // Certificate is finalized here since it's subject to change based on the
++  // negotiated signature algorithms.
++  if (!ssl_on_certificate_selected(hs)) {
++    return ssl_hs_error;
++  }
++
++  if (!tls1_call_ocsp_stapling_callback(hs)) {
++    return ssl_hs_error;
++  }
++
+   hs->state = state12_select_parameters;
+   return ssl_hs_ok;
+ }
+@@ -1197,21 +1221,11 @@ static enum ssl_hs_wait_t do_send_server_key_exchange(SSL_HANDSHAKE *hs) {
+     return ssl_hs_error;
+   }
+ 
+-  // Add a signature.
++  // Add a signature. The signature algorithm is determined earlier during
++  // certificate selection.
+   if (ssl_cipher_uses_certificate_auth(hs->new_cipher)) {
+-    if (!ssl_has_private_key(hs)) {
+-      ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
+-      return ssl_hs_error;
+-    }
+-
+-    // Determine the signature algorithm.
+-    uint16_t signature_algorithm;
+-    if (!tls1_choose_signature_algorithm(hs, &signature_algorithm)) {
+-      ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_HANDSHAKE_FAILURE);
+-      return ssl_hs_error;
+-    }
+     if (ssl_protocol_version(ssl) >= TLS1_2_VERSION) {
+-      if (!CBB_add_u16(&body, signature_algorithm)) {
++      if (!CBB_add_u16(&body, hs->signature_algorithm)) {
+         OPENSSL_PUT_ERROR(SSL, ERR_R_INTERNAL_ERROR);
+         ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
+         return ssl_hs_error;
+@@ -1228,7 +1242,7 @@ static enum ssl_hs_wait_t do_send_server_key_exchange(SSL_HANDSHAKE *hs) {
+ 
+     size_t sig_len;
+     switch (ssl_private_key_sign(hs, ptr, &sig_len, max_sig_len,
+-                                 signature_algorithm, hs->server_params)) {
++                                 hs->signature_algorithm, hs->server_params)) {
+       case ssl_private_key_success:
+         if (!CBB_did_write(&child, sig_len)) {
+           return ssl_hs_error;
+diff --git a/ssl/internal.h b/ssl/internal.h
+index 8f49602a5..6632a0ec7 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -1092,10 +1092,22 @@ enum ssl_private_key_result_t ssl_private_key_decrypt(SSL_HANDSHAKE *hs,
+                                                       size_t max_out,
+                                                       Span<const uint8_t> in);
+ 
+-// ssl_private_key_supports_signature_algorithm returns whether |hs|'s private
+-// key supports |sigalg|.
+-bool ssl_private_key_supports_signature_algorithm(SSL_HANDSHAKE *hs,
+-                                                  uint16_t sigalg);
++// ssl_public_key_supports_signature_algorithm returns whether |hs|'s extracted
++// public key supports |sigalg|.
++bool ssl_public_key_supports_signature_algorithm(SSL_HANDSHAKE *hs,
++                                                 uint16_t sigalg);
++
++// ssl_cert_private_keys_supports_signature_algorithm returns whether any of
++// |hs|'s available private keys supports |sigalg|. If one does, we switch to
++// using that private key and the corresponding certificate for the rest of the
++// connection. |hs->local_pubkey| is also updated correspondingly.
++//
++// NOTE: Multiple certificate slots is only supported on the server side, when
++// not using designated credentials.
++bool ssl_cert_private_keys_supports_signature_algorithm(SSL_HANDSHAKE *hs,
++                                                        uint16_t sigalg);
++
++
+ 
+ // ssl_public_key_verify verifies that the |signature| is valid for the public
+ // key |pkey| and input |in|, using the signature algorithm |sigalg|.
+@@ -1434,6 +1446,10 @@ bool ssl_check_leaf_certificate(SSL_HANDSHAKE *hs, EVP_PKEY *pkey,
+ // true on success and false on error.
+ bool ssl_on_certificate_selected(SSL_HANDSHAKE *hs);
+ 
++// ssl_handshake_load_local_pubkey loads |local_pubkey| in |hs| based on the
++// current designated certificate.
++bool ssl_handshake_load_local_pubkey(SSL_HANDSHAKE *hs);
++
+ 
+ // TLS 1.3 key derivation.
+ 
+@@ -1830,6 +1846,10 @@ struct SSL_HANDSHAKE {
+   // |SSL_OP_NO_*| and |SSL_CTX_set_min_proto_version| APIs.
+   uint16_t min_version = 0;
+ 
++  // signature_algorithm is the signature algorithm negotiated for this
++  // handshake.
++  uint16_t signature_algorithm = 0;
++
+   // max_version is the maximum accepted protocol version, taking account both
+   // |SSL_OP_NO_*| and |SSL_CTX_set_max_proto_version| APIs.
+   uint16_t max_version = 0;
+@@ -2221,6 +2241,9 @@ bool tls13_add_certificate(SSL_HANDSHAKE *hs);
+ // tls13_add_certificate_verify adds a TLS 1.3 CertificateVerify message to the
+ // handshake. If it returns |ssl_private_key_retry|, it should be called again
+ // to retry when the signing operation is completed.
++//
++// NOTE: |signature_algorithm| in |hs| should be initialized already before
++// this is called.
+ enum ssl_private_key_result_t tls13_add_certificate_verify(SSL_HANDSHAKE *hs);
+ 
+ bool tls13_add_finished(SSL_HANDSHAKE *hs);
+@@ -3463,6 +3486,11 @@ bool tls1_set_curves(Array<uint16_t> *out_group_ids, Span<const int> curves);
+ // false.
+ bool tls1_set_curves_list(Array<uint16_t> *out_group_ids, const char *curves);
+ 
++// tls1_call_ocsp_stapling_callback calls the legacy OCSP logic for TLS
++// handshakes. This should be called right after the server certificate has been
++// finalized.
++bool tls1_call_ocsp_stapling_callback(SSL_HANDSHAKE *hs);
++
+ // ssl_add_clienthello_tlsext writes ClientHello extensions to |out| for |type|.
+ // It returns true on success and false on failure. The |header_len| argument is
+ // the length of the ClientHello written so far and is used to compute the
+diff --git a/ssl/ssl_cert.cc b/ssl/ssl_cert.cc
+index f8d2ee368..ec90f43b4 100644
+--- a/ssl/ssl_cert.cc
++++ b/ssl/ssl_cert.cc
+@@ -801,11 +801,25 @@ bool ssl_on_certificate_selected(SSL_HANDSHAKE *hs) {
+     return true;
+   }
+ 
+-  if (!ssl->ctx->x509_method->ssl_auto_chain_if_needed(hs)) {
++  if (!ssl->ctx->x509_method->ssl_auto_chain_if_needed(hs) ||
++      !ssl_handshake_load_local_pubkey(hs)) {
++    return false;
++  }
++
++  // Sanity check that cached certificate public key type matches the chosen
++  // certificate slot index type.
++  assert(ssl_signing_with_dc(hs) ||
++         (ssl_get_certificate_slot_index(hs->local_pubkey.get()) ==
++          hs->config->cert->cert_private_key_idx));
++
++  return true;
++}
++
++bool ssl_handshake_load_local_pubkey(SSL_HANDSHAKE *hs) {
++  if (!ssl_cert_check_cert_private_keys_usage(hs->config->cert.get())) {
+     return false;
+   }
+ 
+-  // |cert_private_keys| already checked above in |ssl_has_certificate|.
+   STACK_OF(CRYPTO_BUFFER) *chain =
+       hs->config->cert
+           ->cert_private_keys[hs->config->cert->cert_private_key_idx]
+diff --git a/ssl/ssl_privkey.cc b/ssl/ssl_privkey.cc
+index 2258b158f..7ca58a05e 100644
+--- a/ssl/ssl_privkey.cc
++++ b/ssl/ssl_privkey.cc
+@@ -368,13 +368,7 @@ enum ssl_private_key_result_t ssl_private_key_decrypt(SSL_HANDSHAKE *hs,
+   return ssl_private_key_success;
+ }
+ 
+-bool ssl_private_key_supports_signature_algorithm(SSL_HANDSHAKE *hs,
+-                                                  uint16_t sigalg) {
+-  SSL *const ssl = hs->ssl;
+-  if (!pkey_supports_algorithm(ssl, hs->local_pubkey.get(), sigalg)) {
+-    return false;
+-  }
+-
++static bool ssl_public_key_rsa_pss_check(EVP_PKEY *pubkey, uint16_t sigalg) {
+   // Ensure the RSA key is large enough for the hash. RSASSA-PSS requires that
+   // emLen be at least hLen + sLen + 2. Both hLen and sLen are the size of the
+   // hash in TLS. Reasonable RSA key sizes are large enough for the largest
+@@ -382,14 +376,61 @@ bool ssl_private_key_supports_signature_algorithm(SSL_HANDSHAKE *hs,
+   // SHA-512. 1024-bit RSA is sometimes used for test credentials, so check the
+   // size so that we can fall back to another algorithm in that case.
+   const SSL_SIGNATURE_ALGORITHM *alg = get_signature_algorithm(sigalg);
+-  if (alg->is_rsa_pss && (size_t)EVP_PKEY_size(hs->local_pubkey.get()) <
+-                             2 * EVP_MD_size(alg->digest_func()) + 2) {
++  if (alg->is_rsa_pss &&
++      (size_t)EVP_PKEY_size(pubkey) < 2 * EVP_MD_size(alg->digest_func()) + 2) {
++    return false;
++  }
++  return true;
++}
++
++bool ssl_public_key_supports_signature_algorithm(SSL_HANDSHAKE *hs,
++                                                 uint16_t sigalg) {
++  SSL *const ssl = hs->ssl;
++  if (!pkey_supports_algorithm(ssl, hs->local_pubkey.get(), sigalg)) {
++    return false;
++  }
++
++  if (!ssl_public_key_rsa_pss_check(hs->local_pubkey.get(), sigalg)) {
+     return false;
+   }
+ 
+   return true;
+ }
+ 
++bool ssl_cert_private_keys_supports_signature_algorithm(SSL_HANDSHAKE *hs,
++                                                        uint16_t sigalg) {
++  SSL *const ssl = hs->ssl;
++  CERT *cert = hs->config->cert.get();
++  // Only the server without delegated credentials has support for multiple
++  // certificate slots.
++  if (cert == nullptr || !ssl->server || ssl_signing_with_dc(hs)) {
++    return false;
++  }
++
++  for (size_t i = 0; i < cert->cert_private_keys.size(); i++) {
++    EVP_PKEY *private_key = cert->cert_private_keys[i].privatekey.get();
++    if (private_key != nullptr &&
++        pkey_supports_algorithm(ssl, private_key, sigalg)) {
++      STACK_OF(CRYPTO_BUFFER) *chain = cert->cert_private_keys[i].chain.get();
++      CBS leaf;
++      CRYPTO_BUFFER_init_CBS(sk_CRYPTO_BUFFER_value(chain, 0), &leaf);
++      UniquePtr<EVP_PKEY> pubkey = ssl_cert_parse_pubkey(&leaf);
++      if (!ssl_public_key_rsa_pss_check(pubkey.get(), sigalg)) {
++        return false;
++      }
++
++      // Update certificate slot index if all checks have passed.
++      //
++      // If the server has a valid private key available to use, we switch to
++      // using that certificate for the rest of the connection.
++      cert->cert_private_key_idx = (int)i;
++      hs->local_pubkey = std::move(pubkey);
++      return true;
++    }
++  }
++  return false;
++}
++
+ BSSL_NAMESPACE_END
+ 
+ using namespace bssl;
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index 00a959c71..474569798 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -5133,12 +5133,18 @@ struct CertificateKeyTestParams {
+   bssl::UniquePtr<X509> (*certificate)();
+   bssl::UniquePtr<EVP_PKEY> (*key)();
+   int slot_index;
++  const char suite[50];
++  uint16_t corresponding_sigalg;
+ };
+ 
+ const CertificateKeyTestParams kCertificateKeyTests[] = {
+-    {GetTestCertificate, GetTestKey, SSL_PKEY_RSA},
+-    {GetECDSATestCertificate, GetECDSATestKey, SSL_PKEY_ECC},
+-    {GetED25519TestCertificate, GetED25519TestKey, SSL_PKEY_ED25519},
++    {GetTestCertificate, GetTestKey, SSL_PKEY_RSA,
++     "TLS_RSA_WITH_AES_256_CBC_SHA:", SSL_SIGN_RSA_PSS_RSAE_SHA256},
++    {GetECDSATestCertificate, GetECDSATestKey, SSL_PKEY_ECC,
++     "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:",
++     SSL_SIGN_ECDSA_SECP256R1_SHA256},
++    {GetED25519TestCertificate, GetED25519TestKey, SSL_PKEY_ED25519,
++     "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:", SSL_SIGN_ED25519},
+ };
+ 
+ class MultipleCertificateSlotTest
+@@ -5160,9 +5166,10 @@ class MultipleCertificateSlotTest
+     return std::get<1>(GetParam());
+   }
+ 
+-  void StandardCertificateSlotIndexTests(SSL_CTX *client_ctx,
+-                                         SSL_CTX *server_ctx,
+-                                         std::vector<uint16_t> sigalgs) {
++  const void StandardCertificateSlotIndexTests(SSL_CTX *client_ctx,
++                                               SSL_CTX *server_ctx,
++                                               std::vector<uint16_t> sigalgs,
++                                               int last_cert_type_set) {
+     EXPECT_TRUE(SSL_CTX_set_signing_algorithm_prefs(client_ctx, sigalgs.data(),
+                                                     sigalgs.size()));
+     EXPECT_TRUE(SSL_CTX_set_verify_algorithm_prefs(client_ctx, sigalgs.data(),
+@@ -5182,10 +5189,13 @@ class MultipleCertificateSlotTest
+     ASSERT_TRUE(CompleteHandshakes(client.get(), server.get()));
+ 
+     // Check the internal slot index to verify that the correct slot was set.
+-    EXPECT_EQ(server_ctx->cert->cert_private_key_idx, slot_index);
+-    EXPECT_EQ(server->ctx->cert->cert_private_key_idx, slot_index);
++    // This should be the slot of the last certificate that was set in
++    // |server_ctx|.
++    EXPECT_EQ(server_ctx->cert->cert_private_key_idx, last_cert_type_set);
++    EXPECT_EQ(server->ctx->cert->cert_private_key_idx, last_cert_type_set);
+ 
+-    // Check the internal slot index to verify that the correct slot was used.
++    // Check the internal slot index to verify that the correct slot was used
++    // during the handshake.
+     EXPECT_EQ(server->config->cert->cert_private_key_idx, slot_index);
+   }
+ };
+@@ -5210,7 +5220,8 @@ TEST_P(MultipleCertificateSlotTest, CertificateSlotIndex) {
+   StandardCertificateSlotIndexTests(
+       client_ctx.get(), server_ctx.get(),
+       {SSL_SIGN_ED25519, SSL_SIGN_ECDSA_SECP256R1_SHA256,
+-       SSL_SIGN_RSA_PSS_RSAE_SHA256});
++       SSL_SIGN_RSA_PSS_RSAE_SHA256},
++      slot_index);
+ }
+ 
+ // Sets up the |SSL_CTX| with |SSL_CTX_set_chain_and_key|.
+@@ -5239,7 +5250,44 @@ TEST_P(MultipleCertificateSlotTest, SetChainAndKeyIndex) {
+   StandardCertificateSlotIndexTests(
+       client_ctx.get(), server_ctx.get(),
+       {SSL_SIGN_ED25519, SSL_SIGN_ECDSA_SECP256R1_SHA256,
+-       SSL_SIGN_RSA_PSS_RSAE_SHA256});
++       SSL_SIGN_RSA_PSS_RSAE_SHA256},
++      slot_index);
++}
++
++TEST_P(MultipleCertificateSlotTest, AutomaticSelection) {
++  if (version == TLS1_1_VERSION || version == TLS1_VERSION) {
++    // Automatic Multiple Certificate Selection is not supported for
++    // TLS1.0/1.1 yet.
++    // TODO: Add support for TLS1.0/1.1.
++    return;
++  }
++
++  bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
++  bssl::UniquePtr<SSL_CTX> server_ctx(SSL_CTX_new(TLS_method()));
++
++  ASSERT_TRUE(
++      SSL_CTX_use_certificate(server_ctx.get(), GetTestCertificate().get()));
++  ASSERT_TRUE(SSL_CTX_use_PrivateKey(server_ctx.get(), GetTestKey().get()));
++  ASSERT_TRUE(SSL_CTX_use_certificate(server_ctx.get(),
++                                      GetECDSATestCertificate().get()));
++  ASSERT_TRUE(
++      SSL_CTX_use_PrivateKey(server_ctx.get(), GetECDSATestKey().get()));
++  ASSERT_TRUE(SSL_CTX_use_certificate(server_ctx.get(),
++                                      GetED25519TestCertificate().get()));
++  ASSERT_TRUE(
++      SSL_CTX_use_PrivateKey(server_ctx.get(), GetED25519TestKey().get()));
++
++
++  // Versions prior to TLS1.3 need a valid authentication cipher suite to pair
++  // with the certificate.
++  if (version < TLS1_3_VERSION) {
++    ASSERT_TRUE(SSL_CTX_set_cipher_list(client_ctx.get(),
++                                        certificate_key_param().suite));
++  }
++
++  StandardCertificateSlotIndexTests(
++      client_ctx.get(), server_ctx.get(),
++      {certificate_key_param().corresponding_sigalg}, SSL_PKEY_ED25519);
+ }
+ 
+ struct MultiTransferReadWriteTestParams {
+diff --git a/ssl/test/runner/runner.go b/ssl/test/runner/runner.go
+index a588cdd09..592dbfe29 100644
+--- a/ssl/test/runner/runner.go
++++ b/ssl/test/runner/runner.go
+@@ -11520,8 +11520,8 @@ func addCustomExtensionTests() {
+ 				AlwaysRejectEarlyData:   true,
+ 			},
+ 		},
+-		resumeSession: true,
+-		earlyData: true,
++		resumeSession:           true,
++		earlyData:               true,
+ 		expectEarlyDataRejected: true,
+ 		flags: []string{
+ 			"-enable-client-custom-extension",
+@@ -11539,7 +11539,7 @@ func addCustomExtensionTests() {
+ 			},
+ 		},
+ 		resumeSession: true,
+-		earlyData: true,
++		earlyData:     true,
+ 		flags: []string{
+ 			"-enable-client-custom-extension",
+ 		},
+@@ -11557,8 +11557,8 @@ func addCustomExtensionTests() {
+ 				ExpectedCustomExtension: &expectedContents,
+ 			},
+ 		},
+-		resumeSession: true,
+-		earlyData: true,
++		resumeSession:           true,
++		earlyData:               true,
+ 		expectEarlyDataRejected: true,
+ 		flags: []string{
+ 			"-enable-client-custom-extension",
+@@ -11609,8 +11609,8 @@ func addCustomExtensionTests() {
+ 				ExpectEarlyDataAccepted: false,
+ 			},
+ 		},
+-		resumeSession: true,
+-		earlyData:     true,
++		resumeSession:           true,
++		earlyData:               true,
+ 		expectEarlyDataRejected: true,
+ 		flags: []string{
+ 			"-enable-server-custom-extension",
+@@ -19590,6 +19590,145 @@ func addHintMismatchTests() {
+ 	}
+ }
+ 
++var testMultipleCertSlotsAlgorithms = []struct {
++	name   string
++	cipher uint16
++	id     signatureAlgorithm
++	cert   testCert
++	// If non-zero, the curve that must be supported in TLS 1.2 for cert to be
++	// accepted.
++	curve CurveID
++}{
++	{"RSA_PKCS1_SHA1", TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, signatureRSAPKCS1WithSHA1, testCertRSA, 0},
++	{"RSA_PKCS1_SHA256", TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, signatureRSAPKCS1WithSHA256, testCertRSA, 0},
++	{"RSA_PKCS1_SHA384", TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, signatureRSAPKCS1WithSHA384, testCertRSA, 0},
++	{"RSA_PKCS1_SHA512", TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, signatureRSAPKCS1WithSHA512, testCertRSA, 0},
++	{"ECDSA_SHA1", TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA, signatureECDSAWithSHA1, testCertECDSAP256, CurveP256},
++	// The “P256” in the following line is not a mistake. In TLS 1.2 the
++	// hash function doesn't have to match the curve and so the same
++	// signature algorithm works with P-224.
++	{"ECDSA_P224_SHA256", TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA, signatureECDSAWithP256AndSHA256, testCertECDSAP224, CurveP224},
++	{"ECDSA_P256_SHA256", TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA, signatureECDSAWithP256AndSHA256, testCertECDSAP256, CurveP256},
++	{"RSA_PSS_SHA256", TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, signatureRSAPSSWithSHA256, testCertRSA, 0},
++	{"RSA_PSS_SHA384", TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, signatureRSAPSSWithSHA384, testCertRSA, 0},
++	{"RSA_PSS_SHA512", TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, signatureRSAPSSWithSHA512, testCertRSA, 0},
++	{"Ed25519", TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, signatureEd25519, testCertEd25519, 0},
++	// Tests for key types prior to TLS 1.2.
++	// TODO: Add support for TLS1.0/1.1
++	//{"RSA", 0, testCertRSA, 0},
++	//{"ECDSA", 0, testCertECDSAP256, CurveP256},
++}
++
++// TODO: Add more failure test cases.
++func addMultipleCertSlotTests() {
++	var allAlgorithms []signatureAlgorithm
++	for _, alg := range testMultipleCertSlotsAlgorithms {
++		if alg.id != 0 {
++			allAlgorithms = append(allAlgorithms, alg.id)
++		}
++	}
++
++	// TODO: add client tests to verify we don't support multiple certs on the client end.
++	prefix := "Server-"
++
++	// Make sure each signature algorithm works.
++	for _, alg := range testMultipleCertSlotsAlgorithms {
++		for _, ver := range tlsVersions {
++			if (ver.version < VersionTLS12) != (alg.id == 0) {
++				continue
++			}
++
++			var shouldFail bool
++			// ecdsa_sha1 does not exist in TLS 1.3.
++			if ver.version >= VersionTLS13 && alg.id == signatureECDSAWithSHA1 {
++				shouldFail = true
++			}
++			// RSA-PKCS1 does not exist in TLS 1.3.
++			if ver.version >= VersionTLS13 && hasComponent(alg.name, "PKCS1") {
++				shouldFail = true
++			}
++			// SHA-224 has been removed from TLS 1.3 and, in 1.3,
++			// the curve has to match the hash size.
++			if ver.version >= VersionTLS13 && alg.cert == testCertECDSAP224 {
++				shouldFail = true
++			}
++
++			var curveFlags []string
++			if alg.curve != 0 && ver.version <= VersionTLS12 {
++				// In TLS 1.2, the ECDH curve list also constrains ECDSA keys. Ensure the
++				// corresponding curve is enabled on the shim. Also include X25519 to
++				// ensure the shim and runner have something in common for ECDH.
++				curveFlags = flagInts("-curves", []int{int(CurveX25519), int(alg.curve)})
++			}
++
++			suffix := "-" + alg.name + "-" + ver.name
++
++			// Test that the shim will select the algorithm when configured to only
++			// support it.
++			strictAlgTest := testCase{
++				testType: serverTest,
++				name:     prefix + "Multiple-Cert-Strict-Alg" + suffix,
++				config: Config{
++					MaxVersion:                ver.version,
++					VerifySignatureAlgorithms: allAlgorithms,
++				},
++				flags: append(
++					[]string{
++						"-multiple-certs-slot", path.Join(*resourceDir, getShimCertificate(testCertRSA)) + "," + path.Join(*resourceDir, getShimKey(testCertRSA)),
++						"-multiple-certs-slot", path.Join(*resourceDir, getShimCertificate(testCertECDSAP256)) + "," + path.Join(*resourceDir, getShimKey(testCertECDSAP256)),
++						"-multiple-certs-slot", path.Join(*resourceDir, getShimCertificate(testCertEd25519)) + "," + path.Join(*resourceDir, getShimKey(testCertEd25519)),
++					},
++					curveFlags...,
++				),
++				expectations: connectionExpectations{
++					peerSignatureAlgorithm: alg.id,
++				},
++			}
++			if alg.id != 0 {
++				strictAlgTest.flags = append(strictAlgTest.flags, "-signing-prefs", strconv.Itoa(int(alg.id)))
++			}
++
++			// TLS 1.2 servers only sign on some cipher suites.
++			if ver.version <= VersionTLS12 {
++				strictAlgTest.config.CipherSuites = []uint16{alg.cipher}
++			}
++
++			if ver.version >= VersionTLS12 && !shouldFail {
++				testCases = append(testCases, strictAlgTest)
++			}
++		}
++	}
++
++	for _, ver := range tlsVersions {
++		suffix := "-" + ver.name
++
++		// ED25519 signature algorithm should be prioritized if supported.
++		ed25519PriorityTest := testCase{
++			testType: serverTest,
++			name:     prefix + "Multiple-Cert-ED25519-Priority" + suffix,
++			config: Config{
++				MaxVersion:                ver.version,
++				VerifySignatureAlgorithms: allAlgorithms,
++			},
++			flags: append(
++				[]string{
++					"-multiple-certs-slot", path.Join(*resourceDir, getShimCertificate(testCertRSA)) + "," + path.Join(*resourceDir, getShimKey(testCertRSA)),
++					"-multiple-certs-slot", path.Join(*resourceDir, getShimCertificate(testCertECDSAP256)) + "," + path.Join(*resourceDir, getShimKey(testCertECDSAP256)),
++					"-multiple-certs-slot", path.Join(*resourceDir, getShimCertificate(testCertEd25519)) + "," + path.Join(*resourceDir, getShimKey(testCertEd25519)),
++				},
++				flagInts("-curves", []int{int(CurveX25519), int(CurveP256)})...,
++			),
++			expectations: connectionExpectations{
++				peerSignatureAlgorithm: signatureEd25519,
++			},
++		}
++
++		if ver.version >= VersionTLS12 {
++			testCases = append(testCases, ed25519PriorityTest)
++		}
++	}
++}
++
+ func worker(statusChan chan statusMsg, c chan *testCase, shimPath string, wg *sync.WaitGroup) {
+ 	defer wg.Done()
+ 
+@@ -19806,7 +19945,7 @@ func fixUpCipherSuites() {
+ 		}
+ 
+ 		if add_disabld_cipher_suite {
+-			test_case.flags = append(test_case.flags, "-cipher", "DEFAULT" + disabled_ciphers)
++			test_case.flags = append(test_case.flags, "-cipher", "DEFAULT"+disabled_ciphers)
+ 			testCases[index] = test_case
+ 		}
+ 	}
+@@ -19911,6 +20050,7 @@ func main() {
+ 	addDelegatedCredentialTests()
+ 	addEncryptedClientHelloTests()
+ 	addHintMismatchTests()
++	addMultipleCertSlotTests()
+ 
+ 	toAppend, err := convertToSplitHandshakeTests(testCases)
+ 	if err != nil {
+diff --git a/ssl/test/runner/ssl_transfer/test_case_names.txt b/ssl/test/runner/ssl_transfer/test_case_names.txt
+index ef15f9a67..a435c27ca 100644
+--- a/ssl/test/runner/ssl_transfer/test_case_names.txt
++++ b/ssl/test/runner/ssl_transfer/test_case_names.txt
+@@ -517,6 +517,24 @@ Server-JDK11-TLS12-6
+ Server-JDK11-TLS12-7
+ Server-JDK11-TLS12-8
+ Server-JDK11-TLS12-9
++Server-Multiple-Cert-ED25519-Priority-TLS12
++Server-Multiple-Cert-ED25519-Priority-TLS13
++Server-Multiple-Cert-Strict-Alg-ECDSA_P224_SHA256-TLS12
++Server-Multiple-Cert-Strict-Alg-ECDSA_P256_SHA256-TLS12
++Server-Multiple-Cert-Strict-Alg-ECDSA_P256_SHA256-TLS13
++Server-Multiple-Cert-Strict-Alg-ECDSA_SHA1-TLS12
++Server-Multiple-Cert-Strict-Alg-Ed25519-TLS12
++Server-Multiple-Cert-Strict-Alg-Ed25519-TLS13
++Server-Multiple-Cert-Strict-Alg-RSA_PKCS1_SHA1-TLS12
++Server-Multiple-Cert-Strict-Alg-RSA_PKCS1_SHA256-TLS12
++Server-Multiple-Cert-Strict-Alg-RSA_PKCS1_SHA384-TLS12
++Server-Multiple-Cert-Strict-Alg-RSA_PKCS1_SHA512-TLS12
++Server-Multiple-Cert-Strict-Alg-RSA_PSS_SHA256-TLS12
++Server-Multiple-Cert-Strict-Alg-RSA_PSS_SHA256-TLS13
++Server-Multiple-Cert-Strict-Alg-RSA_PSS_SHA384-TLS12
++Server-Multiple-Cert-Strict-Alg-RSA_PSS_SHA384-TLS13
++Server-Multiple-Cert-Strict-Alg-RSA_PSS_SHA512-TLS12
++Server-Multiple-Cert-Strict-Alg-RSA_PSS_SHA512-TLS13
+ Server-NonEmptyEndOfEarlyData-TLS13
+ Server-ShortSessionID-TLS13
+ Server-Sign-ECDSA_P224_SHA256-TLS12
+diff --git a/ssl/test/test_config.cc b/ssl/test/test_config.cc
+index b548d8708..2e9a03e79 100644
+--- a/ssl/test/test_config.cc
++++ b/ssl/test/test_config.cc
+@@ -396,6 +396,7 @@ std::vector<Flag> SortedFlags() {
+       BoolFlag("-do-ssl-transfer", &TestConfig::do_ssl_transfer),
+       StringFlag("-ssl-fuzz-seed-path-prefix", &TestConfig::ssl_fuzz_seed_path_prefix),
+       StringFlag("-tls13-ciphersuites", &TestConfig::tls13_ciphersuites),
++      StringPairVectorFlag("-multiple-certs-slot", &TestConfig::multiple_certs_slot),
+   };
+   std::sort(flags.begin(), flags.end(), [](const Flag &a, const Flag &b) {
+     return strcmp(a.name, b.name) < 0;
+@@ -1327,6 +1328,42 @@ static bool InstallCertificate(SSL *ssl) {
+   return true;
+ }
+ 
++static bool InstallMultipleCertificates(SSL *ssl) {
++  const TestConfig *config = GetTestConfig(ssl);
++  if (config->multiple_certs_slot.empty()) {
++    return false;
++  }
++
++  if (!config->signing_prefs.empty()) {
++    if (!SSL_set_signing_algorithm_prefs(ssl, config->signing_prefs.data(),
++                                         config->signing_prefs.size())) {
++      return false;
++    }
++  }
++
++  for (const auto &cert_key_pair : config->multiple_certs_slot) {
++    bssl::UniquePtr<X509> x509;
++    bssl::UniquePtr<STACK_OF(X509)> chain;
++    bssl::UniquePtr<EVP_PKEY> pkey;
++
++    if (!LoadCertificate(&x509, &chain, cert_key_pair.first)) {
++      return false;
++    }
++    pkey = LoadPrivateKey(cert_key_pair.second);
++    if (pkey && !SSL_use_PrivateKey(ssl, pkey.get())) {
++      return false;
++    }
++    if (x509 && !SSL_use_certificate(ssl, x509.get())) {
++      return false;
++    }
++    if (sk_X509_num(chain.get()) > 0 && !SSL_set1_chain(ssl, chain.get())) {
++      return false;
++    }
++  }
++  return true;
++}
++
++
+ static enum ssl_select_cert_result_t SelectCertificateCallback(
+     const SSL_CLIENT_HELLO *client_hello) {
+   SSL *ssl = client_hello->ssl;
+@@ -1787,7 +1824,9 @@ bssl::UniquePtr<SSL> TestConfig::NewSSL(
+     return nullptr;
+   }
+   // Install the certificate synchronously if nothing else will handle it.
++  // Multiple Certificates is only tested synchronously as of now.
+   if (!use_early_callback && !use_old_client_cert_callback && !async &&
++      !InstallMultipleCertificates(ssl.get()) &&
+       !InstallCertificate(ssl.get())) {
+     return nullptr;
+   }
+diff --git a/ssl/test/test_config.h b/ssl/test/test_config.h
+index c698c93d7..d4ad1238f 100644
+--- a/ssl/test/test_config.h
++++ b/ssl/test/test_config.h
+@@ -208,6 +208,10 @@ struct TestConfig {
+   std::string ssl_fuzz_seed_path_prefix;
+   // When not empty, the value is passed to |SSL_CTX_set_ciphersuites|.
+   std::string tls13_ciphersuites;
++  // multiple_certs_slot is used to associate the server with the multiple
++  // certificate/private key slot configuration. The certificate comes first,
++  // then the private key.
++  std::vector<std::pair<std::string, std::string>> multiple_certs_slot;
+ 
+   int argc;
+   char **argv;
+diff --git a/ssl/tls13_both.cc b/ssl/tls13_both.cc
+index 3bd9a3149..9c84804e0 100644
+--- a/ssl/tls13_both.cc
++++ b/ssl/tls13_both.cc
+@@ -552,17 +552,12 @@ bool tls13_add_certificate(SSL_HANDSHAKE *hs) {
+ 
+ enum ssl_private_key_result_t tls13_add_certificate_verify(SSL_HANDSHAKE *hs) {
+   SSL *const ssl = hs->ssl;
+-  uint16_t signature_algorithm;
+-  if (!tls1_choose_signature_algorithm(hs, &signature_algorithm)) {
+-    ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_HANDSHAKE_FAILURE);
+-    return ssl_private_key_failure;
+-  }
+ 
+   ScopedCBB cbb;
+   CBB body;
+   if (!ssl->method->init_message(ssl, cbb.get(), &body,
+                                  SSL3_MT_CERTIFICATE_VERIFY) ||
+-      !CBB_add_u16(&body, signature_algorithm)) {
++      !CBB_add_u16(&body, hs->signature_algorithm)) {
+     OPENSSL_PUT_ERROR(SSL, ERR_R_INTERNAL_ERROR);
+     return ssl_private_key_failure;
+   }
+@@ -586,7 +581,7 @@ enum ssl_private_key_result_t tls13_add_certificate_verify(SSL_HANDSHAKE *hs) {
+   }
+ 
+   enum ssl_private_key_result_t sign_result = ssl_private_key_sign(
+-      hs, sig, &sig_len, max_sig_len, signature_algorithm, msg);
++      hs, sig, &sig_len, max_sig_len, hs->signature_algorithm, msg);
+   if (sign_result != ssl_private_key_success) {
+     return sign_result;
+   }
+diff --git a/ssl/tls13_client.cc b/ssl/tls13_client.cc
+index 70a254834..af14bb57b 100644
+--- a/ssl/tls13_client.cc
++++ b/ssl/tls13_client.cc
+@@ -872,6 +872,11 @@ static enum ssl_hs_wait_t do_send_client_certificate_verify(SSL_HANDSHAKE *hs) {
+     return ssl_hs_ok;
+   }
+ 
++  if (!tls1_choose_signature_algorithm(hs, &hs->signature_algorithm)) {
++    ssl_send_alert(hs->ssl, SSL3_AL_FATAL, SSL_AD_HANDSHAKE_FAILURE);
++    return ssl_hs_error;
++  }
++
+   switch (tls13_add_certificate_verify(hs)) {
+     case ssl_private_key_success:
+       hs->tls13_state = state_complete_second_flight;
+diff --git a/ssl/tls13_server.cc b/ssl/tls13_server.cc
+index e9f48b4ad..e9d717557 100644
+--- a/ssl/tls13_server.cc
++++ b/ssl/tls13_server.cc
+@@ -247,6 +247,20 @@ static enum ssl_hs_wait_t do_select_parameters(SSL_HANDSHAKE *hs) {
+     return ssl_hs_error;
+   }
+ 
++  // Negotiate the signature algorithms.
++  if (!tls1_choose_signature_algorithm(hs, &hs->signature_algorithm)) {
++    ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_HANDSHAKE_FAILURE);
++    return ssl_hs_error;
++  }
++
++  if (!ssl_on_certificate_selected(hs)) {
++    return ssl_hs_error;
++  }
++
++  if (!tls1_call_ocsp_stapling_callback(hs)) {
++    return ssl_hs_error;
++  }
++
+   // HTTP/2 negotiation depends on the cipher suite, so ALPN negotiation was
+   // deferred. Complete it now.
+   uint8_t alert = SSL_AD_DECODE_ERROR;

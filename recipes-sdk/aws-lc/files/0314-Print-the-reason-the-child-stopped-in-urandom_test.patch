@@ -1,0 +1,39 @@
+From 71693368a378ffb5c103bb2ef9f562f580bcd3b2 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 23 Feb 2023 12:51:29 -0500
+Subject: [PATCH] Print the reason the child stopped in urandom_test
+
+Change-Id: I736c7dc17efcaa5c3d8bd5fdee36d2dcb86ae627
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57567
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Adam Langley <agl@google.com>
+(cherry picked from commit bffae8a10e7c19930276df2609806be2b92ed1db)
+---
+ crypto/fipsmodule/rand/urandom_test.cc | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/fipsmodule/rand/urandom_test.cc b/crypto/fipsmodule/rand/urandom_test.cc
+index 18de673ad..f4f666e97 100644
+--- a/crypto/fipsmodule/rand/urandom_test.cc
++++ b/crypto/fipsmodule/rand/urandom_test.cc
+@@ -186,7 +186,8 @@ static void GetTrace(std::vector<Event> *out_trace, unsigned flags,
+   // Parent process
+   int status;
+   ASSERT_EQ(child_pid, waitpid(child_pid, &status, 0));
+-  ASSERT_TRUE(WIFSTOPPED(status) && WSTOPSIG(status) == SIGSTOP);
++  ASSERT_TRUE(WIFSTOPPED(status) && WSTOPSIG(status) == SIGSTOP)
++      << "Child was not stopped with SIGSTOP: " << status;
+ 
+   // Set options so that:
+   //   a) the child process is killed once this process dies.
+@@ -214,7 +215,8 @@ static void GetTrace(std::vector<Event> *out_trace, unsigned flags,
+     }
+ 
+     // Otherwise the only valid ptrace event is a system call stop.
+-    ASSERT_TRUE(WIFSTOPPED(status) && WSTOPSIG(status) == (SIGTRAP | 0x80));
++    ASSERT_TRUE(WIFSTOPPED(status) && WSTOPSIG(status) == (SIGTRAP | 0x80))
++        << "Child was not stopped with a syscall stop: " << status;
+ 
+     struct user_regs_struct regs;
+     ASSERT_EQ(0, ptrace(PTRACE_GETREGS, child_pid, nullptr, &regs));

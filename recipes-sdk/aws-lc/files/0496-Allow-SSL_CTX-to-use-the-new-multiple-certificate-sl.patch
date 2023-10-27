@@ -1,0 +1,464 @@
+From 99d93a488bb4dcf8eec8ea5d81524ef330fcba2c Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Fri, 28 Jul 2023 09:42:46 -0700
+Subject: [PATCH] Allow `SSL_CTX` to use the new multiple certificate slots
+ internally (#1100)
+
+This builds upon the new framework in #1086 to use the new multiple
+certificate slots available. The SSL connection should use the
+corresponding index of the certificate and pkey type assigned. As of
+now, the connection will directly use the last certificate that was
+set for it's connection. This corresponds with our original behavior
+before we reintroduced the multiple certificate slots framework,
+where we only maintained one x509_leaf and one pkey per CERT.
+A subsequent PR will be introduced to allow automated selection of the
+correct certificate slots, based on the signature algorithm the
+handshake has negotiated.
+
+These functions change the certificate slot index:
+* SSL_CTX_use_certificate_ASN1 / SSL_use_certificate_ASN1
+SSL_CTX_use_certificate / SSL_use_certificate
+(functions that call ssl_set_cert internally)
+* SSL_use_*_PrivateKey_* (functions that call ssl_set_pkey internally)
+* SSL_CTX_set_chain_and_key
+The naming for the list of functions are pretty straightforward. Users
+setting these functions would have expected SSL_CTX to use the new set
+certificate/private key, so it's natural that we switch over to that
+slot.
+
+I've added a new test that sets up a connection with different
+certificate types and checks if the correct slot is being used.
+ED25519 is incompatible with older versions of TLS, so those are
+skipped.
+---
+ ssl/internal.h     |   5 ++
+ ssl/ssl_cert.cc    |  76 +++++++++++++++--------
+ ssl/ssl_cipher.cc  |  13 ++++
+ ssl/ssl_privkey.cc |  16 ++++-
+ ssl/ssl_test.cc    | 146 +++++++++++++++++++++++++++++++++++++++++++++
+ ssl/ssl_x509.cc    |  16 ++---
+ 6 files changed, 235 insertions(+), 37 deletions(-)
+
+diff --git a/ssl/internal.h b/ssl/internal.h
+index 921452788..0f23d8b44 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -656,6 +656,11 @@ bool ssl_create_cipher_list(UniquePtr<SSLCipherPreferenceList> *out_cipher_list,
+                             bool strict,
+                             bool config_tls13);
+ 
++// ssl_get_certificate_slot_index returns the |SSL_PKEY_*| certificate slot
++// index corresponding to the private key type of |pkey|. It returns -1 if not
++// supported. This was |ssl_cert_type| in OpenSSL 1.0.2.
++int ssl_get_certificate_slot_index(const EVP_PKEY *pkey);
++
+ // ssl_cipher_auth_mask_for_key returns the mask of cipher |algorithm_auth|
+ // values suitable for use with |key| in TLS 1.2 and below.
+ uint32_t ssl_cipher_auth_mask_for_key(const EVP_PKEY *key);
+diff --git a/ssl/ssl_cert.cc b/ssl/ssl_cert.cc
+index 30f81ffca..41a948616 100644
+--- a/ssl/ssl_cert.cc
++++ b/ssl/ssl_cert.cc
+@@ -250,38 +250,27 @@ enum leaf_cert_and_privkey_result_t {
+   leaf_cert_and_privkey_mismatch,
+ };
+ 
+-// check_leaf_cert_and_privkey checks whether the certificate in |leaf_buffer|
+-// and the private key in |privkey| are suitable and coherent. It returns
+-// |leaf_cert_and_privkey_error| and pushes to the error queue if a problem is
+-// found. If the certificate and private key are valid, but incoherent, it
+-// returns |leaf_cert_and_privkey_mismatch|. Otherwise it returns
+-// |leaf_cert_and_privkey_ok|.
+-static enum leaf_cert_and_privkey_result_t check_leaf_cert_and_privkey(
+-    CRYPTO_BUFFER *leaf_buffer, EVP_PKEY *privkey) {
+-  CBS cert_cbs;
+-  CRYPTO_BUFFER_init_CBS(leaf_buffer, &cert_cbs);
+-  UniquePtr<EVP_PKEY> pubkey = ssl_cert_parse_pubkey(&cert_cbs);
+-  if (!pubkey) {
+-    OPENSSL_PUT_ERROR(SSL, SSL_R_DECODE_ERROR);
+-    return leaf_cert_and_privkey_error;
+-  }
+-
+-  if (!ssl_is_key_type_supported(EVP_PKEY_id(pubkey.get()))) {
++// do_leaf_cert_and_privkey_checks does the necessary checks against |pubkey|
++// and |privkey|. It's  expected that the |pubkey| has been parsed from
++// |cert_cbs|.
++static enum leaf_cert_and_privkey_result_t do_leaf_cert_and_privkey_checks(
++    const CBS *cert_cbs, EVP_PKEY *pubkey, EVP_PKEY *privkey) {
++  if (!ssl_is_key_type_supported(EVP_PKEY_id(pubkey))) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_UNKNOWN_CERTIFICATE_TYPE);
+     return leaf_cert_and_privkey_error;
+   }
+ 
+   // An ECC certificate may be usable for ECDH or ECDSA. We only support ECDSA
+   // certificates, so sanity-check the key usage extension.
+-  if (EVP_PKEY_id(pubkey.get()) == EVP_PKEY_EC &&
+-      !ssl_cert_check_key_usage(&cert_cbs, key_usage_digital_signature)) {
++  if (EVP_PKEY_id(pubkey) == EVP_PKEY_EC &&
++      !ssl_cert_check_key_usage(cert_cbs, key_usage_digital_signature)) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_UNKNOWN_CERTIFICATE_TYPE);
+     return leaf_cert_and_privkey_error;
+   }
+ 
+-  if (privkey != NULL &&
++  if (privkey != nullptr &&
+       // Sanity-check that the private key and the certificate match.
+-      !ssl_compare_public_and_private_key(pubkey.get(), privkey)) {
++      !ssl_compare_public_and_private_key(pubkey, privkey)) {
+     ERR_clear_error();
+     return leaf_cert_and_privkey_mismatch;
+   }
+@@ -289,6 +278,24 @@ static enum leaf_cert_and_privkey_result_t check_leaf_cert_and_privkey(
+   return leaf_cert_and_privkey_ok;
+ }
+ 
++// check_leaf_cert_and_privkey checks whether the certificate in |leaf_buffer|
++// and the private key in |privkey| are suitable and coherent. It returns
++// |leaf_cert_and_privkey_error| and pushes to the error queue if a problem is
++// found. If the certificate and private key are valid, but incoherent, it
++// returns |leaf_cert_and_privkey_mismatch|. Otherwise it returns
++// |leaf_cert_and_privkey_ok|.
++static enum leaf_cert_and_privkey_result_t check_leaf_cert_and_privkey(
++    CRYPTO_BUFFER *leaf_buffer, EVP_PKEY *privkey) {
++  CBS cert_cbs;
++  CRYPTO_BUFFER_init_CBS(leaf_buffer, &cert_cbs);
++  UniquePtr<EVP_PKEY> pubkey = ssl_cert_parse_pubkey(&cert_cbs);
++  if (pubkey == nullptr) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_DECODE_ERROR);
++    return leaf_cert_and_privkey_error;
++  }
++   return do_leaf_cert_and_privkey_checks(&cert_cbs, pubkey.get(), privkey);
++}
++
+ static int cert_set_chain_and_key(
+     CERT *cert, CRYPTO_BUFFER *const *certs, size_t num_certs,
+     EVP_PKEY *privkey, const SSL_PRIVATE_KEY_METHOD *privkey_method) {
+@@ -326,11 +333,13 @@ static int cert_set_chain_and_key(
+   if (!ssl_cert_check_cert_private_keys_usage(cert)) {
+     return 0;
+   }
+-  int idx = cert->cert_private_key_idx;
++
++  // Update certificate slot index once all checks have passed.
++  int idx = ssl_get_certificate_slot_index(privkey);
+   cert->cert_private_keys[idx].privatekey = UpRef(privkey);
+   cert->key_method = privkey_method;
+-
+   cert->cert_private_keys[idx].chain = std::move(certs_sk);
++  cert->cert_private_key_idx = idx;
+   return 1;
+ }
+ 
+@@ -339,10 +348,20 @@ bool ssl_set_cert(CERT *cert, UniquePtr<CRYPTO_BUFFER> buffer) {
+     return false;
+   }
+ 
+-  CERT_PKEY &cert_pkey = cert->cert_private_keys[cert->cert_private_key_idx];
++  // Parse the right certificate slot index from |buffer|.
++  CBS cert_cbs;
++  CRYPTO_BUFFER_init_CBS(buffer.get(), &cert_cbs);
++  UniquePtr<EVP_PKEY> pubkey = ssl_cert_parse_pubkey(&cert_cbs);
++  if (!pubkey) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_DECODE_ERROR);
++    return false;
++  }
++  int slot_index = ssl_get_certificate_slot_index(pubkey.get());
++
++  CERT_PKEY &cert_pkey = cert->cert_private_keys[slot_index];
+ 
+-  switch (
+-      check_leaf_cert_and_privkey(buffer.get(), cert_pkey.privatekey.get())) {
++  switch (do_leaf_cert_and_privkey_checks(&cert_cbs, pubkey.get(),
++                                          cert_pkey.privatekey.get())) {
+     case leaf_cert_and_privkey_error:
+       return false;
+     case leaf_cert_and_privkey_mismatch:
+@@ -358,6 +377,9 @@ bool ssl_set_cert(CERT *cert, UniquePtr<CRYPTO_BUFFER> buffer) {
+   if (cert_pkey.chain != nullptr) {
+     CRYPTO_BUFFER_free(sk_CRYPTO_BUFFER_value(cert_pkey.chain.get(), 0));
+     sk_CRYPTO_BUFFER_set(cert_pkey.chain.get(), 0, buffer.release());
++
++    // Update certificate slot index if all checks have passed.
++    cert->cert_private_key_idx = slot_index;
+     return true;
+   }
+ 
+@@ -371,6 +393,8 @@ bool ssl_set_cert(CERT *cert, UniquePtr<CRYPTO_BUFFER> buffer) {
+     return false;
+   }
+ 
++  // Update certificate slot index if all checks have passed.
++  cert->cert_private_key_idx = slot_index;
+   return true;
+ }
+ 
+diff --git a/ssl/ssl_cipher.cc b/ssl/ssl_cipher.cc
+index 6934cc924..0d7b8e0dd 100644
+--- a/ssl/ssl_cipher.cc
++++ b/ssl/ssl_cipher.cc
+@@ -1346,6 +1346,19 @@ bool ssl_create_cipher_list(UniquePtr<SSLCipherPreferenceList> *out_cipher_list,
+   return true;
+ }
+ 
++int ssl_get_certificate_slot_index(const EVP_PKEY *pkey) {
++  switch (EVP_PKEY_id(pkey)) {
++    case EVP_PKEY_RSA:
++      return SSL_PKEY_RSA;
++    case EVP_PKEY_EC:
++      return SSL_PKEY_ECC;
++    case EVP_PKEY_ED25519:
++      return SSL_PKEY_ED25519;
++    default:
++      return -1;
++  }
++}
++
+ uint32_t ssl_cipher_auth_mask_for_key(const EVP_PKEY *key) {
+   switch (EVP_PKEY_id(key)) {
+     case EVP_PKEY_RSA:
+diff --git a/ssl/ssl_privkey.cc b/ssl/ssl_privkey.cc
+index ad0c76b96..9c60ea955 100644
+--- a/ssl/ssl_privkey.cc
++++ b/ssl/ssl_privkey.cc
+@@ -77,6 +77,8 @@ bool ssl_is_key_type_supported(int key_type) {
+ }
+ 
+ static bool ssl_set_pkey(CERT *cert, EVP_PKEY *pkey) {
++  // This may be redundant to the certificate slot retrieval below, but it
++  // doesn't hurt to do an extra check here.
+   if (!ssl_is_key_type_supported(EVP_PKEY_id(pkey))) {
+     OPENSSL_PUT_ERROR(SSL, SSL_R_UNKNOWN_CERTIFICATE_TYPE);
+     return false;
+@@ -84,16 +86,24 @@ static bool ssl_set_pkey(CERT *cert, EVP_PKEY *pkey) {
+   if (!ssl_cert_check_cert_private_keys_usage(cert)) {
+     return false;
+   }
+-  UniquePtr<STACK_OF(CRYPTO_BUFFER)> &chain =
+-      cert->cert_private_keys[cert->cert_private_key_idx].chain;
+ 
++  int idx = ssl_get_certificate_slot_index(pkey);
++  if (idx < 0) {
++    OPENSSL_PUT_ERROR(SSL, SSL_R_UNKNOWN_CERTIFICATE_TYPE);
++    return false;
++  }
++
++  UniquePtr<STACK_OF(CRYPTO_BUFFER)> &chain =
++      cert->cert_private_keys[idx].chain;
+   if (chain != nullptr && sk_CRYPTO_BUFFER_value(chain.get(), 0) != nullptr &&
+       // Sanity-check that the private key and the certificate match.
+       !ssl_cert_check_private_key(cert, pkey)) {
+     return false;
+   }
+ 
+-  cert->cert_private_keys[cert->cert_private_key_idx].privatekey = UpRef(pkey);
++  // Update certificate slot index once all checks have passed.
++  cert->cert_private_keys[idx].privatekey = UpRef(pkey);
++  cert->cert_private_key_idx = idx;
+   return true;
+ }
+ 
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index 796f53b3b..f4abdb24e 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -1648,6 +1648,28 @@ static bssl::UniquePtr<EVP_PKEY> GetECDSATestKey() {
+   return KeyFromPEM(kKeyPEM);
+ }
+ 
++static bssl::UniquePtr<X509> GetED25519TestCertificate() {
++  static const char kCertPEM[] =
++      "-----BEGIN CERTIFICATE-----\n"
++      "MIIBRDCB9wIUKI+32tShPulvafJa3xZvj29Z9xgwBQYDK2VwMEUxCzAJBgNVBAYT\n"
++      "AkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBXaWRn\n"
++      "aXRzIFB0eSBMdGQwHhcNMjMwNzE4MTg0NzU4WhcNMjMwNzE5MTg0NzU4WjBFMQsw\n"
++      "CQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwYSW50ZXJu\n"
++      "ZXQgV2lkZ2l0cyBQdHkgTHRkMCowBQYDK2VwAyEAprAzqgxux8R4ZXaxn5mM/5E9\n"
++      "0RNE59r47BJikdOoeUwwBQYDK2VwA0EAMELt0XRGFYo4qkWwOsoSYcdGYqlxVlf9\n"
++      "AhTPaJ6SSzjv3n4r60wfe8Z2OPn415tcj2IIm42T64itI4OAX0aTCg==\n"
++      "-----END CERTIFICATE-----\n";
++  return CertFromPEM(kCertPEM);
++}
++
++static bssl::UniquePtr<EVP_PKEY> GetED25519TestKey() {
++  static const char kKeyPEM[] =
++      "-----BEGIN PRIVATE KEY-----\n"
++      "MC4CAQAwBQYDK2VwBCIEIGPkz4xAobc5gtRidkHl+fxNLHfiWo3efRG2G8Z617yk\n"
++      "-----END PRIVATE KEY-----\n";
++  return KeyFromPEM(kKeyPEM);
++}
++
+ static bssl::UniquePtr<CRYPTO_BUFFER> BufferFromPEM(const char *pem) {
+   bssl::UniquePtr<BIO> bio(BIO_new_mem_buf(pem, strlen(pem)));
+   char *name, *header;
+@@ -5096,6 +5118,130 @@ TEST(SSLTest, EmptyCipherList) {
+   EXPECT_EQ(0u, sk_SSL_CIPHER_num(SSL_CTX_get_ciphers(ctx.get())));
+ }
+ 
++struct TLSVersionTestParams {
++  uint16_t version;
++};
++
++const TLSVersionTestParams kTLSVersionTests[] = {
++    {TLS1_VERSION},
++    {TLS1_1_VERSION},
++    {TLS1_2_VERSION},
++    {TLS1_3_VERSION},
++};
++
++struct CertificateKeyTestParams {
++  bssl::UniquePtr<X509> (*certificate)();
++  bssl::UniquePtr<EVP_PKEY> (*key)();
++  int slot_index;
++};
++
++const CertificateKeyTestParams kCertificateKeyTests[] = {
++    {GetTestCertificate, GetTestKey, SSL_PKEY_RSA},
++    {GetECDSATestCertificate, GetECDSATestKey, SSL_PKEY_ECC},
++    {GetED25519TestCertificate, GetED25519TestKey, SSL_PKEY_ED25519},
++};
++
++class MultipleCertificateSlotTest
++    : public testing::TestWithParam<
++          std::tuple<TLSVersionTestParams, CertificateKeyTestParams>> {
++ public:
++  MultipleCertificateSlotTest() {
++    this->version = version_param().version;
++    this->slot_index = certificate_key_param().slot_index;
++  }
++
++  uint16_t version = 0;
++  int slot_index = -1;
++
++  static TLSVersionTestParams version_param() {
++    return std::get<0>(GetParam());
++  }
++  static CertificateKeyTestParams certificate_key_param() {
++    return std::get<1>(GetParam());
++  }
++
++  void StandardCertificateSlotIndexTests(SSL_CTX *client_ctx,
++                                         SSL_CTX *server_ctx,
++                                         std::vector<uint16_t> sigalgs) {
++    EXPECT_TRUE(SSL_CTX_set_signing_algorithm_prefs(client_ctx, sigalgs.data(),
++                                                    sigalgs.size()));
++    EXPECT_TRUE(SSL_CTX_set_verify_algorithm_prefs(client_ctx, sigalgs.data(),
++                                                   sigalgs.size()));
++
++    ASSERT_TRUE(SSL_CTX_set_min_proto_version(client_ctx, version));
++    ASSERT_TRUE(SSL_CTX_set_max_proto_version(client_ctx, version));
++    ASSERT_TRUE(SSL_CTX_set_min_proto_version(server_ctx, version));
++    ASSERT_TRUE(SSL_CTX_set_max_proto_version(server_ctx, version));
++
++    ClientConfig config;
++    bssl::UniquePtr<SSL> client, server;
++
++    ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx, server_ctx,
++                                       config, false));
++
++    ASSERT_TRUE(CompleteHandshakes(client.get(), server.get()));
++
++    // Check the internal slot index to verify that the correct slot was set.
++    EXPECT_EQ(server_ctx->cert->cert_private_key_idx, slot_index);
++    EXPECT_EQ(server->ctx->cert->cert_private_key_idx, slot_index);
++
++    // Check the internal slot index to verify that the correct slot was used.
++    EXPECT_EQ(server->config->cert->cert_private_key_idx, slot_index);
++  }
++};
++
++INSTANTIATE_TEST_SUITE_P(
++    MultipleCertificateSlotAllTest, MultipleCertificateSlotTest,
++    testing::Combine(testing::ValuesIn(kTLSVersionTests),
++                     testing::ValuesIn(kCertificateKeyTests)));
++
++// Sets up the |SSL_CTX| with |SSL_CTX_use_certificate| & |SSL_use_PrivateKey|.
++TEST_P(MultipleCertificateSlotTest, CertificateSlotIndex) {
++  if ((version == TLS1_1_VERSION || version == TLS1_VERSION) &&
++      slot_index == SSL_PKEY_ED25519) {
++    // ED25519 is not supported in versions prior to TLS1.2.
++    return;
++  }
++  bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
++  bssl::UniquePtr<SSL_CTX> server_ctx(CreateContextWithCertificate(
++      TLS_method(), certificate_key_param().certificate(),
++      certificate_key_param().key()));
++
++  StandardCertificateSlotIndexTests(
++      client_ctx.get(), server_ctx.get(),
++      {SSL_SIGN_ED25519, SSL_SIGN_ECDSA_SECP256R1_SHA256,
++       SSL_SIGN_RSA_PSS_RSAE_SHA256});
++}
++
++// Sets up the |SSL_CTX| with |SSL_CTX_set_chain_and_key|.
++TEST_P(MultipleCertificateSlotTest, SetChainAndKeyIndex) {
++  if ((version == TLS1_1_VERSION || version == TLS1_VERSION) &&
++      slot_index == SSL_PKEY_ED25519) {
++    // ED25519 is not supported in versions prior to TLS1.2.
++    return;
++  }
++  bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
++  bssl::UniquePtr<SSL_CTX> server_ctx(SSL_CTX_new(TLS_method()));
++
++  uint8_t *buf = nullptr;
++  int cert_len = i2d_X509(certificate_key_param().certificate().get(), &buf);
++  bssl::UniquePtr<uint8_t> free_buf(buf);
++
++  bssl::UniquePtr<CRYPTO_BUFFER> leaf(
++      CRYPTO_BUFFER_new(buf, cert_len, nullptr));
++  ASSERT_TRUE(leaf);
++  std::vector<CRYPTO_BUFFER *> chain = {leaf.get()};
++
++  ASSERT_TRUE(
++      SSL_CTX_set_chain_and_key(server_ctx.get(), &chain[0], chain.size(),
++                                certificate_key_param().key().get(), nullptr));
++
++  StandardCertificateSlotIndexTests(
++      client_ctx.get(), server_ctx.get(),
++      {SSL_SIGN_ED25519, SSL_SIGN_ECDSA_SECP256R1_SHA256,
++       SSL_SIGN_RSA_PSS_RSAE_SHA256});
++}
++
+ struct MultiTransferReadWriteTestParams {
+   const char suite[50];
+   bool tls13;
+diff --git a/ssl/ssl_x509.cc b/ssl/ssl_x509.cc
+index 477daefd6..2993e831c 100644
+--- a/ssl/ssl_x509.cc
++++ b/ssl/ssl_x509.cc
+@@ -766,7 +766,7 @@ void SSL_CTX_set_cert_store(SSL_CTX *ctx, X509_STORE *store) {
+ }
+ 
+ static int ssl_use_certificate(CERT *cert, X509 *x) {
+-  if (x == NULL) {
++  if (x == nullptr) {
+     OPENSSL_PUT_ERROR(SSL, ERR_R_PASSED_NULL_PARAMETER);
+     return 0;
+   }
+@@ -774,6 +774,12 @@ static int ssl_use_certificate(CERT *cert, X509 *x) {
+   if (!ssl_cert_check_cert_private_keys_usage(cert)) {
+     return 0;
+   }
++
++  UniquePtr<CRYPTO_BUFFER> buffer = x509_to_buffer(x);
++  if (!buffer || !ssl_set_cert(cert, std::move(buffer))) {
++    return 0;
++  }
++
+   // We set the |x509_leaf| here to prevent any external data set from being
+   // lost. The rest of the chain still uses |CRYPTO_BUFFER|s.
+   X509 *&x509_leaf =
+@@ -781,13 +787,7 @@ static int ssl_use_certificate(CERT *cert, X509 *x) {
+   X509_free(x509_leaf);
+   X509_up_ref(x);
+   x509_leaf = x;
+-
+-  UniquePtr<CRYPTO_BUFFER> buffer = x509_to_buffer(x);
+-  if (!buffer) {
+-    return 0;
+-  }
+-
+-  return ssl_set_cert(cert, std::move(buffer));
++  return 1;
+ }
+ 
+ int SSL_use_certificate(SSL *ssl, X509 *x) {

@@ -1,0 +1,385 @@
+From 29bc170ddbd2397971b628b7ce86c6bc11271d6a Mon Sep 17 00:00:00 2001
+From: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+Date: Thu, 2 Feb 2023 12:01:55 -0500
+Subject: [PATCH] API diff during Rust crate generation (#781)
+
+* API diff during Rust crate generation
+
+* Verify version change
+
+* aws-lc commit hash as crate metadata
+
+* Get commit hash from cloned repo
+
+* Logic for FIPS crate generation is on the main branch
+---
+ .../rust/aws-lc-fips-sys-template/Cargo.toml  |  3 ++
+ bindings/rust/aws-lc-sys-template/Cargo.toml  |  3 ++
+ .../_generate_all_bindings_flavors.sh         |  2 -
+ bindings/rust/generate/_generation_tools.sh   | 53 ++++++++++++++++++
+ bindings/rust/generate/generate-fips.sh       | 23 +++++---
+ bindings/rust/generate/generate.sh            | 54 ++++++++++++-------
+ bindings/rust/publish/_publish_tools.sh       | 18 -------
+ bindings/rust/publish/publish.sh              |  2 +-
+ tests/ci/docker_images/rust/build_images.sh   | 14 +++--
+ 9 files changed, 121 insertions(+), 51 deletions(-)
+
+diff --git a/bindings/rust/aws-lc-fips-sys-template/Cargo.toml b/bindings/rust/aws-lc-fips-sys-template/Cargo.toml
+index 53832a7dc..018e81f8f 100644
+--- a/bindings/rust/aws-lc-fips-sys-template/Cargo.toml
++++ b/bindings/rust/aws-lc-fips-sys-template/Cargo.toml
+@@ -41,3 +41,6 @@ cfg_aliases = "0.1.1"
+ [dependencies]
+ libc = "0.2"
+ paste = "1.0.11"
++
++[package.metadata.aws-lc-fips-sys]
++commit-hash = "__AWS_LC_COMMIT_HASH__"
+diff --git a/bindings/rust/aws-lc-sys-template/Cargo.toml b/bindings/rust/aws-lc-sys-template/Cargo.toml
+index b1709a732..bea6fa898 100644
+--- a/bindings/rust/aws-lc-sys-template/Cargo.toml
++++ b/bindings/rust/aws-lc-sys-template/Cargo.toml
+@@ -43,3 +43,6 @@ paste = "1.0.11"
+ 
+ [dev-dependencies]
+ openssl = { version = "0.10" }
++
++[package.metadata.aws-lc-sys]
++commit-hash = "__AWS_LC_COMMIT_HASH__"
+diff --git a/bindings/rust/generate/_generate_all_bindings_flavors.sh b/bindings/rust/generate/_generate_all_bindings_flavors.sh
+index bc91faa36..78e691015 100755
+--- a/bindings/rust/generate/_generate_all_bindings_flavors.sh
++++ b/bindings/rust/generate/_generate_all_bindings_flavors.sh
+@@ -8,7 +8,6 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+ AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+ 
+ if [[ "${GENERATE_FIPS}" -eq 0 ]]; then
+-  CRATE_NAME="aws-lc-sys"
+ 
+    ## macos x86_64 bindings
+   if [[ ! "${OSTYPE}" == "darwin"* ]]; then
+@@ -42,7 +41,6 @@ if [[ "${GENERATE_FIPS}" -eq 0 ]]; then
+ 
+   popd
+ else
+-  CRATE_NAME="aws-lc-fips-sys"
+ 
+   pushd "${AWS_LC_DIR}"
+ 
+diff --git a/bindings/rust/generate/_generation_tools.sh b/bindings/rust/generate/_generation_tools.sh
+index 77fdfd0f7..05432c460 100644
+--- a/bindings/rust/generate/_generation_tools.sh
++++ b/bindings/rust/generate/_generation_tools.sh
+@@ -124,3 +124,56 @@ function create_prefix_headers {
+     echo Prefix headers generation complete
+   fi
+ }
++
++function parse_version {
++  local VERSION="${1}"
++  echo Version: "${VERSION}"
++  echo "${VERSION}" | egrep -q '^[0-9]+\.[0-9]+\.[0-9]+$'
++}
++
++function determine_generate_version {
++  PUBLISHED_CRATE_VERSION=$(cargo search "${CRATE_NAME}" | egrep "^${CRATE_NAME} " | sed -e 's/.*"\(.*\)".*/\1/')
++
++  source "${SCRIPT_DIR}"/_generation_tools.sh
++
++  if ! parse_version "${PUBLISHED_CRATE_VERSION}"; then
++    echo Could not find current version of published crate.
++    exit 1
++  fi
++
++  while [ -z "${CRATE_VERSION}" ]; do
++    echo
++    echo Current published version of ${CRATE_NAME}: ${PUBLISHED_CRATE_VERSION}
++    read -p "Enter version for crate generation: " NEW_VERSION
++    if parse_version "${NEW_VERSION}"; then
++      if perl -e "exit !(version->parse('${NEW_VERSION}')>version->parse('${PUBLISHED_CRATE_VERSION}'))"; then
++        CRATE_VERSION="${NEW_VERSION}"
++      else
++        echo New version must come after: ${PUBLISHED_CRATE_VERSION}
++      fi
++    else
++      echo Could not parse version: ${NEW_VERSION}
++    fi
++  done
++
++  echo
++  echo Generating crate with version: ${CRATE_VERSION}
++}
++
++function public_api_diff {
++  pushd "${CRATE_DIR}"
++  cargo build --features internal_generate
++  if ! cargo public-api diff --deny changed --deny removed "${PUBLISHED_CRATE_VERSION}"; then
++    while true; do
++      echo
++      echo Version changing from: ${PUBLISHED_CRATE_VERSION} to ${CRATE_VERSION}
++      read -p "API changes found.  Continue with crate generation? (yn) " yn
++      case $yn in
++        [Yy]* ) break;;
++        [Nn]* ) exit 1;;
++        * ) echo "Please answer yes or no.";;
++      esac
++    done
++  fi
++  popd
++}
+diff --git a/bindings/rust/generate/generate-fips.sh b/bindings/rust/generate/generate-fips.sh
+index 9ad2659c3..b615d090c 100755
+--- a/bindings/rust/generate/generate-fips.sh
++++ b/bindings/rust/generate/generate-fips.sh
+@@ -10,12 +10,12 @@ IGNORE_UPSTREAM=0
+ IGNORE_MACOS=0
+ SKIP_TEST=0
+ GENERATE_FIPS=1
+-
+-AWS_LC_FIPS_SYS_VERSION="0.2.0"
++AWS_LC_FIPS_BRANCH="fips-2022-11-02"
++CRATE_NAME="aws-lc-fips-sys"
++CRATE_VERSION="" # User prompted for value if empty
+ 
+ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+ AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+-AWS_LC_FIPS_BRANCH="fips-2022-11-02"
+ CRATE_TEMPLATE_DIR="${AWS_LC_DIR}"/bindings/rust/aws-lc-fips-sys-template
+ TMP_DIR="${AWS_LC_DIR}"/bindings/rust/tmp
+ AWS_LC_FIPS_DIR="${TMP_DIR}"/aws-lc
+@@ -27,13 +27,12 @@ PREFIX_HEADERS_FILE="${CRATE_AWS_LC_DIR}"/include/boringssl_prefix_symbols.h
+ 
+ source "${SCRIPT_DIR}"/_generation_tools.sh
+ 
+-# Clone the FIPS branch in local. 
+-# TODO: This can be optimized to be ran and checked on the FIPS branch when this
+-# commit is in the latest FIPS branch.
++# Clone the FIPS branch in local.
+ function clone_fips_branch {
+   pushd "${TMP_DIR}"
+   rm -rf aws-lc
+   git clone -b ${AWS_LC_FIPS_BRANCH} --depth 1 --single-branch https://github.com/awslabs/aws-lc.git
++  AWS_LC_COMMIT_HASH=$(git -C ${AWS_LC_FIPS_DIR} log -n 1 --pretty=format:"%H" HEAD)
+   popd
+ }
+ 
+@@ -46,7 +45,8 @@ function prepare_crate_dir {
+   mkdir -p "${CRATE_AWS_LC_DIR}"/
+ 
+   cp -r "${CRATE_TEMPLATE_DIR}"/* "${CRATE_DIR}"/
+-  perl -pi -e "s/__AWS_LC_FIPS_SYS_VERSION__/${AWS_LC_FIPS_SYS_VERSION}/g" "${CRATE_DIR}"/Cargo.toml
++  perl -pi -e "s/__AWS_LC_FIPS_SYS_VERSION__/${CRATE_VERSION}/g" "${CRATE_DIR}"/Cargo.toml
++  perl -pi -e "s/__AWS_LC_COMMIT_HASH__/${AWS_LC_COMMIT_HASH}/g" "${CRATE_DIR}"/Cargo.toml
+ 
+   cp -r "${AWS_LC_FIPS_DIR}"/crypto  \
+         "${AWS_LC_FIPS_DIR}"/ssl  \
+@@ -56,6 +56,7 @@ function prepare_crate_dir {
+         "${AWS_LC_FIPS_DIR}"/LICENSE \
+         "${AWS_LC_FIPS_DIR}"/sources.cmake \
+         "${AWS_LC_FIPS_DIR}"/go.mod \
++        "${AWS_LC_FIPS_DIR}"/go.sum \
+         "${CRATE_AWS_LC_DIR}"/
+ 
+   cp "${AWS_LC_FIPS_DIR}"/LICENSE  "${CRATE_AWS_LC_DIR}"/
+@@ -85,14 +86,22 @@ if [[ ! -d ${AWS_LC_DIR} ]]; then
+   echo "$(basename "${0}")" Sanity Check Failed
+   exit 1
+ fi
++
+ pushd "${AWS_LC_DIR}"
++# The logic for generating/publishing the FIPS crate resides on the main branch.
++check_branch
+ check_workspace
+ mkdir -p "${TMP_DIR}"
+ 
++determine_generate_version
++
+ # Crate preparation.
+ clone_fips_branch
+ prepare_crate_dir
+ create_prefix_headers
++
++public_api_diff
++
+ source "${SCRIPT_DIR}"/_generate_all_bindings_flavors.sh
+ 
+ # Crate testing.
+diff --git a/bindings/rust/generate/generate.sh b/bindings/rust/generate/generate.sh
+index 2cec62afa..e9621077f 100755
+--- a/bindings/rust/generate/generate.sh
++++ b/bindings/rust/generate/generate.sh
+@@ -10,14 +10,14 @@ IGNORE_UPSTREAM=0
+ IGNORE_MACOS=0
+ SKIP_TEST=0
+ GENERATE_FIPS=0
+-
+-# TODO: Match AWS-LC's Github release version when this is more stable.
+-AWS_LC_SYS_VERSION="0.3.1"
++CRATE_NAME="aws-lc-sys"
++CRATE_VERSION="" # User prompted for version when empty
+ 
+ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+ AWS_LC_DIR=$( cd -- "${SCRIPT_DIR}/../../../" &> /dev/null && pwd)
+ CRATE_TEMPLATE_DIR="${AWS_LC_DIR}"/bindings/rust/aws-lc-sys-template
+ TMP_DIR="${AWS_LC_DIR}"/bindings/rust/tmp
++AWS_LC_SRC_DIR="${TMP_DIR}"/aws-lc
+ SYMBOLS_FILE="${TMP_DIR}"/symbols.txt
+ CRATE_DIR="${TMP_DIR}"/aws-lc-sys
+ COMPLETION_MARKER="${CRATE_DIR}"/.generation_complete
+@@ -26,6 +26,15 @@ PREFIX_HEADERS_FILE="${CRATE_AWS_LC_DIR}"/include/boringssl_prefix_symbols.h
+ 
+ source "${SCRIPT_DIR}"/_generation_tools.sh
+ 
++# Clone the main branch in local.
++function clone_main_branch {
++  pushd "${TMP_DIR}"
++  rm -rf aws-lc
++  git clone -b main --depth 1 --single-branch https://github.com/awslabs/aws-lc.git
++  AWS_LC_COMMIT_HASH=$(git -C ${AWS_LC_SRC_DIR} log -n 1 --pretty=format:"%H" HEAD)
++  popd
++}
++
+ function prepare_crate_dir {
+   echo Preparing crate directory: "${CRATE_DIR}"
+   # Removes completion marker and any other file remaining from a previous crate generation
+@@ -35,31 +44,32 @@ function prepare_crate_dir {
+   mkdir -p "${CRATE_AWS_LC_DIR}"/
+ 
+   cp -r "${CRATE_TEMPLATE_DIR}"/* "${CRATE_DIR}"/
+-  perl -pi -e "s/__AWS_LC_SYS_VERSION__/${AWS_LC_SYS_VERSION}/g" "${CRATE_DIR}"/Cargo.toml
+-
+-  cp -r "${AWS_LC_DIR}"/crypto  \
+-        "${AWS_LC_DIR}"/ssl \
+-        "${AWS_LC_DIR}"/generated-src \
+-        "${AWS_LC_DIR}"/include \
+-        "${AWS_LC_DIR}"/tool \
+-        "${AWS_LC_DIR}"/CMakeLists.txt \
+-        "${AWS_LC_DIR}"/LICENSE \
+-        "${AWS_LC_DIR}"/sources.cmake \
++  perl -pi -e "s/__AWS_LC_SYS_VERSION__/${CRATE_VERSION}/g" "${CRATE_DIR}"/Cargo.toml
++  perl -pi -e "s/__AWS_LC_COMMIT_HASH__/${AWS_LC_COMMIT_HASH}/g" "${CRATE_DIR}"/Cargo.toml
++
++  cp -r "${AWS_LC_SRC_DIR}"/crypto  \
++        "${AWS_LC_SRC_DIR}"/ssl \
++        "${AWS_LC_SRC_DIR}"/generated-src \
++        "${AWS_LC_SRC_DIR}"/include \
++        "${AWS_LC_SRC_DIR}"/tool \
++        "${AWS_LC_SRC_DIR}"/CMakeLists.txt \
++        "${AWS_LC_SRC_DIR}"/LICENSE \
++        "${AWS_LC_SRC_DIR}"/sources.cmake \
+         "${CRATE_AWS_LC_DIR}"/
+ 
+   rm "${CRATE_AWS_LC_DIR}"/generated-src/crypto_test_data.cc
+ 
+-  cp "${AWS_LC_DIR}"/LICENSE  "${CRATE_AWS_LC_DIR}"/
+-  cp "${AWS_LC_DIR}"/LICENSE  "${CRATE_DIR}"/
++  cp "${AWS_LC_SRC_DIR}"/LICENSE  "${CRATE_AWS_LC_DIR}"/
++  cp "${AWS_LC_SRC_DIR}"/LICENSE  "${CRATE_DIR}"/
+ 
+   mkdir -p "${CRATE_AWS_LC_DIR}"/util
+-  cp -r  "${AWS_LC_DIR}"/util/fipstools "${CRATE_AWS_LC_DIR}"/util
++  cp -r  "${AWS_LC_SRC_DIR}"/util/fipstools "${CRATE_AWS_LC_DIR}"/util
+ 
+   mkdir -p "${CRATE_AWS_LC_DIR}"/third_party/
+-  cp -r  "${AWS_LC_DIR}"/third_party/googletest "${AWS_LC_DIR}"/third_party/s2n-bignum "${AWS_LC_DIR}"/third_party/fiat "${CRATE_AWS_LC_DIR}"/third_party/
++  cp -r  "${AWS_LC_SRC_DIR}"/third_party/googletest "${AWS_LC_SRC_DIR}"/third_party/s2n-bignum "${AWS_LC_SRC_DIR}"/third_party/fiat "${CRATE_AWS_LC_DIR}"/third_party/
+ 
+   mkdir -p  "${CRATE_AWS_LC_DIR}"/tests/compiler_features_tests
+-  cp "${AWS_LC_DIR}"/tests/compiler_features_tests/*.c "${CRATE_AWS_LC_DIR}"/tests/compiler_features_tests
++  cp "${AWS_LC_SRC_DIR}"/tests/compiler_features_tests/*.c "${CRATE_AWS_LC_DIR}"/tests/compiler_features_tests
+ }
+ 
+ generation_options "$@"
+@@ -76,10 +86,16 @@ check_branch
+ check_running_on_macos
+ mkdir -p "${TMP_DIR}"
+ 
++determine_generate_version
++
+ # Crate preparation.
++clone_main_branch
+ prepare_crate_dir
+ create_prefix_headers
+-source "${SCRIPT_DIR}"/_generate_all_bindings_flavors.sh 
++
++public_api_diff
++
++source "${SCRIPT_DIR}"/_generate_all_bindings_flavors.sh
+ 
+ # Crate testing.
+ if [[ ${SKIP_TEST} -eq 1 ]]; then
+diff --git a/bindings/rust/publish/_publish_tools.sh b/bindings/rust/publish/_publish_tools.sh
+index e21d2f345..edbcf3ebe 100644
+--- a/bindings/rust/publish/_publish_tools.sh
++++ b/bindings/rust/publish/_publish_tools.sh
+@@ -4,16 +4,6 @@
+ function publish_options {
+ 	while getopts "d:sp" option; do
+ 	  case ${option} in
+-	  d )
+-	    # For example:
+-	    # ./publish.sh -d 0.1.1
+-	    PREV_VERSION="$OPTARG"
+-	    ;;
+-	  # The public API diff should only be skipped if releasing a new major version
+-	  # (or a new minor version when the major version number is 0).
+-	  s )
+-	    SKIP_DIFF=1
+-	    ;;
+ 	  p )
+ 	    PUBLISH=1
+ 	    ;;
+@@ -55,14 +45,6 @@ function run_prepublish_checks_linux {
+ }
+ 
+ function publish_crate {
+-	local crate="$@"
+-	if [[ "${SKIP_DIFF}" -eq 0 ]]; then
+-	  if [[ "${PREV_VERSION}" == "0" ]]; then
+-	    echo Aborting. Must specify previous crate version for API diff.
+-	    exit 1;
+-	  fi
+-	  cargo public-api --deny changed --deny removed --diff-published "${crate}@${PREV_VERSION}"
+-	fi
+ 	cargo publish --dry-run --allow-dirty --no-verify
+ 
+ 	if [[ ${PUBLISH} -eq 1 ]]; then
+diff --git a/bindings/rust/publish/publish.sh b/bindings/rust/publish/publish.sh
+index d638cf99b..9ed22c7a6 100755
+--- a/bindings/rust/publish/publish.sh
++++ b/bindings/rust/publish/publish.sh
+@@ -24,5 +24,5 @@ find_completion_marker ${COMPLETION_MARKER}
+ pushd "${CRATE_DIR}"
+ remove_internal_feature
+ run_prepublish_checks "${CRATE_NAME}"
+-publish_crate "${CRATE_NAME}"
++publish_crate
+ popd
+diff --git a/tests/ci/docker_images/rust/build_images.sh b/tests/ci/docker_images/rust/build_images.sh
+index 53b04ff81..94b548519 100755
+--- a/tests/ci/docker_images/rust/build_images.sh
++++ b/tests/ci/docker_images/rust/build_images.sh
+@@ -6,13 +6,19 @@
+ # Build images from AWS-LC GitHub repo #
+ ########################################
+ 
+-# Ubuntu systems might not have "jq" installed:
++# Linux hosts might not have "jq" installed.
++
++# Ubuntu:
+ # sudo apt-get install jq
+ 
++# Amazon Linux:
++# sudo yum install jq
++
++
+ # Log Docker hub limit https://docs.docker.com/docker-hub/download-rate-limit/#how-can-i-check-my-current-rate
+ TOKEN=$(curl "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)
+ curl --head -H "Authorization: Bearer $TOKEN" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest
+ 
+-docker build -t rust:linux-386 linux-386
+-docker build -t rust:linux-arm64 linux-arm64
+-docker build -t rust:linux-x86_64 linux-x86_64
++docker build -t rust:linux-386 linux-386 --load
++docker build -t rust:linux-arm64 linux-arm64 --load
++docker build -t rust:linux-x86_64 linux-x86_64 --load

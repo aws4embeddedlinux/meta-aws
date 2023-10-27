@@ -1,0 +1,185 @@
+From 57f182bbb65bda62f96a9ef27c87dedac66c7b94 Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Sun, 13 Aug 2023 17:48:59 +0800
+Subject: [PATCH] Retrieve multiple certificate slot for TLS1.0/1.1 based on
+ negotiated sigalgs (#1138)
+
+This change is built on top of the multiple certificate slot change we
+did for TLS1.2/1.3.
+TLS1.0/1.1 only supports two different signature algorithms and is much
+simpler. Either the RSA or ECDSA key type will indicate the use of it's
+corresponding signature. This was what we were originally doing, so we
+do the same for the private key slots, but with an additional check that
+the cipher suite allows the key type.
+
+I extended existing tests to use TLS1.0/1.1. More ssl runner tests will
+be added in a subsequent commit.
+---
+ ssl/extensions.cc         |  9 ++++----
+ ssl/internal.h            |  9 +++++---
+ ssl/ssl_privkey.cc        | 45 +++++++++++++++++++++++++++++++++++----
+ ssl/ssl_test.cc           |  7 +++---
+ ssl/test/runner/runner.go |  7 +++---
+ 5 files changed, 58 insertions(+), 19 deletions(-)
+
+diff --git a/ssl/extensions.cc b/ssl/extensions.cc
+index 49b070c83..35ac94ac2 100644
+--- a/ssl/extensions.cc
++++ b/ssl/extensions.cc
+@@ -4102,11 +4102,12 @@ bool tls1_choose_signature_algorithm(SSL_HANDSHAKE *hs, uint16_t *out) {
+   // Before TLS 1.2, the signature algorithm isn't negotiated as part of the
+   // handshake.
+   if (ssl_protocol_version(ssl) < TLS1_2_VERSION) {
+-    if (!tls1_get_legacy_signature_algorithm(out, hs->local_pubkey.get())) {
+-      OPENSSL_PUT_ERROR(SSL, SSL_R_NO_COMMON_SIGNATURE_ALGORITHMS);
+-      return false;
++    if (tls1_get_legacy_signature_algorithm(out, hs->local_pubkey.get()) ||
++        ssl_cert_private_keys_supports_legacy_signature_algorithm(out, hs)) {
++      return true;
+     }
+-    return true;
++    OPENSSL_PUT_ERROR(SSL, SSL_R_NO_COMMON_SIGNATURE_ALGORITHMS);
++    return false;
+   }
+ 
+   Span<const uint16_t> sigalgs = kSignSignatureAlgorithms;
+diff --git a/ssl/internal.h b/ssl/internal.h
+index 6632a0ec7..f44c26ac9 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -675,8 +675,7 @@ const EVP_MD *ssl_get_handshake_digest(uint16_t version,
+ // having support for AES in hardware or not.
+ bool ssl_create_cipher_list(UniquePtr<SSLCipherPreferenceList> *out_cipher_list,
+                             const bool has_aes_hw, const char *rule_str,
+-                            bool strict,
+-                            bool config_tls13);
++                            bool strict, bool config_tls13);
+ 
+ // ssl_get_certificate_slot_index returns the |SSL_PKEY_*| certificate slot
+ // index corresponding to the private key type of |pkey|. It returns -1 if not
+@@ -1107,7 +1106,10 @@ bool ssl_public_key_supports_signature_algorithm(SSL_HANDSHAKE *hs,
+ bool ssl_cert_private_keys_supports_signature_algorithm(SSL_HANDSHAKE *hs,
+                                                         uint16_t sigalg);
+ 
+-
++// ssl_cert_private_keys_supports_legacy_signature_algorithm is the tls1.0/1.1
++// version of |ssl_cert_private_keys_supports_signature_algorithm|.
++bool ssl_cert_private_keys_supports_legacy_signature_algorithm(
++    uint16_t *out, SSL_HANDSHAKE *hs);
+ 
+ // ssl_public_key_verify verifies that the |signature| is valid for the public
+ // key |pkey| and input |in|, using the signature algorithm |sigalg|.
+@@ -3933,6 +3935,7 @@ struct ssl_ctx_st {
+   // of support for AES hardware. The value is only considered if
+   // |aes_hw_override| is true.
+   bool aes_hw_override_value : 1;
++
+  private:
+   ~ssl_ctx_st();
+   friend OPENSSL_EXPORT void SSL_CTX_free(SSL_CTX *);
+diff --git a/ssl/ssl_privkey.cc b/ssl/ssl_privkey.cc
+index 7ca58a05e..9a4d39d50 100644
+--- a/ssl/ssl_privkey.cc
++++ b/ssl/ssl_privkey.cc
+@@ -397,6 +397,45 @@ bool ssl_public_key_supports_signature_algorithm(SSL_HANDSHAKE *hs,
+   return true;
+ }
+ 
++static UniquePtr<EVP_PKEY> ssl_cert_parse_leaf_pubkey(
++    STACK_OF(CRYPTO_BUFFER) *chain) {
++  CBS leaf;
++  CRYPTO_BUFFER_init_CBS(sk_CRYPTO_BUFFER_value(chain, 0), &leaf);
++  return ssl_cert_parse_pubkey(&leaf);
++}
++
++bool ssl_cert_private_keys_supports_legacy_signature_algorithm(
++    uint16_t *out, SSL_HANDSHAKE *hs) {
++  SSL *const ssl = hs->ssl;
++  assert(ssl_protocol_version(ssl) < TLS1_2_VERSION);
++
++  CERT *cert = hs->config->cert.get();
++  if (cert == nullptr || !ssl->server) {
++    return false;
++  }
++
++  for (size_t i = 0; i < cert->cert_private_keys.size(); i++) {
++    EVP_PKEY *private_key = cert->cert_private_keys[i].privatekey.get();
++    if (private_key != nullptr &&
++        // We may have a private key that supports the signature algorithm,
++        // but we need to verify that the negotiated cipher allows it.
++        hs->new_cipher->algorithm_auth &
++            ssl_cipher_auth_mask_for_key(private_key) &&
++        tls1_get_legacy_signature_algorithm(out, private_key)) {
++      // Update certificate slot index if all checks have passed.
++      //
++      // If the server has a valid private key available to use, we switch to
++      // using that certificate for the rest of the connection.
++      cert->cert_private_key_idx = (int)i;
++      hs->local_pubkey =
++          ssl_cert_parse_leaf_pubkey(cert->cert_private_keys[i].chain.get());
++      return true;
++    }
++  }
++
++  return false;
++}
++
+ bool ssl_cert_private_keys_supports_signature_algorithm(SSL_HANDSHAKE *hs,
+                                                         uint16_t sigalg) {
+   SSL *const ssl = hs->ssl;
+@@ -411,10 +450,8 @@ bool ssl_cert_private_keys_supports_signature_algorithm(SSL_HANDSHAKE *hs,
+     EVP_PKEY *private_key = cert->cert_private_keys[i].privatekey.get();
+     if (private_key != nullptr &&
+         pkey_supports_algorithm(ssl, private_key, sigalg)) {
+-      STACK_OF(CRYPTO_BUFFER) *chain = cert->cert_private_keys[i].chain.get();
+-      CBS leaf;
+-      CRYPTO_BUFFER_init_CBS(sk_CRYPTO_BUFFER_value(chain, 0), &leaf);
+-      UniquePtr<EVP_PKEY> pubkey = ssl_cert_parse_pubkey(&leaf);
++      UniquePtr<EVP_PKEY> pubkey =
++          ssl_cert_parse_leaf_pubkey(cert->cert_private_keys[i].chain.get());
+       if (!ssl_public_key_rsa_pss_check(pubkey.get(), sigalg)) {
+         return false;
+       }
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index 474569798..fb901654b 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -5255,10 +5255,9 @@ TEST_P(MultipleCertificateSlotTest, SetChainAndKeyIndex) {
+ }
+ 
+ TEST_P(MultipleCertificateSlotTest, AutomaticSelection) {
+-  if (version == TLS1_1_VERSION || version == TLS1_VERSION) {
+-    // Automatic Multiple Certificate Selection is not supported for
+-    // TLS1.0/1.1 yet.
+-    // TODO: Add support for TLS1.0/1.1.
++  if ((version == TLS1_1_VERSION || version == TLS1_VERSION) &&
++      slot_index == SSL_PKEY_ED25519) {
++    // ED25519 is not supported in versions prior to TLS1.2.
+     return;
+   }
+ 
+diff --git a/ssl/test/runner/runner.go b/ssl/test/runner/runner.go
+index 592dbfe29..675fa84e0 100644
+--- a/ssl/test/runner/runner.go
++++ b/ssl/test/runner/runner.go
+@@ -19614,9 +19614,8 @@ var testMultipleCertSlotsAlgorithms = []struct {
+ 	{"RSA_PSS_SHA512", TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, signatureRSAPSSWithSHA512, testCertRSA, 0},
+ 	{"Ed25519", TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, signatureEd25519, testCertEd25519, 0},
+ 	// Tests for key types prior to TLS 1.2.
+-	// TODO: Add support for TLS1.0/1.1
+-	//{"RSA", 0, testCertRSA, 0},
+-	//{"ECDSA", 0, testCertECDSAP256, CurveP256},
++	{"RSA", TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, 0, testCertRSA, 0},
++	{"ECDSA", TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA, 0, testCertECDSAP256, CurveP256},
+ }
+ 
+ // TODO: Add more failure test cases.
+@@ -19693,7 +19692,7 @@ func addMultipleCertSlotTests() {
+ 				strictAlgTest.config.CipherSuites = []uint16{alg.cipher}
+ 			}
+ 
+-			if ver.version >= VersionTLS12 && !shouldFail {
++			if !shouldFail {
+ 				testCases = append(testCases, strictAlgTest)
+ 			}
+ 		}

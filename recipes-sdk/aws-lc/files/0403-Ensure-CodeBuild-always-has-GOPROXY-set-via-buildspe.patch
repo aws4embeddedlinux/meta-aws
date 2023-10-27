@@ -1,0 +1,673 @@
+From 37385402af328a6ccfee5f4c0b95416ef32989ec Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Tue, 6 Jun 2023 10:35:32 -0700
+Subject: [PATCH] Ensure CodeBuild always has GOPROXY set via buildspec.
+ (#1043)
+
+* Removed hard-coded values from bash scripts
+* Add guidance to CI README.md for local docker usage
+---
+ tests/ci/README.md                                        | 8 ++++++++
+ tests/ci/codebuild/android/run_android_fips_shared.yml    | 4 ++++
+ tests/ci/codebuild/android/run_android_fips_static.yml    | 4 ++++
+ tests/ci/codebuild/android/run_android_shared_debug.yml   | 4 ++++
+ tests/ci/codebuild/android/run_android_shared_release.yml | 4 ++++
+ tests/ci/codebuild/android/run_android_static_debug.yml   | 4 ++++
+ tests/ci/codebuild/android/run_android_static_release.yml | 4 ++++
+ tests/ci/codebuild/common/run_analytics.yml               | 4 ++++
+ .../ci/codebuild/common/run_ssl_runner_valgrind_tests.yml | 4 ++++
+ tests/ci/codebuild/common/run_valgrind_tests.yml          | 4 ++++
+ tests/ci/codebuild/linux-aarch/docker-img-build.yml       | 4 ++++
+ tests/ci/codebuild/linux-aarch/run_fips_tests.yml         | 4 ++++
+ tests/ci/codebuild/linux-aarch/run_minimal_tests.yml      | 4 ++++
+ tests/ci/codebuild/linux-aarch/run_posix_tests.yml        | 4 ++++
+ tests/ci/codebuild/linux-aarch/run_prefix_tests.yml       | 4 ++++
+ tests/ci/codebuild/linux-aarch/run_sanitizer_tests.yml    | 4 ++++
+ tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml     | 4 ++++
+ .../linux-x86/amazonlinux-2_gcc-7x_intel-sde.yml          | 4 ++++
+ tests/ci/codebuild/linux-x86/docker-img-build.yml         | 4 ++++
+ tests/ci/codebuild/linux-x86/fedora-31_clang-9x.yml       | 4 ++++
+ .../ci/codebuild/linux-x86/install_shared_and_static.yml  | 4 ++++
+ tests/ci/codebuild/linux-x86/openssh_integration.yml      | 4 ++++
+ tests/ci/codebuild/linux-x86/postgres_integration.yml     | 4 ++++
+ tests/ci/codebuild/linux-x86/pre-push.yml                 | 4 ++++
+ tests/ci/codebuild/linux-x86/run_bm_build_test.yml        | 4 ++++
+ tests/ci/codebuild/linux-x86/run_bm_framework.yml         | 4 ++++
+ tests/ci/codebuild/linux-x86/run_cryptofuzz.yml           | 4 ++++
+ tests/ci/codebuild/linux-x86/run_fips_tests.yml           | 4 ++++
+ tests/ci/codebuild/linux-x86/run_fuzz_tests.yml           | 4 ++++
+ tests/ci/codebuild/linux-x86/run_legacy_build.yml         | 4 ++++
+ tests/ci/codebuild/linux-x86/run_minimal_tests.yml        | 4 ++++
+ tests/ci/codebuild/linux-x86/run_posix_tests.yml          | 4 ++++
+ tests/ci/codebuild/linux-x86/run_prefix_tests.yml         | 4 ++++
+ tests/ci/codebuild/linux-x86/run_sanitizer_tests.yml      | 4 ++++
+ tests/ci/codebuild/linux-x86/s2n_integration.yml          | 4 ++++
+ .../ubuntu-20.04_clang-10x_formal-verification.yml        | 4 ++++
+ tests/ci/codebuild/macos-aarch/run_m1_tests.yml           | 4 ++++
+ tests/ci/codebuild/windows-x86/windows-msvc2015.yml       | 4 ++++
+ tests/ci/codebuild/windows-x86/windows-msvc2017.yml       | 4 ++++
+ tests/ci/common_posix_setup.sh                            | 3 ---
+ .../dependencies/install_common_dependencies.sh           | 1 -
+ tests/ci/run_openssh_integration.sh                       | 1 -
+ 42 files changed, 160 insertions(+), 5 deletions(-)
+
+diff --git a/tests/ci/README.md b/tests/ci/README.md
+index 4d424c511..20c0330f8 100644
+--- a/tests/ci/README.md
++++ b/tests/ci/README.md
+@@ -43,6 +43,14 @@ $ docker build -t ubuntu-18.04:base -f tests/ci/docker_images/linux-x86/ubuntu-1
+ For more examples, see `build_images.sh` script in directories corresponding
+ to different platforms (linux-x86, linux-aarch, windows, rust).
+ 
++### Issues with proxy.golang.org when running images locally
++
++If you are having issues contacting `proxy.golang.org` try running the image
++with the `GOPROXY=direct`. For example:
++```bash
++docker run -e GOPROXY=direct -v `pwd`:`pwd` -w `pwd` -it ubuntu-20.04:clang-9x
++```
++
+ ## Test locations
+ 
+ ### Unit tests
+diff --git a/tests/ci/codebuild/android/run_android_fips_shared.yml b/tests/ci/codebuild/android/run_android_fips_shared.yml
+index b8b9b0fdd..4dbbfbfa3 100644
+--- a/tests/ci/codebuild/android/run_android_fips_shared.yml
++++ b/tests/ci/codebuild/android/run_android_fips_shared.yml
+@@ -1,5 +1,9 @@
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/codebuild/android/run_android_fips_static.yml b/tests/ci/codebuild/android/run_android_fips_static.yml
+index 2b822125b..c92e11620 100644
+--- a/tests/ci/codebuild/android/run_android_fips_static.yml
++++ b/tests/ci/codebuild/android/run_android_fips_static.yml
+@@ -1,5 +1,9 @@
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/codebuild/android/run_android_shared_debug.yml b/tests/ci/codebuild/android/run_android_shared_debug.yml
+index 76ad5959a..4b0181997 100644
+--- a/tests/ci/codebuild/android/run_android_shared_debug.yml
++++ b/tests/ci/codebuild/android/run_android_shared_debug.yml
+@@ -1,5 +1,9 @@
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/codebuild/android/run_android_shared_release.yml b/tests/ci/codebuild/android/run_android_shared_release.yml
+index 1fbec9555..bf655db13 100644
+--- a/tests/ci/codebuild/android/run_android_shared_release.yml
++++ b/tests/ci/codebuild/android/run_android_shared_release.yml
+@@ -1,5 +1,9 @@
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/codebuild/android/run_android_static_debug.yml b/tests/ci/codebuild/android/run_android_static_debug.yml
+index a7bcf1214..1186331f1 100644
+--- a/tests/ci/codebuild/android/run_android_static_debug.yml
++++ b/tests/ci/codebuild/android/run_android_static_debug.yml
+@@ -1,5 +1,9 @@
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/codebuild/android/run_android_static_release.yml b/tests/ci/codebuild/android/run_android_static_release.yml
+index dfa556053..88f566a8f 100644
+--- a/tests/ci/codebuild/android/run_android_static_release.yml
++++ b/tests/ci/codebuild/android/run_android_static_release.yml
+@@ -1,5 +1,9 @@
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/codebuild/common/run_analytics.yml b/tests/ci/codebuild/common/run_analytics.yml
+index e5662176e..f4ad43b7a 100644
+--- a/tests/ci/codebuild/common/run_analytics.yml
++++ b/tests/ci/codebuild/common/run_analytics.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml b/tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml
+index ba4ac463d..13921aa0a 100644
+--- a/tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml
++++ b/tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/common/run_valgrind_tests.yml b/tests/ci/codebuild/common/run_valgrind_tests.yml
+index 0b88054b4..98c9f51a7 100644
+--- a/tests/ci/codebuild/common/run_valgrind_tests.yml
++++ b/tests/ci/codebuild/common/run_valgrind_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-aarch/docker-img-build.yml b/tests/ci/codebuild/linux-aarch/docker-img-build.yml
+index 3eb511413..2ac0374b2 100644
+--- a/tests/ci/codebuild/linux-aarch/docker-img-build.yml
++++ b/tests/ci/codebuild/linux-aarch/docker-img-build.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   install:
+     commands:
+diff --git a/tests/ci/codebuild/linux-aarch/run_fips_tests.yml b/tests/ci/codebuild/linux-aarch/run_fips_tests.yml
+index a3b1fb7f1..26e2f655f 100644
+--- a/tests/ci/codebuild/linux-aarch/run_fips_tests.yml
++++ b/tests/ci/codebuild/linux-aarch/run_fips_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-aarch/run_minimal_tests.yml b/tests/ci/codebuild/linux-aarch/run_minimal_tests.yml
+index cb8aadb5f..9e3848298 100644
+--- a/tests/ci/codebuild/linux-aarch/run_minimal_tests.yml
++++ b/tests/ci/codebuild/linux-aarch/run_minimal_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-aarch/run_posix_tests.yml b/tests/ci/codebuild/linux-aarch/run_posix_tests.yml
+index 894f30cd8..067850809 100644
+--- a/tests/ci/codebuild/linux-aarch/run_posix_tests.yml
++++ b/tests/ci/codebuild/linux-aarch/run_posix_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-aarch/run_prefix_tests.yml b/tests/ci/codebuild/linux-aarch/run_prefix_tests.yml
+index 7558a6484..339dbf95a 100644
+--- a/tests/ci/codebuild/linux-aarch/run_prefix_tests.yml
++++ b/tests/ci/codebuild/linux-aarch/run_prefix_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-aarch/run_sanitizer_tests.yml b/tests/ci/codebuild/linux-aarch/run_sanitizer_tests.yml
+index 5d52db236..278f65ec0 100644
+--- a/tests/ci/codebuild/linux-aarch/run_sanitizer_tests.yml
++++ b/tests/ci/codebuild/linux-aarch/run_sanitizer_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml b/tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
+index 19cd5d193..5f95f4baf 100644
+--- a/tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
++++ b/tests/ci/codebuild/linux-aarch/run_ssl_asan_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/amazonlinux-2_gcc-7x_intel-sde.yml b/tests/ci/codebuild/linux-x86/amazonlinux-2_gcc-7x_intel-sde.yml
+index 8133f6eff..344dd95bb 100644
+--- a/tests/ci/codebuild/linux-x86/amazonlinux-2_gcc-7x_intel-sde.yml
++++ b/tests/ci/codebuild/linux-x86/amazonlinux-2_gcc-7x_intel-sde.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/docker-img-build.yml b/tests/ci/codebuild/linux-x86/docker-img-build.yml
+index 00759dcf5..f5413aa53 100644
+--- a/tests/ci/codebuild/linux-x86/docker-img-build.yml
++++ b/tests/ci/codebuild/linux-x86/docker-img-build.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   install:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/fedora-31_clang-9x.yml b/tests/ci/codebuild/linux-x86/fedora-31_clang-9x.yml
+index 9c5a6b874..0acbc0771 100644
+--- a/tests/ci/codebuild/linux-x86/fedora-31_clang-9x.yml
++++ b/tests/ci/codebuild/linux-x86/fedora-31_clang-9x.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/install_shared_and_static.yml b/tests/ci/codebuild/linux-x86/install_shared_and_static.yml
+index c20e0fd0e..1028db571 100644
+--- a/tests/ci/codebuild/linux-x86/install_shared_and_static.yml
++++ b/tests/ci/codebuild/linux-x86/install_shared_and_static.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/openssh_integration.yml b/tests/ci/codebuild/linux-x86/openssh_integration.yml
+index 84e29f216..89e9b587b 100644
+--- a/tests/ci/codebuild/linux-x86/openssh_integration.yml
++++ b/tests/ci/codebuild/linux-x86/openssh_integration.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/postgres_integration.yml b/tests/ci/codebuild/linux-x86/postgres_integration.yml
+index b6ff3a867..0ce57964e 100644
+--- a/tests/ci/codebuild/linux-x86/postgres_integration.yml
++++ b/tests/ci/codebuild/linux-x86/postgres_integration.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   install:
+     run-as: root
+diff --git a/tests/ci/codebuild/linux-x86/pre-push.yml b/tests/ci/codebuild/linux-x86/pre-push.yml
+index 15ed6e76f..783fd1d33 100644
+--- a/tests/ci/codebuild/linux-x86/pre-push.yml
++++ b/tests/ci/codebuild/linux-x86/pre-push.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/run_bm_build_test.yml b/tests/ci/codebuild/linux-x86/run_bm_build_test.yml
+index ef6e52e9b..eea804aef 100644
+--- a/tests/ci/codebuild/linux-x86/run_bm_build_test.yml
++++ b/tests/ci/codebuild/linux-x86/run_bm_build_test.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/run_bm_framework.yml b/tests/ci/codebuild/linux-x86/run_bm_framework.yml
+index 821f5d787..04e14054b 100644
+--- a/tests/ci/codebuild/linux-x86/run_bm_framework.yml
++++ b/tests/ci/codebuild/linux-x86/run_bm_framework.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/run_cryptofuzz.yml b/tests/ci/codebuild/linux-x86/run_cryptofuzz.yml
+index 4bdc12ce9..070132b81 100644
+--- a/tests/ci/codebuild/linux-x86/run_cryptofuzz.yml
++++ b/tests/ci/codebuild/linux-x86/run_cryptofuzz.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/run_fips_tests.yml b/tests/ci/codebuild/linux-x86/run_fips_tests.yml
+index a3b1fb7f1..26e2f655f 100644
+--- a/tests/ci/codebuild/linux-x86/run_fips_tests.yml
++++ b/tests/ci/codebuild/linux-x86/run_fips_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/run_fuzz_tests.yml b/tests/ci/codebuild/linux-x86/run_fuzz_tests.yml
+index 0aa27f535..844abe6ae 100644
+--- a/tests/ci/codebuild/linux-x86/run_fuzz_tests.yml
++++ b/tests/ci/codebuild/linux-x86/run_fuzz_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/run_legacy_build.yml b/tests/ci/codebuild/linux-x86/run_legacy_build.yml
+index 7fb678db3..af6e8b397 100644
+--- a/tests/ci/codebuild/linux-x86/run_legacy_build.yml
++++ b/tests/ci/codebuild/linux-x86/run_legacy_build.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/run_minimal_tests.yml b/tests/ci/codebuild/linux-x86/run_minimal_tests.yml
+index cb8aadb5f..9e3848298 100644
+--- a/tests/ci/codebuild/linux-x86/run_minimal_tests.yml
++++ b/tests/ci/codebuild/linux-x86/run_minimal_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/run_posix_tests.yml b/tests/ci/codebuild/linux-x86/run_posix_tests.yml
+index 894f30cd8..067850809 100644
+--- a/tests/ci/codebuild/linux-x86/run_posix_tests.yml
++++ b/tests/ci/codebuild/linux-x86/run_posix_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/run_prefix_tests.yml b/tests/ci/codebuild/linux-x86/run_prefix_tests.yml
+index 7558a6484..339dbf95a 100644
+--- a/tests/ci/codebuild/linux-x86/run_prefix_tests.yml
++++ b/tests/ci/codebuild/linux-x86/run_prefix_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/run_sanitizer_tests.yml b/tests/ci/codebuild/linux-x86/run_sanitizer_tests.yml
+index a8a0cc006..925b4548d 100644
+--- a/tests/ci/codebuild/linux-x86/run_sanitizer_tests.yml
++++ b/tests/ci/codebuild/linux-x86/run_sanitizer_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/s2n_integration.yml b/tests/ci/codebuild/linux-x86/s2n_integration.yml
+index feb9d51a1..40e40c3e7 100644
+--- a/tests/ci/codebuild/linux-x86/s2n_integration.yml
++++ b/tests/ci/codebuild/linux-x86/s2n_integration.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/codebuild/linux-x86/ubuntu-20.04_clang-10x_formal-verification.yml b/tests/ci/codebuild/linux-x86/ubuntu-20.04_clang-10x_formal-verification.yml
+index e67573c5d..917aeccd7 100644
+--- a/tests/ci/codebuild/linux-x86/ubuntu-20.04_clang-10x_formal-verification.yml
++++ b/tests/ci/codebuild/linux-x86/ubuntu-20.04_clang-10x_formal-verification.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   pre_build:
+     commands:
+diff --git a/tests/ci/codebuild/macos-aarch/run_m1_tests.yml b/tests/ci/codebuild/macos-aarch/run_m1_tests.yml
+index a3950119c..0bca090d3 100644
+--- a/tests/ci/codebuild/macos-aarch/run_m1_tests.yml
++++ b/tests/ci/codebuild/macos-aarch/run_m1_tests.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/codebuild/windows-x86/windows-msvc2015.yml b/tests/ci/codebuild/windows-x86/windows-msvc2015.yml
+index de43c7c0a..9f81bdb5b 100644
+--- a/tests/ci/codebuild/windows-x86/windows-msvc2015.yml
++++ b/tests/ci/codebuild/windows-x86/windows-msvc2015.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/codebuild/windows-x86/windows-msvc2017.yml b/tests/ci/codebuild/windows-x86/windows-msvc2017.yml
+index d7ff113b8..6a8bd4d28 100644
+--- a/tests/ci/codebuild/windows-x86/windows-msvc2017.yml
++++ b/tests/ci/codebuild/windows-x86/windows-msvc2017.yml
+@@ -3,6 +3,10 @@
+ 
+ version: 0.2
+ 
++env:
++  variables:
++    GOPROXY: https://proxy.golang.org,direct
++
+ phases:
+   build:
+     commands:
+diff --git a/tests/ci/common_posix_setup.sh b/tests/ci/common_posix_setup.sh
+index c0b4100ad..d41c561fd 100644
+--- a/tests/ci/common_posix_setup.sh
++++ b/tests/ci/common_posix_setup.sh
+@@ -1,9 +1,6 @@
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ # SPDX-License-Identifier: Apache-2.0 OR ISC
+ 
+-# If having trouble reaching proxy.golang.org, uncomment the following:
+-#go env -w GOPROXY=direct
+-
+ if [ -v CODEBUILD_SRC_DIR ]; then
+   SRC_ROOT="$CODEBUILD_SRC_DIR"
+ else
+diff --git a/tests/ci/docker_images/dependencies/install_common_dependencies.sh b/tests/ci/docker_images/dependencies/install_common_dependencies.sh
+index ad6e4c278..b9631933d 100755
+--- a/tests/ci/docker_images/dependencies/install_common_dependencies.sh
++++ b/tests/ci/docker_images/dependencies/install_common_dependencies.sh
+@@ -17,5 +17,4 @@ mv go/* "$GOROOT"
+ rm $GO_ARCHIVE
+ # Common Go configuration
+ go env -w GO111MODULE=on
+-go env -w GOPROXY=https://proxy.golang.org,direct
+ go env -w GOFLAGS=-buildvcs=false
+\ No newline at end of file
+diff --git a/tests/ci/run_openssh_integration.sh b/tests/ci/run_openssh_integration.sh
+index 623e1b054..0c21f45b1 100755
+--- a/tests/ci/run_openssh_integration.sh
++++ b/tests/ci/run_openssh_integration.sh
+@@ -44,7 +44,6 @@ pushd "${SCRATCH_FOLDER}"
+ # Test helper functions.
+ 
+ function aws_lc_build() {
+-  export GOPROXY=direct
+   ${CMAKE_COMMAND} "${AWS_LC_DIR}" -GNinja "-B${AWS_LC_BUILD_FOLDER}" "-DCMAKE_INSTALL_PREFIX=${AWS_LC_INSTALL_FOLDER}" "$@"
+   ${NINJA_COMMAND} -C "${AWS_LC_BUILD_FOLDER}" install
+   ls -R "${AWS_LC_INSTALL_FOLDER}"

@@ -1,0 +1,50 @@
+From 11c72a1d5337b8aed8e7906a7c61248d41e23a08 Mon Sep 17 00:00:00 2001
+From: Bob Beck <bbe@google.com>
+Date: Thu, 9 Feb 2023 08:54:39 -0700
+Subject: [PATCH] VMS? I don't think so. Take this for a walk behind the barn.
+
+Change-Id: Ia7518c6eeb87f21bbcb88d3b688745d07e963662
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57085
+Reviewed-by: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit 8846d7b3c35745f5ecc053f650dd76d3750d7ce5)
+---
+ crypto/x509/by_dir.c | 25 ++-----------------------
+ 1 file changed, 2 insertions(+), 23 deletions(-)
+
+diff --git a/crypto/x509/by_dir.c b/crypto/x509/by_dir.c
+index b959bb8bd..3ad8128cd 100644
+--- a/crypto/x509/by_dir.c
++++ b/crypto/x509/by_dir.c
+@@ -319,29 +319,8 @@ static int get_cert_by_subject(X509_LOOKUP *xl, int type, X509_NAME *name,
+         hent = NULL;
+       }
+       for (;;) {
+-        char c = '/';
+-#ifdef OPENSSL_SYS_VMS
+-        c = ent->dir[strlen(ent->dir) - 1];
+-        if (c != ':' && c != '>' && c != ']') {
+-          // If no separator is present, we assume the directory
+-          // specifier is a logical name, and add a colon.  We
+-          // really should use better VMS routines for merging
+-          // things like this, but this will do for now... --
+-          // Richard Levitte
+-          c = ':';
+-        } else {
+-          c = '\0';
+-        }
+-#endif
+-        if (c == '\0') {
+-          // This is special.  When c == '\0', no directory
+-          // separator should be added.
+-          BIO_snprintf(b->data, b->max, "%s%08lx.%s%d", ent->dir, h, postfix,
+-                       k);
+-        } else {
+-          BIO_snprintf(b->data, b->max, "%s%c%08lx.%s%d", ent->dir, c, h,
+-                       postfix, k);
+-        }
++        BIO_snprintf(b->data, b->max, "%s/%08lx.%s%d", ent->dir, h, postfix,
++                     k);
+ #ifndef OPENSSL_NO_POSIX_IO
+ #if defined(_WIN32) && !defined(stat)
+ #define stat _stat

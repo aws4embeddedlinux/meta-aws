@@ -1,0 +1,284 @@
+From 4238de5a9bf7811b70c0caee63f38dfede99a044 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Wed, 27 Oct 2021 16:43:47 -0700
+Subject: [PATCH] Eliminate a few more constant expressions
+
+This results in some expansion of the assembler code for a few
+functions, but makes life easier for downstream tools. In any
+case, the object code is unchanged. Also fix a few tiny stylistic
+inconsistencies and errors in the comments.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/62b6ca948fe7f870aebda9b582a5bfe47ee8612f
+---
+ arm/generic/bignum_mul.S       |   4 +-
+ arm/p384/bignum_bigendian_6.S  | 126 ++++++++++++++++++++++++++-------
+ arm/p384/bignum_mux_6.S        |  35 +++++++--
+ arm/p521/bignum_deamont_p521.S |   2 +-
+ arm/p521/bignum_double_p521.S  |  23 ++++--
+ 5 files changed, 150 insertions(+), 40 deletions(-)
+
+diff --git a/arm/generic/bignum_mul.S b/arm/generic/bignum_mul.S
+index 2291602e6..353b26cb7 100644
+--- a/arm/generic/bignum_mul.S
++++ b/arm/generic/bignum_mul.S
+@@ -21,8 +21,8 @@
+ //     (uint64_t k, uint64_t *z,
+ //      uint64_t m, uint64_t *x, uint64_t n, uint64_t *y);
+ //
+-// Does the "z := x * y" operation where x is m digits, y is n, result z is p.
+-// Truncates the result in general unless p >= m + n
++// Does the "z := x * y" operation where x is m digits, y is n, result z is k.
++// Truncates the result in general unless k >= m + n
+ //
+ // Standard ARM ABI: X0 = k, X1 = z, X2 = m, X3 = x, X4 = n, X5 = y
+ // ----------------------------------------------------------------------------
+diff --git a/arm/p384/bignum_bigendian_6.S b/arm/p384/bignum_bigendian_6.S
+index f2c786e5e..065b4a4e7 100644
+--- a/arm/p384/bignum_bigendian_6.S
++++ b/arm/p384/bignum_bigendian_6.S
+@@ -50,24 +50,6 @@
+ #define a x3
+ #define c x4
+ 
+-#define accumdigit(dest,i)                                                  \
+-        ldrb    dshort, [x, #8*i+7];                                        \
+-        extr    dest, d, xzr, #8;                                           \
+-        ldrb    dshort, [x, #8*i+6];                                        \
+-        extr    dest, d, dest, #8;                                          \
+-        ldrb    dshort, [x, #8*i+5];                                        \
+-        extr    dest, d, dest, #8;                                          \
+-        ldrb    dshort, [x, #8*i+4];                                        \
+-        extr    dest, d, dest, #8;                                          \
+-        ldrb    dshort, [x, #8*i+3];                                        \
+-        extr    dest, d, dest, #8;                                          \
+-        ldrb    dshort, [x, #8*i+2];                                        \
+-        extr    dest, d, dest, #8;                                          \
+-        ldrb    dshort, [x, #8*i+1];                                        \
+-        extr    dest, d, dest, #8;                                          \
+-        ldrb    dshort, [x, #8*i];                                        \
+-        extr    dest, d, dest, #8
+-
+ // The reads and writes are organized in mirror-image pairs (0-5, 1-4, 2-3)
+ // to allow x and z to point to the same buffer without using more
+ // intermediate registers.
+@@ -78,22 +60,118 @@ bignum_tobytes_6:
+ 
+ // 0 and 5 words
+ 
+-                accumdigit(a, 0)
+-                accumdigit(c, 5)
++                ldrb    dshort, [x, #7]
++                extr    a, d, xzr, #8
++                ldrb    dshort, [x, #6]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #5]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #4]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #3]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #2]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #1]
++                extr    a, d, a, #8
++                ldrb    dshort, [x]
++                extr    a, d, a, #8
++
++                ldrb    dshort, [x, #47]
++                extr    c, d, xzr, #8
++                ldrb    dshort, [x, #46]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #45]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #44]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #43]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #42]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #41]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #40]
++                extr    c, d, c, #8
++
+                 str     a, [z, #40]
+                 str     c, [z]
+ 
+ // 1 and 4 words
+ 
+-                accumdigit(a, 1)
+-                accumdigit(c, 4)
++                ldrb    dshort, [x, #15]
++                extr    a, d, xzr, #8
++                ldrb    dshort, [x, #14]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #13]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #12]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #11]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #10]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #9]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #8]
++                extr    a, d, a, #8
++
++                ldrb    dshort, [x, #39]
++                extr    c, d, xzr, #8
++                ldrb    dshort, [x, #38]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #37]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #36]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #35]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #34]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #33]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #32]
++                extr    c, d, c, #8
++
+                 str     a, [z, #32]
+                 str     c, [z, #8]
+ 
+ // 2 and 3 words
+ 
+-                accumdigit(a, 2)
+-                accumdigit(c, 3)
++                ldrb    dshort, [x, #23]
++                extr    a, d, xzr, #8
++                ldrb    dshort, [x, #22]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #21]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #20]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #19]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #18]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #17]
++                extr    a, d, a, #8
++                ldrb    dshort, [x, #16]
++                extr    a, d, a, #8
++
++                ldrb    dshort, [x, #31]
++                extr    c, d, xzr, #8
++                ldrb    dshort, [x, #30]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #29]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #28]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #27]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #26]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #25]
++                extr    c, d, c, #8
++                ldrb    dshort, [x, #24]
++                extr    c, d, c, #8
++
+                 str     a, [z, #24]
+                 str     c, [z, #16]
+ 
+diff --git a/arm/p384/bignum_mux_6.S b/arm/p384/bignum_mux_6.S
+index bc6726920..eb324df09 100644
+--- a/arm/p384/bignum_mux_6.S
++++ b/arm/p384/bignum_mux_6.S
+@@ -41,14 +41,35 @@ bignum_mux_6:
+ 
+                 cmp     p, #0                    // Set condition codes p = 0
+ 
+-                .set    I, 0
+-                .rep    6
+-                ldr     a, [x, #8*I]
+-                ldr     p, [y, #8*I]
++                ldr     a, [x]
++                ldr     p, [y]
+                 csel    a, a, p, ne
+-                str     a, [z, #8*I]
+-                .set    I, (I+1)
+-                .endr
++                str     a, [z]
++
++                ldr     a, [x, #8]
++                ldr     p, [y, #8]
++                csel    a, a, p, ne
++                str     a, [z, #8]
++
++                ldr     a, [x, #16]
++                ldr     p, [y, #16]
++                csel    a, a, p, ne
++                str     a, [z, #16]
++
++                ldr     a, [x, #24]
++                ldr     p, [y, #24]
++                csel    a, a, p, ne
++                str     a, [z, #24]
++
++                ldr     a, [x, #32]
++                ldr     p, [y, #32]
++                csel    a, a, p, ne
++                str     a, [z, #32]
++
++                ldr     a, [x, #40]
++                ldr     p, [y, #40]
++                csel    a, a, p, ne
++                str     a, [z, #40]
+ 
+                 ret
+ 
+diff --git a/arm/p521/bignum_deamont_p521.S b/arm/p521/bignum_deamont_p521.S
+index 770a863b1..7e9dc6f44 100644
+--- a/arm/p521/bignum_deamont_p521.S
++++ b/arm/p521/bignum_deamont_p521.S
+@@ -90,7 +90,7 @@ bignum_deamont_p521:
+ // this is just "if s >= p_521 then s - p_521 else s". First get
+ // CF <=> s >= p_521, creating the digits [h,l] to add for the l part.
+ 
+-                adds    xzr, u, 1
++                adds    xzr, u, #1
+                 lsl     l, c, #9
+                 adcs    xzr, d7, l
+                 orr     d8, d8, #~0x1FF
+diff --git a/arm/p521/bignum_double_p521.S b/arm/p521/bignum_double_p521.S
+index 397553a25..ecbf637fa 100644
+--- a/arm/p521/bignum_double_p521.S
++++ b/arm/p521/bignum_double_p521.S
+@@ -46,14 +46,25 @@ bignum_double_p521:
+ // and otherwise just 2 * x. Feed in the condition as the carry bit
+ // to get 2 * x + [2 * x >= p_521] then just mask it off to 521 bits.
+ 
+-                .set    I, 0
+-                .rep 4
+-                ldp     l, h, [x, #8*I]
++                ldp     l, h, [x]
+                 adcs    l, l, l
+                 adcs    h, h, h
+-                stp     l, h, [z, #8*I]
+-                .set    I, (I+2)
+-                .endr
++                stp     l, h, [z]
++
++                ldp     l, h, [x, #16]
++                adcs    l, l, l
++                adcs    h, h, h
++                stp     l, h, [z, #16]
++
++                ldp     l, h, [x, #32]
++                adcs    l, l, l
++                adcs    h, h, h
++                stp     l, h, [z, #32]
++
++                ldp     l, h, [x, #48]
++                adcs    l, l, l
++                adcs    h, h, h
++                stp     l, h, [z, #48]
+ 
+                 adc     c, c, c
+                 and     c, c, #0x1FF

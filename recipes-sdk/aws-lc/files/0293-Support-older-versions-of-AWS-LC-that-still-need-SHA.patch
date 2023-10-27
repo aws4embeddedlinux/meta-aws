@@ -1,0 +1,26 @@
+From a41aa8778c56a2f0fd10003e779ae9adf6dc654e Mon Sep 17 00:00:00 2001
+From: Andrew Hopkins <andhop@amazon.com>
+Date: Fri, 14 Apr 2023 13:10:08 -0700
+Subject: [PATCH] Support older versions of AWS-LC that still need SHA3 turned
+ on (#953)
+
+---
+ tool/speed.cc | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/tool/speed.cc b/tool/speed.cc
+index b15d5042e..568126cd3 100644
+--- a/tool/speed.cc
++++ b/tool/speed.cc
+@@ -2004,6 +2004,11 @@ static const argument_t kArguments[] = {
+ };
+ 
+ bool Speed(const std::vector<std::string> &args) {
++#if defined(OPENSSL_IS_AWSLC)
++  // For mainline AWS-LC this is a no-op, however if speed.cc built with an old
++  // branch of AWS-LC SHA3 might be disabled by default and fail the benchmark.
++  EVP_MD_unstable_sha3_enable(true);
++#endif
+   std::map<std::string, std::string> args_map;
+   if (!ParseKeyValueArguments(&args_map, args, kArguments)) {
+     PrintUsage(kArguments);

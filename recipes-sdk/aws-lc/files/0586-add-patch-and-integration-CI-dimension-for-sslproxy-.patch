@@ -1,0 +1,296 @@
+From 6a1e61a81bb5a1f77bcbf94a1b451b89d939d59b Mon Sep 17 00:00:00 2001
+From: Samuel Chiang <sachiang@amazon.com>
+Date: Tue, 19 Sep 2023 09:48:42 -0700
+Subject: [PATCH] add patch and integration CI dimension for sslproxy (#1183)
+
+We've recently ironed out some of the gaps for SSLProxy support. Most of
+the gaps were related to testing configurations.
+
+The gaps were:
+* The prime192v1 being used within tests (not supported in AWS-LC).
+* The TMP_SESS_FILE used for SSL_Session caching in files was only
+  relevant to OpenSSL and LibreSSL. The patch I've included a new pem
+  file specific to AWS-LC.
+
+This adds a CI dimension to verify our newfound support.
+---
+ .../github_ci_integration_omnibus.yaml        |  10 ++
+ .../linux-x86/ubuntu-22.04_base/Dockerfile    |   6 +-
+ .../integration/run_sslproxy_integration.sh   |  97 +++++++++++++++
+ .../sslproxy_patch/aws-lc-sslproxy.patch      | 115 ++++++++++++++++++
+ 4 files changed, 227 insertions(+), 1 deletion(-)
+ create mode 100755 tests/ci/integration/run_sslproxy_integration.sh
+ create mode 100644 tests/ci/integration/sslproxy_patch/aws-lc-sslproxy.patch
+
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+index 597fa50d3..42bdfa49d 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_integration_omnibus.yaml
+@@ -97,3 +97,13 @@ batch:
+         image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:ubuntu-22.04_gcc-12x_latest
+         variables:
+           AWS_LC_CI_TARGET: "tests/ci/integration/run_nginx_integration.sh"
++
++    - identifier: sslproxy_integration
++      buildspec: tests/ci/codebuild/common/run_simple_target.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: false
++        compute-type: BUILD_GENERAL1_MEDIUM
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:ubuntu-22.04_gcc-12x_latest
++        variables:
++          AWS_LC_CI_TARGET: "tests/ci/integration/run_sslproxy_integration.sh"
+diff --git a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+index 0114feda2..0a66285bc 100644
+--- a/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
++++ b/tests/ci/docker_images/linux-x86/ubuntu-22.04_base/Dockerfile
+@@ -25,6 +25,7 @@ RUN set -ex && \
+     apt-get -y --no-install-recommends install \
+     software-properties-common \
+     automake \
++    check \
+     cmake \
+     curl \
+     make \
+@@ -44,13 +45,16 @@ RUN set -ex && \
+     libio-socket-ssl-perl \
+     libipc-run-perl \
+     libjson-perl \
++    liblua5.4-dev \
++    libnet-dev \
+     libnet-ssleay-perl \
++    libpcap-dev \
+     libperl-dev \
+     libpcre2-dev \
+     libreadline-dev \
++    libsqlite3-dev \
+     libtool \
+     libudev-dev \
+-    liblua5.4-dev \
+     socat \
+     zlib1g-dev \
+     dpkg-dev \
+diff --git a/tests/ci/integration/run_sslproxy_integration.sh b/tests/ci/integration/run_sslproxy_integration.sh
+new file mode 100755
+index 000000000..dad885d33
+--- /dev/null
++++ b/tests/ci/integration/run_sslproxy_integration.sh
+@@ -0,0 +1,97 @@
++#!/bin/bash -exu
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++source tests/ci/common_posix_setup.sh
++
++# Set up environment.
++
++# SYS_ROOT
++#  - SRC_ROOT(aws-lc)
++#    - SCRATCH_FOLDER
++#      - sslproxy
++#      - AWS_LC_BUILD_FOLDER
++#      - AWS_LC_INSTALL_FOLDER
++#      - SSLPROXY_BUILD_FOLDER
++#      - libevent
++#      - LIBEVENT_INSTALL_FOLDER
++
++# Assumes script is executed from the root of aws-lc directory
++SCRATCH_FOLDER="${SRC_ROOT}/SSLPROXY_BUILD_ROOT"
++SSLPROXY_SRC_FOLDER="${SCRATCH_FOLDER}/sslproxy"
++SSLPROXY_BUILD_FOLDER="${SCRATCH_FOLDER}/sslproxy-aws-lc"
++SSLPROXY_PATCH_FOLDER="${SRC_ROOT}/tests/ci/integration/sslproxy_patch"
++AWS_LC_BUILD_FOLDER="${SCRATCH_FOLDER}/aws-lc-build"
++AWS_LC_INSTALL_FOLDER="${SCRATCH_FOLDER}/aws-lc-install"
++LIBEVENT_SRC_FOLDER="${SCRATCH_FOLDER}/libevent"
++LIBEVENT_INSTALL_FOLDER="${SCRATCH_FOLDER}/libevent-install"
++EXPECTED_AWSLC_API_VERSION="22"
++
++function libevent_install() {
++  git clone https://github.com/libevent/libevent.git ${LIBEVENT_SRC_FOLDER} --depth 1
++  pushd ${LIBEVENT_SRC_FOLDER}
++  cmake -DOPENSSL_ROOT_DIR="${AWS_LC_INSTALL_FOLDER}" -DCMAKE_INSTALL_PREFIX="${LIBEVENT_INSTALL_FOLDER}"
++  make install
++  popd
++}
++
++function sslproxy_patch_reminder() {
++  # If the test file in SSLProxy needs to be updated, simply run the following code
++  # against a valid SSL_SESSION from AWS-LC to generate a new file. This might occur
++  # whenever we update the expected contents of SSL_SESSION.
++  #
++  # ```
++  #  FILE *f;
++  #  f = fopen("session-aws-lc.pem", "wr");
++  #  PEM_write_SSL_SESSION(f, session.get());
++  # ```
++  AWSLC_API_VERSION=`grep -Po -oP '#define AWSLC_API_VERSION \K\d+' include/openssl/base.h`
++  if [[ "${AWSLC_API_VERSION}" != "${EXPECTED_AWSLC_API_VERSION}" ]]; then
++    aws cloudwatch put-metric-data --namespace AWS-LC --metric-name SSLProxyAPIVersionBump --value 1
++  else
++    aws cloudwatch put-metric-data --namespace AWS-LC --metric-name SSLProxyAPIVersionBump --value 0
++  fi
++}
++
++function sslproxy_build() {
++  make OPENSSL_BASE="${AWS_LC_INSTALL_FOLDER}" LIBEVENT_BASE="${LIBEVENT_INSTALL_FOLDER}"
++}
++
++# TODO: Remove this when we make an upstream contribution.
++# There are some features in the sslproxy tests that we don't currently support.
++# * prime192v1 curve
++# * new session file to use in tests
++function sslproxy_patch_tests() {
++  for patchfile in $(find -L "${SSLPROXY_PATCH_FOLDER}" -type f -name '*.patch'); do
++    echo "Apply patch $patchfile..."
++    patch -p1 --quiet -i "$patchfile"
++  done
++}
++
++# We run travisunittest because the CI workarounds are applicable to Codebuild as well.
++function sslproxy_run_tests() {
++  LD_LIBRARY_PATH="${LIBEVENT_INSTALL_FOLDER}/lib" make OPENSSL=openssl OPENSSL_BASE="${AWS_LC_INSTALL_FOLDER}" LIBEVENT_BASE="${LIBEVENT_INSTALL_FOLDER}" travisunittest
++}
++
++sslproxy_patch_reminder
++
++mkdir -p ${SCRATCH_FOLDER}
++rm -rf ${SCRATCH_FOLDER}/*
++cd ${SCRATCH_FOLDER}
++
++git clone https://github.com/sonertari/SSLproxy.git ${SSLPROXY_SRC_FOLDER} --depth 1
++mkdir -p ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER} ${SSLPROXY_BUILD_FOLDER}
++ls
++
++aws_lc_build ${SRC_ROOT} ${AWS_LC_BUILD_FOLDER} ${AWS_LC_INSTALL_FOLDER}
++
++# libevent needs to be installed from source and linked to AWS-LC.
++libevent_install
++
++# Build sslproxy from source.
++pushd ${SSLPROXY_SRC_FOLDER}
++sslproxy_patch_tests
++sslproxy_build
++sslproxy_run_tests
++popd
++
+diff --git a/tests/ci/integration/sslproxy_patch/aws-lc-sslproxy.patch b/tests/ci/integration/sslproxy_patch/aws-lc-sslproxy.patch
+new file mode 100644
+index 000000000..d7b8b61e2
+--- /dev/null
++++ b/tests/ci/integration/sslproxy_patch/aws-lc-sslproxy.patch
+@@ -0,0 +1,115 @@
++diff --git a/tests/check/cachedsess.t.c b/tests/check/cachedsess.t.c
++index 7dbac6e..58a47d5 100644
++--- a/tests/check/cachedsess.t.c
+++++ b/tests/check/cachedsess.t.c
++@@ -40,6 +40,8 @@
++ 
++ #if defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x20501000L
++ #define TMP_SESS_FILE "pki/session-libressl-2.5.0.pem"
+++#elif defined(AWSLC_API_VERSION) && AWSLC_API_VERSION == 22
+++#define TMP_SESS_FILE "pki/session-aws-lc-1.15.0.pem"
++ #else
++ #define TMP_SESS_FILE "pki/session.pem"
++ #endif
++diff --git a/tests/check/cachessess.t.c b/tests/check/cachessess.t.c
++index 754b7d3..1cd3294 100644
++--- a/tests/check/cachessess.t.c
+++++ b/tests/check/cachessess.t.c
++@@ -39,6 +39,8 @@
++ 
++ #if defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x20501000L
++ #define TMP_SESS_FILE "pki/session-libressl-2.5.0.pem"
+++#elif defined(AWSLC_API_VERSION) && AWSLC_API_VERSION == 22
+++#define TMP_SESS_FILE "pki/session-aws-lc-1.15.0.pem"
++ #else
++ #define TMP_SESS_FILE "pki/session.pem"
++ #endif
++diff --git a/tests/check/filterstruct.t.c b/tests/check/filterstruct.t.c
++index 47ef6f2..c2d8b85 100644
++--- a/tests/check/filterstruct.t.c
+++++ b/tests/check/filterstruct.t.c
++@@ -59,7 +59,7 @@
++ 
++ #ifndef OPENSSL_NO_ECDH
++ #define	ECDHCURVE "no ecdhcurve|"
++-#define	ECDH_PRIME2 "prime192v1|"
+++#define	ECDH_PRIME2 "secp224r1|"
++ #else
++ #define	ECDHCURVE ""
++ #define	ECDH_PRIME2 ""
++@@ -4255,7 +4255,7 @@ START_TEST(set_filter_struct_16)
++ 		"LeafCRLURL http://example1.com/example1.crl\n"
++ 		//"DHGroupParams /etc/sslproxy/dh.pem\n"
++ #ifndef OPENSSL_NO_ECDH
++-		"ECDHCurve prime192v1\n"
+++		"ECDHCurve secp224r1\n"
++ #endif /* !OPENSSL_NO_ECDH */
++ #ifdef SSL_OP_NO_COMPRESSION
++ 		"SSLCompression yes\n"
++@@ -4378,7 +4378,7 @@ START_TEST(set_filter_struct_17)
++ 		"LeafCRLURL http://example1.com/example1.crl\n"
++ 		//"DHGroupParams /etc/sslproxy/dh.pem\n"
++ #ifndef OPENSSL_NO_ECDH
++-		"ECDHCurve prime192v1\n"
+++		"ECDHCurve secp224r1\n"
++ #endif /* !OPENSSL_NO_ECDH */
++ #ifdef SSL_OP_NO_COMPRESSION
++ 		"SSLCompression yes\n"
++diff --git a/tests/check/opts.t.c b/tests/check/opts.t.c
++index 0ea2810..19c5885 100644
++--- a/tests/check/opts.t.c
+++++ b/tests/check/opts.t.c
++@@ -128,7 +128,7 @@ static char *argv14[] = {
++ 
++ #ifndef OPENSSL_NO_ECDH
++ #define	ECDH_PRIME1 "prime256v1|"
++-#define	ECDH_PRIME2 "prime192v1|"
+++#define	ECDH_PRIME2 "secp224r1|"
++ #else
++ #define	ECDH_PRIME1 ""
++ #define	ECDH_PRIME2 ""
++@@ -750,7 +750,7 @@ START_TEST(proxyspec_struct_parse_01)
++ 			"LeafCRLURL http://example1.com/example1.crl\n"
++ 			"#DHGroupParams /etc/sslproxy/dh.pem\n"
++ #ifndef OPENSSL_NO_ECDH
++-			"ECDHCurve prime192v1\n"
+++			"ECDHCurve secp224r1\n"
++ #endif /* !OPENSSL_NO_ECDH */
++ #ifdef SSL_OP_NO_COMPRESSION
++ 			"SSLCompression yes\n"
++diff --git a/tests/check/pki/session-aws-lc-1.15.0.pem b/tests/check/pki/session-aws-lc-1.15.0.pem
++new file mode 100644
++index 0000000..cb2b27d
++--- /dev/null
+++++ b/tests/check/pki/session-aws-lc-1.15.0.pem
++@@ -0,0 +1,30 @@
+++-----BEGIN SSL SESSION PARAMETERS-----
+++MIIFDgIBAQICAwMEAsAvBCAG5Q1ndq4Yfmbeo1zwLkNRKmCXGdNgWvGT3cskV0yQ
+++kAQwJlrlzkAWBOWiLj/jJ76D7l+UXoizP2KI2C7I2FccqMmIfFmmkUy32nIJ0mZH
+++IWoJoQYCBGT/pz2iBAICASyjggR6MIIEdjCCA16gAwIBAgIIK9dUvsPWSlUwDQYJ
+++KoZIhvcNAQEFBQAwSTELMAkGA1UEBhMCVVMxEzARBgNVBAoTCkdvb2dsZSBJbmMx
+++JTAjBgNVBAMTHEdvb2dsZSBJbnRlcm5ldCBBdXRob3JpdHkgRzIwHhcNMTQxMDA4
+++MTIwNzU3WhcNMTUwMTA2MDAwMDAwWjBoMQswCQYDVQQGEwJVUzETMBEGA1UECAwK
+++Q2FsaWZvcm5pYTEWMBQGA1UEBwwNTW91bnRhaW4gVmlldzETMBEGA1UECgwKR29v
+++Z2xlIEluYzEXMBUGA1UEAwwOd3d3Lmdvb2dsZS5jb20wggEiMA0GCSqGSIb3DQEB
+++AQUAA4IBDwAwggEKAoIBAQCcKeLrplAC+Lofy8t/wDwtB6eu72CVp0cJ4V3lknN6
+++huH9ct6FFk70oRIh/VBNBBz900jYy+7111Jm1b8iqOTQ9aT5C7SEhNcQFJvqzH3e
+++MPkb6ZSWGm1yGF7MCQTGQXF20Sk/O16FSjAynU/b3oJmOctcycWYkY0ytS/k3LBu
+++Id45PJaoMqjB0WypqvNeJHC3q5JjCB4RP7Nfx5jjHSrCMhw8lUMW4EaDxjaR9KDh
+++PLgjsk+LDIySRSRDaCQGhEOWLJZVLzLo4N6/UlctCHEllpBUSvEOyFga52qroGjg
+++rf3WOQ925MFwzd6AK+Ich0gDRg8sQfdLH5OuP1cfLfU1AgMBAAGjggFBMIIBPTAd
+++BgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwGQYDVR0RBBIwEIIOd3d3Lmdv
+++b2dsZS5jb20waAYIKwYBBQUHAQEEXDBaMCsGCCsGAQUFBzAChh9odHRwOi8vcGtp
+++Lmdvb2dsZS5jb20vR0lBRzIuY3J0MCsGCCsGAQUFBzABhh9odHRwOi8vY2xpZW50
+++czEuZ29vZ2xlLmNvbS9vY3NwMB0GA1UdDgQWBBQ7a+CcxsZByOpc+xpYFcIbnUMZ
+++hTAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFErdBhYbvPZotXb1gba7Yhq6WoEv
+++MBcGA1UdIAQQMA4wDAYKKwYBBAHWeQIFATAwBgNVHR8EKTAnMCWgI6Ahhh9odHRw
+++Oi8vcGtpLmdvb2dsZS5jb20vR0lBRzIuY3JsMA0GCSqGSIb3DQEBBQUAA4IBAQCa
+++OXCBdoqUy5bxyq+Wrh1zsyyCFim1PH5VU2+yvDSWrgDY8ibRGJmfff3r4Lud5kal
+++dKs9k8YlKD3ITG7P0YT/Rk8hLgfEuLcq5cc0xqmE42xJ+Eo2uzq9rYorc5emMCxf
+++5L0TJOXZqHQpOEcuptZQ4OjdYMfSxk5UzueUhA3ogZKRcRkdB3WeWRp+nYRhx4St
+++o2rt2A0MKmY9165GHUqMK9YaaXHDXqBu7Sefr1uSoAP9gyIJKeihMivsGqJ1TD6Z
+++cc6LMe+dN2P8cZEQHtD1y296ul4Mivqk3jatUVL8/hCwgch9A8O4PGZq9WqBfEWm
+++IyHh1dPtbg1lOXdYCWtjpAIEAKUDAgEUqQUCAwGJwKoMBAphYWFhYWFhYWFhtgMB
+++AQA=
+++-----END SSL SESSION PARAMETERS-----

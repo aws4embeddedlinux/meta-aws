@@ -1,0 +1,482 @@
+From b1c2a859209b1a4db7a1e3f90c5687beea0105be Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Thu, 9 Feb 2023 19:24:06 -0500
+Subject: [PATCH] Implement P256_XMD:SHA-256_SSWU_RO_ and
+ P384_XMD:SHA-384_SSWU_RO_
+
+Also add public APIs for this, now that the specification is no longer
+expected to change, and because a project external to the library wishes
+to use it.
+
+For now, I've kept the P-256 version using the generic felem_exp, but we
+should update that to use the specialized field arithmetic.
+
+Trust Tokens will presumably move to this later and, in the meantime,
+another team wants this.
+
+Bug: chromium:1414562
+Change-Id: Ie38203b4439ff55659c4fb2070f45d524c55aa2a
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57147
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Steven Valdez <svaldez@google.com>
+(cherry picked from commit 3950d6ce25c263c3d131985edfcd6b0899a7949e)
+---
+ crypto/ec_extra/hash_to_curve.c      | 78 +++++++++++++++++++++++
+ crypto/ec_extra/internal.h           | 22 +++++--
+ crypto/fipsmodule/ec/ec_montgomery.c | 10 +--
+ crypto/fipsmodule/ec/ec_test.cc      | 94 ++++++++++++++++++++++++----
+ crypto/fipsmodule/ec/internal.h      | 11 ++++
+ crypto/fipsmodule/ec/p256-nistz.c    |  4 ++
+ crypto/fipsmodule/ec/p256.c          |  4 ++
+ include/openssl/ec.h                 | 25 ++++++++
+ tool/speed.cc                        | 26 ++++++--
+ 9 files changed, 245 insertions(+), 29 deletions(-)
+
+diff --git a/crypto/ec_extra/hash_to_curve.c b/crypto/ec_extra/hash_to_curve.c
+index 80faf01b6..2e53ae68a 100644
+--- a/crypto/ec_extra/hash_to_curve.c
++++ b/crypto/ec_extra/hash_to_curve.c
+@@ -376,6 +376,18 @@ static int felem_from_u8(const EC_GROUP *group, EC_FELEM *out, uint8_t a) {
+   return ec_felem_from_bytes(group, out, bytes, len);
+ }
+ 
++// kP256Sqrt10 is sqrt(10) in P-256's field. It was computed as follows in
++// python3:
++//
++// p =  2**256 - 2**224 + 2**192 + 2**96 - 1
++// c2 = pow(10, (p+1)//4, p)
++// assert pow(c2, 2, p) == 10
++// ", ".join("0x%02x" % b for b in c2.to_bytes(256//8, 'big'))
++static const uint8_t kP256Sqrt10[] = {
++    0xda, 0x53, 0x8e, 0x3b, 0xe1, 0xd8, 0x9b, 0x99, 0xc9, 0x78, 0xfc,
++    0x67, 0x51, 0x80, 0xaa, 0xb2, 0x7b, 0x8d, 0x1f, 0xf8, 0x4c, 0x55,
++    0xd5, 0xb6, 0x2c, 0xcd, 0x34, 0x27, 0xe4, 0x33, 0xc4, 0x7f};
++
+ // kP384Sqrt12 is sqrt(12) in P-384's field. It was computed as follows in
+ // python3:
+ //
+@@ -389,6 +401,72 @@ static const uint8_t kP384Sqrt12[] = {
+     0x1f, 0x87, 0x2f, 0xcb, 0x9c, 0xcb, 0x80, 0xc5, 0x3c, 0x0d, 0xe1, 0xf8,
+     0xa8, 0x0f, 0x7e, 0x19, 0x14, 0xe2, 0xec, 0x69, 0xf5, 0xa6, 0x26, 0xb3};
+ 
++int ec_hash_to_curve_p256_xmd_sha256_sswu(const EC_GROUP *group,
++                                          EC_RAW_POINT *out, const uint8_t *dst,
++                                          size_t dst_len, const uint8_t *msg,
++                                          size_t msg_len) {
++  // See section 8.3 of draft-irtf-cfrg-hash-to-curve-16.
++  if (EC_GROUP_get_curve_name(group) != NID_X9_62_prime256v1) {
++    OPENSSL_PUT_ERROR(EC, EC_R_GROUP_MISMATCH);
++    return 0;
++  }
++
++  // Z = -10, c2 = sqrt(10)
++  EC_FELEM Z, c2;
++  if (!felem_from_u8(group, &Z, 10) ||
++      !ec_felem_from_bytes(group, &c2, kP256Sqrt10, sizeof(kP256Sqrt10))) {
++    return 0;
++  }
++  ec_felem_neg(group, &Z, &Z);
++
++  return hash_to_curve(group, EVP_sha256(), &Z, &c2, /*k=*/128, out, dst,
++                       dst_len, msg, msg_len);
++}
++
++int EC_hash_to_curve_p256_xmd_sha256_sswu(const EC_GROUP *group, EC_POINT *out,
++                                          const uint8_t *dst, size_t dst_len,
++                                          const uint8_t *msg, size_t msg_len) {
++  if (EC_GROUP_cmp(group, out->group, NULL) != 0) {
++    OPENSSL_PUT_ERROR(EC, EC_R_INCOMPATIBLE_OBJECTS);
++    return 0;
++  }
++  return ec_hash_to_curve_p256_xmd_sha256_sswu(group, &out->raw, dst, dst_len,
++                                               msg, msg_len);
++}
++
++int ec_hash_to_curve_p384_xmd_sha384_sswu(const EC_GROUP *group,
++                                          EC_RAW_POINT *out, const uint8_t *dst,
++                                          size_t dst_len, const uint8_t *msg,
++                                          size_t msg_len) {
++  // See section 8.3 of draft-irtf-cfrg-hash-to-curve-16.
++  if (EC_GROUP_get_curve_name(group) != NID_secp384r1) {
++    OPENSSL_PUT_ERROR(EC, EC_R_GROUP_MISMATCH);
++    return 0;
++  }
++
++  // Z = -12, c2 = sqrt(12)
++  EC_FELEM Z, c2;
++  if (!felem_from_u8(group, &Z, 12) ||
++      !ec_felem_from_bytes(group, &c2, kP384Sqrt12, sizeof(kP384Sqrt12))) {
++    return 0;
++  }
++  ec_felem_neg(group, &Z, &Z);
++
++  return hash_to_curve(group, EVP_sha384(), &Z, &c2, /*k=*/192, out, dst,
++                       dst_len, msg, msg_len);
++}
++
++int EC_hash_to_curve_p384_xmd_sha384_sswu(const EC_GROUP *group, EC_POINT *out,
++                                          const uint8_t *dst, size_t dst_len,
++                                          const uint8_t *msg, size_t msg_len) {
++  if (EC_GROUP_cmp(group, out->group, NULL) != 0) {
++    OPENSSL_PUT_ERROR(EC, EC_R_INCOMPATIBLE_OBJECTS);
++    return 0;
++  }
++  return ec_hash_to_curve_p384_xmd_sha384_sswu(group, &out->raw, dst, dst_len,
++                                               msg, msg_len);
++}
++
+ int ec_hash_to_curve_p384_xmd_sha512_sswu_draft07(
+     const EC_GROUP *group, EC_RAW_POINT *out, const uint8_t *dst,
+     size_t dst_len, const uint8_t *msg, size_t msg_len) {
+diff --git a/crypto/ec_extra/internal.h b/crypto/ec_extra/internal.h
+index ef93b56ba..c7f517dee 100644
+--- a/crypto/ec_extra/internal.h
++++ b/crypto/ec_extra/internal.h
+@@ -26,11 +26,23 @@ extern "C" {
+ 
+ // Hash-to-curve.
+ //
+-// The following functions implement primitives from
+-// draft-irtf-cfrg-hash-to-curve. The |dst| parameter in each function is the
+-// domain separation tag and must be unique for each protocol and between the
+-// |hash_to_curve| and |hash_to_scalar| variants. See section 3.1 of the spec
+-// for additional guidance on this parameter.
++// Internal |EC_RAW_POINT| versions of the corresponding public APIs.
++
++// ec_hash_to_curve_p256_xmd_sha256_sswu hashes |msg| to a point on |group| and
++// writes the result to |out|, implementing the P256_XMD:SHA-256_SSWU_RO_ suite
++// from draft-irtf-cfrg-hash-to-curve-16. It returns one on success and zero on
++// error.
++OPENSSL_EXPORT int ec_hash_to_curve_p256_xmd_sha256_sswu(
++    const EC_GROUP *group, EC_RAW_POINT *out, const uint8_t *dst,
++    size_t dst_len, const uint8_t *msg, size_t msg_len);
++
++// ec_hash_to_curve_p384_xmd_sha384_sswu hashes |msg| to a point on |group| and
++// writes the result to |out|, implementing the P384_XMD:SHA-384_SSWU_RO_ suite
++// from draft-irtf-cfrg-hash-to-curve-16. It returns one on success and zero on
++// error.
++OPENSSL_EXPORT int ec_hash_to_curve_p384_xmd_sha384_sswu(
++    const EC_GROUP *group, EC_RAW_POINT *out, const uint8_t *dst,
++    size_t dst_len, const uint8_t *msg, size_t msg_len);
+ 
+ // ec_hash_to_curve_p384_xmd_sha512_sswu_draft07 hashes |msg| to a point on
+ // |group| and writes the result to |out|, implementing the
+diff --git a/crypto/fipsmodule/ec/ec_montgomery.c b/crypto/fipsmodule/ec/ec_montgomery.c
+index 21d5d40d9..f458df9c7 100644
+--- a/crypto/fipsmodule/ec/ec_montgomery.c
++++ b/crypto/fipsmodule/ec/ec_montgomery.c
+@@ -156,8 +156,8 @@ int ec_GFp_mont_felem_from_bytes(const EC_GROUP *group, EC_FELEM *out,
+   return 1;
+ }
+ 
+-static void ec_GFp_mont_felem_reduce(const EC_GROUP *group, EC_FELEM *out,
+-                                     const BN_ULONG *words, size_t num) {
++void ec_GFp_mont_felem_reduce(const EC_GROUP *group, EC_FELEM *out,
++                              const BN_ULONG *words, size_t num) {
+   // Convert "from" Montgomery form so the value is reduced mod p.
+   bn_from_montgomery_small(out->words, group->field.width, words, num,
+                            group->mont);
+@@ -167,9 +167,9 @@ static void ec_GFp_mont_felem_reduce(const EC_GROUP *group, EC_FELEM *out,
+   ec_GFp_mont_felem_to_montgomery(group, out, out);
+ }
+ 
+-static void ec_GFp_mont_felem_exp(const EC_GROUP *group, EC_FELEM *out,
+-                                  const EC_FELEM *a, const BN_ULONG *exp,
+-                                  size_t num_exp) {
++void ec_GFp_mont_felem_exp(const EC_GROUP *group, EC_FELEM *out,
++                           const EC_FELEM *a, const BN_ULONG *exp,
++                           size_t num_exp) {
+   bn_mod_exp_mont_small(out->words, a->words, group->field.width, exp, num_exp,
+                         group->mont);
+ }
+diff --git a/crypto/fipsmodule/ec/ec_test.cc b/crypto/fipsmodule/ec/ec_test.cc
+index 6e63d9b7b..a2abc4dda 100644
+--- a/crypto/fipsmodule/ec/ec_test.cc
++++ b/crypto/fipsmodule/ec/ec_test.cc
+@@ -2098,8 +2098,18 @@ TEST(ECTest, DeriveFromSecret) {
+ }
+ 
+ TEST(ECTest, HashToCurve) {
++  auto hash_to_curve_p384_sha512_draft07 =
++      [](const EC_GROUP *group, EC_POINT *out, const uint8_t *dst,
++         size_t dst_len, const uint8_t *msg, size_t msg_len) -> int {
++    if (EC_GROUP_cmp(group, out->group, NULL) != 0) {
++      return 0;
++    }
++    return ec_hash_to_curve_p384_xmd_sha512_sswu_draft07(group, &out->raw, dst,
++                                                         dst_len, msg, msg_len);
++  };
++
+   struct HashToCurveTest {
+-    int (*hash_to_curve)(const EC_GROUP *group, EC_RAW_POINT *out,
++    int (*hash_to_curve)(const EC_GROUP *group, EC_POINT *out,
+                          const uint8_t *dst, size_t dst_len, const uint8_t *msg,
+                          size_t msg_len);
+     int curve_nid;
+@@ -2109,26 +2119,71 @@ TEST(ECTest, HashToCurve) {
+     const char *y_hex;
+   };
+   static const HashToCurveTest kTests[] = {
++      // See draft-irtf-cfrg-hash-to-curve-16, appendix J.1.1.
++      {&EC_hash_to_curve_p256_xmd_sha256_sswu, NID_X9_62_prime256v1,
++       "QUUX-V01-CS02-with-P256_XMD:SHA-256_SSWU_RO_", "",
++       "2c15230b26dbc6fc9a37051158c95b79656e17a1a920b11394ca91"
++       "c44247d3e4",
++       "8a7a74985cc5c776cdfe4b1f19884970453912e9d31528c060be9a"
++       "b5c43e8415"},
++      {&EC_hash_to_curve_p256_xmd_sha256_sswu, NID_X9_62_prime256v1,
++       "QUUX-V01-CS02-with-P256_XMD:SHA-256_SSWU_RO_", "abc",
++       "0bb8b87485551aa43ed54f009230450b492fead5f1cc91658775da"
++       "c4a3388a0f",
++       "5c41b3d0731a27a7b14bc0bf0ccded2d8751f83493404c84a88e71"
++       "ffd424212e"},
++      {&EC_hash_to_curve_p256_xmd_sha256_sswu, NID_X9_62_prime256v1,
++       "QUUX-V01-CS02-with-P256_XMD:SHA-256_SSWU_RO_", "abcdef0123456789",
++       "65038ac8f2b1def042a5df0b33b1f4eca6bff7cb0f9c6c15268118"
++       "64e544ed80",
++       "cad44d40a656e7aff4002a8de287abc8ae0482b5ae825822bb870d"
++       "6df9b56ca3"},
++      {&EC_hash_to_curve_p256_xmd_sha256_sswu, NID_X9_62_prime256v1,
++       "QUUX-V01-CS02-with-P256_XMD:SHA-256_SSWU_RO_",
++       "q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
++       "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
++       "qqqqqqqqqqqqqqqqqqqqqqqqq",
++       "4be61ee205094282ba8a2042bcb48d88dfbb609301c49aa8b07853"
++       "3dc65a0b5d",
++       "98f8df449a072c4721d241a3b1236d3caccba603f916ca680f4539"
++       "d2bfb3c29e"},
++      {&EC_hash_to_curve_p256_xmd_sha256_sswu, NID_X9_62_prime256v1,
++       "QUUX-V01-CS02-with-P256_XMD:SHA-256_SSWU_RO_",
++       "a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "457ae2981f70ca85d8e24c308b14db22f3e3862c5ea0f652ca38b5"
++       "e49cd64bc5",
++       "ecb9f0eadc9aeed232dabc53235368c1394c78de05dd96893eefa6"
++       "2b0f4757dc"},
++
+       // See draft-irtf-cfrg-hash-to-curve-07, appendix G.2.1.
+-      {&ec_hash_to_curve_p384_xmd_sha512_sswu_draft07, NID_secp384r1,
++      {hash_to_curve_p384_sha512_draft07, NID_secp384r1,
+        "P384_XMD:SHA-512_SSWU_RO_TESTGEN", "",
+        "2fc0b9efdd63a8e43b4db88dc12f03c798f6fd91bccac0c9096185"
+        "4386e58fdc54fc2a01f0f358759054ce1f9b762025",
+        "949b936fabb72cdb02cd7980b86cb6a3adf286658e81301648851d"
+        "b8a49d9bec00ccb57698d559fc5960fa5030a8e54b"},
+-      {&ec_hash_to_curve_p384_xmd_sha512_sswu_draft07, NID_secp384r1,
++      {hash_to_curve_p384_sha512_draft07, NID_secp384r1,
+        "P384_XMD:SHA-512_SSWU_RO_TESTGEN", "abc",
+        "4f3338035391e8ce8ce40c974136f0edc97f392ffd44a643338741"
+        "8ed1b8c2603487e1688ec151f048fbc6b2c138c92f",
+        "152b90aef6558be328a3168855fb1906452e7167b0f7c8a56ff9d4"
+        "fa87d6fb522cdf8e409db54418b2c764fd26260757"},
+-      {&ec_hash_to_curve_p384_xmd_sha512_sswu_draft07, NID_secp384r1,
++      {hash_to_curve_p384_sha512_draft07, NID_secp384r1,
+        "P384_XMD:SHA-512_SSWU_RO_TESTGEN", "abcdef0123456789",
+        "e9e5d7ac397e123d060ad44301cbc8eb972f6e64ebcff29dcc9b9a"
+        "10357902aace2240c580fec85e5b427d98b4e80703",
+        "916cb8963521ad75105be43cc4148e5a5bbb4fcf107f1577e4f7fa"
+        "3ca58cd786aa76890c8e687d2353393bc16c78ec4d"},
+-      {&ec_hash_to_curve_p384_xmd_sha512_sswu_draft07, NID_secp384r1,
++      {hash_to_curve_p384_sha512_draft07, NID_secp384r1,
+        "P384_XMD:SHA-512_SSWU_RO_TESTGEN",
+        "a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+@@ -2155,7 +2210,7 @@ TEST(ECTest, HashToCurve) {
+     bssl::UniquePtr<EC_POINT> p(EC_POINT_new(group.get()));
+     ASSERT_TRUE(p);
+     ASSERT_TRUE(test.hash_to_curve(
+-        group.get(), &p->raw, reinterpret_cast<const uint8_t *>(test.dst),
++        group.get(), p.get(), reinterpret_cast<const uint8_t *>(test.dst),
+         strlen(test.dst), reinterpret_cast<const uint8_t *>(test.msg),
+         strlen(test.msg)));
+ 
+@@ -2172,17 +2227,30 @@ TEST(ECTest, HashToCurve) {
+   // hash-to-curve functions should check for the wrong group.
+   bssl::UniquePtr<EC_GROUP> p224(EC_GROUP_new_by_curve_name(NID_secp224r1));
+   ASSERT_TRUE(p224);
+-  EC_RAW_POINT p;
++  bssl::UniquePtr<EC_GROUP> p384(EC_GROUP_new_by_curve_name(NID_secp384r1));
++  ASSERT_TRUE(p384);
++  EC_RAW_POINT raw;
++  bssl::UniquePtr<EC_POINT> p_p384(EC_POINT_new(p384.get()));
++  ASSERT_TRUE(p_p384);
++  bssl::UniquePtr<EC_POINT> p_p224(EC_POINT_new(p224.get()));
++  ASSERT_TRUE(p_p224);
+   static const uint8_t kDST[] = {0, 1, 2, 3};
+   static const uint8_t kMessage[] = {4, 5, 6, 7};
+-  EXPECT_FALSE(ec_hash_to_curve_p384_xmd_sha512_sswu_draft07(
+-      p224.get(), &p, kDST, sizeof(kDST), kMessage, sizeof(kMessage)));
++  EXPECT_FALSE(ec_hash_to_curve_p384_xmd_sha384_sswu(
++      p224.get(), &raw, kDST, sizeof(kDST), kMessage, sizeof(kMessage)));
++  EXPECT_FALSE(EC_hash_to_curve_p384_xmd_sha384_sswu(
++      p224.get(), p_p224.get(), kDST, sizeof(kDST), kMessage,
++      sizeof(kMessage)));
++  EXPECT_FALSE(EC_hash_to_curve_p384_xmd_sha384_sswu(
++      p224.get(), p_p384.get(), kDST, sizeof(kDST), kMessage,
++      sizeof(kMessage)));
++  EXPECT_FALSE(EC_hash_to_curve_p384_xmd_sha384_sswu(
++      p384.get(), p_p224.get(), kDST, sizeof(kDST), kMessage,
++      sizeof(kMessage)));
+ 
+   // Zero-length DSTs are not allowed.
+-  bssl::UniquePtr<EC_GROUP> p384(EC_GROUP_new_by_curve_name(NID_secp384r1));
+-  ASSERT_TRUE(p384);
+-  EXPECT_FALSE(ec_hash_to_curve_p384_xmd_sha512_sswu_draft07(
+-      p384.get(), &p, nullptr, 0, kMessage, sizeof(kMessage)));
++  EXPECT_FALSE(ec_hash_to_curve_p384_xmd_sha384_sswu(
++      p384.get(), &raw, nullptr, 0, kMessage, sizeof(kMessage)));
+ }
+ 
+ TEST(ECTest, HashToScalar) {
+diff --git a/crypto/fipsmodule/ec/internal.h b/crypto/fipsmodule/ec/internal.h
+index 3b737da2f..9ac7c36f1 100644
+--- a/crypto/fipsmodule/ec/internal.h
++++ b/crypto/fipsmodule/ec/internal.h
+@@ -574,6 +574,12 @@ struct ec_method_st {
+   //
+   // This function is used in hash-to-curve and may be NULL in curves not used
+   // with hash-to-curve.
++  //
++  // TODO(https://crbug.com/boringssl/567): hash-to-curve uses this as part of
++  // computing a square root, which is what compressed coordinates ultimately
++  // needs to avoid |BIGNUM|. Can we unify this a bit? By generalizing to
++  // arbitrary exponentiation, we also miss an opportunity to use a specialized
++  // addition chain.
+   void (*felem_exp)(const EC_GROUP *group, EC_FELEM *out, const EC_FELEM *a,
+                     const BN_ULONG *exp, size_t num_exp);
+ 
+@@ -664,6 +670,11 @@ void ec_GFp_mont_mul_precomp(const EC_GROUP *group, EC_RAW_POINT *r,
+                              const EC_PRECOMP *p0, const EC_SCALAR *scalar0,
+                              const EC_PRECOMP *p1, const EC_SCALAR *scalar1,
+                              const EC_PRECOMP *p2, const EC_SCALAR *scalar2);
++void ec_GFp_mont_felem_reduce(const EC_GROUP *group, EC_FELEM *out,
++                              const BN_ULONG *words, size_t num);
++void ec_GFp_mont_felem_exp(const EC_GROUP *group, EC_FELEM *out,
++                           const EC_FELEM *a, const BN_ULONG *exp,
++                           size_t num_exp);
+ 
+ // ec_compute_wNAF writes the modified width-(w+1) Non-Adjacent Form (wNAF) of
+ // |scalar| to |out|. |out| must have room for |bits| + 1 elements, each of
+diff --git a/crypto/fipsmodule/ec/p256-nistz.c b/crypto/fipsmodule/ec/p256-nistz.c
+index e8f26ae17..b2e5d9cf1 100644
+--- a/crypto/fipsmodule/ec/p256-nistz.c
++++ b/crypto/fipsmodule/ec/p256-nistz.c
+@@ -647,6 +647,10 @@ DEFINE_METHOD_FUNCTION(EC_METHOD, EC_GFp_nistz256_method) {
+   out->felem_sqr = ec_GFp_mont_felem_sqr;
+   out->felem_to_bytes = ec_GFp_mont_felem_to_bytes;
+   out->felem_from_bytes = ec_GFp_mont_felem_from_bytes;
++  out->felem_reduce = ec_GFp_mont_felem_reduce;
++  // TODO(davidben): This should use the specialized field arithmetic
++  // implementation, rather than the generic one.
++  out->felem_exp = ec_GFp_mont_felem_exp;
+   out->scalar_inv0_montgomery = ecp_nistz256_inv0_mod_ord;
+   out->scalar_to_montgomery_inv_vartime =
+       ecp_nistz256_scalar_to_montgomery_inv_vartime;
+diff --git a/crypto/fipsmodule/ec/p256.c b/crypto/fipsmodule/ec/p256.c
+index 6b028120d..0a6341215 100644
+--- a/crypto/fipsmodule/ec/p256.c
++++ b/crypto/fipsmodule/ec/p256.c
+@@ -729,6 +729,10 @@ DEFINE_METHOD_FUNCTION(EC_METHOD, EC_GFp_nistp256_method) {
+   out->felem_sqr = ec_GFp_mont_felem_sqr;
+   out->felem_to_bytes = ec_GFp_mont_felem_to_bytes;
+   out->felem_from_bytes = ec_GFp_mont_felem_from_bytes;
++  out->felem_reduce = ec_GFp_mont_felem_reduce;
++  // TODO(davidben): This should use the specialized field arithmetic
++  // implementation, rather than the generic one.
++  out->felem_exp = ec_GFp_mont_felem_exp;
+   out->scalar_inv0_montgomery = ec_simple_scalar_inv0_montgomery;
+   out->scalar_to_montgomery_inv_vartime =
+       ec_simple_scalar_to_montgomery_inv_vartime;
+diff --git a/include/openssl/ec.h b/include/openssl/ec.h
+index d7ef3879a..b253922d4 100644
+--- a/include/openssl/ec.h
++++ b/include/openssl/ec.h
+@@ -310,6 +310,31 @@ OPENSSL_EXPORT int EC_POINT_mul(const EC_GROUP *group, EC_POINT *r,
+                                 const BIGNUM *m, BN_CTX *ctx);
+ 
+ 
++// Hash-to-curve.
++//
++// The following functions implement primitives from
++// draft-irtf-cfrg-hash-to-curve-16. The |dst| parameter in each function is the
++// domain separation tag and must be unique for each protocol and between the
++// |hash_to_curve| and |hash_to_scalar| variants. See section 3.1 of the spec
++// for additional guidance on this parameter.
++
++// EC_hash_to_curve_p256_xmd_sha256_sswu hashes |msg| to a point on |group| and
++// writes the result to |out|, implementing the P256_XMD:SHA-256_SSWU_RO_ suite
++// from draft-irtf-cfrg-hash-to-curve-16. It returns one on success and zero on
++// error.
++OPENSSL_EXPORT int EC_hash_to_curve_p256_xmd_sha256_sswu(
++    const EC_GROUP *group, EC_POINT *out, const uint8_t *dst, size_t dst_len,
++    const uint8_t *msg, size_t msg_len);
++
++// EC_hash_to_curve_p384_xmd_sha384_sswu hashes |msg| to a point on |group| and
++// writes the result to |out|, implementing the P384_XMD:SHA-384_SSWU_RO_ suite
++// from draft-irtf-cfrg-hash-to-curve-16. It returns one on success and zero on
++// error.
++OPENSSL_EXPORT int EC_hash_to_curve_p384_xmd_sha384_sswu(
++    const EC_GROUP *group, EC_POINT *out, const uint8_t *dst, size_t dst_len,
++    const uint8_t *msg, size_t msg_len);
++
++
+ // Deprecated functions.
+ 
+ // EC_GROUP_new_curve_GFp creates a new, arbitrary elliptic curve group based
+diff --git a/tool/speed.cc b/tool/speed.cc
+index 75f5ccb1d..14e89a48d 100644
+--- a/tool/speed.cc
++++ b/tool/speed.cc
+@@ -1478,24 +1478,38 @@ static bool SpeedHashToCurve(const std::string &selected) {
+ 
+   TimeResults results;
+   {
+-    EC_GROUP *group = EC_GROUP_new_by_curve_name(NID_secp384r1);
+-    if (group == NULL) {
++    const EC_GROUP *p256 = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
++    if (p256 == NULL) {
+       return false;
+     }
+     if (!TimeFunction(&results, [&]() -> bool {
+           EC_RAW_POINT out;
+-          return ec_hash_to_curve_p384_xmd_sha512_sswu_draft07(
+-              group, &out, kLabel, sizeof(kLabel), input, sizeof(input));
++          return ec_hash_to_curve_p256_xmd_sha256_sswu(
++              p256, &out, kLabel, sizeof(kLabel), input, sizeof(input));
+         })) {
+       fprintf(stderr, "hash-to-curve failed.\n");
+       return false;
+     }
+-    results.Print("hash-to-curve P384_XMD:SHA-512_SSWU_RO_");
++    results.Print("hash-to-curve P256_XMD:SHA-256_SSWU_RO_");
++
++    const EC_GROUP *p384 = EC_GROUP_new_by_curve_name(NID_secp384r1);
++    if (p384 == NULL) {
++      return false;
++    }
++    if (!TimeFunction(&results, [&]() -> bool {
++          EC_RAW_POINT out;
++          return ec_hash_to_curve_p384_xmd_sha384_sswu(
++              p384, &out, kLabel, sizeof(kLabel), input, sizeof(input));
++        })) {
++      fprintf(stderr, "hash-to-curve failed.\n");
++      return false;
++    }
++    results.Print("hash-to-curve P384_XMD:SHA-384_SSWU_RO_");
+ 
+     if (!TimeFunction(&results, [&]() -> bool {
+           EC_SCALAR out;
+           return ec_hash_to_scalar_p384_xmd_sha512_draft07(
+-              group, &out, kLabel, sizeof(kLabel), input, sizeof(input));
++              p384, &out, kLabel, sizeof(kLabel), input, sizeof(input));
+         })) {
+       fprintf(stderr, "hash-to-scalar failed.\n");
+       return false;

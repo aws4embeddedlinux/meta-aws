@@ -1,0 +1,779 @@
+From 31d5dce8836fe19acb60a72b4e2f487312ccec70 Mon Sep 17 00:00:00 2001
+From: Bob Beck <bbe@google.com>
+Date: Wed, 8 Feb 2023 11:32:19 -0700
+Subject: [PATCH] Get rid of time_t usage internally, change to int64_t
+
+We still keep time_t stuff around for calling time() and
+for external interfaces that are meant to give you time_t
+values, but we stop using time_t internally. For publicly
+exposed and used inputs that rely on time_t, _posix versions are
+added to support providing times as an int64_t, and internal
+use is changed to use the _posix version.
+
+Several legacy functions which are extensivly used and
+and use pointers to time_t are retained for compatibility,
+along with posix time versions of them which we use exclusively.
+
+This fixes the tests which were disabled on 32 bit platorms
+to always run.
+
+Update-Note: This is a potentially breaking change for things
+that bind to the ASN1_[UTC|GENERALIZED]TIME_set and ASN1_TIME_adj
+family of functions (and can not type convert a time_t to an
+int64).
+
+Bug: 416
+
+Change-Id: Ic4daba5a299d8f35191853742640750a1ecc53d6
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/54765
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: David Benjamin <davidben@google.com>
+(cherry picked from commit 6e20b77e6b79069e2468686bdc69169d3fa2252e)
+---
+ crypto/asn1/a_gentm.c         |  8 ++--
+ crypto/asn1/a_time.c          | 28 ++++++------
+ crypto/asn1/a_utctm.c         | 10 ++---
+ crypto/asn1/asn1_test.cc      | 66 +++++++++++++--------------
+ crypto/x509/internal.h        |  2 +-
+ crypto/x509/x509_test.cc      | 28 ++++++------
+ crypto/x509/x509_time_test.cc | 84 +++++++++++++++++++++++++++++++++--
+ crypto/x509/x509_vfy.c        | 45 ++++++++++++-------
+ crypto/x509/x509_vpm.c        |  6 ++-
+ include/openssl/asn1.h        | 63 +++++++++++++++-----------
+ include/openssl/x509.h        | 13 ++++++
+ 11 files changed, 233 insertions(+), 120 deletions(-)
+
+diff --git a/crypto/asn1/a_gentm.c b/crypto/asn1/a_gentm.c
+index 096e912b9..c505b6ba9 100644
+--- a/crypto/asn1/a_gentm.c
++++ b/crypto/asn1/a_gentm.c
+@@ -98,15 +98,15 @@ int ASN1_GENERALIZEDTIME_set_string(ASN1_GENERALIZEDTIME *s, const char *str) {
+ }
+ 
+ ASN1_GENERALIZEDTIME *ASN1_GENERALIZEDTIME_set(ASN1_GENERALIZEDTIME *s,
+-                                               time_t t) {
+-  return ASN1_GENERALIZEDTIME_adj(s, t, 0, 0);
++                                               int64_t posix_time) {
++  return ASN1_GENERALIZEDTIME_adj(s, posix_time, 0, 0);
+ }
+ 
+ ASN1_GENERALIZEDTIME *ASN1_GENERALIZEDTIME_adj(ASN1_GENERALIZEDTIME *s,
+-                                               time_t t, int offset_day,
++                                               int64_t posix_time, int offset_day,
+                                                long offset_sec) {
+   struct tm data;
+-  if (!OPENSSL_gmtime(&t, &data)) {
++  if (!OPENSSL_posix_to_tm(posix_time, &data)) {
+     return NULL;
+   }
+ 
+diff --git a/crypto/asn1/a_time.c b/crypto/asn1/a_time.c
+index 6b221f6d7..f5304f55b 100644
+--- a/crypto/asn1/a_time.c
++++ b/crypto/asn1/a_time.c
+@@ -73,29 +73,31 @@ IMPLEMENT_ASN1_MSTRING(ASN1_TIME, B_ASN1_TIME)
+ 
+ IMPLEMENT_ASN1_FUNCTIONS_const(ASN1_TIME)
+ 
+-ASN1_TIME *ASN1_TIME_set(ASN1_TIME *s, time_t t) {
+-  return ASN1_TIME_adj(s, t, 0, 0);
++ASN1_TIME *ASN1_TIME_set_posix(ASN1_TIME *s, int64_t posix_time) {
++  return ASN1_TIME_adj(s, posix_time, 0, 0);
+ }
+ 
+-ASN1_TIME *ASN1_TIME_adj(ASN1_TIME *s, time_t t, int offset_day,
++ASN1_TIME *ASN1_TIME_set(ASN1_TIME *s, time_t time) {
++  return ASN1_TIME_adj(s, time, 0, 0);
++}
++
++ASN1_TIME *ASN1_TIME_adj(ASN1_TIME *s, int64_t posix_time, int offset_day,
+                          long offset_sec) {
+-  struct tm *ts;
+-  struct tm data;
++  struct tm tm;
+ 
+-  ts = OPENSSL_gmtime(&t, &data);
+-  if (ts == NULL) {
++  if (!OPENSSL_posix_to_tm(posix_time, &tm)) {
+     OPENSSL_PUT_ERROR(ASN1, ASN1_R_ERROR_GETTING_TIME);
+     return NULL;
+   }
+   if (offset_day || offset_sec) {
+-    if (!OPENSSL_gmtime_adj(ts, offset_day, offset_sec)) {
++    if (!OPENSSL_gmtime_adj(&tm, offset_day, offset_sec)) {
+       return NULL;
+     }
+   }
+-  if ((ts->tm_year >= 50) && (ts->tm_year < 150)) {
+-    return ASN1_UTCTIME_adj(s, t, offset_day, offset_sec);
++  if ((tm.tm_year >= 50) && (tm.tm_year < 150)) {
++    return ASN1_UTCTIME_adj(s, posix_time, offset_day, offset_sec);
+   }
+-  return ASN1_GENERALIZEDTIME_adj(s, t, offset_day, offset_sec);
++  return ASN1_GENERALIZEDTIME_adj(s, posix_time, offset_day, offset_sec);
+ }
+ 
+ int ASN1_TIME_check(const ASN1_TIME *t) {
+@@ -171,9 +173,7 @@ int ASN1_TIME_set_string(ASN1_TIME *s, const char *str) {
+ static int asn1_time_to_tm(struct tm *tm, const ASN1_TIME *t,
+                            int allow_timezone_offset) {
+   if (t == NULL) {
+-    time_t now_t;
+-    time(&now_t);
+-    if (OPENSSL_gmtime(&now_t, tm)) {
++    if (OPENSSL_posix_to_tm(time(NULL), tm)) {
+       return 1;
+     }
+     return 0;
+diff --git a/crypto/asn1/a_utctm.c b/crypto/asn1/a_utctm.c
+index d8d26ff6c..5d29d3d3b 100644
+--- a/crypto/asn1/a_utctm.c
++++ b/crypto/asn1/a_utctm.c
+@@ -98,14 +98,14 @@ int ASN1_UTCTIME_set_string(ASN1_UTCTIME *s, const char *str) {
+   return 1;
+ }
+ 
+-ASN1_UTCTIME *ASN1_UTCTIME_set(ASN1_UTCTIME *s, time_t t) {
+-  return ASN1_UTCTIME_adj(s, t, 0, 0);
++ASN1_UTCTIME *ASN1_UTCTIME_set(ASN1_UTCTIME *s, int64_t posix_time) {
++  return ASN1_UTCTIME_adj(s, posix_time, 0, 0);
+ }
+ 
+-ASN1_UTCTIME *ASN1_UTCTIME_adj(ASN1_UTCTIME *s, time_t t, int offset_day,
++ASN1_UTCTIME *ASN1_UTCTIME_adj(ASN1_UTCTIME *s, int64_t posix_time, int offset_day,
+                                long offset_sec) {
+   struct tm data;
+-  if (!OPENSSL_gmtime(&t, &data)) {
++  if (!OPENSSL_posix_to_tm(posix_time, &data)) {
+     return NULL;
+   }
+ 
+@@ -151,7 +151,7 @@ int ASN1_UTCTIME_cmp_time_t(const ASN1_UTCTIME *s, time_t t) {
+     return -2;
+   }
+ 
+-  if (!OPENSSL_gmtime(&t, &ttm)) {
++  if (!OPENSSL_posix_to_tm(t, &ttm)) {
+     return -2;
+   }
+ 
+diff --git a/crypto/asn1/asn1_test.cc b/crypto/asn1/asn1_test.cc
+index 42e052e07..08ec243b0 100644
+--- a/crypto/asn1/asn1_test.cc
++++ b/crypto/asn1/asn1_test.cc
+@@ -921,7 +921,7 @@ static std::string ASN1StringToStdString(const ASN1_STRING *str) {
+                      ASN1_STRING_get0_data(str) + ASN1_STRING_length(str));
+ }
+ 
+-static bool ASN1Time_check_time_t(const ASN1_TIME *s, time_t t) {
++static bool ASN1Time_check_posix(const ASN1_TIME *s, int64_t t) {
+   struct tm stm, ttm;
+   int day, sec;
+ 
+@@ -939,7 +939,7 @@ static bool ASN1Time_check_time_t(const ASN1_TIME *s, time_t t) {
+     default:
+       return false;
+   }
+-  if (!OPENSSL_gmtime(&t, &ttm) ||
++  if (!OPENSSL_posix_to_tm(t, &ttm) ||
+       !OPENSSL_gmtime_diff(&day, &sec, &ttm, &stm)) {
+     return false;
+   }
+@@ -963,37 +963,35 @@ static std::string PrintStringToBIO(const ASN1_STRING *str,
+ 
+ TEST(ASN1Test, SetTime) {
+   static const struct {
+-    time_t time;
++    int64_t time;
+     const char *generalized;
+     const char *utc;
+     const char *printed;
+   } kTests[] = {
+-    {-631152001, "19491231235959Z", nullptr, "Dec 31 23:59:59 1949 GMT"},
+-    {-631152000, "19500101000000Z", "500101000000Z",
+-     "Jan  1 00:00:00 1950 GMT"},
+-    {0, "19700101000000Z", "700101000000Z", "Jan  1 00:00:00 1970 GMT"},
+-    {981173106, "20010203040506Z", "010203040506Z", "Feb  3 04:05:06 2001 GMT"},
+-    {951804000, "20000229060000Z", "000229060000Z", "Feb 29 06:00:00 2000 GMT"},
+-    // NASA says this is the correct time for posterity.
+-    {-16751025, "19690621025615Z", "690621025615Z", "Jun 21 02:56:15 1969 GMT"},
+-    // -1 is sometimes used as an error value. Ensure we correctly handle it.
+-    {-1, "19691231235959Z", "691231235959Z", "Dec 31 23:59:59 1969 GMT"},
+-#if defined(OPENSSL_64_BIT)
+-    // TODO(https://crbug.com/boringssl/416): These cases overflow 32-bit
+-    // |time_t| and do not consistently work on 32-bit platforms. For now,
+-    // disable the tests on 32-bit. Re-enable them once the bug is fixed.
+-    {2524607999, "20491231235959Z", "491231235959Z",
+-     "Dec 31 23:59:59 2049 GMT"},
+-    {2524608000, "20500101000000Z", nullptr, "Jan  1 00:00:00 2050 GMT"},
+-    // Test boundary conditions.
+-    {-62167219200, "00000101000000Z", nullptr, "Jan  1 00:00:00 0 GMT"},
+-    {-62167219201, nullptr, nullptr, nullptr},
+-    {253402300799, "99991231235959Z", nullptr, "Dec 31 23:59:59 9999 GMT"},
+-    {253402300800, nullptr, nullptr, nullptr},
+-#endif
++      {-631152001, "19491231235959Z", nullptr, "Dec 31 23:59:59 1949 GMT"},
++      {-631152000, "19500101000000Z", "500101000000Z",
++       "Jan  1 00:00:00 1950 GMT"},
++      {0, "19700101000000Z", "700101000000Z", "Jan  1 00:00:00 1970 GMT"},
++      {981173106, "20010203040506Z", "010203040506Z",
++       "Feb  3 04:05:06 2001 GMT"},
++      {951804000, "20000229060000Z", "000229060000Z",
++       "Feb 29 06:00:00 2000 GMT"},
++      // NASA says this is the correct time for posterity.
++      {-16751025, "19690621025615Z", "690621025615Z",
++       "Jun 21 02:56:15 1969 GMT"},
++      // -1 is sometimes used as an error value. Ensure we correctly handle it.
++      {-1, "19691231235959Z", "691231235959Z", "Dec 31 23:59:59 1969 GMT"},
++      {2524607999, "20491231235959Z", "491231235959Z",
++       "Dec 31 23:59:59 2049 GMT"},
++      {2524608000, "20500101000000Z", nullptr, "Jan  1 00:00:00 2050 GMT"},
++      // Test boundary conditions.
++      {-62167219200, "00000101000000Z", nullptr, "Jan  1 00:00:00 0 GMT"},
++      {-62167219201, nullptr, nullptr, nullptr},
++      {253402300799, "99991231235959Z", nullptr, "Dec 31 23:59:59 9999 GMT"},
++      {253402300800, nullptr, nullptr, nullptr},
+   };
+   for (const auto &t : kTests) {
+-    time_t tt;
++    int64_t tt;
+     SCOPED_TRACE(t.time);
+ 
+     bssl::UniquePtr<ASN1_UTCTIME> utc(ASN1_UTCTIME_set(nullptr, t.time));
+@@ -1001,8 +999,8 @@ TEST(ASN1Test, SetTime) {
+       ASSERT_TRUE(utc);
+       EXPECT_EQ(V_ASN1_UTCTIME, ASN1_STRING_type(utc.get()));
+       EXPECT_EQ(t.utc, ASN1StringToStdString(utc.get()));
+-      EXPECT_TRUE(ASN1Time_check_time_t(utc.get(), t.time));
+-      EXPECT_EQ(ASN1_TIME_to_time_t(utc.get(), &tt), 1);
++      EXPECT_TRUE(ASN1Time_check_posix(utc.get(), t.time));
++      EXPECT_EQ(ASN1_TIME_to_posix(utc.get(), &tt), 1);
+       EXPECT_EQ(tt, t.time);
+       EXPECT_EQ(PrintStringToBIO(utc.get(), &ASN1_UTCTIME_print), t.printed);
+       EXPECT_EQ(PrintStringToBIO(utc.get(), &ASN1_TIME_print), t.printed);
+@@ -1016,8 +1014,8 @@ TEST(ASN1Test, SetTime) {
+       ASSERT_TRUE(generalized);
+       EXPECT_EQ(V_ASN1_GENERALIZEDTIME, ASN1_STRING_type(generalized.get()));
+       EXPECT_EQ(t.generalized, ASN1StringToStdString(generalized.get()));
+-      EXPECT_TRUE(ASN1Time_check_time_t(generalized.get(), t.time));
+-      EXPECT_EQ(ASN1_TIME_to_time_t(generalized.get(), &tt), 1);
++      EXPECT_TRUE(ASN1Time_check_posix(generalized.get(), t.time));
++      EXPECT_EQ(ASN1_TIME_to_posix(generalized.get(), &tt), 1);
+       EXPECT_EQ(tt, t.time);
+       EXPECT_EQ(
+           PrintStringToBIO(generalized.get(), &ASN1_GENERALIZEDTIME_print),
+@@ -1028,7 +1026,7 @@ TEST(ASN1Test, SetTime) {
+       EXPECT_FALSE(generalized);
+     }
+ 
+-    bssl::UniquePtr<ASN1_TIME> choice(ASN1_TIME_set(nullptr, t.time));
++    bssl::UniquePtr<ASN1_TIME> choice(ASN1_TIME_set_posix(nullptr, t.time));
+     if (t.generalized) {
+       ASSERT_TRUE(choice);
+       if (t.utc) {
+@@ -1038,8 +1036,8 @@ TEST(ASN1Test, SetTime) {
+         EXPECT_EQ(V_ASN1_GENERALIZEDTIME, ASN1_STRING_type(choice.get()));
+         EXPECT_EQ(t.generalized, ASN1StringToStdString(choice.get()));
+       }
+-      EXPECT_TRUE(ASN1Time_check_time_t(choice.get(), t.time));
+-      EXPECT_EQ(ASN1_TIME_to_time_t(choice.get(), &tt), 1);
++      EXPECT_TRUE(ASN1Time_check_posix(choice.get(), t.time));
++      EXPECT_EQ(ASN1_TIME_to_posix(choice.get(), &tt), 1);
+       EXPECT_EQ(tt, t.time);
+     } else {
+       EXPECT_FALSE(choice);
+diff --git a/crypto/x509/internal.h b/crypto/x509/internal.h
+index 7bf14c909..49b4c8c51 100644
+--- a/crypto/x509/internal.h
++++ b/crypto/x509/internal.h
+@@ -229,7 +229,7 @@ struct X509_crl_st {
+ 
+ struct X509_VERIFY_PARAM_st {
+   char *name;
+-  time_t check_time;                // Time to use
++  int64_t check_time;               // POSIX time to use
+   unsigned long inh_flags;          // Inheritance flags
+   unsigned long flags;              // Various verify flags
+   int purpose;                      // purpose to check untrusted certificates
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 94b1ff8c9..2ebb60a0c 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -1146,7 +1146,7 @@ static bssl::UniquePtr<STACK_OF(X509_CRL)> CRLsToStack(
+   return stack;
+ }
+ 
+-static const time_t kReferenceTime = 1474934400 /* Sep 27th, 2016 */;
++static const int64_t kReferenceTime = 1474934400 /* Sep 27th, 2016 */;
+ 
+ static int Verify(
+     X509 *leaf, const std::vector<X509 *> &roots,
+@@ -1180,7 +1180,7 @@ static int Verify(
+   X509_STORE_CTX_set0_crls(ctx.get(), crls_stack.get());
+ 
+   X509_VERIFY_PARAM *param = X509_STORE_CTX_get0_param(ctx.get());
+-  X509_VERIFY_PARAM_set_time(param, kReferenceTime);
++  X509_VERIFY_PARAM_set_time_posix(param, kReferenceTime);
+   if (configure_callback) {
+     configure_callback(param);
+   }
+@@ -1552,7 +1552,7 @@ TEST(X509Test, TestCRL) {
+   EXPECT_EQ(X509_V_ERR_CRL_HAS_EXPIRED,
+             Verify(leaf.get(), {root.get()}, {root.get()}, {basic_crl.get()},
+                    X509_V_FLAG_CRL_CHECK, [](X509_VERIFY_PARAM *param) {
+-                     X509_VERIFY_PARAM_set_time(
++                     X509_VERIFY_PARAM_set_time_posix(
+                          param, kReferenceTime + 2 * 30 * 24 * 3600);
+                    }));
+ 
+@@ -1561,7 +1561,7 @@ TEST(X509Test, TestCRL) {
+             Verify(leaf.get(), {root.get()}, {root.get()}, {basic_crl.get()},
+                    X509_V_FLAG_CRL_CHECK | X509_V_FLAG_NO_CHECK_TIME,
+                    [](X509_VERIFY_PARAM *param) {
+-                     X509_VERIFY_PARAM_set_time(
++                     X509_VERIFY_PARAM_set_time_posix(
+                          param, kReferenceTime + 2 * 30 * 24 * 3600);
+                    }));
+ 
+@@ -2117,7 +2117,7 @@ TEST(X509Test, SignCRL) {
+         ASSERT_TRUE(X509_CRL_set_version(crl.get(), X509_CRL_VERSION_2));
+         bssl::UniquePtr<ASN1_TIME> last_update(ASN1_TIME_new());
+         ASSERT_TRUE(last_update);
+-        ASSERT_TRUE(ASN1_TIME_set(last_update.get(), kReferenceTime));
++        ASSERT_TRUE(ASN1_TIME_set_posix(last_update.get(), kReferenceTime));
+         ASSERT_TRUE(X509_CRL_set1_lastUpdate(crl.get(), last_update.get()));
+         bssl::UniquePtr<X509_NAME> issuer(X509_NAME_new());
+         ASSERT_TRUE(issuer);
+@@ -3978,13 +3978,13 @@ TEST(X509Test, Expiry) {
+   // The following are measured in seconds relative to kReferenceTime. The
+   // validity periods are staggered so we can independently test both leaf and
+   // root time checks.
+-  const time_t kSecondsInDay = 24 * 3600;
+-  const time_t kRootStart = -30 * kSecondsInDay;
+-  const time_t kIntermediateStart = -20 * kSecondsInDay;
+-  const time_t kLeafStart = -10 * kSecondsInDay;
+-  const time_t kIntermediateEnd = 10 * kSecondsInDay;
+-  const time_t kLeafEnd = 20 * kSecondsInDay;
+-  const time_t kRootEnd = 30 * kSecondsInDay;
++  const int64_t kSecondsInDay = 24 * 3600;
++  const int64_t kRootStart = -30 * kSecondsInDay;
++  const int64_t kIntermediateStart = -20 * kSecondsInDay;
++  const int64_t kLeafStart = -10 * kSecondsInDay;
++  const int64_t kIntermediateEnd = 10 * kSecondsInDay;
++  const int64_t kLeafEnd = 20 * kSecondsInDay;
++  const int64_t kRootEnd = 30 * kSecondsInDay;
+ 
+   bssl::UniquePtr<X509> root =
+       MakeTestCert("Root", "Root", key.get(), /*is_ca=*/true);
+@@ -4022,9 +4022,9 @@ TEST(X509Test, Expiry) {
+   ASSERT_TRUE(X509_sign(leaf.get(), key.get(), EVP_sha256()));
+ 
+   struct VerifyAt {
+-    time_t time;
++    int64_t time;
+     void operator()(X509_VERIFY_PARAM *param) const {
+-      X509_VERIFY_PARAM_set_time(param, time);
++      X509_VERIFY_PARAM_set_time_posix(param, time);
+     }
+   };
+ 
+diff --git a/crypto/x509/x509_time_test.cc b/crypto/x509/x509_time_test.cc
+index fcd51c89f..c0327d28a 100644
+--- a/crypto/x509/x509_time_test.cc
++++ b/crypto/x509/x509_time_test.cc
+@@ -20,7 +20,7 @@
+ struct TestData {
+   const char *data;
+   int type;
+-  time_t cmp_time;
++  int64_t cmp_time;
+   // -1 if asn1_time <= cmp_time, 1 if asn1_time > cmp_time, 0 if error.
+   int expected;
+ };
+@@ -211,6 +211,85 @@ static TestData kX509CmpTests[] = {
+         0,
+         0,
+     },
++    // Test limits and unusual cases.
++    {
++        "99991231235959Z", V_ASN1_GENERALIZEDTIME,
++        // Test a very large positive time with the largest representable time
++        253402300799,
++        -1,  // TODO(bbe): This is *technically* wrong by rfc5280.
++    },
++    {
++        "99991231235959Z", V_ASN1_GENERALIZEDTIME,
++        // one second after the largest possible time should still compare
++        // correctly
++        253402300800,
++        -1,  // TODO(bbe): This is *technically* wrong by rfc5280.
++    },
++    {
++        "99991231235959Z",
++        V_ASN1_GENERALIZEDTIME,
++        // Test one second before the largest time
++        253402300798,
++        1,
++    },
++    {
++        "700101000000Z",
++        V_ASN1_UTCTIME,
++        // The epoch, which should not fail. a time of 0 must be valid.
++        0,
++        -1,
++    },
++    {
++        "700101000000Z",
++        V_ASN1_UTCTIME,
++        // One second before the epoch should compare correctly.
++        -1,
++        1,
++    },
++    {
++        "700101000000Z",
++        V_ASN1_UTCTIME,
++        // One second after the epoch should compare correctly.
++        1,
++        -1,
++    },
++    {
++        "690621025615Z",
++        V_ASN1_UTCTIME,
++        // Test a negative time, we use a time from NASA, close to but not quite
++        // at the epoch.
++        -16751025,
++        -1,
++    },
++    {
++        "690621025615Z",
++        V_ASN1_UTCTIME,
++        // Test one small second before our negative time.
++        -16751026,
++        1,
++    },
++    {
++        "690621025615Z",
++        V_ASN1_UTCTIME,
++        // Test one giant second after our negative time.
++        -16751024,
++        -1,
++    },
++    {
++        "00000101000000Z",
++        V_ASN1_GENERALIZEDTIME,
++        // Test a very large negative time with the earliest representable time
++        -62167219200,
++        -1,
++    },
++    {
++        "00000101000000Z",
++        V_ASN1_GENERALIZEDTIME,
++        // Test one second after the earliest time.
++        -62167219199,
++        -1,
++    },
++
+ };
+ 
+ TEST(X509TimeTest, TestCmpTime) {
+@@ -224,8 +303,7 @@ TEST(X509TimeTest, TestCmpTime) {
+     t.data = (unsigned char*) test.data;
+     t.length = strlen(test.data);
+ 
+-    EXPECT_EQ(test.expected,
+-              X509_cmp_time(&t, &test.cmp_time));
++    EXPECT_EQ(test.expected, X509_cmp_time_posix(&t, test.cmp_time));
+   }
+ }
+ 
+diff --git a/crypto/x509/x509_vfy.c b/crypto/x509/x509_vfy.c
+index 7638d0d81..92882921e 100644
+--- a/crypto/x509/x509_vfy.c
++++ b/crypto/x509/x509_vfy.c
+@@ -978,14 +978,14 @@ static int check_crl_time(X509_STORE_CTX *ctx, X509_CRL *crl, int notify) {
+   if (notify) {
+     ctx->current_crl = crl;
+   }
+-  time_t *ptime;
++  int64_t ptime;
+   if (ctx->param->flags & X509_V_FLAG_USE_CHECK_TIME) {
+-    ptime = &ctx->param->check_time;
++    ptime = ctx->param->check_time;
+   } else {
+-    ptime = NULL;
++    ptime = time(NULL);
+   }
+ 
+-  int i = X509_cmp_time(X509_CRL_get0_lastUpdate(crl), ptime);
++  int i = X509_cmp_time_posix(X509_CRL_get0_lastUpdate(crl), ptime);
+   if (i == 0) {
+     if (!notify) {
+       return 0;
+@@ -1007,7 +1007,7 @@ static int check_crl_time(X509_STORE_CTX *ctx, X509_CRL *crl, int notify) {
+   }
+ 
+   if (X509_CRL_get0_nextUpdate(crl)) {
+-    i = X509_cmp_time(X509_CRL_get0_nextUpdate(crl), ptime);
++    i = X509_cmp_time_posix(X509_CRL_get0_nextUpdate(crl), ptime);
+ 
+     if (i == 0) {
+       if (!notify) {
+@@ -1724,14 +1724,14 @@ static int check_cert_time(X509_STORE_CTX *ctx, X509 *x) {
+     return 1;
+   }
+ 
+-  time_t *ptime;
++  int64_t ptime;
+   if (ctx->param->flags & X509_V_FLAG_USE_CHECK_TIME) {
+-    ptime = &ctx->param->check_time;
++    ptime = ctx->param->check_time;
+   } else {
+-    ptime = NULL;
++    ptime = time(NULL);
+   }
+ 
+-  int i = X509_cmp_time(X509_get_notBefore(x), ptime);
++  int i = X509_cmp_time_posix(X509_get_notBefore(x), ptime);
+   if (i == 0) {
+     ctx->error = X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD;
+     ctx->current_cert = x;
+@@ -1748,7 +1748,7 @@ static int check_cert_time(X509_STORE_CTX *ctx, X509 *x) {
+     }
+   }
+ 
+-  i = X509_cmp_time(X509_get_notAfter(x), ptime);
++  i = X509_cmp_time_posix(X509_get_notAfter(x), ptime);
+   if (i == 0) {
+     ctx->error = X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD;
+     ctx->current_cert = x;
+@@ -1851,17 +1851,21 @@ end:
+ }
+ 
+ int X509_cmp_current_time(const ASN1_TIME *ctm) {
+-  return X509_cmp_time(ctm, NULL);
++  return X509_cmp_time_posix(ctm, time(NULL));
+ }
+ 
+ int X509_cmp_time(const ASN1_TIME *ctm, time_t *cmp_time) {
++  int64_t compare_time = (cmp_time == NULL) ? time(NULL) : *cmp_time;
++  return X509_cmp_time_posix(ctm, compare_time);
++}
++
++int X509_cmp_time_posix(const ASN1_TIME *ctm, int64_t cmp_time) {
+   int64_t ctm_time;
+   if (!ASN1_TIME_to_posix(ctm, &ctm_time)) {
+     return 0;
+   }
+-  int64_t compare_time = (cmp_time == NULL) ? time(NULL) : *cmp_time;
+   // The return value 0 is reserved for errors.
+-  return (ctm_time - compare_time <= 0) ? -1 : 1;
++  return (ctm_time - cmp_time <= 0) ? -1 : 1;
+ }
+ 
+ ASN1_TIME *X509_gmtime_adj(ASN1_TIME *s, long offset_sec) {
+@@ -1874,12 +1878,12 @@ ASN1_TIME *X509_time_adj(ASN1_TIME *s, long offset_sec, time_t *in_tm) {
+ 
+ ASN1_TIME *X509_time_adj_ex(ASN1_TIME *s, int offset_day, long offset_sec,
+                             time_t *in_tm) {
+-  time_t t = 0;
++  int64_t t = 0;
+ 
+   if (in_tm) {
+     t = *in_tm;
+   } else {
+-    time(&t);
++    t = time(NULL);
+   }
+ 
+   return ASN1_TIME_adj(s, t, offset_day, offset_sec);
+@@ -2307,12 +2311,19 @@ void X509_STORE_CTX_set_flags(X509_STORE_CTX *ctx, unsigned long flags) {
+   X509_VERIFY_PARAM_set_flags(ctx->param, flags);
+ }
+ 
++void X509_STORE_CTX_set_time_posix(X509_STORE_CTX *ctx, unsigned long flags,
++                             int64_t t) {
++  X509_VERIFY_PARAM_set_time_posix(ctx->param, t);
++}
++
+ void X509_STORE_CTX_set_time(X509_STORE_CTX *ctx, unsigned long flags,
+                              time_t t) {
+-  X509_VERIFY_PARAM_set_time(ctx->param, t);
++  X509_STORE_CTX_set_time_posix(ctx, flags, t);
+ }
+ 
+-X509 *X509_STORE_CTX_get0_cert(X509_STORE_CTX *ctx) { return ctx->cert; }
++X509 *X509_STORE_CTX_get0_cert(X509_STORE_CTX *ctx) {
++  return ctx->cert;
++}
+ 
+ void X509_STORE_CTX_set_verify_cb(X509_STORE_CTX *ctx,
+                                   int (*verify_cb)(int, X509_STORE_CTX *)) {
+diff --git a/crypto/x509/x509_vpm.c b/crypto/x509/x509_vpm.c
+index 8ea2c6a67..d985cb742 100644
+--- a/crypto/x509/x509_vpm.c
++++ b/crypto/x509/x509_vpm.c
+@@ -378,11 +378,15 @@ void X509_VERIFY_PARAM_set_depth(X509_VERIFY_PARAM *param, int depth) {
+   param->depth = depth;
+ }
+ 
+-void X509_VERIFY_PARAM_set_time(X509_VERIFY_PARAM *param, time_t t) {
++void X509_VERIFY_PARAM_set_time_posix(X509_VERIFY_PARAM *param, int64_t t) {
+   param->check_time = t;
+   param->flags |= X509_V_FLAG_USE_CHECK_TIME;
+ }
+ 
++void X509_VERIFY_PARAM_set_time(X509_VERIFY_PARAM *param, time_t t) {
++  X509_VERIFY_PARAM_set_time_posix(param, t);
++}
++
+ int X509_VERIFY_PARAM_add0_policy(X509_VERIFY_PARAM *param,
+                                   ASN1_OBJECT *policy) {
+   if (!param->policies) {
+diff --git a/include/openssl/asn1.h b/include/openssl/asn1.h
+index 9f656af50..c82c74e22 100644
+--- a/include/openssl/asn1.h
++++ b/include/openssl/asn1.h
+@@ -1235,20 +1235,23 @@ DECLARE_ASN1_ITEM(ASN1_UTCTIME)
+ // ASN1_UTCTIME_check returns one if |a| is a valid UTCTime and zero otherwise.
+ OPENSSL_EXPORT int ASN1_UTCTIME_check(const ASN1_UTCTIME *a);
+ 
+-// ASN1_UTCTIME_set represents |t| as a UTCTime and writes the result to |s|. It
+-// returns |s| on success and NULL on error. If |s| is NULL, it returns a
+-// newly-allocated |ASN1_UTCTIME| instead.
++// ASN1_UTCTIME_set represents |posix_time| as a UTCTime and writes the result
++// to |s|. It returns |s| on success and NULL on error. If |s| is NULL, it
++// returns a newly-allocated |ASN1_UTCTIME| instead.
+ //
+ // Note this function may fail if the time is out of range for UTCTime.
+-OPENSSL_EXPORT ASN1_UTCTIME *ASN1_UTCTIME_set(ASN1_UTCTIME *s, time_t t);
++OPENSSL_EXPORT ASN1_UTCTIME *ASN1_UTCTIME_set(ASN1_UTCTIME *s,
++                                              int64_t posix_time);
+ 
+-// ASN1_UTCTIME_adj adds |offset_day| days and |offset_sec| seconds to |t| and
+-// writes the result to |s| as a UTCTime. It returns |s| on success and NULL on
+-// error. If |s| is NULL, it returns a newly-allocated |ASN1_UTCTIME| instead.
++// ASN1_UTCTIME_adj adds |offset_day| days and |offset_sec| seconds to
++// |posix_time| and writes the result to |s| as a UTCTime. It returns |s| on
++// success and NULL on error. If |s| is NULL, it returns a newly-allocated
++// |ASN1_UTCTIME| instead.
+ //
+ // Note this function may fail if the time overflows or is out of range for
+ // UTCTime.
+-OPENSSL_EXPORT ASN1_UTCTIME *ASN1_UTCTIME_adj(ASN1_UTCTIME *s, time_t t,
++OPENSSL_EXPORT ASN1_UTCTIME *ASN1_UTCTIME_adj(ASN1_UTCTIME *s,
++                                              int64_t posix_time,
+                                               int offset_day, long offset_sec);
+ 
+ // ASN1_UTCTIME_set_string sets |s| to a UTCTime whose contents are a copy of
+@@ -1291,23 +1294,24 @@ DECLARE_ASN1_ITEM(ASN1_GENERALIZEDTIME)
+ // zero otherwise.
+ OPENSSL_EXPORT int ASN1_GENERALIZEDTIME_check(const ASN1_GENERALIZEDTIME *a);
+ 
+-// ASN1_GENERALIZEDTIME_set represents |t| as a GeneralizedTime and writes the
+-// result to |s|. It returns |s| on success and NULL on error. If |s| is NULL,
+-// it returns a newly-allocated |ASN1_GENERALIZEDTIME| instead.
++// ASN1_GENERALIZEDTIME_set represents |posix_time| as a GeneralizedTime and
++// writes the result to |s|. It returns |s| on success and NULL on error. If |s|
++// is NULL, it returns a newly-allocated |ASN1_GENERALIZEDTIME| instead.
+ //
+ // Note this function may fail if the time is out of range for GeneralizedTime.
+ OPENSSL_EXPORT ASN1_GENERALIZEDTIME *ASN1_GENERALIZEDTIME_set(
+-    ASN1_GENERALIZEDTIME *s, time_t t);
++    ASN1_GENERALIZEDTIME *s, int64_t posix_time);
+ 
+ // ASN1_GENERALIZEDTIME_adj adds |offset_day| days and |offset_sec| seconds to
+-// |t| and writes the result to |s| as a GeneralizedTime. It returns |s| on
+-// success and NULL on error. If |s| is NULL, it returns a newly-allocated
+-// |ASN1_GENERALIZEDTIME| instead.
++// |posix_time| and writes the result to |s| as a GeneralizedTime. It returns
++// |s| on success and NULL on error. If |s| is NULL, it returns a
++// newly-allocated |ASN1_GENERALIZEDTIME| instead.
+ //
+ // Note this function may fail if the time overflows or is out of range for
+ // GeneralizedTime.
+ OPENSSL_EXPORT ASN1_GENERALIZEDTIME *ASN1_GENERALIZEDTIME_adj(
+-    ASN1_GENERALIZEDTIME *s, time_t t, int offset_day, long offset_sec);
++    ASN1_GENERALIZEDTIME *s, int64_t posix_time, int offset_day,
++    long offset_sec);
+ 
+ // ASN1_GENERALIZEDTIME_set_string sets |s| to a GeneralizedTime whose contents
+ // are a copy of |str|. It returns one on success and zero on error or if |str|
+@@ -1357,24 +1361,29 @@ DECLARE_ASN1_ITEM(ASN1_TIME)
+ OPENSSL_EXPORT int ASN1_TIME_diff(int *out_days, int *out_seconds,
+                                   const ASN1_TIME *from, const ASN1_TIME *to);
+ 
+-// ASN1_TIME_set represents |t| as a GeneralizedTime or UTCTime and writes
+-// the result to |s|. As in RFC 5280, section 4.1.2.5, it uses UTCTime when the
+-// time fits and GeneralizedTime otherwise. It returns |s| on success and NULL
+-// on error. If |s| is NULL, it returns a newly-allocated |ASN1_TIME| instead.
++// ASN1_TIME_set_posix represents |posix_time| as a GeneralizedTime or UTCTime
++// and writes the result to |s|. As in RFC 5280, section 4.1.2.5, it uses
++// UTCTime when the time fits and GeneralizedTime otherwise. It returns |s| on
++// success and NULL on error. If |s| is NULL, it returns a newly-allocated
++// |ASN1_TIME| instead.
+ //
+ // Note this function may fail if the time is out of range for GeneralizedTime.
+-OPENSSL_EXPORT ASN1_TIME *ASN1_TIME_set(ASN1_TIME *s, time_t t);
++OPENSSL_EXPORT ASN1_TIME *ASN1_TIME_set_posix(ASN1_TIME *s, int64_t posix_time);
++
++// ASN1_TIME_set is exactly the same as |ASN1_TIME_set_posix| but with a
++// time_t as input for compatibility.
++OPENSSL_EXPORT ASN1_TIME *ASN1_TIME_set(ASN1_TIME *s, time_t time);
+ 
+ // ASN1_TIME_adj adds |offset_day| days and |offset_sec| seconds to
+-// |t| and writes the result to |s|. As in RFC 5280, section 4.1.2.5, it uses
+-// UTCTime when the time fits and GeneralizedTime otherwise. It returns |s| on
+-// success and NULL on error. If |s| is NULL, it returns a newly-allocated
+-// |ASN1_GENERALIZEDTIME| instead.
++// |posix_time| and writes the result to |s|. As in RFC 5280, section 4.1.2.5,
++// it uses UTCTime when the time fits and GeneralizedTime otherwise. It returns
++// |s| on success and NULL on error. If |s| is NULL, it returns a
++// newly-allocated |ASN1_GENERALIZEDTIME| instead.
+ //
+ // Note this function may fail if the time overflows or is out of range for
+ // GeneralizedTime.
+-OPENSSL_EXPORT ASN1_TIME *ASN1_TIME_adj(ASN1_TIME *s, time_t t, int offset_day,
+-                                        long offset_sec);
++OPENSSL_EXPORT ASN1_TIME *ASN1_TIME_adj(ASN1_TIME *s, int64_t posix_time,
++                                        int offset_day, long offset_sec);
+ 
+ // ASN1_TIME_check returns one if |t| is a valid UTCTime or GeneralizedTime, and
+ // zero otherwise. |t|'s type determines which check is performed. This
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index ec65cc532..a9d3a2026 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -1838,6 +1838,14 @@ OPENSSL_EXPORT X509_REVOKED *X509_REVOKED_dup(const X509_REVOKED *rev);
+ // error, not equality.
+ OPENSSL_EXPORT int X509_cmp_time(const ASN1_TIME *s, time_t *t);
+ 
++// X509_cmp_time_posix compares |s| against |t|. On success, it returns a
++// negative number if |s| <= |t| and a positive number if |s| > |t|. On error,
++// it returns zero.
++//
++// WARNING: Unlike most comparison functions, this function returns zero on
++// error, not equality.
++OPENSSL_EXPORT int X509_cmp_time_posix(const ASN1_TIME *s, int64_t t);
++
+ // X509_cmp_current_time behaves like |X509_cmp_time| but compares |s| against
+ // the current time.
+ OPENSSL_EXPORT int X509_cmp_current_time(const ASN1_TIME *s);
+@@ -2771,6 +2779,9 @@ OPENSSL_EXPORT void X509_STORE_CTX_set_flags(X509_STORE_CTX *ctx,
+                                              unsigned long flags);
+ OPENSSL_EXPORT void X509_STORE_CTX_set_time(X509_STORE_CTX *ctx,
+                                             unsigned long flags, time_t t);
++OPENSSL_EXPORT void X509_STORE_CTX_set_time_posix(X509_STORE_CTX *ctx,
++                                                  unsigned long flags,
++                                                  int64_t t);
+ OPENSSL_EXPORT void X509_STORE_CTX_set_verify_cb(
+     X509_STORE_CTX *ctx, int (*verify_cb)(int, X509_STORE_CTX *));
+ 
+@@ -2805,6 +2816,8 @@ OPENSSL_EXPORT void X509_VERIFY_PARAM_set_depth(X509_VERIFY_PARAM *param,
+                                                 int depth);
+ OPENSSL_EXPORT void X509_VERIFY_PARAM_set_time(X509_VERIFY_PARAM *param,
+                                                time_t t);
++OPENSSL_EXPORT void X509_VERIFY_PARAM_set_time_posix(X509_VERIFY_PARAM *param,
++                                                     int64_t t);
+ OPENSSL_EXPORT int X509_VERIFY_PARAM_add0_policy(X509_VERIFY_PARAM *param,
+                                                  ASN1_OBJECT *policy);
+ OPENSSL_EXPORT int X509_VERIFY_PARAM_set1_policies(

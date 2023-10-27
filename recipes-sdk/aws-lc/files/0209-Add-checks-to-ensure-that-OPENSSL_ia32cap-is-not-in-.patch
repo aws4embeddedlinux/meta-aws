@@ -1,0 +1,64 @@
+From c7eb42c2077effd25acc15a620ac14aeffe70782 Mon Sep 17 00:00:00 2001
+From: William Bo Yang <coolbillyang@gmail.com>
+Date: Fri, 17 Mar 2023 10:06:13 -0700
+Subject: [PATCH] Add checks to ensure that OPENSSL_ia32cap is not in the fips
+ module (#879)
+
+---
+ crypto/fipsmodule/bcm.c | 11 +++++++++++
+ util/all_tests.json     |  6 ++++++
+ 2 files changed, 17 insertions(+)
+
+diff --git a/crypto/fipsmodule/bcm.c b/crypto/fipsmodule/bcm.c
+index f8710f0b4..994e0d4b4 100644
+--- a/crypto/fipsmodule/bcm.c
++++ b/crypto/fipsmodule/bcm.c
+@@ -70,6 +70,7 @@
+ #include "cipher/e_aes.c"
+ #include "cipher/e_aesccm.c"
+ 
++#include "cpucap/internal.h"
+ #include "cpucap/cpu_aarch64_apple.c"
+ #include "cpucap/cpu_aarch64_freebsd.c"
+ #include "cpucap/cpu_aarch64_fuchsia.c"
+@@ -266,6 +267,11 @@ int BORINGSSL_integrity_test(void) {
+   assert_within(start, EVP_AEAD_CTX_seal, end);
+   assert_not_within(start, OPENSSL_cleanse, end);
+   assert_not_within(start, CRYPTO_chacha_20, end);
++#if defined(OPENSSL_X86) || defined(OPENSSL_X86_64)
++  assert_not_within(start, OPENSSL_ia32cap_P, end);
++#elif defined(OPENSSL_AARCH64)
++  assert_not_within(start, &OPENSSL_armcap_P, end);
++#endif  
+ 
+ #if defined(BORINGSSL_SHARED_LIBRARY)
+   const uint8_t *const rodata_start = BORINGSSL_bcm_rodata_start;
+@@ -279,6 +285,11 @@ int BORINGSSL_integrity_test(void) {
+   assert_within(rodata_start, kPrimes, rodata_end);
+   assert_within(rodata_start, kP256Params, rodata_end);
+   assert_within(rodata_start, kPKCS1SigPrefixes, rodata_end);
++#if defined(OPENSSL_X86) || defined(OPENSSL_X86_64)
++  assert_not_within(rodata_start, OPENSSL_ia32cap_P, rodata_end);
++#elif defined(OPENSSL_AARCH64)
++  assert_not_within(rodata_start, &OPENSSL_armcap_P, rodata_end);
++#endif
+ 
+   // Per FIPS 140-3 we have to perform the CAST of the HMAC used for integrity
+   // check before the integrity check itself. So we first call
+diff --git a/util/all_tests.json b/util/all_tests.json
+index 9106f131d..83c8882e7 100644
+--- a/util/all_tests.json
++++ b/util/all_tests.json
+@@ -27,6 +27,12 @@
+     "env": ["OPENSSL_armcap=0x3D"],
+     "target_arch": "arm"
+   },
++  {
++    "comment": "Test OPENSSL_ia32cap on crypto_test for x86, as urandom_test is disabled for shared builds on x86",
++    "cmd": ["crypto/crypto_test", "--gtest_filter=Crypto.OnDemandIntegrityTest"],
++    "env": ["OPENSSL_ia32cap=0:0"],
++    "target_arch": "x86"
++  },
+   {
+     "cmd": ["crypto/urandom_test"],
+     "skip_valgrind": true

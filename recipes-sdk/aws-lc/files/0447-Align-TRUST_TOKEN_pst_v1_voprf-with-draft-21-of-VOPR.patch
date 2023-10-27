@@ -1,0 +1,924 @@
+From 9967f455d394dc7d705feed71b085497f0097321 Mon Sep 17 00:00:00 2001
+From: Steven Valdez <svaldez@google.com>
+Date: Tue, 18 Apr 2023 12:03:42 -0400
+Subject: [PATCH] Align TRUST_TOKEN_pst_v1_voprf with draft-21 of VOPRF
+
+This aligns the DLEQ proof portion of TRUST_TOKEN_pst_v1_voprf
+with draft-irtf-cfrg-voprf-21. The blind and finalize operations
+still differ. Additionally, as VOPRF doesn't include batched
+issuance, the issuance process around the DLEQ proof is adapted
+from draft-robert-privacypass-batched-tokens-01.
+
+Bug: chromium:1414562
+Change-Id: If1c6de0f92089a826968a57279ae598ccf89ca3e
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58906
+Commit-Queue: Steven Valdez <svaldez@google.com>
+Reviewed-by: David Benjamin <davidben@google.com>
+(cherry picked from commit 4b6d950d8921d6dd5365de0797fcc97302b9561b)
+---
+ crypto/fipsmodule/ec/internal.h        |  10 +-
+ crypto/trust_token/internal.h          |   4 +
+ crypto/trust_token/trust_token_test.cc | 289 +++++++++++++++
+ crypto/trust_token/voprf.c             | 472 ++++++++++++++++++++++++-
+ 4 files changed, 753 insertions(+), 22 deletions(-)
+
+diff --git a/crypto/fipsmodule/ec/internal.h b/crypto/fipsmodule/ec/internal.h
+index 9ac7c36f1..690946985 100644
+--- a/crypto/fipsmodule/ec/internal.h
++++ b/crypto/fipsmodule/ec/internal.h
+@@ -97,6 +97,8 @@ int ECDH_compute_shared_secret(uint8_t *buf, size_t *buflen, const EC_POINT *pub
+ // be the largest fields anyone plausibly uses.
+ #define EC_MAX_BYTES 66
+ #define EC_MAX_WORDS ((EC_MAX_BYTES + BN_BYTES - 1) / BN_BYTES)
++#define EC_MAX_COMPRESSED (EC_MAX_BYTES + 1)
++#define EC_MAX_UNCOMPRESSED (2 * EC_MAX_BYTES + 1)
+ 
+ OPENSSL_STATIC_ASSERT(EC_MAX_WORDS <= BN_SMALL_MAX_WORDS,
+                       bn__small_functions_not_usable)
+@@ -127,8 +129,8 @@ OPENSSL_EXPORT void ec_scalar_to_bytes(const EC_GROUP *group, uint8_t *out,
+ // ec_scalar_from_bytes deserializes |in| and stores the resulting scalar over
+ // group |group| to |out|. It returns one on success and zero if |in| is
+ // invalid.
+-int ec_scalar_from_bytes(const EC_GROUP *group, EC_SCALAR *out,
+-                         const uint8_t *in, size_t len);
++OPENSSL_EXPORT int ec_scalar_from_bytes(const EC_GROUP *group, EC_SCALAR *out,
++                                        const uint8_t *in, size_t len);
+ 
+ // ec_scalar_reduce sets |out| to |words|, reduced modulo the group order.
+ // |words| must be less than order^2. |num| must be at most twice the width of
+@@ -289,8 +291,8 @@ void ec_affine_to_jacobian(const EC_GROUP *group, EC_RAW_POINT *out,
+ //
+ // If only extracting the x-coordinate, use |ec_get_x_coordinate_*| which is
+ // slightly faster.
+-int ec_jacobian_to_affine(const EC_GROUP *group, EC_AFFINE *out,
+-                          const EC_RAW_POINT *p);
++OPENSSL_EXPORT int ec_jacobian_to_affine(const EC_GROUP *group, EC_AFFINE *out,
++                                         const EC_RAW_POINT *p);
+ 
+ // ec_jacobian_to_affine_batch converts |num| points in |in| from Jacobian
+ // coordinates to affine coordinates and writes the results to |out|. It returns
+diff --git a/crypto/trust_token/internal.h b/crypto/trust_token/internal.h
+index e940565f2..8fc5d6eae 100644
+--- a/crypto/trust_token/internal.h
++++ b/crypto/trust_token/internal.h
+@@ -239,6 +239,10 @@ STACK_OF(TRUST_TOKEN_PRETOKEN) *voprf_pst1_blind(CBB *cbb, size_t count,
+ int voprf_pst1_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
+                     size_t num_requested, size_t num_to_issue,
+                     uint8_t private_metadata);
++OPENSSL_EXPORT int voprf_pst1_sign_with_proof_scalar_for_testing(
++    const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs, size_t num_requested,
++    size_t num_to_issue, uint8_t private_metadata,
++    const uint8_t *proof_scalar_buf, size_t proof_scalar_len);
+ STACK_OF(TRUST_TOKEN) *voprf_pst1_unblind(
+     const TRUST_TOKEN_CLIENT_KEY *key,
+     const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
+diff --git a/crypto/trust_token/trust_token_test.cc b/crypto/trust_token/trust_token_test.cc
+index 82893414f..e67f9ee95 100644
+--- a/crypto/trust_token/trust_token_test.cc
++++ b/crypto/trust_token/trust_token_test.cc
+@@ -314,6 +314,295 @@ TEST(TrustTokenTest, HPST1) {
+   EXPECT_EQ(Bytes(h), Bytes(expected_bytes, expected_len));
+ }
+ 
++static int ec_point_uncompressed_from_compressed(
++    const EC_GROUP *group, uint8_t out[EC_MAX_UNCOMPRESSED], size_t *out_len,
++    const uint8_t *in, size_t len) {
++  bssl::UniquePtr<EC_POINT> point(EC_POINT_new(group));
++  if (!point ||
++      !EC_POINT_oct2point(group, point.get(), in, len, nullptr)) {
++    return 0;
++  }
++
++  *out_len =
++      EC_POINT_point2oct(group, point.get(), POINT_CONVERSION_UNCOMPRESSED, out,
++                         EC_MAX_UNCOMPRESSED, nullptr);
++  return 1;
++}
++
++static bool setup_voprf_test_key(const EC_GROUP *group,
++                                 TRUST_TOKEN_ISSUER_KEY *out) {
++  static const uint8_t kPrivateKey[] = {
++      0x05, 0x16, 0x46, 0xb9, 0xe6, 0xe7, 0xa7, 0x1a, 0xe2, 0x7c, 0x1e, 0x1d,
++      0x0b, 0x87, 0xb4, 0x38, 0x1d, 0xb6, 0xd3, 0x59, 0x5e, 0xee, 0xb1, 0xad,
++      0xb4, 0x15, 0x79, 0xad, 0xbf, 0x99, 0x2f, 0x42, 0x78, 0xf9, 0x01, 0x6e,
++      0xaf, 0xc9, 0x44, 0xed, 0xaa, 0x2b, 0x43, 0x18, 0x35, 0x81, 0x77, 0x9d
++  };
++
++  static const uint8_t kPublicKey[] = {
++      0x03, 0x1d, 0x68, 0x96, 0x86, 0xc6, 0x11, 0x99, 0x1b, 0x55,
++      0xf1, 0xa1, 0xd8, 0xf4, 0x30, 0x5c, 0xcd, 0x6c, 0xb7, 0x19,
++      0x44, 0x6f, 0x66, 0x0a, 0x30, 0xdb, 0x61, 0xb7, 0xaa, 0x87,
++      0xb4, 0x6a, 0xcf, 0x59, 0xb7, 0xc0, 0xd4, 0xa9, 0x07, 0x7b,
++      0x3d, 0xa2, 0x1c, 0x25, 0xdd, 0x48, 0x22, 0x29, 0xa0
++  };
++
++  if (!ec_scalar_from_bytes(group, &out->xs, kPrivateKey,
++                            sizeof(kPrivateKey))) {
++    return false;
++  }
++
++  bssl::UniquePtr<EC_POINT> pub(EC_POINT_new(group));
++  return pub &&
++         EC_POINT_oct2point(group, pub.get(), kPublicKey, sizeof(kPublicKey),
++                            nullptr) &&
++         ec_jacobian_to_affine(group, &out->pubs, &pub->raw);
++}
++
++TEST(TrustTokenTest, PSTV1VOPRFTestVector1) {
++  const EC_GROUP *group = EC_GROUP_new_by_curve_name(NID_secp384r1);
++  TRUST_TOKEN_ISSUER_KEY key;
++  ASSERT_TRUE(setup_voprf_test_key(group, &key));
++
++  static const uint8_t kBlindedElement[] = {
++      0x02, 0xd3, 0x38, 0xc0, 0x5c, 0xbe, 0xcb, 0x82, 0xde, 0x13,
++      0xd6, 0x70, 0x0f, 0x09, 0xcb, 0x61, 0x19, 0x05, 0x43, 0xa7,
++      0xb7, 0xe2, 0xc6, 0xcd, 0x4f, 0xca, 0x56, 0x88, 0x7e, 0x56,
++      0x4e, 0xa8, 0x26, 0x53, 0xb2, 0x7f, 0xda, 0xd3, 0x83, 0x99,
++      0x5e, 0xa6, 0xd0, 0x2c, 0xf2, 0x6d, 0x0e, 0x24, 0xd9
++  };
++
++  static const uint8_t kEvaluatedElement[] = {
++      0x02, 0xa7, 0xbb, 0xa5, 0x89, 0xb3, 0xe8, 0x67, 0x2a, 0xa1,
++      0x9e, 0x8f, 0xd2, 0x58, 0xde, 0x2e, 0x6a, 0xae, 0x20, 0x10,
++      0x1c, 0x8d, 0x76, 0x12, 0x46, 0xde, 0x97, 0xa6, 0xb5, 0xee,
++      0x9c, 0xf1, 0x05, 0xfe, 0xbc, 0xe4, 0x32, 0x7a, 0x32, 0x62,
++      0x55, 0xa3, 0xc6, 0x04, 0xf6, 0x3f, 0x60, 0x0e, 0xf6
++  };
++
++  static const uint8_t kProof[] = {
++      0xbf, 0xc6, 0xcf, 0x38, 0x59, 0x12, 0x7f, 0x5f, 0xe2, 0x55, 0x48, 0x85,
++      0x98, 0x56, 0xd6, 0xb7, 0xfa, 0x1c, 0x74, 0x59, 0xf0, 0xba, 0x57, 0x12,
++      0xa8, 0x06, 0xfc, 0x09, 0x1a, 0x30, 0x00, 0xc4, 0x2d, 0x8b, 0xa3, 0x4f,
++      0xf4, 0x5f, 0x32, 0xa5, 0x2e, 0x40, 0x53, 0x3e, 0xfd, 0x2a, 0x03, 0xbc,
++      0x87, 0xf3, 0xbf, 0x4f, 0x9f, 0x58, 0x02, 0x82, 0x97, 0xcc, 0xb9, 0xcc,
++      0xb1, 0x8a, 0xe7, 0x18, 0x2b, 0xcd, 0x1e, 0xf2, 0x39, 0xdf, 0x77, 0xe3,
++      0xbe, 0x65, 0xef, 0x14, 0x7f, 0x3a, 0xcf, 0x8b, 0xc9, 0xcb, 0xfc, 0x55,
++      0x24, 0xb7, 0x02, 0x26, 0x34, 0x14, 0xf0, 0x43, 0xe3, 0xb7, 0xca, 0x2e
++  };
++
++  static const uint8_t kProofScalar[] = {
++      0x80, 0x3d, 0x95, 0x5f, 0x0e, 0x07, 0x3a, 0x04, 0xaa, 0x5d, 0x92, 0xb3,
++      0xfb, 0x73, 0x9f, 0x56, 0xf9, 0xdb, 0x00, 0x12, 0x66, 0x67, 0x7f, 0x62,
++      0xc0, 0x95, 0x02, 0x1d, 0xb0, 0x18, 0xcd, 0x8c, 0xbb, 0x55, 0x94, 0x1d,
++      0x40, 0x73, 0x69, 0x8c, 0xe4, 0x5c, 0x40, 0x5d, 0x13, 0x48, 0xb7, 0xb1
++  };
++
++  uint8_t blinded_buf[EC_MAX_UNCOMPRESSED];
++  size_t blinded_len;
++  ASSERT_TRUE(ec_point_uncompressed_from_compressed(
++      group, blinded_buf, &blinded_len, kBlindedElement,
++      sizeof(kBlindedElement)));
++
++  CBS sign_input;
++  CBS_init(&sign_input, blinded_buf, blinded_len);
++  bssl::ScopedCBB response;
++  ASSERT_TRUE(CBB_init(response.get(), 0));
++  ASSERT_TRUE(voprf_pst1_sign_with_proof_scalar_for_testing(
++      &key, response.get(), &sign_input, /*num_requested=*/1,
++      /*num_to_issue=*/1,
++      /*private_metadata=*/0, kProofScalar, sizeof(kProofScalar)));
++
++  uint8_t evaluated_buf[EC_MAX_UNCOMPRESSED];
++  size_t evaluated_len;
++  ASSERT_TRUE(ec_point_uncompressed_from_compressed(
++      group, evaluated_buf, &evaluated_len, kEvaluatedElement,
++      sizeof(kEvaluatedElement)));
++
++  bssl::ScopedCBB expected_response;
++  ASSERT_TRUE(CBB_init(expected_response.get(), 0));
++  ASSERT_TRUE(
++      CBB_add_bytes(expected_response.get(), evaluated_buf, evaluated_len));
++  ASSERT_TRUE(CBB_add_u16(expected_response.get(), sizeof(kProof)));
++  ASSERT_TRUE(CBB_add_bytes(expected_response.get(), kProof, sizeof(kProof)));
++  ASSERT_TRUE(CBB_flush(expected_response.get()));
++
++  ASSERT_EQ(Bytes(CBB_data(expected_response.get()),
++                  CBB_len(expected_response.get())),
++            Bytes(CBB_data(response.get()), CBB_len(response.get())));
++}
++
++TEST(TrustTokenTest, PSTV1VOPRFTestVector2) {
++  const EC_GROUP *group = EC_GROUP_new_by_curve_name(NID_secp384r1);
++  TRUST_TOKEN_ISSUER_KEY key;
++  ASSERT_TRUE(setup_voprf_test_key(group, &key));
++
++  static const uint8_t kBlindedElement[] = {
++      0x02, 0xf2, 0x74, 0x69, 0xe0, 0x59, 0x88, 0x6f, 0x22, 0x1b,
++      0xe5, 0xf2, 0xcc, 0xa0, 0x3d, 0x2b, 0xdc, 0x61, 0xe5, 0x52,
++      0x21, 0x72, 0x1c, 0x3b, 0x3e, 0x56, 0xfc, 0x01, 0x2e, 0x36,
++      0xd3, 0x1a, 0xe5, 0xf8, 0xdc, 0x05, 0x81, 0x09, 0x59, 0x15,
++      0x56, 0xa6, 0xdb, 0xd3, 0xa8, 0xc6, 0x9c, 0x43, 0x3b
++  };
++
++  static const uint8_t kEvaluatedElement[] = {
++      0x03, 0xf1, 0x6f, 0x90, 0x39, 0x47, 0x03, 0x54, 0x00, 0xe9,
++      0x6b, 0x7f, 0x53, 0x1a, 0x38, 0xd4, 0xa0, 0x7a, 0xc8, 0x9a,
++      0x80, 0xf8, 0x9d, 0x86, 0xa1, 0xbf, 0x08, 0x9c, 0x52, 0x5a,
++      0x92, 0xc7, 0xf4, 0x73, 0x37, 0x29, 0xca, 0x30, 0xc5, 0x6c,
++      0xe7, 0x8b, 0x1a, 0xb4, 0xf7, 0xd9, 0x2d, 0xb8, 0xb4
++  };
++
++  static const uint8_t kProof[] = {
++      0xd0, 0x05, 0xd6, 0xda, 0xaa, 0xd7, 0x57, 0x14, 0x14, 0xc1, 0xe0,
++      0xc7, 0x5f, 0x7e, 0x57, 0xf2, 0x11, 0x3c, 0xa9, 0xf4, 0x60, 0x4e,
++      0x84, 0xbc, 0x90, 0xf9, 0xbe, 0x52, 0xda, 0x89, 0x6f, 0xff, 0x3b,
++      0xee, 0x49, 0x6d, 0xcd, 0xe2, 0xa5, 0x78, 0xae, 0x9d, 0xf3, 0x15,
++      0x03, 0x25, 0x85, 0xf8, 0x01, 0xfb, 0x21, 0xc6, 0x08, 0x0a, 0xc0,
++      0x56, 0x72, 0xb2, 0x91, 0xe5, 0x75, 0xa4, 0x02, 0x95, 0xb3, 0x06,
++      0xd9, 0x67, 0x71, 0x7b, 0x28, 0xe0, 0x8f, 0xcc, 0x8a, 0xd1, 0xca,
++      0xb4, 0x78, 0x45, 0xd1, 0x6a, 0xf7, 0x3b, 0x3e, 0x64, 0x3d, 0xdc,
++      0xc1, 0x91, 0x20, 0x8e, 0x71, 0xc6, 0x46, 0x30
++  };
++
++  static const uint8_t kProofScalar[] = {
++      0x80, 0x3d, 0x95, 0x5f, 0x0e, 0x07, 0x3a, 0x04, 0xaa, 0x5d, 0x92, 0xb3,
++      0xfb, 0x73, 0x9f, 0x56, 0xf9, 0xdb, 0x00, 0x12, 0x66, 0x67, 0x7f, 0x62,
++      0xc0, 0x95, 0x02, 0x1d, 0xb0, 0x18, 0xcd, 0x8c, 0xbb, 0x55, 0x94, 0x1d,
++      0x40, 0x73, 0x69, 0x8c, 0xe4, 0x5c, 0x40, 0x5d, 0x13, 0x48, 0xb7, 0xb1
++  };
++
++  uint8_t blinded_buf[EC_MAX_UNCOMPRESSED];
++  size_t blinded_len;
++  ASSERT_TRUE(ec_point_uncompressed_from_compressed(
++      group, blinded_buf, &blinded_len, kBlindedElement,
++      sizeof(kBlindedElement)));
++
++  CBS sign_input;
++  CBS_init(&sign_input, blinded_buf, blinded_len);
++  bssl::ScopedCBB response;
++  ASSERT_TRUE(CBB_init(response.get(), 0));
++  ASSERT_TRUE(voprf_pst1_sign_with_proof_scalar_for_testing(
++      &key, response.get(), &sign_input, /*num_requested=*/1,
++      /*num_to_issue=*/1,
++      /*private_metadata=*/0, kProofScalar, sizeof(kProofScalar)));
++
++  uint8_t evaluated_buf[EC_MAX_UNCOMPRESSED];
++  size_t evaluated_len;
++  ASSERT_TRUE(ec_point_uncompressed_from_compressed(
++      group, evaluated_buf, &evaluated_len, kEvaluatedElement,
++      sizeof(kEvaluatedElement)));
++
++  bssl::ScopedCBB expected_response;
++  ASSERT_TRUE(CBB_init(expected_response.get(), 0));
++  ASSERT_TRUE(
++      CBB_add_bytes(expected_response.get(), evaluated_buf, evaluated_len));
++  ASSERT_TRUE(CBB_add_u16(expected_response.get(), sizeof(kProof)));
++  ASSERT_TRUE(CBB_add_bytes(expected_response.get(), kProof, sizeof(kProof)));
++  ASSERT_TRUE(CBB_flush(expected_response.get()));
++
++  ASSERT_EQ(Bytes(CBB_data(expected_response.get()),
++                  CBB_len(expected_response.get())),
++            Bytes(CBB_data(response.get()), CBB_len(response.get())));
++}
++
++TEST(TrustTokenTest, PSTV1VOPRFTestVector3) {
++  const EC_GROUP *group = EC_GROUP_new_by_curve_name(NID_secp384r1);
++  TRUST_TOKEN_ISSUER_KEY key;
++  ASSERT_TRUE(setup_voprf_test_key(group, &key));
++
++  static const uint8_t kBlindedElement1[] = {
++      0x02, 0xd3, 0x38, 0xc0, 0x5c, 0xbe, 0xcb, 0x82, 0xde, 0x13,
++      0xd6, 0x70, 0x0f, 0x09, 0xcb, 0x61, 0x19, 0x05, 0x43, 0xa7,
++      0xb7, 0xe2, 0xc6, 0xcd, 0x4f, 0xca, 0x56, 0x88, 0x7e, 0x56,
++      0x4e, 0xa8, 0x26, 0x53, 0xb2, 0x7f, 0xda, 0xd3, 0x83, 0x99,
++      0x5e, 0xa6, 0xd0, 0x2c, 0xf2, 0x6d, 0x0e, 0x24, 0xd9
++  };
++  static const uint8_t kBlindedElement2[] = {
++      0x02, 0xfa, 0x02, 0x47, 0x0d, 0x7f, 0x15, 0x10, 0x18, 0xb4,
++      0x1e, 0x82, 0x22, 0x3c, 0x32, 0xfa, 0xd8, 0x24, 0xde, 0x6a,
++      0xd4, 0xb5, 0xce, 0x9f, 0x8e, 0x9f, 0x98, 0x08, 0x3c, 0x9a,
++      0x72, 0x6d, 0xe9, 0xa1, 0xfc, 0x39, 0xd7, 0xa0, 0xcb, 0x6f,
++      0x4f, 0x18, 0x8d, 0xd9, 0xce, 0xa0, 0x14, 0x74, 0xcd
++  };
++
++  static const uint8_t kEvaluatedElement1[] = {
++      0x02, 0xa7, 0xbb, 0xa5, 0x89, 0xb3, 0xe8, 0x67, 0x2a, 0xa1,
++      0x9e, 0x8f, 0xd2, 0x58, 0xde, 0x2e, 0x6a, 0xae, 0x20, 0x10,
++      0x1c, 0x8d, 0x76, 0x12, 0x46, 0xde, 0x97, 0xa6, 0xb5, 0xee,
++      0x9c, 0xf1, 0x05, 0xfe, 0xbc, 0xe4, 0x32, 0x7a, 0x32, 0x62,
++      0x55, 0xa3, 0xc6, 0x04, 0xf6, 0x3f, 0x60, 0x0e, 0xf6
++  };
++
++  static const uint8_t kEvaluatedElement2[] = {
++      0x02, 0x8e, 0x9e, 0x11, 0x56, 0x25, 0xff, 0x4c, 0x2f, 0x07,
++      0xbf, 0x87, 0xce, 0x3f, 0xd7, 0x3f, 0xc7, 0x79, 0x94, 0xa7,
++      0xa0, 0xc1, 0xdf, 0x03, 0xd2, 0xa6, 0x30, 0xa3, 0xd8, 0x45,
++      0x93, 0x0e, 0x2e, 0x63, 0xa1, 0x65, 0xb1, 0x14, 0xd9, 0x8f,
++      0xe3, 0x4e, 0x61, 0xb6, 0x8d, 0x23, 0xc0, 0xb5, 0x0a
++  };
++
++  static const uint8_t kProof[] = {
++      0x6d, 0x8d, 0xcb, 0xd2, 0xfc, 0x95, 0x55, 0x0a, 0x02, 0x21, 0x1f,
++      0xb7, 0x8a, 0xfd, 0x01, 0x39, 0x33, 0xf3, 0x07, 0xd2, 0x1e, 0x7d,
++      0x85, 0x5b, 0x0b, 0x1e, 0xd0, 0xaf, 0x78, 0x07, 0x6d, 0x81, 0x37,
++      0xad, 0x8b, 0x0a, 0x1b, 0xfa, 0x05, 0x67, 0x6d, 0x32, 0x52, 0x49,
++      0xc1, 0xdb, 0xb9, 0xa5, 0x2b, 0xd8, 0x1b, 0x1c, 0x2b, 0x7b, 0x0e,
++      0xfc, 0x77, 0xcf, 0x7b, 0x27, 0x8e, 0x1c, 0x94, 0x7f, 0x62, 0x83,
++      0xf1, 0xd4, 0xc5, 0x13, 0x05, 0x3f, 0xc0, 0xad, 0x19, 0xe0, 0x26,
++      0xfb, 0x0c, 0x30, 0x65, 0x4b, 0x53, 0xd9, 0xce, 0xa4, 0xb8, 0x7b,
++      0x03, 0x72, 0x71, 0xb5, 0xd2, 0xe2, 0xd0, 0xea
++  };
++
++  static const uint8_t kProofScalar[] = {
++      0xa0, 0x97, 0xe7, 0x22, 0xed, 0x24, 0x27, 0xde, 0x86, 0x96,
++      0x69, 0x10, 0xac, 0xba, 0x9f, 0x5c, 0x35, 0x0e, 0x80, 0x40,
++      0xf8, 0x28, 0xbf, 0x6c, 0xec, 0xa2, 0x74, 0x05, 0x42, 0x0c,
++      0xdf, 0x3d, 0x63, 0xcb, 0x3a, 0xef, 0x00, 0x5f, 0x40, 0xba,
++      0x51, 0x94, 0x3c, 0x80, 0x26, 0x87, 0x79, 0x63
++  };
++
++  uint8_t blinded_buf[2*EC_MAX_UNCOMPRESSED];
++  size_t blinded_len;
++  ASSERT_TRUE(ec_point_uncompressed_from_compressed(
++      group, blinded_buf, &blinded_len, kBlindedElement1,
++      sizeof(kBlindedElement1)));
++  size_t offset = blinded_len;
++  ASSERT_TRUE(ec_point_uncompressed_from_compressed(
++      group, blinded_buf + offset, &blinded_len, kBlindedElement2,
++      sizeof(kBlindedElement2)));
++
++  CBS sign_input;
++  CBS_init(&sign_input, blinded_buf, offset + blinded_len);
++  bssl::ScopedCBB response;
++  ASSERT_TRUE(CBB_init(response.get(), 0));
++  ASSERT_TRUE(voprf_pst1_sign_with_proof_scalar_for_testing(
++      &key, response.get(), &sign_input, /*num_requested=*/2,
++      /*num_to_issue=*/2,
++      /*private_metadata=*/0, kProofScalar, sizeof(kProofScalar)));
++
++  uint8_t evaluated_buf[2 * EC_MAX_UNCOMPRESSED];
++  size_t evaluated_len;
++  ASSERT_TRUE(ec_point_uncompressed_from_compressed(
++      group, evaluated_buf, &evaluated_len, kEvaluatedElement1,
++      sizeof(kEvaluatedElement1)));
++  offset = evaluated_len;
++  ASSERT_TRUE(ec_point_uncompressed_from_compressed(
++      group, evaluated_buf + offset, &evaluated_len, kEvaluatedElement2,
++      sizeof(kEvaluatedElement2)));
++
++  bssl::ScopedCBB expected_response;
++  ASSERT_TRUE(CBB_init(expected_response.get(), 0));
++  ASSERT_TRUE(CBB_add_bytes(expected_response.get(), evaluated_buf,
++                            offset + evaluated_len));
++  ASSERT_TRUE(CBB_add_u16(expected_response.get(), sizeof(kProof)));
++  ASSERT_TRUE(CBB_add_bytes(expected_response.get(), kProof, sizeof(kProof)));
++  ASSERT_TRUE(CBB_flush(expected_response.get()));
++
++  ASSERT_EQ(Bytes(CBB_data(expected_response.get()),
++                  CBB_len(expected_response.get())),
++            Bytes(CBB_data(response.get()), CBB_len(response.get())));
++}
++
+ static std::vector<const TRUST_TOKEN_METHOD *> AllMethods() {
+   return {
+     TRUST_TOKEN_experiment_v1(),
+diff --git a/crypto/trust_token/voprf.c b/crypto/trust_token/voprf.c
+index d414bfd52..aa7df8ef7 100644
+--- a/crypto/trust_token/voprf.c
++++ b/crypto/trust_token/voprf.c
+@@ -63,18 +63,24 @@ static int voprf_init_method(VOPRF_METHOD *method, int curve_nid,
+ 
+ static int cbb_add_point(CBB *out, const EC_GROUP *group,
+                          const EC_AFFINE *point) {
+-  size_t len = ec_point_byte_len(group,  POINT_CONVERSION_UNCOMPRESSED);
+-  if (len == 0) {
+-    return 0;
+-  }
+-
+   uint8_t *p;
++  size_t len = ec_point_byte_len(group, POINT_CONVERSION_UNCOMPRESSED);
+   return CBB_add_space(out, &p, len) &&
+          ec_point_to_bytes(group, point, POINT_CONVERSION_UNCOMPRESSED, p,
+                            len) == len &&
+          CBB_flush(out);
+ }
+ 
++static int cbb_serialize_point(CBB *out, const EC_GROUP *group,
++                               const EC_AFFINE *point) {
++  uint8_t *p;
++  size_t len = ec_point_byte_len(group, POINT_CONVERSION_COMPRESSED);
++  return CBB_add_u16(out, len) && CBB_add_space(out, &p, len) &&
++         ec_point_to_bytes(group, point, POINT_CONVERSION_COMPRESSED, p, len) ==
++             len &&
++         CBB_flush(out);
++}
++
+ static int cbs_get_point(CBS *cbs, const EC_GROUP *group, EC_AFFINE *out) {
+   CBS child;
+   size_t plen = 1 + 2 * BN_num_bytes(&group->field);
+@@ -299,6 +305,30 @@ err:
+   return ok;
+ }
+ 
++static int hash_to_scalar_challenge(const VOPRF_METHOD *method, EC_SCALAR *out,
++                                    const EC_AFFINE *Bm, const EC_AFFINE *a0,
++                                    const EC_AFFINE *a1, const EC_AFFINE *a2,
++                                    const EC_AFFINE *a3) {
++  static const uint8_t kChallengeLabel[] = "Challenge";
++
++  CBB cbb;
++  uint8_t transcript[5 * EC_MAX_COMPRESSED + 2 + sizeof(kChallengeLabel) - 1];
++  size_t len;
++  if (!CBB_init_fixed(&cbb, transcript, sizeof(transcript)) ||
++      !cbb_serialize_point(&cbb, method->group, Bm) ||
++      !cbb_serialize_point(&cbb, method->group, a0) ||
++      !cbb_serialize_point(&cbb, method->group, a1) ||
++      !cbb_serialize_point(&cbb, method->group, a2) ||
++      !cbb_serialize_point(&cbb, method->group, a3) ||
++      !CBB_add_bytes(&cbb, kChallengeLabel, sizeof(kChallengeLabel) - 1) ||
++      !CBB_finish(&cbb, NULL, &len) ||
++      !method->hash_to_scalar(method->group, out, transcript, len)) {
++    return 0;
++  }
++
++  return 1;
++}
++
+ static int hash_to_scalar_batch(const VOPRF_METHOD *method, EC_SCALAR *out,
+                                 const CBB *points, size_t index) {
+   static const uint8_t kDLEQBatchLabel[] = "DLEQ BATCH";
+@@ -455,9 +485,9 @@ static int dleq_verify(const VOPRF_METHOD *method, CBS *cbs,
+   return 1;
+ }
+ 
+-static int voprf_sign(const VOPRF_METHOD *method,
+-                      const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
+-                      size_t num_requested, size_t num_to_issue) {
++static int voprf_sign_tt(const VOPRF_METHOD *method,
++                         const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
++                         size_t num_requested, size_t num_to_issue) {
+   const EC_GROUP *group = method->group;
+   if (num_requested < num_to_issue) {
+     OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_INTERNAL_ERROR);
+@@ -553,7 +583,7 @@ err:
+   return ret;
+ }
+ 
+-static STACK_OF(TRUST_TOKEN) *voprf_unblind(
++static STACK_OF(TRUST_TOKEN) *voprf_unblind_tt(
+     const VOPRF_METHOD *method, const TRUST_TOKEN_CLIENT_KEY *key,
+     const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
+     uint32_t key_id) {
+@@ -673,6 +703,397 @@ err:
+   return ret;
+ }
+ 
++static void sha384_update_u16(SHA512_CTX *ctx, uint16_t v) {
++  uint8_t buf[2] = {v >> 8, v & 0xff};
++  SHA384_Update(ctx, buf, 2);
++}
++
++static void sha384_update_point_with_length(
++     SHA512_CTX *ctx, const EC_GROUP *group, const EC_AFFINE *point) {
++  uint8_t buf[EC_MAX_COMPRESSED];
++  size_t len = ec_point_to_bytes(group, point, POINT_CONVERSION_COMPRESSED,
++                                 buf, sizeof(buf));
++  assert(len > 0);
++  sha384_update_u16(ctx, (uint16_t)len);
++  SHA384_Update(ctx, buf, len);
++}
++
++static int compute_composite_seed(const VOPRF_METHOD *method,
++                                  uint8_t out[SHA384_DIGEST_LENGTH],
++                                  const EC_AFFINE *pub) {
++  const EC_GROUP *group = method->group;
++  static const uint8_t kSeedDST[] = "Seed-OPRFV1-\x01-P384-SHA384";
++
++  SHA512_CTX hash_ctx;
++  SHA384_Init(&hash_ctx);
++  sha384_update_point_with_length(&hash_ctx, group, pub);
++  sha384_update_u16(&hash_ctx, sizeof(kSeedDST) - 1);
++  SHA384_Update(&hash_ctx, kSeedDST, sizeof(kSeedDST) - 1);
++  SHA384_Final(out, &hash_ctx);
++
++  return 1;
++}
++
++static int compute_composite_element(const VOPRF_METHOD *method,
++                                     uint8_t seed[SHA384_DIGEST_LENGTH],
++                                     EC_SCALAR *di, size_t index,
++                                     const EC_AFFINE *C, const EC_AFFINE *D) {
++  static const uint8_t kCompositeLabel[] = "Composite";
++  const EC_GROUP *group = method->group;
++
++  if (index > UINT16_MAX) {
++    return 0;
++  }
++
++  CBB cbb;
++  uint8_t transcript[2 + SHA384_DIGEST_LENGTH + 2 + 2 * EC_MAX_COMPRESSED +
++                     sizeof(kCompositeLabel) - 1];
++  size_t len;
++  if (!CBB_init_fixed(&cbb, transcript, sizeof(transcript)) ||
++      !CBB_add_u16(&cbb, SHA384_DIGEST_LENGTH) ||
++      !CBB_add_bytes(&cbb, seed, SHA384_DIGEST_LENGTH) ||
++      !CBB_add_u16(&cbb, index) ||
++      !cbb_serialize_point(&cbb, group, C) ||
++      !cbb_serialize_point(&cbb, group, D) ||
++      !CBB_add_bytes(&cbb, kCompositeLabel,
++                     sizeof(kCompositeLabel) - 1) ||
++      !CBB_finish(&cbb, NULL, &len) ||
++      !method->hash_to_scalar(method->group, di, transcript, len)) {
++    return 0;
++  }
++
++  return 1;
++}
++
++static int generate_proof(const VOPRF_METHOD *method, CBB *cbb,
++                          const TRUST_TOKEN_ISSUER_KEY *priv,
++                          const EC_SCALAR *r, const EC_RAW_POINT *M,
++                          const EC_RAW_POINT *Z) {
++  const EC_GROUP *group = method->group;
++
++  enum {
++    idx_M,
++    idx_Z,
++    idx_t2,
++    idx_t3,
++    num_idx,
++  };
++  EC_RAW_POINT jacobians[num_idx];
++
++  if (!ec_point_mul_scalar_base(group, &jacobians[idx_t2], r) ||
++      !ec_point_mul_scalar(group, &jacobians[idx_t3], M, r)) {
++    return 0;
++  }
++
++
++  EC_AFFINE affines[num_idx];
++  jacobians[idx_M] = *M;
++  jacobians[idx_Z] = *Z;
++  if (!ec_jacobian_to_affine_batch(group, affines, jacobians, num_idx)) {
++    return 0;
++  }
++
++  EC_SCALAR c;
++  if (!hash_to_scalar_challenge(method, &c, &priv->pubs, &affines[idx_M],
++                                &affines[idx_Z], &affines[idx_t2],
++                                &affines[idx_t3])) {
++    return 0;
++  }
++
++  EC_SCALAR c_mont;
++  ec_scalar_to_montgomery(group, &c_mont, &c);
++
++  // s = r - c*xs
++  EC_SCALAR s;
++  ec_scalar_mul_montgomery(group, &s, &priv->xs, &c_mont);
++  ec_scalar_sub(group, &s, r, &s);
++
++  // Store DLEQ proof in transcript.
++  if (!scalar_to_cbb(cbb, group, &c) ||
++      !scalar_to_cbb(cbb, group, &s)) {
++    return 0;
++  }
++
++  return 1;
++}
++
++static int verify_proof(const VOPRF_METHOD *method, CBS *cbs,
++                        const TRUST_TOKEN_CLIENT_KEY *pub,
++                        const EC_RAW_POINT *M, const EC_RAW_POINT *Z) {
++  const EC_GROUP *group = method->group;
++
++  enum {
++    idx_M,
++    idx_Z,
++    idx_t2,
++    idx_t3,
++    num_idx,
++  };
++  EC_RAW_POINT jacobians[num_idx];
++
++  EC_SCALAR c, s;
++  if (!scalar_from_cbs(cbs, group, &c) ||
++      !scalar_from_cbs(cbs, group, &s)) {
++    OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_DECODE_FAILURE);
++    return 0;
++  }
++
++  EC_RAW_POINT pubs;
++  ec_affine_to_jacobian(group, &pubs, &pub->pubs);
++  if (!ec_point_mul_scalar_public(group, &jacobians[idx_t2], &s, &pubs,
++                                  &c) ||
++      !mul_public_2(group, &jacobians[idx_t3], M, &s, Z, &c)) {
++    return 0;
++  }
++
++  EC_AFFINE affines[num_idx];
++  jacobians[idx_M] = *M;
++  jacobians[idx_Z] = *Z;
++  if (!ec_jacobian_to_affine_batch(group, affines, jacobians, num_idx)) {
++    return 0;
++  }
++
++  EC_SCALAR expected_c;
++  if (!hash_to_scalar_challenge(method, &expected_c, &pub->pubs,
++                                &affines[idx_M], &affines[idx_Z],
++                                &affines[idx_t2], &affines[idx_t3])) {
++    return 0;
++  }
++
++  // c == expected_c
++  if (!ec_scalar_equal_vartime(group, &c, &expected_c)) {
++    OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_INVALID_PROOF);
++    return 0;
++  }
++
++  return 1;
++}
++
++static int voprf_sign_impl(const VOPRF_METHOD *method,
++                           const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb,
++                           CBS *cbs, size_t num_requested, size_t num_to_issue,
++                           const EC_SCALAR *proof_scalar) {
++  const EC_GROUP *group = method->group;
++  if (num_requested < num_to_issue) {
++    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_INTERNAL_ERROR);
++    return 0;
++  }
++
++  if (num_to_issue > ((size_t)-1) / sizeof(EC_RAW_POINT) ||
++      num_to_issue > ((size_t)-1) / sizeof(EC_SCALAR)) {
++    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_OVERFLOW);
++    return 0;
++  }
++
++  int ret = 0;
++  EC_RAW_POINT *BTs = OPENSSL_malloc(num_to_issue * sizeof(EC_RAW_POINT));
++  EC_RAW_POINT *Zs = OPENSSL_malloc(num_to_issue * sizeof(EC_RAW_POINT));
++  EC_SCALAR *dis = OPENSSL_malloc(num_to_issue * sizeof(EC_SCALAR));
++  if (!BTs || !Zs || !dis) {
++    goto err;
++  }
++
++  uint8_t seed[SHA384_DIGEST_LENGTH];
++  if (!compute_composite_seed(method, seed, &key->pubs)) {
++    goto err;
++  }
++
++  // This implements the BlindEvaluateBatch as defined in section 4 of
++  // draft-robert-privacypass-batched-tokens-01, based on the constructions
++  // in draft-irtf-cfrg-voprf-21. To optimize the computation of the proof,
++  // the computation of di is done during the token signing and passed into
++  // the proof generation.
++  for (size_t i = 0; i < num_to_issue; i++) {
++    EC_AFFINE BT_affine, Z_affine;
++    EC_RAW_POINT BT, Z;
++    if (!cbs_get_point(cbs, group, &BT_affine)) {
++      OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_DECODE_FAILURE);
++      goto err;
++    }
++    ec_affine_to_jacobian(group, &BT, &BT_affine);
++    if (!ec_point_mul_scalar(group, &Z, &BT, &key->xs) ||
++        !ec_jacobian_to_affine(group, &Z_affine, &Z) ||
++        !cbb_add_point(cbb, group, &Z_affine)) {
++      goto err;
++    }
++    BTs[i] = BT;
++    Zs[i] = Z;
++    if (!compute_composite_element(method, seed, &dis[i], i, &BT_affine,
++                                   &Z_affine)) {
++      goto err;
++    }
++
++    if (!CBB_flush(cbb)) {
++      goto err;
++    }
++  }
++
++  EC_RAW_POINT M, Z;
++  if (!ec_point_mul_scalar_public_batch(group, &M,
++                                        /*g_scalar=*/NULL, BTs, dis,
++                                        num_to_issue) ||
++      !ec_point_mul_scalar(group, &Z, &M, &key->xs)) {
++    goto err;
++  }
++
++  CBB proof;
++  if (!CBB_add_u16_length_prefixed(cbb, &proof) ||
++      !generate_proof(method, &proof, key, proof_scalar, &M, &Z) ||
++      !CBB_flush(cbb)) {
++    goto err;
++  }
++
++  // Skip over any unused requests.
++  size_t point_len = 1 + 2 * BN_num_bytes(&group->field);
++  if (!CBS_skip(cbs, point_len * (num_requested - num_to_issue))) {
++    OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_DECODE_FAILURE);
++    goto err;
++  }
++
++  ret = 1;
++
++err:
++  OPENSSL_free(BTs);
++  OPENSSL_free(Zs);
++  OPENSSL_free(dis);
++  return ret;
++}
++
++static int voprf_sign(const VOPRF_METHOD *method,
++                      const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
++                      size_t num_requested, size_t num_to_issue) {
++  EC_SCALAR proof_scalar;
++  if (!ec_random_nonzero_scalar(method->group, &proof_scalar,
++                                kDefaultAdditionalData)) {
++    return 0;
++  }
++
++  return voprf_sign_impl(method, key, cbb, cbs, num_requested, num_to_issue,
++                         &proof_scalar);
++}
++
++static int voprf_sign_with_proof_scalar_for_testing(
++    const VOPRF_METHOD *method, const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb,
++    CBS *cbs, size_t num_requested, size_t num_to_issue,
++    const uint8_t *proof_scalar_buf, size_t proof_scalar_len) {
++  EC_SCALAR proof_scalar;
++  if (!ec_scalar_from_bytes(method->group, &proof_scalar, proof_scalar_buf,
++                            proof_scalar_len)) {
++    return 0;
++  }
++  return voprf_sign_impl(method, key, cbb, cbs, num_requested, num_to_issue,
++                         &proof_scalar);
++}
++
++static STACK_OF(TRUST_TOKEN) *voprf_unblind(
++    const VOPRF_METHOD *method, const TRUST_TOKEN_CLIENT_KEY *key,
++    const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,
++    uint32_t key_id) {
++  const EC_GROUP *group = method->group;
++  if (count > sk_TRUST_TOKEN_PRETOKEN_num(pretokens)) {
++    OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_DECODE_FAILURE);
++    return NULL;
++  }
++
++  if (count > ((size_t)-1) / sizeof(EC_RAW_POINT) ||
++      count > ((size_t)-1) / sizeof(EC_SCALAR)) {
++    OPENSSL_PUT_ERROR(TRUST_TOKEN, ERR_R_OVERFLOW);
++    return NULL;
++  }
++
++  int ok = 0;
++  STACK_OF(TRUST_TOKEN) *ret = sk_TRUST_TOKEN_new_null();
++  EC_RAW_POINT *BTs = OPENSSL_malloc(count * sizeof(EC_RAW_POINT));
++  EC_RAW_POINT *Zs = OPENSSL_malloc(count * sizeof(EC_RAW_POINT));
++  EC_SCALAR *dis = OPENSSL_malloc(count * sizeof(EC_SCALAR));
++  if (ret == NULL || !BTs || !Zs || !dis) {
++    goto err;
++  }
++
++  uint8_t seed[SHA384_DIGEST_LENGTH];
++  if (!compute_composite_seed(method, seed, &key->pubs)) {
++    goto err;
++  }
++
++  for (size_t i = 0; i < count; i++) {
++    const TRUST_TOKEN_PRETOKEN *pretoken =
++        sk_TRUST_TOKEN_PRETOKEN_value(pretokens, i);
++
++    EC_AFFINE Z_affine;
++    if (!cbs_get_point(cbs, group, &Z_affine)) {
++      OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_DECODE_FAILURE);
++      goto err;
++    }
++
++    ec_affine_to_jacobian(group, &BTs[i], &pretoken->Tp);
++    ec_affine_to_jacobian(group, &Zs[i], &Z_affine);
++    if (!compute_composite_element(method, seed, &dis[i], i, &pretoken->Tp,
++                                   &Z_affine)) {
++      goto err;
++    }
++
++    // Unblind the token.
++    // pretoken->r is rinv.
++    EC_RAW_POINT N;
++    EC_AFFINE N_affine;
++    if (!ec_point_mul_scalar(group, &N, &Zs[i], &pretoken->r) ||
++        !ec_jacobian_to_affine(group, &N_affine, &N)) {
++      goto err;
++    }
++
++    // Serialize the token. Include |key_id| to avoid an extra copy in the layer
++    // above.
++    CBB token_cbb;
++    size_t point_len = 1 + 2 * BN_num_bytes(&group->field);
++    if (!CBB_init(&token_cbb, 4 + TRUST_TOKEN_NONCE_SIZE + (2 + point_len)) ||
++        !CBB_add_u32(&token_cbb, key_id) ||
++        !CBB_add_bytes(&token_cbb, pretoken->salt, TRUST_TOKEN_NONCE_SIZE) ||
++        !cbb_add_point(&token_cbb, group, &N_affine) ||
++        !CBB_flush(&token_cbb)) {
++      CBB_cleanup(&token_cbb);
++      goto err;
++    }
++
++    TRUST_TOKEN *token =
++        TRUST_TOKEN_new(CBB_data(&token_cbb), CBB_len(&token_cbb));
++    CBB_cleanup(&token_cbb);
++    if (token == NULL ||
++        !sk_TRUST_TOKEN_push(ret, token)) {
++      TRUST_TOKEN_free(token);
++      goto err;
++    }
++  }
++
++  EC_RAW_POINT M, Z;
++  if (!ec_point_mul_scalar_public_batch(group, &M,
++                                        /*g_scalar=*/NULL, BTs, dis,
++                                        count) ||
++      !ec_point_mul_scalar_public_batch(group, &Z,
++                                        /*g_scalar=*/NULL, Zs, dis,
++                                        count)) {
++    goto err;
++  }
++
++  CBS proof;
++  if (!CBS_get_u16_length_prefixed(cbs, &proof) ||
++      !verify_proof(method, &proof, key, &M, &Z) ||
++      CBS_len(&proof) != 0) {
++    goto err;
++  }
++
++  ok = 1;
++
++err:
++  OPENSSL_free(BTs);
++  OPENSSL_free(Zs);
++  OPENSSL_free(dis);
++  if (!ok) {
++    sk_TRUST_TOKEN_pop_free(ret, TRUST_TOKEN_free);
++    ret = NULL;
++  }
++  return ret;
++}
++
+ static int voprf_read(const VOPRF_METHOD *method,
+                       const TRUST_TOKEN_ISSUER_KEY *key,
+                       uint8_t out_nonce[TRUST_TOKEN_NONCE_SIZE],
+@@ -804,8 +1225,8 @@ int voprf_exp2_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
+   if (!voprf_exp2_init_method() || private_metadata != 0) {
+     return 0;
+   }
+-  return voprf_sign(&voprf_exp2_method, key, cbb, cbs, num_requested,
+-                    num_to_issue);
++  return voprf_sign_tt(&voprf_exp2_method, key, cbb, cbs, num_requested,
++                       num_to_issue);
+ }
+ 
+ STACK_OF(TRUST_TOKEN) *voprf_exp2_unblind(
+@@ -815,7 +1236,8 @@ STACK_OF(TRUST_TOKEN) *voprf_exp2_unblind(
+   if (!voprf_exp2_init_method()) {
+     return NULL;
+   }
+-  return voprf_unblind(&voprf_exp2_method, key, pretokens, cbs, count, key_id);
++  return voprf_unblind_tt(&voprf_exp2_method, key, pretokens, cbs, count,
++                          key_id);
+ }
+ 
+ int voprf_exp2_read(const TRUST_TOKEN_ISSUER_KEY *key,
+@@ -834,16 +1256,17 @@ int voprf_exp2_read(const TRUST_TOKEN_ISSUER_KEY *key,
+ 
+ static int voprf_pst1_hash_to_group(const EC_GROUP *group, EC_RAW_POINT *out,
+                                     const uint8_t t[TRUST_TOKEN_NONCE_SIZE]) {
+-  const uint8_t kHashTLabel[] = "TrustToken VOPRF PST V1 HashToGroup";
+-  return ec_hash_to_curve_p384_xmd_sha384_sswu(
+-      group, out, kHashTLabel, sizeof(kHashTLabel), t, TRUST_TOKEN_NONCE_SIZE);
++  const uint8_t kHashTLabel[] = "HashToGroup-OPRFV1-\x01-P384-SHA384";
++  return ec_hash_to_curve_p384_xmd_sha384_sswu(group, out, kHashTLabel,
++                                               sizeof(kHashTLabel) - 1, t,
++                                               TRUST_TOKEN_NONCE_SIZE);
+ }
+ 
+ static int voprf_pst1_hash_to_scalar(const EC_GROUP *group, EC_SCALAR *out,
+                              uint8_t *buf, size_t len) {
+-  const uint8_t kHashCLabel[] = "TrustToken VOPRF PST V1 HashToScalar";
+-  return ec_hash_to_scalar_p384_xmd_sha384(
+-      group, out, kHashCLabel, sizeof(kHashCLabel), buf, len);
++  const uint8_t kHashCLabel[] = "HashToScalar-OPRFV1-\x01-P384-SHA384";
++  return ec_hash_to_scalar_p384_xmd_sha384(group, out, kHashCLabel,
++                                           sizeof(kHashCLabel) - 1, buf, len);
+ }
+ 
+ static int voprf_pst1_ok = 0;
+@@ -921,6 +1344,19 @@ int voprf_pst1_sign(const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs,
+                     num_to_issue);
+ }
+ 
++
++int voprf_pst1_sign_with_proof_scalar_for_testing(
++    const TRUST_TOKEN_ISSUER_KEY *key, CBB *cbb, CBS *cbs, size_t num_requested,
++    size_t num_to_issue, uint8_t private_metadata,
++    const uint8_t *proof_scalar_buf, size_t proof_scalar_len) {
++  if (!voprf_pst1_init_method() || private_metadata != 0) {
++    return 0;
++  }
++  return voprf_sign_with_proof_scalar_for_testing(
++      &voprf_pst1_method, key, cbb, cbs, num_requested, num_to_issue,
++      proof_scalar_buf, proof_scalar_len);
++}
++
+ STACK_OF(TRUST_TOKEN) *voprf_pst1_unblind(
+     const TRUST_TOKEN_CLIENT_KEY *key,
+     const STACK_OF(TRUST_TOKEN_PRETOKEN) *pretokens, CBS *cbs, size_t count,

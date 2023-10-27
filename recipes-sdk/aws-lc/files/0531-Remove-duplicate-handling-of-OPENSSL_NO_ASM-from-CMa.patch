@@ -1,0 +1,26 @@
+From 8797e891bc5449455e97a33a0cc2fd80a001a4b3 Mon Sep 17 00:00:00 2001
+From: Piotr Sikora <piotr@aviatrix.com>
+Date: Wed, 16 Aug 2023 17:33:46 +0200
+Subject: [PATCH] Remove duplicate handling of OPENSSL_NO_ASM from CMake.
+ (#1149)
+
+Signed-off-by: Piotr Sikora <piotr@aviatrix.com>
+---
+ CMakeLists.txt | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 8b694d441..cd4012618 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -672,10 +672,6 @@ if(MALLOC_FAILURE_TESTING)
+   add_definitions(-DBORINGSSL_MALLOC_FAILURE_TESTING)
+ endif()
+ 
+-if(OPENSSL_NO_ASM)
+-  add_definitions(-DOPENSSL_NO_ASM)
+-endif()
+-
+ TEST_BIG_ENDIAN(BIG_ENDIAN)
+ if(BIG_ENDIAN)
+   message(FATAL_ERROR "Big Endian is not supported.")

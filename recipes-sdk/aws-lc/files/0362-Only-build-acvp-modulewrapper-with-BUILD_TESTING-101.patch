@@ -1,0 +1,56 @@
+From a7577d2326da58525ebd6033f42392779c0746b2 Mon Sep 17 00:00:00 2001
+From: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+Date: Mon, 15 May 2023 13:04:18 -0400
+Subject: [PATCH] Only build acvp/modulewrapper with BUILD_TESTING (#1012)
+
+---
+ CMakeLists.txt                | 3 ++-
+ tests/ci/run_fips_tests.sh    | 3 +++
+ util/fipstools/CMakeLists.txt | 2 +-
+ 3 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 8e3ed51ce..846c25ca4 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -827,6 +827,8 @@ if(BUILD_TESTING)
+     set(MEM_TEST_EXEC mem_test)
+     set(MEM_SET_TEST_EXEC mem_set_test)
+   endif()
++  
++  add_subdirectory(util/fipstools/acvp/modulewrapper)
+ endif()
+ 
+ add_subdirectory(crypto)
+@@ -835,7 +837,6 @@ if(BUILD_LIBSSL)
+   add_subdirectory(tool)
+ endif()
+ add_subdirectory(util/fipstools)
+-add_subdirectory(util/fipstools/acvp/modulewrapper)
+ 
+ if(FUZZ)
+   if(LIBFUZZER_FROM_DEPS)
+diff --git a/tests/ci/run_fips_tests.sh b/tests/ci/run_fips_tests.sh
+index f5e512059..901661e3c 100755
+--- a/tests/ci/run_fips_tests.sh
++++ b/tests/ci/run_fips_tests.sh
+@@ -11,6 +11,9 @@ fips_build_and_test -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=1
+ if [[ ("$(uname -s)" == 'Linux'*) && (("$(uname -p)" == 'x86_64'*) || ("$(uname -p)" == 'aarch64'*)) ]]; then
+   echo "Testing AWS-LC static library in FIPS Release mode."
+   fips_build_and_test -DCMAKE_BUILD_TYPE=Release
++
++  # These build parameters may be needed by our aws-lc-fips-sys Rust package
++  run_build -DFIPS=1 -DBUILD_LIBSSL=OFF -DBUILD_TESTING=OFF
+ fi
+ 
+ # The AL2 version of Clang does not have all of the required artifacts for address sanitizer, see P45594051
+diff --git a/util/fipstools/CMakeLists.txt b/util/fipstools/CMakeLists.txt
+index 87abf0ab1..ace581a2d 100644
+--- a/util/fipstools/CMakeLists.txt
++++ b/util/fipstools/CMakeLists.txt
+@@ -1,4 +1,4 @@
+-if(FIPS)
++if(FIPS AND BUILD_TESTING)
+   add_executable(
+     test_fips
+ 

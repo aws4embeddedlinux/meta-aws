@@ -1,0 +1,264 @@
+From db673bcee87665862554011d23bc29b9852541b2 Mon Sep 17 00:00:00 2001
+From: Will Childs-Klein <childw@amazon.com>
+Date: Fri, 2 Jun 2023 11:53:03 -0400
+Subject: [PATCH] Zeroize unused Dilithium key buffers (#1031)
+
+Dilithium `EVP_PKEY` structs can have:
+
+1. both public and private keys (from key generation)
+1. only public key (from deserialization)
+1. only private key (from deserialization)
+
+To account for all cases, we add a `has_public` boolean field to the
+internal Dilithium3 key struct.
+---
+ crypto/dilithium/p_dilithium3.c      | 18 ++++++++---
+ crypto/dilithium/p_dilithium3_asn1.c | 45 ++++++++++++++++++++++++----
+ crypto/dilithium/p_dilithium_test.cc | 15 ++++++++--
+ crypto/evp_extra/internal.h          |  7 +++--
+ 4 files changed, 70 insertions(+), 15 deletions(-)
+
+diff --git a/crypto/dilithium/p_dilithium3.c b/crypto/dilithium/p_dilithium3.c
+index 02de35e76..8425f1bee 100644
+--- a/crypto/dilithium/p_dilithium3.c
++++ b/crypto/dilithium/p_dilithium3.c
+@@ -5,6 +5,7 @@
+ #include <openssl/err.h>
+ #include <openssl/mem.h>
+ 
++#include "../crypto/internal.h"
+ #include "../fipsmodule/evp/internal.h"
+ #include "../evp_extra/internal.h"
+ #include "sig_dilithium.h"
+@@ -12,7 +13,14 @@
+ static int pkey_dilithium3_keygen(EVP_PKEY_CTX *ctx, EVP_PKEY *pkey) {
+   DILITHIUM3_KEY *key = OPENSSL_malloc(sizeof(DILITHIUM3_KEY));
+   if (key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
++    goto err;
++  }
++  key->pub = OPENSSL_malloc(DILITHIUM3_PUBLIC_KEY_BYTES);
++  if (key->pub == NULL) {
++    goto err;
++  }
++  key->priv = OPENSSL_malloc(DILITHIUM3_PRIVATE_KEY_BYTES);
++  if (key->priv == NULL) {
+     goto err;
+   }
+ 
+@@ -29,13 +37,15 @@ static int pkey_dilithium3_keygen(EVP_PKEY_CTX *ctx, EVP_PKEY *pkey) {
+     goto err;
+   }
+ 
+-  key->has_private = 1;
+-
+   OPENSSL_free(pkey->pkey.ptr);
+   pkey->pkey.ptr = key;
+   return 1;
+ 
+ err:
++  if (key != NULL) {
++    OPENSSL_free(key->pub);
++    OPENSSL_free(key->priv);
++  }
+   OPENSSL_free(key);
+   return 0;
+ 
+@@ -51,7 +61,7 @@ static int pkey_dilithium3_sign_message(EVP_PKEY_CTX *ctx, uint8_t *sig,
+ 
+   DILITHIUM3_KEY *key = ctx->pkey->pkey.ptr;
+ 
+-  if (!key->has_private) {
++  if (!key->priv) {
+     OPENSSL_PUT_ERROR(EVP, EVP_R_NOT_A_PRIVATE_KEY);
+     return 0;
+   }
+diff --git a/crypto/dilithium/p_dilithium3_asn1.c b/crypto/dilithium/p_dilithium3_asn1.c
+index 3e8956142..b2afd26a0 100644
+--- a/crypto/dilithium/p_dilithium3_asn1.c
++++ b/crypto/dilithium/p_dilithium3_asn1.c
+@@ -14,6 +14,14 @@
+ 
+ 
+ static void dilithium3_free(EVP_PKEY *pkey) {
++  DILITHIUM3_KEY *key = pkey->pkey.ptr;
++  if (key == NULL) {
++    return;
++  }
++  OPENSSL_free(key->pub);
++  key->pub = NULL;
++  OPENSSL_free(key->priv);
++  key->priv = NULL;
+   OPENSSL_free(pkey->pkey.ptr);
+   pkey->pkey.ptr = NULL;
+ }
+@@ -25,14 +33,26 @@ static int dilithium3_set_priv_raw(EVP_PKEY *pkey, const uint8_t *privkey,
+     return 0;
+   }
+ 
++  // At time of writing, all |set_priv_raw| and |dilithium3_set_priv_raw|
++  // invocations specify NULL public key. If that changes, we should modify
++  // the conditional below to set the public key on |key|.
++  if (pubkey != NULL) {
++    OPENSSL_PUT_ERROR(EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
++    return 0;
++  }
++
+   DILITHIUM3_KEY *key = OPENSSL_malloc(sizeof(DILITHIUM3_KEY));
+   if (key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
++      return 0;
++  }
++  key->priv = OPENSSL_malloc(DILITHIUM3_PRIVATE_KEY_BYTES);
++  if (key->priv == NULL) {
++    OPENSSL_free(key);
+     return 0;
+   }
+ 
++  key->pub = NULL;
+   OPENSSL_memcpy(key->priv, privkey, privkey_len);
+-  key->has_private = 1;
+ 
+   dilithium3_free(pkey);
+   pkey->pkey.ptr = key;
+@@ -47,12 +67,16 @@ static int dilithium3_set_pub_raw(EVP_PKEY *pkey, const uint8_t *in, size_t len)
+ 
+   DILITHIUM3_KEY *key = OPENSSL_malloc(sizeof(DILITHIUM3_KEY));
+   if (key == NULL) {
+-    OPENSSL_PUT_ERROR(EVP, ERR_R_MALLOC_FAILURE);
++    return 0;
++  }
++  key->pub = OPENSSL_malloc(DILITHIUM3_PUBLIC_KEY_BYTES);
++  if (key->pub == NULL) {
++    OPENSSL_free(key);
+     return 0;
+   }
+ 
+   OPENSSL_memcpy(key->pub, in, len);
+-  key->has_private = 0;
++  key->priv = NULL;
+ 
+   dilithium3_free(pkey);
+   pkey->pkey.ptr = key;
+@@ -62,7 +86,7 @@ static int dilithium3_set_pub_raw(EVP_PKEY *pkey, const uint8_t *in, size_t len)
+ static int dilithium3_get_priv_raw(const EVP_PKEY *pkey, uint8_t *out,
+                                    size_t *out_len) {
+   const DILITHIUM3_KEY *key = pkey->pkey.ptr;
+-  if (!key->has_private) {
++  if (key->priv == NULL) {
+     OPENSSL_PUT_ERROR(EVP, EVP_R_NOT_A_PRIVATE_KEY);
+     return 0;
+   }
+@@ -85,6 +109,11 @@ static int dilithium3_get_priv_raw(const EVP_PKEY *pkey, uint8_t *out,
+ static int dilithium3_get_pub_raw(const EVP_PKEY *pkey, uint8_t *out,
+                                   size_t *out_len) {
+   const DILITHIUM3_KEY *key = pkey->pkey.ptr;
++  if (key->pub == NULL) {
++    OPENSSL_PUT_ERROR(EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
++    return 0;
++  }
++
+   if (out == NULL) {
+     *out_len = DILITHIUM3_PUBLIC_KEY_BYTES;
+     return 1;
+@@ -113,6 +142,10 @@ static int dilithium3_pub_decode(EVP_PKEY *out, CBS *params, CBS *key) {
+ 
+ static int dilithium3_pub_encode(CBB *out, const EVP_PKEY *pkey) {
+   const DILITHIUM3_KEY *key = pkey->pkey.ptr;
++  if (key->pub == NULL) {
++    OPENSSL_PUT_ERROR(EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
++    return 0;
++  }
+ 
+   // See https://datatracker.ietf.org/doc/draft-ietf-lamps-dilithium-certificates/ section 4.
+   // TODO: finalize this definition - OCTETSTRING to BITSTRING conversion.
+@@ -152,7 +185,7 @@ static int dilithium3_priv_decode(EVP_PKEY *out, CBS *params, CBS *key, CBS *pub
+ 
+ static int dilithium3_priv_encode(CBB *out, const EVP_PKEY *pkey) {
+   DILITHIUM3_KEY *key = pkey->pkey.ptr;
+-  if (!key->has_private) {
++  if (key->priv == NULL) {
+     OPENSSL_PUT_ERROR(EVP, EVP_R_NOT_A_PRIVATE_KEY);
+     return 0;
+   }
+diff --git a/crypto/dilithium/p_dilithium_test.cc b/crypto/dilithium/p_dilithium_test.cc
+index 46417fb86..daf512065 100644
+--- a/crypto/dilithium/p_dilithium_test.cc
++++ b/crypto/dilithium/p_dilithium_test.cc
+@@ -369,7 +369,7 @@ TEST(Dilithium3Test, KeyGeneration) {
+   ASSERT_NE(dilithium_pkey->pkey.ptr, nullptr);
+ 
+   const DILITHIUM3_KEY *dilithium3Key = (DILITHIUM3_KEY *)(dilithium_pkey->pkey.ptr);
+-  EXPECT_TRUE(dilithium3Key->has_private);
++  EXPECT_NE(dilithium3Key->priv, nullptr);
+ 
+   // Extract public key and check it is of the correct size
+   uint8_t *buf = nullptr;
+@@ -452,6 +452,8 @@ TEST(Dilithium3Test, NewKeyFromBytes) {
+   EXPECT_TRUE(EVP_PKEY_keygen(dilithium_pkey_ctx, &dilithium_pkey));
+   ASSERT_NE(dilithium_pkey->pkey.ptr, nullptr);
+   const DILITHIUM3_KEY *dilithium3Key = (DILITHIUM3_KEY *)(dilithium_pkey->pkey.ptr);
++  EXPECT_NE(dilithium3Key->pub, nullptr);
++  EXPECT_NE(dilithium3Key->priv, nullptr);
+ 
+   // New raw public key
+   EVP_PKEY *new_public = EVP_PKEY_new_raw_public_key(EVP_PKEY_DILITHIUM3,
+@@ -459,6 +461,9 @@ TEST(Dilithium3Test, NewKeyFromBytes) {
+                                                      dilithium3Key->pub,
+                                                      DILITHIUM3_PUBLIC_KEY_BYTES);
+   ASSERT_NE(new_public, nullptr);
++  const DILITHIUM3_KEY *newDilithium3Key = (DILITHIUM3_KEY *)(new_public->pkey.ptr);
++  EXPECT_NE(newDilithium3Key->pub, nullptr);
++  EXPECT_EQ(newDilithium3Key->priv, nullptr);
+ 
+   uint8_t *buf = nullptr;
+   size_t buf_size;
+@@ -476,9 +481,11 @@ TEST(Dilithium3Test, NewKeyFromBytes) {
+                                                        dilithium3Key->priv,
+                                                        DILITHIUM3_PRIVATE_KEY_BYTES);
+   ASSERT_NE(new_private, nullptr);
+-  const DILITHIUM3_KEY *newDilithium3Key = (DILITHIUM3_KEY *)(new_private->pkey.ptr);
++  newDilithium3Key = (DILITHIUM3_KEY *)(new_private->pkey.ptr);
+   EXPECT_EQ(0, OPENSSL_memcmp(dilithium3Key->priv, newDilithium3Key->priv,
+                               DILITHIUM3_PRIVATE_KEY_BYTES));
++  EXPECT_EQ(newDilithium3Key->pub, nullptr);
++  EXPECT_NE(newDilithium3Key->priv, nullptr);
+ 
+   EVP_PKEY_CTX_free(dilithium_pkey_ctx);
+   EVP_PKEY_free(new_public);
+@@ -574,6 +581,10 @@ TEST(Dilithium3Test, Encoding) {
+   EXPECT_EQ(Bytes(dilithium3Key->priv, DILITHIUM3_PRIVATE_KEY_BYTES),
+             Bytes(dilithium3Key_from_der->priv, DILITHIUM3_PRIVATE_KEY_BYTES));
+ 
++  // Marshalling incorrect type should fail
++  ASSERT_FALSE(EVP_marshal_public_key(cbb.get(), privkey.get()));
++  ASSERT_FALSE(EVP_marshal_private_key(cbb.get(), pubkey.get()));
++
+   EVP_PKEY_CTX_free(dilithium_pkey_ctx);
+   EVP_PKEY_free(dilithium_pkey);
+   EVP_PKEY_free(dilithium_pkey_from_der);
+diff --git a/crypto/evp_extra/internal.h b/crypto/evp_extra/internal.h
+index 528212cfb..1f415bb03 100644
+--- a/crypto/evp_extra/internal.h
++++ b/crypto/evp_extra/internal.h
+@@ -4,6 +4,8 @@
+ #include <openssl/base.h>
+ #include "../fipsmodule/evp/internal.h"
+ 
++#include "../dilithium/sig_dilithium.h"
++
+ typedef struct {
+   // key is the concatenation of the private seed and public key. It is stored
+   // as a single 64-bit array to allow passing to |ED25519_sign|. If
+@@ -26,9 +28,8 @@ typedef struct {
+ #ifdef ENABLE_DILITHIUM
+ 
+ typedef struct {
+-  uint8_t pub[1952];
+-  uint8_t priv[4000];
+-  char has_private;
++  uint8_t *pub;
++  uint8_t *priv;
+ } DILITHIUM3_KEY;
+ 
+ #endif

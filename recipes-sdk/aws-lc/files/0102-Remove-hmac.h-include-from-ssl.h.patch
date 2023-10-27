@@ -1,0 +1,48 @@
+From 0e97c8b837d3c705b40b5d4ee979dd37bb04e4f4 Mon Sep 17 00:00:00 2001
+From: Piotr Sikora <piotr@aviatrix.com>
+Date: Tue, 17 Jan 2023 06:00:20 +0000
+Subject: [PATCH] Remove hmac.h include from ssl.h.
+
+This workaround was added in https://boringssl-review.googlesource.com/21664,
+but the correct <openssl/hmac.h> include was added to NGINX over 5 years ago
+in https://hg.nginx.org/nginx/rev/8076ba459f05, so this is no longer needed.
+
+Change-Id: I30571871b336e1f68d385202bcc8836a621e0204
+Signed-off-by: Piotr Sikora <piotr@aviatrix.com>
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56085
+Reviewed-by: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 05b360d797353dd19842aa5a38dbccbf1c867f21)
+---
+ include/openssl/ssl.h   | 5 -----
+ ssl/test/test_config.cc | 1 +
+ 2 files changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index e83affbec..6c858af07 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -157,11 +157,6 @@
+ #include <sys/time.h>
+ #endif
+ 
+-// NGINX needs this #include. Consider revisiting this after NGINX 1.14.0 has
+-// been out for a year or so (assuming that they fix it in that release.) See
+-// https://boringssl-review.googlesource.com/c/boringssl/+/21664.
+-#include <openssl/hmac.h>
+-
+ // Forward-declare struct timeval. On Windows, it is defined in winsock2.h and
+ // Windows headers define too many macros to be included in public headers.
+ // However, only a forward declaration is needed.
+diff --git a/ssl/test/test_config.cc b/ssl/test/test_config.cc
+index 60cd2f733..7cafd0199 100644
+--- a/ssl/test/test_config.cc
++++ b/ssl/test/test_config.cc
+@@ -28,6 +28,7 @@
+ #include <type_traits>
+ 
+ #include <openssl/base64.h>
++#include <openssl/hmac.h>
+ #include <openssl/hpke.h>
+ #include <openssl/rand.h>
+ #include <openssl/span.h>

@@ -1,0 +1,35 @@
+From 3eb17d085926114907b3acadf20b8454769c6fa3 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Fri, 20 Jan 2023 14:50:17 -0500
+Subject: [PATCH] Fix inhibitPolicyMapping in the new policy tree code.
+
+There was a typo and inhibitPolicyMapping updated the wrong value. With
+this fixed, we pass the PKITS tests (as imported into Chromium).
+
+NOTE: Imported the fix only, skipped the new tests because they depend
+on some previously skipped commits. Added action items to the backlog.
+
+Change-Id: I3b80eb56561ae5ae88023fa639d697a9f1757b21
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56205
+Commit-Queue: David Benjamin <davidben@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit ba68ca070ca939bc2d6b8f07bd64909bd90b25a5)
+---
+ crypto/x509/policy.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/crypto/x509/policy.c b/crypto/x509/policy.c
+index 5f9fe9c65..393cb84c2 100644
+--- a/crypto/x509/policy.c
++++ b/crypto/x509/policy.c
+@@ -563,7 +563,7 @@ static int process_policy_constraints(const X509 *x509, size_t *explicit_policy,
+     }
+     int ok =
+         apply_skip_certs(constraints->requireExplicitPolicy, explicit_policy) &&
+-        apply_skip_certs(constraints->inhibitPolicyMapping, inhibit_any_policy);
++        apply_skip_certs(constraints->inhibitPolicyMapping, policy_mapping);
+     POLICY_CONSTRAINTS_free(constraints);
+     if (!ok) {
+       return 0;

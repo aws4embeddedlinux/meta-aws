@@ -1,0 +1,231 @@
+From 4edaef5177a9367483e2b8e80fbc62c2a3989bdb Mon Sep 17 00:00:00 2001
+From: Nevine Ebeid <66388554+nebeid@users.noreply.github.com>
+Date: Fri, 5 May 2023 13:25:35 -0400
+Subject: [PATCH] Enable valgrind tests on AArch64. (#978)
+
+This was only possible by setting OPENSSL_armcap via static defines in order to avoid reading from MIDR_EL1.
+Valgrind was outputting an illegal opcode error on
+__asm__ volatile("mrs %0, MIDR_EL1" : "=r" (val));
+
+This commit avoids compiling cpu_aarch64_linux.c in valgrind build by passing -DOPENSSL_STATIC_ARMCAP to it and setting all capabilities via the STATIC_ARMCAP macros (except SHA512 which wasn't used before with valgrind and was also causing an "illegal opcode" error when set).
+Note: Setting -DOPENSSL_STATIC_ARMCAP without specifying any capabilities disables all of them as in the second
+set of tests.
+
+The ssl runner valgrind tests are here made to run in parallel to the valgrind tests (only with the build where all capabilities are set).
+---
+ crypto/fipsmodule/cpucap/cpucap.c             |  7 ++-
+ .../github_ci_linux_arm_omnibus.yaml          | 22 ++++++---
+ .../github_ci_linux_x86_omnibus.yaml          |  8 ++++
+ .../common/run_ssl_runner_valgrind_tests.yml  | 13 +++++
+ tests/ci/common_posix_setup.sh                | 47 +++++++++++++++++--
+ tests/ci/run_ssl_runner_valgrind_tests.sh     |  8 ++++
+ util/all_tests.json                           |  9 ++--
+ 7 files changed, 98 insertions(+), 16 deletions(-)
+ create mode 100644 tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml
+ create mode 100755 tests/ci/run_ssl_runner_valgrind_tests.sh
+
+diff --git a/crypto/fipsmodule/cpucap/cpucap.c b/crypto/fipsmodule/cpucap/cpucap.c
+index 6a2d172bf..7c1829f94 100644
+--- a/crypto/fipsmodule/cpucap/cpucap.c
++++ b/crypto/fipsmodule/cpucap/cpucap.c
+@@ -66,11 +66,14 @@ HIDDEN uint32_t OPENSSL_armcap_P =
+ #if defined(OPENSSL_STATIC_ARMCAP_SHA256) || defined(__ARM_FEATURE_SHA2)
+     ARMV8_SHA256 |
+ #endif
+-#if defined(__ARM_FEATURE_SHA512)
++#if defined(OPENSSL_STATIC_ARMCAP_SHA512) || defined(__ARM_FEATURE_SHA512)
+     ARMV8_SHA512 |
+ #endif
+-#if defined(__ARM_FEATURE_SHA3)
++#if defined(OPENSSL_STATIC_ARMCAP_SHA3) || defined(__ARM_FEATURE_SHA3)
+     ARMV8_SHA3 |
++#endif
++#if defined(OPENSSL_STATIC_ARMCAP_NEOVERSE_V1) || defined(__ARM_FEATURE_NEOVERSE_V1)
++    ARMV8_NEOVERSE_V1 |
+ #endif
+     0;
+ 
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
+index ac9e984a3..e55c2979c 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_arm_omnibus.yaml
+@@ -289,10 +289,18 @@ batch:
+         variables:
+           AWS_LC_SSL_RUNNER_START_INDEX: 7001
+ 
+-#   - identifier: amazonlinux2023_gcc11x_aarch_valgrind
+-#     buildspec: ./tests/ci/codebuild/common/run_valgrind_tests.yml
+-#     env:
+-#       type: ARM_CONTAINER
+-#       privileged-mode: true
+-#       compute-type: BUILD_GENERAL1_LARGE
+-#       image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_gcc-11x_latest
++    - identifier: amazonlinux2023_gcc11x_aarch_valgrind
++      buildspec: ./tests/ci/codebuild/common/run_valgrind_tests.yml
++      env:
++        type: ARM_CONTAINER
++        privileged-mode: true
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_gcc-11x_latest
++
++    - identifier: amazonlinux2023_gcc11x_aarch_ssl_runner_valgrind
++      buildspec: ./tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml
++      env:
++        type: ARM_CONTAINER
++        privileged-mode: true
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-aarch:amazonlinux-2023_gcc-11x_latest
+diff --git a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+index d17168ecc..acac1ce6b 100644
+--- a/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
++++ b/tests/ci/cdk/cdk/codebuild/github_ci_linux_x86_omnibus.yaml
+@@ -291,6 +291,14 @@ batch:
+ 
+     - identifier: amazonlinux2023_gcc11x_x86_64_valgrind
+       buildspec: ./tests/ci/codebuild/common/run_valgrind_tests.yml
++      env:
++        type: LINUX_CONTAINER
++        privileged-mode: true
++        compute-type: BUILD_GENERAL1_LARGE
++        image: 620771051181.dkr.ecr.us-west-2.amazonaws.com/aws-lc-docker-images-linux-x86:amazonlinux-2023_gcc-11x_latest
++
++    - identifier: amazonlinux2023_gcc11x_x86_64_ssl_runner_valgrind
++      buildspec: ./tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml
+       env:
+         type: LINUX_CONTAINER
+         privileged-mode: true
+diff --git a/tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml b/tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml
+new file mode 100644
+index 000000000..ba4ac463d
+--- /dev/null
++++ b/tests/ci/codebuild/common/run_ssl_runner_valgrind_tests.yml
+@@ -0,0 +1,13 @@
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++version: 0.2
++
++phases:
++  pre_build:
++    commands:
++      - if [[ -z "${CC+x}" || -z "${CC}" ]]; then echo "CC is not defined." && exit 1; else ${CC} --version && echo "Found CC."; fi
++      - if [[ -z "${CXX+x}" || -z "${CXX}" ]]; then echo "CXX is not defined." && exit 1; else ${CXX} --version && echo "Found CXX."; fi
++  build:
++    commands:
++      - ./tests/ci/run_ssl_runner_valgrind_tests.sh
+diff --git a/tests/ci/common_posix_setup.sh b/tests/ci/common_posix_setup.sh
+index 4366c8f75..25671b580 100644
+--- a/tests/ci/common_posix_setup.sh
++++ b/tests/ci/common_posix_setup.sh
+@@ -14,6 +14,8 @@ echo "$SRC_ROOT"
+ BUILD_ROOT="${SRC_ROOT}/test_build_dir"
+ echo "$BUILD_ROOT"
+ 
++PLATFORM=$(uname -m)
++
+ NUM_CPU_THREADS=''
+ KERNEL_NAME=$(uname -s)
+ if [[ "${KERNEL_NAME}" == "Darwin" ]]; then
+@@ -22,10 +24,24 @@ if [[ "${KERNEL_NAME}" == "Darwin" ]]; then
+ else
+   # Assume KERNEL_NAME is Linux.
+   NUM_CPU_THREADS=$(grep -c ^processor /proc/cpuinfo)
++  if [[ $PLATFORM == "aarch64" ]]; then
++    CPU_PART=$(grep -Po -m 1 'CPU part.*:\s\K.*' /proc/cpuinfo)
++    NUM_CPU_PART=$(grep -c $CPU_PART /proc/cpuinfo)
++    # Set capabilities via the static flags for valgrind tests.
++    # This is because valgrind reports the instruction
++    #   mrs %0, MIDR_EL1
++    # which fetches the CPU part number, as illegal.
++    # For some reason, valgrind also reports SHA512 instructions illegal,
++    # so the SHA512 capability is not included below.
++    VALGRIND_STATIC_CAP_FLAGS="-DOPENSSL_STATIC_ARMCAP -DOPENSSL_STATIC_ARMCAP_NEON"
++    VALGRIND_STATIC_CAP_FLAGS+=" -DOPENSSL_STATIC_ARMCAP_AES -DOPENSSL_STATIC_ARMCAP_PMULL "
++    VALGRIND_STATIC_CAP_FLAGS+=" -DOPENSSL_STATIC_ARMCAP_SHA1 -DOPENSSL_STATIC_ARMCAP_SHA256 "
++    if [[ $NUM_CPU_PART == $NUM_CPU_THREADS ]] && [[ ${CPU_PART} =~ 0x[dD]40 ]]; then
++      VALGRIND_STATIC_CAP_FLAGS+=" -DOPENSSL_STATIC_ARMCAP_SHA3 -DOPENSSL_STATIC_ARMCAP_NEOVERSE_V1"
++    fi
++  fi
+ fi
+ 
+-PLATFORM=$(uname -m)
+-
+ # Pick cmake3 if possible. We don't know of any OS that installs a cmake3
+ # executable that is not at least version 3.0.
+ if [[ -x "$(command -v cmake3)" ]] ; then
+@@ -140,8 +156,31 @@ function fips_build_and_test {
+ }
+ 
+ function build_and_test_valgrind {
+-  run_build "$@"
+-  run_cmake_custom_target 'run_tests_valgrind' && run_cmake_custom_target 'run_ssl_runner_tests_valgrind'
++  if [[ $PLATFORM == "aarch64" ]]; then
++    run_build "$@" -DCMAKE_C_FLAGS="$VALGRIND_STATIC_CAP_FLAGS"
++    run_cmake_custom_target 'run_tests_valgrind'
++
++    # Disable all capabilities and run again
++    # (We don't use the env. variable OPENSSL_armcap because it is currently
++    #  restricted to the case of runtime discovery of capabilities
++    #  in cpu_aarch64_linux.c)
++    run_build "$@" -DCMAKE_C_FLAGS="-DOPENSSL_STATIC_ARMCAP"
++    run_cmake_custom_target 'run_tests_valgrind'
++  else
++    run_build "$@"
++    run_cmake_custom_target 'run_tests_valgrind'
++  fi
++}
++
++function build_and_test_ssl_runner_valgrind {
++  export AWS_LC_GO_TEST_TIMEOUT="60m"
++
++  if [[ $PLATFORM == "aarch64" ]]; then
++    run_build "$@" -DCMAKE_C_FLAGS="$VALGRIND_STATIC_CAP_FLAGS"
++  else
++    run_build "$@"
++  fi
++    run_cmake_custom_target 'run_ssl_runner_tests_valgrind'
+ }
+ 
+ function build_and_test_with_sde {
+diff --git a/tests/ci/run_ssl_runner_valgrind_tests.sh b/tests/ci/run_ssl_runner_valgrind_tests.sh
+new file mode 100755
+index 000000000..2db4c0a15
+--- /dev/null
++++ b/tests/ci/run_ssl_runner_valgrind_tests.sh
+@@ -0,0 +1,8 @@
++#!/bin/bash -ex
++# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++# SPDX-License-Identifier: Apache-2.0 OR ISC
++
++source tests/ci/common_posix_setup.sh
++
++echo "Testing AWS-LC in debug mode under Valgrind."
++build_and_test_ssl_runner_valgrind
+diff --git a/util/all_tests.json b/util/all_tests.json
+index af40048ec..fd855a5e0 100644
+--- a/util/all_tests.json
++++ b/util/all_tests.json
+@@ -15,17 +15,20 @@
+   {
+     "cmd": ["crypto/crypto_test"],
+     "env": ["OPENSSL_armcap=0x0"],
+-    "target_arch": "arm"
++    "target_arch": "arm",
++    "skip_valgrind": true
+   },
+   {
+     "cmd": ["crypto/crypto_test"],
+     "env": ["OPENSSL_armcap=0x1"],
+-    "target_arch": "arm"
++    "target_arch": "arm",
++    "skip_valgrind": true
+   },
+   {
+     "cmd": ["crypto/crypto_test"],
+     "env": ["OPENSSL_armcap=0x3D"],
+-    "target_arch": "arm"
++    "target_arch": "arm",
++    "skip_valgrind": true
+   },
+   {
+     "comment": "Test OPENSSL_ia32cap on crypto_test for x86, as urandom_test is disabled for shared builds on x86",

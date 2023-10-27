@@ -1,0 +1,341 @@
+From a3d0b8369d3ddcd50b04153403451a463dbf7422 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Thu, 30 Sep 2021 17:48:00 -0700
+Subject: [PATCH] Add P-521 native-size group order modulus
+
+This reduces a 9-digit (576-bit) number modulo the order of the
+P-521 group (*not* the base field characteristic, which is the
+role of the earlier bignum_mod_p521_9 function). The order is
+
+  6864797660130609714981900799081393217269435300143305409394463459185543183397655394245057746333217197532963996371363321113864768612440380340372808892707005449
+
+a fact that is formally proved here (see GROUP_ELEMENT_ORDER_G521)
+
+  https://github.com/jrh13/hol-light/blob/master/Examples/nist_curves.ml
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/5e378f31fa798981c50d5b1697f696145cfdc151
+---
+ arm/p521/Makefile                |   1 +
+ arm/p521/bignum_mod_n521_9.S     | 149 +++++++++++++++++++++++++++++++
+ x86_att/p521/bignum_mod_n521_9.S | 144 +++++++++++++++++++++++++++++
+ 3 files changed, 294 insertions(+)
+ create mode 100644 arm/p521/bignum_mod_n521_9.S
+ create mode 100644 x86_att/p521/bignum_mod_n521_9.S
+
+diff --git a/arm/p521/Makefile b/arm/p521/Makefile
+index f62e5576a..646bb7d2a 100644
+--- a/arm/p521/Makefile
++++ b/arm/p521/Makefile
+@@ -37,6 +37,7 @@ OBJ = bignum_add_p521.o \
+       bignum_demont_p521.o \
+       bignum_double_p521.o \
+       bignum_half_p521.o \
++      bignum_mod_n521_9.o \
+       bignum_mod_p521_9.o \
+       bignum_montmul_p521.o \
+       bignum_montsqr_p521.o \
+diff --git a/arm/p521/bignum_mod_n521_9.S b/arm/p521/bignum_mod_n521_9.S
+new file mode 100644
+index 000000000..9e28e2d90
+--- /dev/null
++++ b/arm/p521/bignum_mod_n521_9.S
+@@ -0,0 +1,149 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Reduce modulo group order, z := x mod n_521
++// Input x[9]; output z[9]
++//
++//    extern void bignum_mod_n521_9
++//      (uint64_t z[static 9], uint64_t x[static 9]);
++//
++// Reduction is modulo the group order of the NIST curve P-521.
++//
++// Standard ARM ABI: X0 = z, X1 = x
++// ----------------------------------------------------------------------------
++
++        .globl  bignum_mod_n521_9
++        .text
++        .balign 4
++
++#define z x0
++#define x x1
++
++#define n0 x2
++#define n1 x3
++#define n2 x4
++#define n3 x5
++
++#define d0 x6
++#define d1 x7
++#define d2 x8
++#define d3 x9
++#define d4 x10
++#define d5 x11
++#define d6 x12
++#define d7 x13
++#define d8 x14
++
++#define q x15
++
++// Re-use d6 and d7 as temporaries before they are needed
++
++#define s d6
++#define t d7
++
++#define movbig(nn,n3,n2,n1,n0)                                              \
++                movz    nn, n0;                                             \
++                movk    nn, n1, lsl #16;                                    \
++                movk    nn, n2, lsl #32;                                    \
++                movk    nn, n3, lsl #48
++
++bignum_mod_n521_9:
++
++// Load the top digit first into d8.
++// The initial quotient estimate is q = h + 1 where x = 2^521 * h + t
++
++                ldr     d8, [x, #64]
++                lsr     q, d8, #9
++                add     q, q, #1
++
++// Let [5; n3; n2; n1; n0] = r_521 = 2^521 - n_521
++// and form [d4;d3;d2;d1;d0] = q * r_521
++
++                movbig( n0, #0x4490, #0x48e1, #0x6ec7, #0x9bf7)
++                mul     d0, n0, q
++                movbig( n1, #0xc44a, #0x3647, #0x7663, #0xb851)
++                mul     d1, n1, q
++                movbig( n2, #0x8033, #0xfeb7, #0x08f6, #0x5a2f)
++                mul     d2, n2, q
++                movbig( n3, #0xae79, #0x787c, #0x40d0, #0x6994)
++                mul     d3, n3, q
++                lsl     d4, q, #2
++                add     d4, d4, q
++                umulh   t, n0, q
++                adds    d1, d1, t
++                umulh   t, n1, q
++                adcs    d2, d2, t
++                umulh   t, n2, q
++                adcs    d3, d3, t
++                umulh   t, n3, q
++                adc     d4, d4, t
++
++// Now load other digits and form r = x - q * n_521 = (q * r_521 + t) - 2^521.
++// But the computed result stuffs in 1s from bit 521 onwards and actually
++// gives r' = (q * r_521 + t) + (2^576 - 2^521) = r + 2^576, including the
++// top carry. Hence CF <=> r >= 0, while r' == r (mod 2^521).
++
++                ldp     s, t, [x]
++                adds    d0, d0, s
++                adcs    d1, d1, t
++                ldp     s, t, [x, #16]
++                adcs    d2, d2, s
++                adcs    d3, d3, t
++                ldp     t, d5, [x, #32]
++                adcs    d4, d4, t
++                adcs    d5, d5, xzr
++                ldp     d6, d7, [x, #48]
++                adcs    d6, d6, xzr
++                adcs    d7, d7, xzr
++                orr     d8, d8, #~0x1FF
++                adcs    d8, d8, xzr
++
++// We already know r < n_521, but if it actually went negative then
++// we need to add back n_521 again. Recycle q as a bitmask for r < n_521,
++// and just subtract r_521 and mask rather than literally addding 2^521.
++// This also gets rid of the bit-stuffing above.
++
++                csetm   q, cc
++                and     n0, n0, q
++                subs    d0, d0, n0
++                and     n1, n1, q
++                sbcs    d1, d1, n1
++                and     n2, n2, q
++                sbcs    d2, d2, n2
++                and     n3, n3, q
++                sbcs    d3, d3, n3
++                mov     n0, #5
++                and     n0, n0, q
++                sbcs    d4, d4, n0
++                sbcs    d5, d5, xzr
++                sbcs    d6, d6, xzr
++                sbcs    d7, d7, xzr
++                sbc     d8, d8, xzr
++                and     d8, d8, #0x1FF
++
++// Store the end result
++
++                stp     d0, d1, [z]
++                stp     d2, d3, [z, #16]
++                stp     d4, d5, [z, #32]
++                stp     d6, d7, [z, #48]
++                str     d8, [z, #64]
++
++                ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
+diff --git a/x86_att/p521/bignum_mod_n521_9.S b/x86_att/p521/bignum_mod_n521_9.S
+new file mode 100644
+index 000000000..7db0ab1ce
+--- /dev/null
++++ b/x86_att/p521/bignum_mod_n521_9.S
+@@ -0,0 +1,144 @@
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License").
++ * You may not use this file except in compliance with the License.
++ * A copy of the License is located at
++ *
++ *  http://aws.amazon.com/apache2.0
++ *
++ * or in the "LICENSE" file accompanying this file. This file is distributed
++ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
++ * express or implied. See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++// ----------------------------------------------------------------------------
++// Reduce modulo group order, z := x mod n_521
++// Input x[9]; output z[9]
++//
++//    extern void bignum_mod_n521_9
++//      (uint64_t z[static 9], uint64_t x[static 9]);
++//
++// Reduction is modulo the group order of the NIST curve P-521.
++//
++// Standard x86-64 ABI: RDI = z, RSI = x
++// ----------------------------------------------------------------------------
++
++
++        .globl  bignum_mod_n521_9
++        .text
++
++#define z %rdi
++#define x %rsi
++
++#define q %rdx
++#define a %rax
++
++#define c %rcx
++#define d %r8
++
++#define n0 %r9
++#define n1 %r10
++#define n2 %r11
++#define n3 d
++
++#define ashort %eax
++#define cshort %ecx
++#define qshort %edx
++
++bignum_mod_n521_9:
++
++// Load the top digit, putting a bit-stuffed version in output buffer.
++// The initial quotient estimate is q = h + 1 where x = 2^521 * h + t
++// The last add also clears the CF and OF flags ready for the carry chain.
++
++        movq    64(x), q
++        movq    $~0x1FF, a
++        orq     q, a
++        movq    a, 64(z)
++        shrq    $9, q
++        addq    $1, q
++
++// Now load other digits and form r = x - q * n_521 = (q * r_521 + t) - 2^521,
++// which is stored in the output buffer. Thanks to the bit-stuffing at the
++// start, we get r' = (q * r_521 + t) + (2^576 - 2^521) = r + 2^576 as the
++// computed result including the top carry. Hence CF <=> r >= 0, while
++// r' == r (mod 2^521) because things below bit 521 are uncorrupted. We
++// keep the top word in the register c since we at least have that one free.
++
++        movq    $0x449048e16ec79bf7, n0
++        mulxq   n0, a, c
++        adcxq   (x), a
++        movq    a, (z)
++
++        movq    $0xc44a36477663b851, n1
++        mulxq   n1, a, d
++        adcxq   8(x), a
++        adoxq   c, a
++        movq    a, 8(z)
++
++        movq    $0x8033feb708f65a2f, n2
++        mulxq   n2, a, c
++        adcxq   16(x), a
++        adoxq   d, a
++        movq    a, 16(z)
++
++        movq    $0xae79787c40d06994, a
++        mulxq   a, a, d
++        adcxq   24(x), a
++        adoxq   c, a
++        movq    a, 24(z)
++
++        movl    $5, ashort
++        mulxq   a, a, c
++        adcxq   32(x), a
++        adoxq   d, a
++        movq    a, 32(z)
++
++        movq    c, a // a is now used for zero hereafter
++        adoxq   c, c
++        adcq    40(x), c
++        movq    c, 40(z)
++
++        movq    48(x), c
++        adcq    a, c
++        movq    c, 48(z)
++
++        movq    56(x), c
++        adcq    a, c
++        movq    c, 56(z)
++
++        movq    64(z), c
++        adcq    a, c
++
++// We already know r < n_521, but if it actually went negative then
++// we need to add back n_521 again. Recycle q as a bitmask for r < n_521,
++// and just subtract r_521 and mask rather than literally addding 2^521.
++// This also gets rid of the bit-stuffing above.
++
++        cmc
++        sbbq    q, q
++        andq    q, n0
++        andq    q, n1
++        andq    q, n2
++        movq    $0xae79787c40d06994, n3
++        andq    q, n3
++        andl    $5, qshort
++        subq    n0, (z)
++        sbbq    n1, 8(z)
++        sbbq    n2, 16(z)
++        sbbq    n3, 24(z)
++        sbbq    q, 32(z)
++        sbbq    a, 40(z)
++        sbbq    a, 48(z)
++        sbbq    a, 56(z)
++        sbbl    ashort, cshort
++        andl    $0x1FF, cshort
++        movq    c, 64(z)
++
++        ret
++
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif

@@ -1,0 +1,36 @@
+From c077d1bf5bc666206c33681fa36aafef290b8d52 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Tue, 7 Feb 2023 12:00:27 -0500
+Subject: [PATCH] Also test i2d_GENERAL_NAME in X509Test.GeneralName
+
+GENERAL_NAME uses a weird ASN1_SEQUENCE item type. Test that serializing
+it works.
+
+Change-Id: I8d44eb637f58a9fbe870b1998b0d75e2bfcde601
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56986
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit e3912cdf9b5095f8ecdf1c6390b79ebe5cf48f31)
+---
+ crypto/x509/x509_test.cc | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 5f9164e48..c64949bce 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -3712,6 +3712,12 @@ TEST(X509Test, GeneralName)  {
+     ASSERT_TRUE(a);
+     ASSERT_EQ(ptr, kNames[i].data() + kNames[i].size());
+ 
++    uint8_t *enc = nullptr;
++    int enc_len = i2d_GENERAL_NAME(a.get(), &enc);
++    ASSERT_GE(enc_len, 0);
++    bssl::UniquePtr<uint8_t> free_enc(enc);
++    EXPECT_EQ(Bytes(enc, enc_len), Bytes(kNames[i]));
++
+     for (size_t j = 0; j < OPENSSL_ARRAY_SIZE(kNames); j++) {
+       SCOPED_TRACE(Bytes(kNames[j]));
+ 

@@ -1,0 +1,32 @@
+From e190345fd1135b01f5dfac1b756b8593d717a46e Mon Sep 17 00:00:00 2001
+From: Adam Langley <agl@google.com>
+Date: Fri, 31 Mar 2023 20:10:59 +0000
+Subject: [PATCH] Add comment about regenerating peg files.
+
+Change-Id: I0d1b4ebb291b19bf549f863a1aaaa07e770328a9
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/58505
+Reviewed-by: Bob Beck <bbe@google.com>
+Commit-Queue: Bob Beck <bbe@google.com>
+(cherry picked from commit bc49415aec142fccd41e2e63a7c696fcf6acbe2f)
+---
+ util/fipstools/delocate/delocate.peg | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/util/fipstools/delocate/delocate.peg b/util/fipstools/delocate/delocate.peg
+index 423c64b26..1fdabf509 100644
+--- a/util/fipstools/delocate/delocate.peg
++++ b/util/fipstools/delocate/delocate.peg
+@@ -16,6 +16,13 @@
+ # https://github.com/pointlander/peg. delocate.go has a go:generate line for
+ # rebuilding delocate.peg.go from this file.
+ 
++# To regenerate delocate.peg.go:
++#
++# go install github.com/pointlander/peg@latest
++# ~/go/bin/peg <path-to-this-file>
++#
++# this will generate delocate.peg.go next to delocate.peg.
++
+ package main
+ 
+ type Asm Peg {}

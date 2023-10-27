@@ -1,0 +1,138 @@
+From 9ea4511165c611ce1658bc6f2b8c6eb7434e87b2 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 13 Feb 2023 09:49:26 -0500
+Subject: [PATCH] Gracefully handle DSA objects with missing fields
+
+OpenSSL's APIs are full of empty objects that aren't captured in the
+type system. A DSA object may represent any of nothing, a group, a
+public key, or a private key.
+
+Since the type system doesn't capture this, better to check which type
+we've got and NULL-check the fields we need for the operation.
+
+Change-Id: I32b09ebaad58fcb2a0bfc9ad56d381f95099bf7b
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/57225
+Reviewed-by: Adam Langley <agl@google.com>
+Auto-Submit: David Benjamin <davidben@google.com>
+Commit-Queue: David Benjamin <davidben@google.com>
+(cherry picked from commit 7c860a4f8e0ddd33bed326dfa7903c9c2ba12433)
+---
+ crypto/dsa/dsa.c       | 19 ++++++++++++++-----
+ crypto/dsa/dsa_test.cc | 42 +++++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 55 insertions(+), 6 deletions(-)
+
+diff --git a/crypto/dsa/dsa.c b/crypto/dsa/dsa.c
+index 342f2fa75..c5b53295d 100644
+--- a/crypto/dsa/dsa.c
++++ b/crypto/dsa/dsa.c
+@@ -593,6 +593,11 @@ DSA_SIG *DSA_do_sign(const uint8_t *digest, size_t digest_len, const DSA *dsa) {
+     return NULL;
+   }
+ 
++  if (dsa->priv_key == NULL) {
++    OPENSSL_PUT_ERROR(DSA, DSA_R_MISSING_PARAMETERS);
++    return NULL;
++  }
++
+   BIGNUM *kinv = NULL, *r = NULL, *s = NULL;
+   BIGNUM m;
+   BIGNUM xr;
+@@ -688,6 +693,11 @@ int DSA_do_check_signature(int *out_valid, const uint8_t *digest,
+     return 0;
+   }
+ 
++  if (dsa->pub_key == NULL) {
++    OPENSSL_PUT_ERROR(DSA, DSA_R_MISSING_PARAMETERS);
++    return 0;
++  }
++
+   int ret = 0;
+   BIGNUM u1, u2, t1;
+   BN_init(&u1);
+@@ -843,6 +853,10 @@ static size_t der_len_len(size_t len) {
+ }
+ 
+ int DSA_size(const DSA *dsa) {
++  if (dsa->q == NULL) {
++    return 0;
++  }
++
+   size_t order_len = BN_num_bytes(dsa->q);
+   // Compute the maximum length of an |order_len| byte integer. Defensively
+   // assume that the leading 0x00 is included.
+@@ -865,11 +879,6 @@ int DSA_size(const DSA *dsa) {
+ 
+ static int dsa_sign_setup(const DSA *dsa, BN_CTX *ctx, BIGNUM **out_kinv,
+                           BIGNUM **out_r) {
+-  if (!dsa->p || !dsa->q || !dsa->g) {
+-    OPENSSL_PUT_ERROR(DSA, DSA_R_MISSING_PARAMETERS);
+-    return 0;
+-  }
+-
+   int ret = 0;
+   BIGNUM k;
+   BN_init(&k);
+diff --git a/crypto/dsa/dsa_test.cc b/crypto/dsa/dsa_test.cc
+index dc1956eba..878e67db6 100644
+--- a/crypto/dsa/dsa_test.cc
++++ b/crypto/dsa/dsa_test.cc
+@@ -169,7 +169,7 @@ static const uint8_t fips_sig_bad_r[] = {
+     0xdc, 0xd8, 0xc8,
+ };
+ 
+-static bssl::UniquePtr<DSA> GetFIPSDSA(void) {
++static bssl::UniquePtr<DSA> GetFIPSDSAGroup(void) {
+   bssl::UniquePtr<DSA> dsa(DSA_new());
+   if (!dsa) {
+     return nullptr;
+@@ -184,6 +184,14 @@ static bssl::UniquePtr<DSA> GetFIPSDSA(void) {
+   p.release();
+   q.release();
+   g.release();
++  return dsa;
++}
++
++static bssl::UniquePtr<DSA> GetFIPSDSA(void) {
++  bssl::UniquePtr<DSA> dsa = GetFIPSDSAGroup();
++  if (!dsa) {
++    return nullptr;
++  }
+   bssl::UniquePtr<BIGNUM> pub_key(BN_bin2bn(fips_y, sizeof(fips_y), nullptr));
+   bssl::UniquePtr<BIGNUM> priv_key(BN_bin2bn(fips_x, sizeof(fips_x), nullptr));
+   if (!pub_key || !priv_key ||
+@@ -259,3 +267,35 @@ TEST(DSATest, InvalidGroup) {
+   EXPECT_EQ(ERR_LIB_DSA, ERR_GET_LIB(err));
+   EXPECT_EQ(DSA_R_INVALID_PARAMETERS, ERR_GET_REASON(err));
+ }
++
++// Signing and verifying should cleanly fail when the DSA object is empty.
++TEST(DSATest, MissingParameters) {
++  bssl::UniquePtr<DSA> dsa(DSA_new());
++  ASSERT_TRUE(dsa);
++  EXPECT_EQ(-1, DSA_verify(0, fips_digest, sizeof(fips_digest), fips_sig,
++                           sizeof(fips_sig), dsa.get()));
++
++  std::vector<uint8_t> sig(DSA_size(dsa.get()));
++  unsigned sig_len;
++  EXPECT_FALSE(DSA_sign(0, fips_digest, sizeof(fips_digest), sig.data(),
++                        &sig_len, dsa.get()));
++}
++
++// Verifying should cleanly fail when the public key is missing.
++TEST(DSATest, MissingPublic) {
++  bssl::UniquePtr<DSA> dsa = GetFIPSDSAGroup();
++  ASSERT_TRUE(dsa);
++  EXPECT_EQ(-1, DSA_verify(0, fips_digest, sizeof(fips_digest), fips_sig,
++                           sizeof(fips_sig), dsa.get()));
++}
++
++// Signing should cleanly fail when the private key is missing.
++TEST(DSATest, MissingPrivate) {
++  bssl::UniquePtr<DSA> dsa = GetFIPSDSAGroup();
++  ASSERT_TRUE(dsa);
++
++  std::vector<uint8_t> sig(DSA_size(dsa.get()));
++  unsigned sig_len;
++  EXPECT_FALSE(DSA_sign(0, fips_digest, sizeof(fips_digest), sig.data(),
++                        &sig_len, dsa.get()));
++}

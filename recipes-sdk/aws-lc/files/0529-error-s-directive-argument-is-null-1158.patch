@@ -1,0 +1,22 @@
+From ee9ce69564231cddc39c3fcfec6e93c2ad0f7cb4 Mon Sep 17 00:00:00 2001
+From: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+Date: Tue, 15 Aug 2023 21:01:54 -0400
+Subject: [PATCH] error: '%s' directive argument is null (#1158)
+
+---
+ ssl/test/bssl_shim.cc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ssl/test/bssl_shim.cc b/ssl/test/bssl_shim.cc
+index ceece8697..b8e9d0a73 100644
+--- a/ssl/test/bssl_shim.cc
++++ b/ssl/test/bssl_shim.cc
+@@ -312,7 +312,7 @@ static bool CheckListContains(const char *type,
+       return true;
+     }
+   }
+-  fprintf(stderr, "Unexpected %s: %s\n", type, str);
++  fprintf(stderr, "Unexpected %s: %s\n", type, (str == nullptr) ? "<null>" : str);
+   return false;
+ }
+ 

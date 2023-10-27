@@ -1,0 +1,34 @@
+From 8a45b28f1aedc1a233beb9c8e4b78e985ab03008 Mon Sep 17 00:00:00 2001
+From: Justin W Smith <103147162+justsmth@users.noreply.github.com>
+Date: Thu, 14 Sep 2023 16:34:40 -0400
+Subject: [PATCH] Fix AVX512 capability check (#1193)
+
+---
+ .gitignore                          | 2 +-
+ crypto/fipsmodule/cpucap/internal.h | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index c8016a853..582ad399d 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,5 +1,5 @@
+ cmake-build-debug/
+-.vscode/settings.json
++.vscode/
+ build/
+ build32/
+ build64/
+diff --git a/crypto/fipsmodule/cpucap/internal.h b/crypto/fipsmodule/cpucap/internal.h
+index a6ccb2222..265bacb4f 100644
+--- a/crypto/fipsmodule/cpucap/internal.h
++++ b/crypto/fipsmodule/cpucap/internal.h
+@@ -116,7 +116,7 @@ OPENSSL_INLINE int CRYPTO_is_SHAEXT_capable(void) {
+ }
+ 
+ OPENSSL_INLINE int CRYPTO_is_AVX512_capable(void) {
+-  return (OPENSSL_ia32cap_get()[2] & 0xC0030000) != 0;
++  return (OPENSSL_ia32cap_get()[2] & 0xC0030000) == 0xC0030000;
+ }
+ 
+ OPENSSL_INLINE int CRYPTO_is_VAES_capable(void) {

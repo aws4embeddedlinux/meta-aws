@@ -1,0 +1,120 @@
+From 457494cf1ea860fb2b20c64ae386ff9592d5eea9 Mon Sep 17 00:00:00 2001
+From: Sean McGrail <549813+skmcgrail@users.noreply.github.com>
+Date: Mon, 24 Jul 2023 15:16:03 -0700
+Subject: [PATCH] Add webhook event support for push to main and fips branches
+ (#1082)
+
+---
+ tests/ci/cdk/cdk/aws_lc_android_ci_stack.py     | 6 ++++--
+ tests/ci/cdk/cdk/aws_lc_github_ci_stack.py      | 6 ++++--
+ tests/ci/cdk/cdk/aws_lc_github_fuzz_ci_stack.py | 6 ++++--
+ tests/ci/cdk/cdk/aws_lc_mac_arm_ci_stack.py     | 6 ++++--
+ tests/ci/cdk/util/metadata.py                   | 2 ++
+ 5 files changed, 18 insertions(+), 8 deletions(-)
+
+diff --git a/tests/ci/cdk/cdk/aws_lc_android_ci_stack.py b/tests/ci/cdk/cdk/aws_lc_android_ci_stack.py
+index 8965f55d0..f72a325c9 100644
+--- a/tests/ci/cdk/cdk/aws_lc_android_ci_stack.py
++++ b/tests/ci/cdk/cdk/aws_lc_android_ci_stack.py
+@@ -6,7 +6,7 @@ from constructs import Construct
+ 
+ from cdk.components import PruneStaleGitHubBuilds
+ from util.iam_policies import code_build_batch_policy_in_json, device_farm_access_policy_in_json
+-from util.metadata import GITHUB_REPO_OWNER, GITHUB_REPO_NAME
++from util.metadata import GITHUB_REPO_OWNER, GITHUB_REPO_NAME, GITHUB_PUSH_CI_BRANCH_TARGETS
+ from util.build_spec_loader import BuildSpecLoader
+ 
+ 
+@@ -32,7 +32,9 @@ class AwsLcAndroidCIStack(Stack):
+                 codebuild.FilterGroup.in_event_of(
+                     codebuild.EventAction.PULL_REQUEST_CREATED,
+                     codebuild.EventAction.PULL_REQUEST_UPDATED,
+-                    codebuild.EventAction.PULL_REQUEST_REOPENED)
++                    codebuild.EventAction.PULL_REQUEST_REOPENED),
++                codebuild.FilterGroup.in_event_of(codebuild.EventAction.PUSH).and_branch_is(
++                    GITHUB_PUSH_CI_BRANCH_TARGETS),
+             ],
+             webhook_triggers_batch_build=True)
+ 
+diff --git a/tests/ci/cdk/cdk/aws_lc_github_ci_stack.py b/tests/ci/cdk/cdk/aws_lc_github_ci_stack.py
+index bf6651edc..83e2a716b 100644
+--- a/tests/ci/cdk/cdk/aws_lc_github_ci_stack.py
++++ b/tests/ci/cdk/cdk/aws_lc_github_ci_stack.py
+@@ -6,7 +6,7 @@ from constructs import Construct
+ 
+ from cdk.components import PruneStaleGitHubBuilds
+ from util.iam_policies import code_build_batch_policy_in_json, code_build_publish_metrics_in_json
+-from util.metadata import CAN_AUTOLOAD, GITHUB_REPO_OWNER, GITHUB_REPO_NAME
++from util.metadata import CAN_AUTOLOAD, GITHUB_PUSH_CI_BRANCH_TARGETS, GITHUB_REPO_OWNER, GITHUB_REPO_NAME
+ from util.build_spec_loader import BuildSpecLoader
+ 
+ 
+@@ -29,7 +29,9 @@ class AwsLcGitHubCIStack(Stack):
+                 codebuild.FilterGroup.in_event_of(
+                     codebuild.EventAction.PULL_REQUEST_CREATED,
+                     codebuild.EventAction.PULL_REQUEST_UPDATED,
+-                    codebuild.EventAction.PULL_REQUEST_REOPENED)
++                    codebuild.EventAction.PULL_REQUEST_REOPENED),
++                codebuild.FilterGroup.in_event_of(codebuild.EventAction.PUSH).and_branch_is(
++                    GITHUB_PUSH_CI_BRANCH_TARGETS),
+             ],
+             webhook_triggers_batch_build=True)
+ 
+diff --git a/tests/ci/cdk/cdk/aws_lc_github_fuzz_ci_stack.py b/tests/ci/cdk/cdk/aws_lc_github_fuzz_ci_stack.py
+index b8ee83b3c..d99cc4532 100644
+--- a/tests/ci/cdk/cdk/aws_lc_github_fuzz_ci_stack.py
++++ b/tests/ci/cdk/cdk/aws_lc_github_fuzz_ci_stack.py
+@@ -8,7 +8,7 @@ from cdk.components import PruneStaleGitHubBuilds
+ from util.ecr_util import ecr_arn
+ from util.iam_policies import code_build_batch_policy_in_json, \
+     code_build_publish_metrics_in_json
+-from util.metadata import AWS_ACCOUNT, AWS_REGION, GITHUB_REPO_OWNER, GITHUB_REPO_NAME
++from util.metadata import AWS_ACCOUNT, AWS_REGION, GITHUB_PUSH_CI_BRANCH_TARGETS, GITHUB_REPO_OWNER, GITHUB_REPO_NAME
+ from util.build_spec_loader import BuildSpecLoader
+ 
+ 
+@@ -31,7 +31,9 @@ class AwsLcGitHubFuzzCIStack(Stack):
+                 codebuild.FilterGroup.in_event_of(
+                     codebuild.EventAction.PULL_REQUEST_CREATED,
+                     codebuild.EventAction.PULL_REQUEST_UPDATED,
+-                    codebuild.EventAction.PULL_REQUEST_REOPENED)
++                    codebuild.EventAction.PULL_REQUEST_REOPENED),
++                codebuild.FilterGroup.in_event_of(codebuild.EventAction.PUSH).and_branch_is(
++                    GITHUB_PUSH_CI_BRANCH_TARGETS),
+             ],
+             webhook_triggers_batch_build=True)
+ 
+diff --git a/tests/ci/cdk/cdk/aws_lc_mac_arm_ci_stack.py b/tests/ci/cdk/cdk/aws_lc_mac_arm_ci_stack.py
+index 6bc304360..4719e9815 100644
+--- a/tests/ci/cdk/cdk/aws_lc_mac_arm_ci_stack.py
++++ b/tests/ci/cdk/cdk/aws_lc_mac_arm_ci_stack.py
+@@ -9,7 +9,7 @@ from aws_cdk import CfnTag, Duration, Stack, Tags, aws_ec2 as ec2, aws_codebuild
+ from constructs import Construct
+ 
+ from cdk.components import PruneStaleGitHubBuilds
+-from util.metadata import AWS_ACCOUNT, AWS_REGION, GITHUB_REPO_OWNER, GITHUB_REPO_NAME
++from util.metadata import AWS_ACCOUNT, AWS_REGION, GITHUB_PUSH_CI_BRANCH_TARGETS, GITHUB_REPO_OWNER, GITHUB_REPO_NAME
+ from util.iam_policies import code_build_batch_policy_in_json, ec2_policies_in_json, ssm_policies_in_json, s3_read_write_policy_in_json
+ from util.build_spec_loader import BuildSpecLoader
+ 
+@@ -37,7 +37,9 @@ class AwsLcMacArmCIStack(Stack):
+                 codebuild.FilterGroup.in_event_of(
+                     codebuild.EventAction.PULL_REQUEST_CREATED,
+                     codebuild.EventAction.PULL_REQUEST_UPDATED,
+-                    codebuild.EventAction.PULL_REQUEST_REOPENED)
++                    codebuild.EventAction.PULL_REQUEST_REOPENED),
++                codebuild.FilterGroup.in_event_of(codebuild.EventAction.PUSH).and_branch_is(
++                    GITHUB_PUSH_CI_BRANCH_TARGETS),
+             ],
+             webhook_triggers_batch_build=True)
+ 
+diff --git a/tests/ci/cdk/util/metadata.py b/tests/ci/cdk/util/metadata.py
+index 340bd205a..7c4521007 100644
+--- a/tests/ci/cdk/util/metadata.py
++++ b/tests/ci/cdk/util/metadata.py
+@@ -29,3 +29,5 @@ S3_BUCKET_NAME = EnvUtil.get("S3_FOR_WIN_DOCKER_IMG_BUILD", "aws-lc-windows-dock
+ WIN_EC2_TAG_KEY = EnvUtil.get("WIN_EC2_TAG_KEY", "aws-lc")
+ WIN_EC2_TAG_VALUE = EnvUtil.get("WIN_EC2_TAG_VALUE", "aws-lc-windows-docker-image-build")
+ SSM_DOCUMENT_NAME = EnvUtil.get("WIN_DOCKER_BUILD_SSM_DOCUMENT", "windows-ssm-document")
++
++GITHUB_PUSH_CI_BRANCH_TARGETS = r"(main|fips-\d{4}-\d{2}-\d{2}.*)"

@@ -1,0 +1,2947 @@
+From dea64f2c42dcecd798c03e0b0320d82a17c89b89 Mon Sep 17 00:00:00 2001
+From: David Benjamin <davidben@google.com>
+Date: Mon, 26 Dec 2022 19:38:40 -0500
+Subject: [PATCH] Rewrite X.509 policy tree logic.
+
+This reimplements policy handling using a similar DAG structure as in
+https://chromium-review.googlesource.com/c/chromium/src/+/4111415. The
+main difference is that, being C, we don't have std::set or std::map
+easily available. But the algorithm can be implemented purely with
+sorted lists, while remaining subquadratic.
+
+This implementation relies on two assumptions:
+
+1. We do not return the policy tree. This was removed in
+   https://boringssl-review.googlesource.com/c/boringssl/+/53327
+
+2. We do not return the final set of certificate policies. I.e.,
+   certificate policy checking is only used for evaluating policy
+   constraints and X509_V_FLAG_EXPLICIT_POLICY.
+
+The second assumption is not very important. It mostly simplifies
+has_explicit_policy slightly.
+
+In addition, this new implementation removes the per-certificate policy
+cache. Instead, we just process the policy extensions anew on
+certificate verification. This avoids a mess of threading complexity,
+including a race condition in the old logic. See
+https://boringssl-review.googlesource.com/c/boringssl/+/55762 for a
+description of the race condition.
+
+Change-Id: Ifba9037588ecff5eb6ed3c34c8bd7611f60013a6
+Reviewed-on: https://boringssl-review.googlesource.com/c/boringssl/+/56036
+Commit-Queue: David Benjamin <davidben@google.com>
+Reviewed-by: Bob Beck <bbe@google.com>
+(cherry picked from commit 029d0e77fb64625469cc02c8df26767c72081dfd)
+---
+ crypto/CMakeLists.txt     |   6 +-
+ crypto/err/x509.errordata |   1 +
+ crypto/x509/internal.h    |  20 +-
+ crypto/x509/policy.c      | 797 ++++++++++++++++++++++++++++++++++++
+ crypto/x509/x509_test.cc  |  84 ++++
+ crypto/x509/x509_vfy.c    |  42 +-
+ crypto/x509/x_x509.c      |   3 -
+ crypto/x509v3/internal.h  | 157 --------
+ crypto/x509v3/pcy_cache.c | 295 --------------
+ crypto/x509v3/pcy_data.c  | 133 ------
+ crypto/x509v3/pcy_map.c   | 128 ------
+ crypto/x509v3/pcy_node.c  | 186 ---------
+ crypto/x509v3/pcy_tree.c  | 829 --------------------------------------
+ crypto/x509v3/v3_cpols.c  |  16 -
+ include/openssl/x509.h    |   1 +
+ include/openssl/x509v3.h  |   1 -
+ 16 files changed, 906 insertions(+), 1793 deletions(-)
+ create mode 100644 crypto/x509/policy.c
+ delete mode 100644 crypto/x509v3/pcy_cache.c
+ delete mode 100644 crypto/x509v3/pcy_data.c
+ delete mode 100644 crypto/x509v3/pcy_map.c
+ delete mode 100644 crypto/x509v3/pcy_node.c
+ delete mode 100644 crypto/x509v3/pcy_tree.c
+
+diff --git a/crypto/CMakeLists.txt b/crypto/CMakeLists.txt
+index d2c7fab0f..9a779bbfa 100644
+--- a/crypto/CMakeLists.txt
++++ b/crypto/CMakeLists.txt
+@@ -421,6 +421,7 @@ add_library(
+   x509/by_file.c
+   x509/i2d_pr.c
+   x509/name_print.c
++  x509/policy.c
+   x509/rsa_pss.c
+   x509/t_crl.c
+   x509/t_req.c
+@@ -460,11 +461,6 @@ add_library(
+   x509/x_val.c
+   x509/x_x509.c
+   x509/x_x509a.c
+-  x509v3/pcy_cache.c
+-  x509v3/pcy_data.c
+-  x509v3/pcy_map.c
+-  x509v3/pcy_node.c
+-  x509v3/pcy_tree.c
+   x509v3/v3_akey.c
+   x509v3/v3_akeya.c
+   x509v3/v3_alt.c
+diff --git a/crypto/err/x509.errordata b/crypto/err/x509.errordata
+index 65181bfe6..e30d667bd 100644
+--- a/crypto/err/x509.errordata
++++ b/crypto/err/x509.errordata
+@@ -13,6 +13,7 @@ X509,110,INVALID_DIRECTORY
+ X509,139,INVALID_FIELD_FOR_VERSION
+ X509,111,INVALID_FIELD_NAME
+ X509,136,INVALID_PARAMETER
++X509,144,INVALID_POLICY_EXTENSION
+ X509,112,INVALID_PSS_PARAMETERS
+ X509,113,INVALID_TRUST
+ X509,140,INVALID_VERSION
+diff --git a/crypto/x509/internal.h b/crypto/x509/internal.h
+index e102842b0..7bf14c909 100644
+--- a/crypto/x509/internal.h
++++ b/crypto/x509/internal.h
+@@ -72,9 +72,6 @@ extern "C" {
+ 
+ // Internal structures.
+ 
+-typedef struct X509_POLICY_CACHE_st X509_POLICY_CACHE;
+-typedef struct X509_POLICY_TREE_st X509_POLICY_TREE;
+-
+ typedef struct X509_val_st {
+   ASN1_TIME *notBefore;
+   ASN1_TIME *notAfter;
+@@ -157,7 +154,6 @@ struct x509_st {
+   uint32_t ex_nscert;
+   ASN1_OCTET_STRING *skid;
+   AUTHORITY_KEYID *akid;
+-  X509_POLICY_CACHE *policy_cache;
+   STACK_OF(DIST_POINT) *crldp;
+   STACK_OF(GENERAL_NAME) *altname;
+   NAME_CONSTRAINTS *nc;
+@@ -350,9 +346,6 @@ struct x509_store_ctx_st {
+   int valid;               // if 0, rebuild chain
+   int last_untrusted;      // index of last untrusted cert
+   STACK_OF(X509) *chain;   // chain of X509s - built up and trusted
+-  X509_POLICY_TREE *tree;  // Valid policy tree
+-
+-  int explicit_policy;  // Require explicit policy value
+ 
+   // When something goes wrong, this is why
+   int error_depth;
+@@ -410,6 +403,19 @@ int x509_digest_verify_init(EVP_MD_CTX *ctx, const X509_ALGOR *sigalg,
+                             EVP_PKEY *pkey);
+ 
+ 
++// Path-building functions.
++
++// X509_policy_check checks certificate policies in |certs|. |user_policies| is
++// the user-initial-policy-set. |flags| is a set of |X509_V_FLAG_*| values to
++// apply. It returns |X509_V_OK| on success and |X509_V_ERR_*| on error. It
++// additionally sets |*out_current_cert| to the certificate where the error
++// occurred. If the function succeeded, or the error applies to the entire
++// chain, it sets |*out_current_cert| to NULL.
++int X509_policy_check(const STACK_OF(X509) *certs,
++                      const STACK_OF(ASN1_OBJECT) *user_policies,
++                      unsigned long flags, X509 **out_current_cert);
++
++
+ #if defined(__cplusplus)
+ }  // extern C
+ #endif
+diff --git a/crypto/x509/policy.c b/crypto/x509/policy.c
+new file mode 100644
+index 000000000..5f9fe9c65
+--- /dev/null
++++ b/crypto/x509/policy.c
+@@ -0,0 +1,797 @@
++/* Copyright (c) 2022, Google Inc.
++ *
++ * Permission to use, copy, modify, and/or distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
++ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
++ * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
++ * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
++
++#include <openssl/x509.h>
++
++#include <assert.h>
++
++#include <openssl/mem.h>
++#include <openssl/obj.h>
++#include <openssl/stack.h>
++#include <openssl/x509v3.h>
++
++#include "../internal.h"
++#include "../x509v3/internal.h"
++#include "internal.h"
++
++
++// This file computes the X.509 policy tree, as described in RFC 5280, section
++// 6.1. It differs in that:
++//
++//  (1) It does not track "qualifier_set". This is not needed as it is not
++//      output by this implementation.
++//
++//  (2) It builds a directed acyclic graph, rather than a tree. When a given
++//      policy matches multiple parents, RFC 5280 makes a separate node for
++//      each parent. This representation condenses them into one node with
++//      multiple parents. Thus we refer to this structure as a "policy graph",
++//      rather than a "policy tree".
++//
++//  (3) "expected_policy_set" is not tracked explicitly and built temporarily
++//      as part of building the graph.
++//
++//  (4) anyPolicy nodes are not tracked explicitly.
++//
++//  (5) Some pruning steps are deferred to when policies are evaluated, as a
++//      reachability pass.
++
++// An X509_POLICY_NODE is a node in the policy graph. It corresponds to a node
++// from RFC 5280, section 6.1.2, step (a), but we store some fields differently.
++typedef struct x509_policy_node_st {
++  // policy is the "valid_policy" field from RFC 5280.
++  ASN1_OBJECT *policy;
++
++  // parent_policies, if non-empty, is the list of "valid_policy" values for all
++  // nodes which are a parent of this node. In this case, no entry in this list
++  // will be anyPolicy. This list is in no particular order and may contain
++  // duplicates if the corresponding certificate had duplicate mappings.
++  //
++  // If empty, this node has a single parent, anyPolicy. The node is then a root
++  // policies, and is in authorities-constrained-policy-set if it has a path to
++  // a leaf node.
++  //
++  // Note it is not possible for a policy to have both anyPolicy and a
++  // concrete policy as a parent. Section 6.1.3, step (d.1.ii) only runs if
++  // there was no match in step (d.1.i). We do not need to represent a parent
++  // list of, say, {anyPolicy, OID1, OID2}.
++  STACK_OF(ASN1_OBJECT) *parent_policies;
++
++  // mapped is one if this node matches a policy mapping in the certificate and
++  // zero otherwise.
++  int mapped;
++
++  // reachable is one if this node is reachable from some valid policy in the
++  // end-entity certificate. It is computed during |has_explicit_policy|.
++  int reachable;
++} X509_POLICY_NODE;
++
++DEFINE_STACK_OF(X509_POLICY_NODE)
++
++// An X509_POLICY_LEVEL is the collection of nodes at the same depth in the
++// policy graph. This structure can also be used to represent a level's
++// "expected_policy_set" values. See |process_policy_mappings|.
++typedef struct x509_policy_level_st {
++  // nodes is the list of nodes at this depth, except for the anyPolicy node, if
++  // any. This list is sorted by policy OID for efficient lookup.
++  STACK_OF(X509_POLICY_NODE) *nodes;
++
++  // has_any_policy is one if there is an anyPolicy node at this depth, and zero
++  // otherwise.
++  int has_any_policy;
++} X509_POLICY_LEVEL;
++
++DEFINE_STACK_OF(X509_POLICY_LEVEL)
++
++static int is_any_policy(const ASN1_OBJECT *obj) {
++  return OBJ_obj2nid(obj) == NID_any_policy;
++}
++
++static void x509_policy_node_free(X509_POLICY_NODE *node) {
++  if (node != NULL) {
++    ASN1_OBJECT_free(node->policy);
++    sk_ASN1_OBJECT_pop_free(node->parent_policies, ASN1_OBJECT_free);
++    OPENSSL_free(node);
++  }
++}
++
++static X509_POLICY_NODE *x509_policy_node_new(const ASN1_OBJECT *policy) {
++  assert(!is_any_policy(policy));
++  X509_POLICY_NODE *node = OPENSSL_malloc(sizeof(X509_POLICY_NODE));
++  if (node == NULL) {
++    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
++    return NULL;
++  }
++  OPENSSL_memset(node, 0, sizeof(X509_POLICY_NODE));
++  node->policy = OBJ_dup(policy);
++  node->parent_policies = sk_ASN1_OBJECT_new_null();
++  if (node->policy == NULL || node->parent_policies == NULL) {
++    x509_policy_node_free(node);
++    return NULL;
++  }
++  return node;
++}
++
++static int x509_policy_node_cmp(const X509_POLICY_NODE **a,
++                                const X509_POLICY_NODE **b) {
++  return OBJ_cmp((*a)->policy, (*b)->policy);
++}
++
++static void x509_policy_level_free(X509_POLICY_LEVEL *level) {
++  if (level != NULL) {
++    sk_X509_POLICY_NODE_pop_free(level->nodes, x509_policy_node_free);
++    OPENSSL_free(level);
++  }
++}
++
++static X509_POLICY_LEVEL *x509_policy_level_new(void) {
++  X509_POLICY_LEVEL *level = OPENSSL_malloc(sizeof(X509_POLICY_LEVEL));
++  if (level == NULL) {
++    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
++    return NULL;
++  }
++  OPENSSL_memset(level, 0, sizeof(X509_POLICY_LEVEL));
++  level->nodes = sk_X509_POLICY_NODE_new(x509_policy_node_cmp);
++  if (level->nodes == NULL) {
++    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
++    x509_policy_level_free(level);
++    return NULL;
++  }
++  return level;
++}
++
++static int x509_policy_level_is_empty(const X509_POLICY_LEVEL *level) {
++  return !level->has_any_policy && sk_X509_POLICY_NODE_num(level->nodes) == 0;
++}
++
++static void x509_policy_level_clear(X509_POLICY_LEVEL *level) {
++  level->has_any_policy = 0;
++  for (size_t i = 0; i < sk_X509_POLICY_NODE_num(level->nodes); i++) {
++    x509_policy_node_free(sk_X509_POLICY_NODE_value(level->nodes, i));
++  }
++  sk_X509_POLICY_NODE_zero(level->nodes);
++}
++
++// x509_policy_level_find returns the node in |level| corresponding to |policy|,
++// or NULL if none exists.
++static X509_POLICY_NODE *x509_policy_level_find(X509_POLICY_LEVEL *level,
++                                                const ASN1_OBJECT *policy) {
++  assert(sk_X509_POLICY_NODE_is_sorted(level->nodes));
++  X509_POLICY_NODE node;
++  node.policy = (ASN1_OBJECT *)policy;
++  size_t idx;
++  if (!sk_X509_POLICY_NODE_find(level->nodes, &idx, &node)) {
++    return NULL;
++  }
++  return sk_X509_POLICY_NODE_value(level->nodes, idx);
++}
++
++// x509_policy_level_add_nodes adds the nodes in |nodes| to |level|. It returns
++// one on success and zero on error. No policy in |nodes| may already be present
++// in |level|. This function modifies |nodes| to avoid making a copy, but the
++// caller is still responsible for releasing |nodes| itself.
++//
++// This function is used to add nodes to |level| in bulk, and avoid resorting
++// |level| after each addition.
++static int x509_policy_level_add_nodes(X509_POLICY_LEVEL *level,
++                                       STACK_OF(X509_POLICY_NODE) *nodes) {
++  for (size_t i = 0; i < sk_X509_POLICY_NODE_num(nodes); i++) {
++    X509_POLICY_NODE *node = sk_X509_POLICY_NODE_value(nodes, i);
++    if (!sk_X509_POLICY_NODE_push(level->nodes, node)) {
++      OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
++      return 0;
++    }
++    sk_X509_POLICY_NODE_set(nodes, i, NULL);
++  }
++  sk_X509_POLICY_NODE_sort(level->nodes);
++
++#if !defined(NDEBUG)
++  // There should be no duplicate nodes.
++  for (size_t i = 1; i < sk_X509_POLICY_NODE_num(level->nodes); i++) {
++    assert(OBJ_cmp(sk_X509_POLICY_NODE_value(level->nodes, i - 1)->policy,
++                   sk_X509_POLICY_NODE_value(level->nodes, i)->policy) != 0);
++  }
++#endif
++  return 1;
++}
++
++static int policyinfo_cmp(const POLICYINFO **a, const POLICYINFO **b) {
++  return OBJ_cmp((*a)->policyid, (*b)->policyid);
++}
++
++static int delete_if_not_in_policies(X509_POLICY_NODE *node, void *data) {
++  const CERTIFICATEPOLICIES *policies = data;
++  assert(sk_POLICYINFO_is_sorted(policies));
++  POLICYINFO info;
++  info.policyid = node->policy;
++  if (sk_POLICYINFO_find(policies, NULL, &info)) {
++    return 0;
++  }
++  x509_policy_node_free(node);
++  return 1;
++}
++
++// process_certificate_policies updates |level| to incorporate |x509|'s
++// certificate policies extension. This implements steps (d) and (e) of RFC
++// 5280, section 6.1.3. |level| must contain the previous level's
++// "expected_policy_set" information. For all but the top-most level, this is
++// the output of |process_policy_mappings|. |any_policy_allowed| specifies
++// whether anyPolicy is allowed or inhibited, taking into account the exception
++// for self-issued certificates.
++static int process_certificate_policies(const X509 *x509,
++                                        X509_POLICY_LEVEL *level,
++                                        int any_policy_allowed) {
++  int ret = 0;
++  int critical;
++  STACK_OF(X509_POLICY_NODE) *new_nodes = NULL;
++  CERTIFICATEPOLICIES *policies =
++      X509_get_ext_d2i(x509, NID_certificate_policies, &critical, NULL);
++  if (policies == NULL) {
++    if (critical != -1) {
++      return 0;  // Syntax error in the extension.
++    }
++
++    // RFC 5280, section 6.1.3, step (e).
++    x509_policy_level_clear(level);
++    return 1;
++  }
++
++  // certificatePolicies may not be empty. See RFC 5280, section 4.2.1.4.
++  // TODO(https://crbug.com/boringssl/443): Move this check into the parser.
++  if (sk_POLICYINFO_num(policies) == 0) {
++    OPENSSL_PUT_ERROR(X509, X509_R_INVALID_POLICY_EXTENSION);
++    goto err;
++  }
++
++  sk_POLICYINFO_set_cmp_func(policies, policyinfo_cmp);
++  sk_POLICYINFO_sort(policies);
++  int cert_has_any_policy = 0;
++  for (size_t i = 0; i < sk_POLICYINFO_num(policies); i++) {
++    const POLICYINFO *policy = sk_POLICYINFO_value(policies, i);
++    if (is_any_policy(policy->policyid)) {
++      cert_has_any_policy = 1;
++    }
++    if (i > 0 && OBJ_cmp(sk_POLICYINFO_value(policies, i - 1)->policyid,
++                         policy->policyid) == 0) {
++      // Per RFC 5280, section 4.2.1.4, |policies| may not have duplicates.
++      OPENSSL_PUT_ERROR(X509, X509_R_INVALID_POLICY_EXTENSION);
++      goto err;
++    }
++  }
++
++  // This does the same thing as RFC 5280, section 6.1.3, step (d), though in
++  // a slighty different order. |level| currently contains "expected_policy_set"
++  // values of the previous level. See |process_policy_mappings| for details.
++  const int previous_level_has_any_policy = level->has_any_policy;
++
++  // First, we handle steps (d.1.i) and (d.2). The net effect of these two steps
++  // is to intersect |level| with |policies|, ignoring anyPolicy if it is
++  // inhibited.
++  if (!cert_has_any_policy || !any_policy_allowed) {
++    sk_X509_POLICY_NODE_delete_if(level->nodes, delete_if_not_in_policies,
++                                  policies);
++    level->has_any_policy = 0;
++  }
++
++  // Step (d.1.ii) may attach new nodes to the previous level's anyPolicy node.
++  if (previous_level_has_any_policy) {
++    new_nodes = sk_X509_POLICY_NODE_new_null();
++    if (new_nodes == NULL) {
++      OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
++      goto err;
++    }
++    for (size_t i = 0; i < sk_POLICYINFO_num(policies); i++) {
++      const POLICYINFO *policy = sk_POLICYINFO_value(policies, i);
++      // Though we've reordered the steps slightly, |policy| is in |level| if
++      // and only if it would have been a match in step (d.1.ii).
++      if (!is_any_policy(policy->policyid) &&
++          x509_policy_level_find(level, policy->policyid) == NULL) {
++        X509_POLICY_NODE *node = x509_policy_node_new(policy->policyid);
++        if (node == NULL ||  //
++            !sk_X509_POLICY_NODE_push(new_nodes, node)) {
++          x509_policy_node_free(node);
++          OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
++          goto err;
++        }
++      }
++    }
++    if (!x509_policy_level_add_nodes(level, new_nodes)) {
++      goto err;
++    }
++  }
++
++  ret = 1;
++
++err:
++  sk_X509_POLICY_NODE_pop_free(new_nodes, x509_policy_node_free);
++  CERTIFICATEPOLICIES_free(policies);
++  return ret;
++}
++
++static int compare_issuer_policy(const POLICY_MAPPING **a,
++                                 const POLICY_MAPPING **b) {
++  return OBJ_cmp((*a)->issuerDomainPolicy, (*b)->issuerDomainPolicy);
++}
++
++static int compare_subject_policy(const POLICY_MAPPING **a,
++                                  const POLICY_MAPPING **b) {
++  return OBJ_cmp((*a)->subjectDomainPolicy, (*b)->subjectDomainPolicy);
++}
++
++static int delete_if_mapped(X509_POLICY_NODE *node, void *data) {
++  const POLICY_MAPPINGS *mappings = data;
++  // |mappings| must have been sorted by |compare_issuer_policy|.
++  assert(sk_POLICY_MAPPING_is_sorted(mappings));
++  POLICY_MAPPING mapping;
++  mapping.issuerDomainPolicy = node->policy;
++  if (!sk_POLICY_MAPPING_find(mappings, /*out_index=*/NULL, &mapping)) {
++    return 0;
++  }
++  x509_policy_node_free(node);
++  return 1;
++}
++
++// process_policy_mappings processes the policy mappings extension of |cert|,
++// whose corresponding graph level is |level|. |mapping_allowed| specifies
++// whether policy mapping is inhibited at this point. On success, it returns an
++// |X509_POLICY_LEVEL| containing the "expected_policy_set" for |level|. On
++// error, it returns NULL. This implements steps (a) and (b) of RFC 5280,
++// section 6.1.4.
++//
++// We represent the "expected_policy_set" as an |X509_POLICY_LEVEL|.
++// |has_any_policy| indicates whether there is an anyPolicy node with
++// "expected_policy_set" of {anyPolicy}. If a node with policy oid P1 contains
++// P2 in its "expected_policy_set", the level will contain a node of policy P2
++// with P1 in |parent_policies|.
++//
++// This is equivalent to the |X509_POLICY_LEVEL| that would result if the next
++// certificats contained anyPolicy. |process_certificate_policies| will filter
++// this result down to compute the actual level.
++static X509_POLICY_LEVEL *process_policy_mappings(const X509 *cert,
++                                                  X509_POLICY_LEVEL *level,
++                                                  int mapping_allowed) {
++  int ok = 0;
++  STACK_OF(X509_POLICY_NODE) *new_nodes = NULL;
++  X509_POLICY_LEVEL *next = NULL;
++  int critical;
++  POLICY_MAPPINGS *mappings =
++      X509_get_ext_d2i(cert, NID_policy_mappings, &critical, NULL);
++  if (mappings == NULL && critical != -1) {
++    // Syntax error in the policy mappings extension.
++    goto err;
++  }
++
++  if (mappings != NULL) {
++    // PolicyMappings may not be empty. See RFC 5280, section 4.2.1.5.
++    // TODO(https://crbug.com/boringssl/443): Move this check into the parser.
++    if (sk_POLICY_MAPPING_num(mappings) == 0) {
++      OPENSSL_PUT_ERROR(X509, X509_R_INVALID_POLICY_EXTENSION);
++      goto err;
++    }
++
++    // RFC 5280, section 6.1.4, step (a).
++    for (size_t i = 0; i < sk_POLICY_MAPPING_num(mappings); i++) {
++      POLICY_MAPPING *mapping = sk_POLICY_MAPPING_value(mappings, i);
++      if (is_any_policy(mapping->issuerDomainPolicy) ||
++          is_any_policy(mapping->subjectDomainPolicy)) {
++        goto err;
++      }
++    }
++
++    // Sort to group by issuerDomainPolicy.
++    sk_POLICY_MAPPING_set_cmp_func(mappings, compare_issuer_policy);
++    sk_POLICY_MAPPING_sort(mappings);
++
++    if (mapping_allowed) {
++      // Mark nodes as mapped, and add any nodes to |level| which may be needed
++      // as part of RFC 5280, section 6.1.4, step (b.1).
++      new_nodes = sk_X509_POLICY_NODE_new_null();
++      if (new_nodes == NULL) {
++        OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
++        goto err;
++      }
++      const ASN1_OBJECT *last_policy = NULL;
++      for (size_t i = 0; i < sk_POLICY_MAPPING_num(mappings); i++) {
++        const POLICY_MAPPING *mapping = sk_POLICY_MAPPING_value(mappings, i);
++        // There may be multiple mappings with the same |issuerDomainPolicy|.
++        if (last_policy != NULL &&
++            OBJ_cmp(mapping->issuerDomainPolicy, last_policy) == 0) {
++          continue;
++        }
++        last_policy = mapping->issuerDomainPolicy;
++
++        X509_POLICY_NODE *node =
++            x509_policy_level_find(level, mapping->issuerDomainPolicy);
++        if (node == NULL) {
++          if (!level->has_any_policy) {
++            continue;
++          }
++          node = x509_policy_node_new(mapping->issuerDomainPolicy);
++          if (node == NULL ||  //
++              !sk_X509_POLICY_NODE_push(new_nodes, node)) {
++            x509_policy_node_free(node);
++            goto err;
++          }
++        }
++        node->mapped = 1;
++      }
++      if (!x509_policy_level_add_nodes(level, new_nodes)) {
++        goto err;
++      }
++    } else {
++      // RFC 5280, section 6.1.4, step (b.2). If mapping is inhibited, delete
++      // all mapped nodes.
++      sk_X509_POLICY_NODE_delete_if(level->nodes, delete_if_mapped, mappings);
++      sk_POLICY_MAPPING_pop_free(mappings, POLICY_MAPPING_free);
++      mappings = NULL;
++    }
++  }
++
++  // If a node was not mapped, it retains the original "explicit_policy_set"
++  // value, itself. Add those to |mappings|.
++  if (mappings == NULL) {
++    mappings = sk_POLICY_MAPPING_new_null();
++    if (mappings == NULL) {
++      OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
++      goto err;
++    }
++  }
++  for (size_t i = 0; i < sk_X509_POLICY_NODE_num(level->nodes); i++) {
++    X509_POLICY_NODE *node = sk_X509_POLICY_NODE_value(level->nodes, i);
++    if (!node->mapped) {
++      POLICY_MAPPING *mapping = POLICY_MAPPING_new();
++      if (mapping == NULL) {
++        goto err;
++      }
++      mapping->issuerDomainPolicy = OBJ_dup(node->policy);
++      mapping->subjectDomainPolicy = OBJ_dup(node->policy);
++      if (mapping->issuerDomainPolicy == NULL ||
++          mapping->subjectDomainPolicy == NULL ||
++          !sk_POLICY_MAPPING_push(mappings, mapping)) {
++        POLICY_MAPPING_free(mapping);
++        goto err;
++      }
++    }
++  }
++
++  // Sort to group by subjectDomainPolicy.
++  sk_POLICY_MAPPING_set_cmp_func(mappings, compare_subject_policy);
++  sk_POLICY_MAPPING_sort(mappings);
++
++  // Convert |mappings| to our "expected_policy_set" representation.
++  next = x509_policy_level_new();
++  if (next == NULL) {
++    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
++    goto err;
++  }
++  next->has_any_policy = level->has_any_policy;
++
++  X509_POLICY_NODE *last_node = NULL;
++  for (size_t i = 0; i < sk_POLICY_MAPPING_num(mappings); i++) {
++    POLICY_MAPPING *mapping = sk_POLICY_MAPPING_value(mappings, i);
++    // Skip mappings where |issuerDomainPolicy| does not appear in the graph.
++    if (!level->has_any_policy &&
++        x509_policy_level_find(level, mapping->issuerDomainPolicy) == NULL) {
++      continue;
++    }
++
++    if (last_node == NULL ||
++        OBJ_cmp(last_node->policy, mapping->subjectDomainPolicy) != 0) {
++      last_node = x509_policy_node_new(mapping->subjectDomainPolicy);
++      if (last_node == NULL ||
++          !sk_X509_POLICY_NODE_push(next->nodes, last_node)) {
++        x509_policy_node_free(last_node);
++        goto err;
++      }
++    }
++
++    if (!sk_ASN1_OBJECT_push(last_node->parent_policies,
++                             mapping->issuerDomainPolicy)) {
++      goto err;
++    }
++    mapping->issuerDomainPolicy = NULL;
++  }
++
++  sk_X509_POLICY_NODE_sort(next->nodes);
++  ok = 1;
++
++err:
++  if (!ok) {
++    x509_policy_level_free(next);
++    next = NULL;
++  }
++
++  sk_POLICY_MAPPING_pop_free(mappings, POLICY_MAPPING_free);
++  sk_X509_POLICY_NODE_pop_free(new_nodes, x509_policy_node_free);
++  return next;
++}
++
++// apply_skip_certs, if |skip_certs| is non-NULL, sets |*value| to the minimum
++// of its current value and |skip_certs|. It returns one on success and zero if
++// |skip_certs| is negative.
++static int apply_skip_certs(const ASN1_INTEGER *skip_certs, size_t *value) {
++  if (skip_certs == NULL) {
++    return 1;
++  }
++
++  // TODO(https://crbug.com/boringssl/443): Move this check into the parser.
++  if (skip_certs->type & V_ASN1_NEG) {
++    OPENSSL_PUT_ERROR(X509, X509_R_INVALID_POLICY_EXTENSION);
++    return 0;
++  }
++
++  // If |skip_certs| does not fit in |uint64_t|, it must exceed |*value|.
++  uint64_t u64;
++  if (ASN1_INTEGER_get_uint64(&u64, skip_certs) && u64 < *value) {
++    *value = (size_t)u64;
++  }
++  ERR_clear_error();
++  return 1;
++}
++
++// process_policy_constraints updates |*explicit_policy|, |*policy_mapping|, and
++// |*inhibit_any_policy| according to |x509|'s policy constraints and inhibit
++// anyPolicy extensions. It returns one on success and zero on error. This
++// implements steps (i) and (j) of RFC 5280, section 6.1.4.
++static int process_policy_constraints(const X509 *x509, size_t *explicit_policy,
++                                      size_t *policy_mapping,
++                                      size_t *inhibit_any_policy) {
++  int critical;
++  POLICY_CONSTRAINTS *constraints =
++      X509_get_ext_d2i(x509, NID_policy_constraints, &critical, NULL);
++  if (constraints == NULL && critical != -1) {
++    return 0;
++  }
++  if (constraints != NULL) {
++    if (constraints->requireExplicitPolicy == NULL &&
++        constraints->inhibitPolicyMapping == NULL) {
++      // Per RFC 5280, section 4.2.1.11, at least one of the fields must be
++      // present.
++      OPENSSL_PUT_ERROR(X509, X509_R_INVALID_POLICY_EXTENSION);
++      POLICY_CONSTRAINTS_free(constraints);
++      return 0;
++    }
++    int ok =
++        apply_skip_certs(constraints->requireExplicitPolicy, explicit_policy) &&
++        apply_skip_certs(constraints->inhibitPolicyMapping, inhibit_any_policy);
++    POLICY_CONSTRAINTS_free(constraints);
++    if (!ok) {
++      return 0;
++    }
++  }
++
++  ASN1_INTEGER *inhibit_any_policy_ext =
++      X509_get_ext_d2i(x509, NID_inhibit_any_policy, &critical, NULL);
++  if (inhibit_any_policy_ext == NULL && critical != -1) {
++    return 0;
++  }
++  int ok = apply_skip_certs(inhibit_any_policy_ext, inhibit_any_policy);
++  ASN1_INTEGER_free(inhibit_any_policy_ext);
++  return ok;
++}
++
++// has_explicit_policy returns one if the set of authority-space policy OIDs
++// |levels| has some non-empty intersection with |user_policies|, and zero
++// otherwise. This mirrors the logic in RFC 5280, section 6.1.5, step (g). This
++// function modifies |levels| and should only be called at the end of policy
++// evaluation.
++static int has_explicit_policy(STACK_OF(X509_POLICY_LEVEL) *levels,
++                               const STACK_OF(ASN1_OBJECT) *user_policies) {
++  assert(sk_ASN1_OBJECT_is_sorted(user_policies));
++
++  // Step (g.i). If the policy graph is empty, the intersection is empty.
++  size_t num_levels = sk_X509_POLICY_LEVEL_num(levels);
++  X509_POLICY_LEVEL *level = sk_X509_POLICY_LEVEL_value(levels, num_levels - 1);
++  if (x509_policy_level_is_empty(level)) {
++    return 0;
++  }
++
++  // If |user_policies| is empty, we interpret it as having a single anyPolicy
++  // value. The caller may also have supplied anyPolicy explicitly.
++  int user_has_any_policy = sk_ASN1_OBJECT_num(user_policies) == 0;
++  for (size_t i = 0; i < sk_ASN1_OBJECT_num(user_policies); i++) {
++    if (is_any_policy(sk_ASN1_OBJECT_value(user_policies, i))) {
++      user_has_any_policy = 1;
++      break;
++    }
++  }
++
++  // Step (g.ii). If the policy graph is not empty and the user set contains
++  // anyPolicy, the intersection is the entire (non-empty) graph.
++  if (user_has_any_policy) {
++    return 1;
++  }
++
++  // Step (g.iii) does not delete anyPolicy nodes, so if the graph has
++  // anyPolicy, some explicit policy will survive. The actual intersection may
++  // synthesize some nodes in step (g.iii.3), but we do not return the policy
++  // list itself, so we skip actually computing this.
++  if (level->has_any_policy) {
++    return 1;
++  }
++
++  // We defer pruning the tree, so as we look for nodes with parent anyPolicy,
++  // step (g.iii.1), we must limit to nodes reachable from the bottommost level.
++  // Start by marking each of those nodes as reachable.
++  for (size_t i = 0; i < sk_X509_POLICY_NODE_num(level->nodes); i++) {
++    sk_X509_POLICY_NODE_value(level->nodes, i)->reachable = 1;
++  }
++
++  for (size_t i = num_levels - 1; i < num_levels; i--) {
++    level = sk_X509_POLICY_LEVEL_value(levels, i);
++    for (size_t j = 0; j < sk_X509_POLICY_NODE_num(level->nodes); j++) {
++      X509_POLICY_NODE *node = sk_X509_POLICY_NODE_value(level->nodes, j);
++      if (!node->reachable) {
++        continue;
++      }
++      if (sk_ASN1_OBJECT_num(node->parent_policies) == 0) {
++        // |node|'s parent is anyPolicy and is part of "valid_policy_node_set".
++        // If it exists in |user_policies|, the intersection is non-empty and we
++        // can return immediately.
++        if (sk_ASN1_OBJECT_find(user_policies, /*out_index=*/NULL,
++                                node->policy)) {
++          return 1;
++        }
++      } else if (i > 0) {
++        // |node|'s parents are concrete policies. Mark the parents reachable,
++        // to be inspected by the next loop iteration.
++        X509_POLICY_LEVEL *prev = sk_X509_POLICY_LEVEL_value(levels, i - 1);
++        for (size_t k = 0; k < sk_ASN1_OBJECT_num(node->parent_policies); k++) {
++          X509_POLICY_NODE *parent = x509_policy_level_find(
++              prev, sk_ASN1_OBJECT_value(node->parent_policies, k));
++          if (parent != NULL) {
++            parent->reachable = 1;
++          }
++        }
++      }
++    }
++  }
++
++  return 0;
++}
++
++static int asn1_object_cmp(const ASN1_OBJECT **a, const ASN1_OBJECT **b) {
++  return OBJ_cmp(*a, *b);
++}
++
++int X509_policy_check(const STACK_OF(X509) *certs,
++                      const STACK_OF(ASN1_OBJECT) *user_policies,
++                      unsigned long flags, X509 **out_current_cert) {
++  *out_current_cert = NULL;
++  int ret = X509_V_ERR_OUT_OF_MEM;
++  X509_POLICY_LEVEL *level = NULL;
++  STACK_OF(X509_POLICY_LEVEL) *levels = NULL;
++  STACK_OF(ASN1_OBJECT) *user_policies_sorted = NULL;
++  size_t num_certs = sk_X509_num(certs);
++
++  // Skip policy checking if the chain is just the trust anchor.
++  if (num_certs <= 1) {
++    return X509_V_OK;
++  }
++
++  // See RFC 5280, section 6.1.2, steps (d) through (f).
++  size_t explicit_policy =
++      (flags & X509_V_FLAG_EXPLICIT_POLICY) ? 0 : num_certs + 1;
++  size_t inhibit_any_policy =
++      (flags & X509_V_FLAG_INHIBIT_ANY) ? 0 : num_certs + 1;
++  size_t policy_mapping =
++      (flags & X509_V_FLAG_INHIBIT_MAP) ? 0 : num_certs + 1;
++
++  levels = sk_X509_POLICY_LEVEL_new_null();
++  if (levels == NULL) {
++    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
++    goto err;
++  }
++
++  for (size_t i = num_certs - 2; i < num_certs; i--) {
++    X509 *cert = sk_X509_value(certs, i);
++    if (!x509v3_cache_extensions(cert)) {
++      goto err;
++    }
++    const int is_self_issued = (cert->ex_flags & EXFLAG_SI) != 0;
++
++    if (level == NULL) {
++      assert(i == num_certs - 2);
++      level = x509_policy_level_new();
++      if (level == NULL) {
++        goto err;
++      }
++      level->has_any_policy = 1;
++    }
++
++    // RFC 5280, section 6.1.3, steps (d) and (e). |any_policy_allowed| is
++    // computed as in step (d.2).
++    const int any_policy_allowed =
++        inhibit_any_policy > 0 || (i > 0 && is_self_issued);
++    if (!process_certificate_policies(cert, level, any_policy_allowed)) {
++      ret = X509_V_ERR_INVALID_POLICY_EXTENSION;
++      *out_current_cert = cert;
++      goto err;
++    }
++
++    // RFC 5280, section 6.1.3, step (f).
++    if (explicit_policy == 0 && x509_policy_level_is_empty(level)) {
++      ret = X509_V_ERR_NO_EXPLICIT_POLICY;
++      goto err;
++    }
++
++    // Insert into the list.
++    if (!sk_X509_POLICY_LEVEL_push(levels, level)) {
++      OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
++      goto err;
++    }
++    X509_POLICY_LEVEL *current_level = level;
++    level = NULL;
++
++    // If this is not the leaf certificate, we go to section 6.1.4. If it
++    // is the leaf certificate, we go to section 6.1.5 instead.
++    if (i != 0) {
++      // RFC 5280, section 6.1.4, steps (a) and (b).
++      level = process_policy_mappings(cert, current_level, policy_mapping > 0);
++      if (level == NULL) {
++        ret = X509_V_ERR_INVALID_POLICY_EXTENSION;
++        *out_current_cert = cert;
++        goto err;
++      }
++    }
++
++    // RFC 5280, section 6.1.4, step (h-j) for non-leaves, and section 6.1.5,
++    // step (a-b) for leaves. In the leaf case, RFC 5280 says only to update
++    // |explicit_policy|, but |policy_mapping| and |inhibit_any_policy| are no
++    // longer read at this point, so we use the same process.
++    if (i == 0 || !is_self_issued) {
++      if (explicit_policy > 0) {
++        explicit_policy--;
++      }
++      if (policy_mapping > 0) {
++        policy_mapping--;
++      }
++      if (inhibit_any_policy > 0) {
++        inhibit_any_policy--;
++      }
++    }
++    if (!process_policy_constraints(cert, &explicit_policy, &policy_mapping,
++                                    &inhibit_any_policy)) {
++      ret = X509_V_ERR_INVALID_POLICY_EXTENSION;
++      *out_current_cert = cert;
++      goto err;
++    }
++  }
++
++  // RFC 5280, section 6.1.5, step (g). We do not output the policy set, so it
++  // is only necessary to check if the user-constrained-policy-set is not empty.
++  if (explicit_policy == 0) {
++    // Build a sorted copy of |user_policies| for more efficient lookup.
++    user_policies_sorted = sk_ASN1_OBJECT_dup(user_policies);
++    if (user_policies_sorted == NULL) {
++      goto err;
++    }
++    sk_ASN1_OBJECT_set_cmp_func(user_policies_sorted, asn1_object_cmp);
++    sk_ASN1_OBJECT_sort(user_policies_sorted);
++
++    if (!has_explicit_policy(levels, user_policies_sorted)) {
++      ret = X509_V_ERR_NO_EXPLICIT_POLICY;
++      goto err;
++    }
++  }
++
++  ret = X509_V_OK;
++
++err:
++  x509_policy_level_free(level);
++  // |user_policies_sorted|'s contents are owned by |user_policies|, so we do
++  // not use |sk_ASN1_OBJECT_pop_free|.
++  sk_ASN1_OBJECT_free(user_policies_sorted);
++  sk_X509_POLICY_LEVEL_pop_free(levels, x509_policy_level_free);
++  return ret;
++}
+diff --git a/crypto/x509/x509_test.cc b/crypto/x509/x509_test.cc
+index 6d82a812b..7cdfc84af 100644
+--- a/crypto/x509/x509_test.cc
++++ b/crypto/x509/x509_test.cc
+@@ -5238,6 +5238,90 @@ TEST(X509Test, Policy) {
+                               }));
+ }
+ 
++#if defined(OPENSSL_THREADS)
++// A similar test to the above, but ensures the various bits of intermediate
++// state are computed safely.
++TEST(X509Test, PolicyThreads) {
++  const size_t kNumThreads = 10;
++
++  bssl::UniquePtr<ASN1_OBJECT> oid1(
++      OBJ_txt2obj("1.2.840.113554.4.1.72585.2.1", /*dont_search_names=*/1));
++  ASSERT_TRUE(oid1);
++  bssl::UniquePtr<ASN1_OBJECT> oid2(
++      OBJ_txt2obj("1.2.840.113554.4.1.72585.2.2", /*dont_search_names=*/1));
++  ASSERT_TRUE(oid2);
++  bssl::UniquePtr<ASN1_OBJECT> oid3(
++      OBJ_txt2obj("1.2.840.113554.4.1.72585.2.3", /*dont_search_names=*/1));
++  ASSERT_TRUE(oid3);
++
++  auto set_policies = [](X509_VERIFY_PARAM *param,
++                         std::vector<const ASN1_OBJECT *> oids) {
++    for (const ASN1_OBJECT *oid : oids) {
++      bssl::UniquePtr<ASN1_OBJECT> copy(OBJ_dup(oid));
++      ASSERT_TRUE(copy);
++      ASSERT_TRUE(X509_VERIFY_PARAM_add0_policy(param, copy.get()));
++      copy.release();  // |X509_VERIFY_PARAM_add0_policy| takes ownership on
++                       // success.
++    }
++  };
++
++  {
++    bssl::UniquePtr<X509> root(
++        CertFromPEM(GetTestData("crypto/x509/test/policy_root.pem").c_str()));
++    ASSERT_TRUE(root);
++    bssl::UniquePtr<X509> intermediate(CertFromPEM(
++        GetTestData("crypto/x509/test/policy_intermediate.pem").c_str()));
++    ASSERT_TRUE(intermediate);
++    bssl::UniquePtr<X509> leaf(
++        CertFromPEM(GetTestData("crypto/x509/test/policy_leaf.pem").c_str()));
++    ASSERT_TRUE(leaf);
++
++    std::vector<std::thread> threads;
++    for (size_t i = 0; i < kNumThreads; i++) {
++      threads.emplace_back([&] {
++        EXPECT_EQ(
++            X509_V_OK,
++            Verify(leaf.get(), {root.get()}, {intermediate.get()}, /*crls=*/{},
++                   X509_V_FLAG_EXPLICIT_POLICY, [&](X509_VERIFY_PARAM *param) {
++                     set_policies(param, {oid1.get()});
++                   }));
++      });
++    }
++    for (auto &thread : threads) {
++      thread.join();
++    }
++  }
++
++  {
++    bssl::UniquePtr<X509> root(
++        CertFromPEM(GetTestData("crypto/x509/test/policy_root.pem").c_str()));
++    ASSERT_TRUE(root);
++    bssl::UniquePtr<X509> intermediate(CertFromPEM(
++        GetTestData("crypto/x509/test/policy_intermediate.pem").c_str()));
++    ASSERT_TRUE(intermediate);
++    bssl::UniquePtr<X509> leaf_invalid(CertFromPEM(
++        GetTestData("crypto/x509/test/policy_leaf_invalid.pem").c_str()));
++    ASSERT_TRUE(leaf_invalid);
++
++
++    std::vector<std::thread> threads;
++    for (size_t i = 0; i < kNumThreads; i++) {
++      threads.emplace_back([&] {
++        EXPECT_EQ(X509_V_ERR_INVALID_POLICY_EXTENSION,
++                  Verify(leaf_invalid.get(), {root.get()}, {intermediate.get()},
++                         /*crls=*/{}, X509_V_FLAG_EXPLICIT_POLICY,
++                         [&](X509_VERIFY_PARAM *param) {
++                           set_policies(param, {oid1.get()});
++                         }));
++      });
++    }
++    for (auto &thread : threads) {
++      thread.join();
++    }
++  }
++}
++#endif  // OPENSSL_THREADS
++
+ TEST(X509Test, ExtensionFromConf) {
+   static const char kTestOID[] = "1.2.840.113554.4.1.72585.2";
+   const struct {
+diff --git a/crypto/x509/x509_vfy.c b/crypto/x509/x509_vfy.c
+index ce110e65b..7638d0d81 100644
+--- a/crypto/x509/x509_vfy.c
++++ b/crypto/x509/x509_vfy.c
+@@ -1689,39 +1689,19 @@ static int cert_crl(X509_STORE_CTX *ctx, X509_CRL *crl, X509 *x) {
+ }
+ 
+ static int check_policy(X509_STORE_CTX *ctx) {
+-  int ret;
+   if (ctx->parent) {
+     return 1;
+   }
+-  // TODO(davidben): Historically, outputs of the |X509_policy_check| were saved
+-  // on |ctx| and accessible via the public API. This has since been removed, so
+-  // remove the fields from |X509_STORE_CTX|.
+-  ret = X509_policy_check(&ctx->tree, &ctx->explicit_policy, ctx->chain,
+-                          ctx->param->policies, ctx->param->flags);
+-  if (ret == 0) {
+-    OPENSSL_PUT_ERROR(X509, ERR_R_MALLOC_FAILURE);
+-    ctx->error = X509_V_ERR_OUT_OF_MEM;
+-    return 0;
+-  }
+-  // Invalid or inconsistent extensions
+-  if (ret == -1) {
+-    // Locate certificates with bad extensions and notify callback.
+-    for (size_t i = 0; i < sk_X509_num(ctx->chain); i++) {
+-      X509 *x = sk_X509_value(ctx->chain, i);
+-      if (!(x->ex_flags & EXFLAG_INVALID_POLICY)) {
+-        continue;
+-      }
+-      ctx->current_cert = x;
+-      ctx->error = X509_V_ERR_INVALID_POLICY_EXTENSION;
+-      if (!ctx->verify_cb(0, ctx)) {
+-        return 0;
+-      }
++
++  X509 *current_cert = NULL;
++  int ret = X509_policy_check(ctx->chain, ctx->param->policies,
++                              ctx->param->flags, &current_cert);
++  if (ret != X509_V_OK) {
++    ctx->current_cert = current_cert;
++    ctx->error = ret;
++    if (ret == X509_V_ERR_OUT_OF_MEM) {
++      return 0;
+     }
+-    return 1;
+-  }
+-  if (ret == -2) {
+-    ctx->current_cert = NULL;
+-    ctx->error = X509_V_ERR_NO_EXPLICIT_POLICY;
+     return ctx->verify_cb(0, ctx);
+   }
+ 
+@@ -2311,10 +2291,6 @@ void X509_STORE_CTX_cleanup(X509_STORE_CTX *ctx) {
+     }
+     ctx->param = NULL;
+   }
+-  if (ctx->tree != NULL) {
+-    X509_policy_tree_free(ctx->tree);
+-    ctx->tree = NULL;
+-  }
+   if (ctx->chain != NULL) {
+     sk_X509_pop_free(ctx->chain, X509_free);
+     ctx->chain = NULL;
+diff --git a/crypto/x509/x_x509.c b/crypto/x509/x_x509.c
+index c6c48feb7..4f23fd68b 100644
+--- a/crypto/x509/x_x509.c
++++ b/crypto/x509/x_x509.c
+@@ -89,8 +89,6 @@ ASN1_SEQUENCE_enc(X509_CINF, enc, 0) = {
+ IMPLEMENT_ASN1_FUNCTIONS(X509_CINF)
+ // X509 top level structure needs a bit of customisation
+ 
+-extern void policy_cache_free(X509_POLICY_CACHE *cache);
+-
+ static int x509_cb(int operation, ASN1_VALUE **pval, const ASN1_ITEM *it,
+                    void *exarg) {
+   X509 *ret = (X509 *)*pval;
+@@ -150,7 +148,6 @@ static int x509_cb(int operation, ASN1_VALUE **pval, const ASN1_ITEM *it,
+       ASN1_OCTET_STRING_free(ret->skid);
+       AUTHORITY_KEYID_free(ret->akid);
+       CRL_DIST_POINTS_free(ret->crldp);
+-      policy_cache_free(ret->policy_cache);
+       GENERAL_NAMES_free(ret->altname);
+       NAME_CONSTRAINTS_free(ret->nc);
+       CRYPTO_BUFFER_free(ret->buf);
+diff --git a/crypto/x509v3/internal.h b/crypto/x509v3/internal.h
+index 9206f3de9..888bf6144 100644
+--- a/crypto/x509v3/internal.h
++++ b/crypto/x509v3/internal.h
+@@ -166,163 +166,6 @@ int X509V3_add_value_int(const char *name, const ASN1_INTEGER *aint,
+                      ",value:", (val)->value);
+ 
+ 
+-// Internal structures
+-
+-// This structure and the field names correspond to the Policy 'node' of
+-// RFC 3280. NB this structure contains no pointers to parent or child data:
+-// X509_POLICY_NODE contains that. This means that the main policy data can
+-// be kept static and cached with the certificate.
+-
+-typedef struct X509_POLICY_DATA_st X509_POLICY_DATA;
+-typedef struct X509_POLICY_LEVEL_st X509_POLICY_LEVEL;
+-typedef struct X509_POLICY_NODE_st X509_POLICY_NODE;
+-
+-DEFINE_STACK_OF(X509_POLICY_DATA)
+-
+-struct X509_POLICY_DATA_st {
+-  unsigned int flags;
+-  // Policy OID and qualifiers for this data
+-  ASN1_OBJECT *valid_policy;
+-  STACK_OF(POLICYQUALINFO) *qualifier_set;
+-  STACK_OF(ASN1_OBJECT) *expected_policy_set;
+-};
+-
+-// X509_POLICY_DATA flags values
+-
+-// This flag indicates the structure has been mapped using a policy mapping
+-// extension. If policy mapping is not active its references get deleted.
+-
+-#define POLICY_DATA_FLAG_MAPPED 0x1
+-
+-// This flag indicates the data doesn't correspond to a policy in Certificate
+-// Policies: it has been mapped to any policy.
+-
+-#define POLICY_DATA_FLAG_MAPPED_ANY 0x2
+-
+-// AND with flags to see if any mapping has occurred
+-
+-#define POLICY_DATA_FLAG_MAP_MASK 0x3
+-
+-// qualifiers are shared and shouldn't be freed
+-
+-#define POLICY_DATA_FLAG_SHARED_QUALIFIERS 0x4
+-
+-// Parent node is an extra node and should be freed
+-
+-#define POLICY_DATA_FLAG_EXTRA_NODE 0x8
+-
+-// Corresponding CertificatePolicies is critical
+-
+-#define POLICY_DATA_FLAG_CRITICAL 0x10
+-
+-// This structure is cached with a certificate
+-
+-struct X509_POLICY_CACHE_st {
+-  // anyPolicy data or NULL if no anyPolicy
+-  X509_POLICY_DATA *anyPolicy;
+-  // other policy data
+-  STACK_OF(X509_POLICY_DATA) *data;
+-  // If InhibitAnyPolicy present this is its value or -1 if absent.
+-  long any_skip;
+-  // If policyConstraints and requireExplicitPolicy present this is its
+-  // value or -1 if absent.
+-  long explicit_skip;
+-  // If policyConstraints and policyMapping present this is its value or -1
+-  // if absent.
+-  long map_skip;
+-};
+-
+-// #define POLICY_CACHE_FLAG_CRITICAL POLICY_DATA_FLAG_CRITICAL
+-
+-// This structure represents the relationship between nodes
+-
+-struct X509_POLICY_NODE_st {
+-  // node data this refers to
+-  const X509_POLICY_DATA *data;
+-  // Parent node
+-  X509_POLICY_NODE *parent;
+-  // Number of child nodes
+-  int nchild;
+-};
+-
+-DEFINE_STACK_OF(X509_POLICY_NODE)
+-
+-struct X509_POLICY_LEVEL_st {
+-  // Cert for this level
+-  X509 *cert;
+-  // nodes at this level
+-  STACK_OF(X509_POLICY_NODE) *nodes;
+-  // anyPolicy node
+-  X509_POLICY_NODE *anyPolicy;
+-  // Extra data
+-  //
+-  // STACK_OF(X509_POLICY_DATA) *extra_data;
+-  unsigned int flags;
+-};
+-
+-struct X509_POLICY_TREE_st {
+-  // This is the tree 'level' data
+-  X509_POLICY_LEVEL *levels;
+-  int nlevel;
+-  // Extra policy data when additional nodes (not from the certificate) are
+-  // required.
+-  STACK_OF(X509_POLICY_DATA) *extra_data;
+-  // This is the authority constained policy set
+-  STACK_OF(X509_POLICY_NODE) *auth_policies;
+-  STACK_OF(X509_POLICY_NODE) *user_policies;
+-  unsigned int flags;
+-};
+-
+-// Set if anyPolicy present in user policies
+-#define POLICY_FLAG_ANY_POLICY 0x2
+-
+-// Useful macros
+-
+-#define node_data_critical(data) ((data)->flags & POLICY_DATA_FLAG_CRITICAL)
+-#define node_critical(node) node_data_critical((node)->data)
+-
+-// Internal functions
+-
+-void X509_POLICY_NODE_print(BIO *out, X509_POLICY_NODE *node, int indent);
+-
+-int X509_policy_check(X509_POLICY_TREE **ptree, int *pexplicit_policy,
+-                      STACK_OF(X509) *certs, STACK_OF(ASN1_OBJECT) *policy_oids,
+-                      unsigned int flags);
+-
+-void X509_policy_tree_free(X509_POLICY_TREE *tree);
+-
+-X509_POLICY_DATA *policy_data_new(POLICYINFO *policy, const ASN1_OBJECT *id,
+-                                  int crit);
+-void policy_data_free(X509_POLICY_DATA *data);
+-
+-X509_POLICY_DATA *policy_cache_find_data(const X509_POLICY_CACHE *cache,
+-                                         const ASN1_OBJECT *id);
+-int policy_cache_set_mapping(X509 *x, POLICY_MAPPINGS *maps);
+-
+-STACK_OF(X509_POLICY_NODE) *policy_node_cmp_new(void);
+-
+-void policy_cache_init(void);
+-
+-void policy_cache_free(X509_POLICY_CACHE *cache);
+-
+-X509_POLICY_NODE *level_find_node(const X509_POLICY_LEVEL *level,
+-                                  const X509_POLICY_NODE *parent,
+-                                  const ASN1_OBJECT *id);
+-
+-X509_POLICY_NODE *tree_find_sk(STACK_OF(X509_POLICY_NODE) *sk,
+-                               const ASN1_OBJECT *id);
+-
+-X509_POLICY_NODE *level_add_node(X509_POLICY_LEVEL *level,
+-                                 X509_POLICY_DATA *data,
+-                                 X509_POLICY_NODE *parent,
+-                                 X509_POLICY_TREE *tree);
+-void policy_node_free(X509_POLICY_NODE *node);
+-int policy_node_match(const X509_POLICY_LEVEL *lvl,
+-                      const X509_POLICY_NODE *node, const ASN1_OBJECT *oid);
+-
+-const X509_POLICY_CACHE *policy_cache_set(X509 *x);
+-
+-
+ #if defined(__cplusplus)
+ }  // extern C
+ #endif
+diff --git a/crypto/x509v3/pcy_cache.c b/crypto/x509v3/pcy_cache.c
+deleted file mode 100644
+index 74f95f93b..000000000
+--- a/crypto/x509v3/pcy_cache.c
++++ /dev/null
+@@ -1,295 +0,0 @@
+-/*
+- * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+- * 2004.
+- */
+-/* ====================================================================
+- * Copyright (c) 2004 The OpenSSL Project.  All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions
+- * are met:
+- *
+- * 1. Redistributions of source code must retain the above copyright
+- *    notice, this list of conditions and the following disclaimer.
+- *
+- * 2. Redistributions in binary form must reproduce the above copyright
+- *    notice, this list of conditions and the following disclaimer in
+- *    the documentation and/or other materials provided with the
+- *    distribution.
+- *
+- * 3. All advertising materials mentioning features or use of this
+- *    software must display the following acknowledgment:
+- *    "This product includes software developed by the OpenSSL Project
+- *    for use in the OpenSSL Toolkit. (http://www.OpenSSL.org/)"
+- *
+- * 4. The names "OpenSSL Toolkit" and "OpenSSL Project" must not be used to
+- *    endorse or promote products derived from this software without
+- *    prior written permission. For written permission, please contact
+- *    licensing@OpenSSL.org.
+- *
+- * 5. Products derived from this software may not be called "OpenSSL"
+- *    nor may "OpenSSL" appear in their names without prior written
+- *    permission of the OpenSSL Project.
+- *
+- * 6. Redistributions of any form whatsoever must retain the following
+- *    acknowledgment:
+- *    "This product includes software developed by the OpenSSL Project
+- *    for use in the OpenSSL Toolkit (http://www.OpenSSL.org/)"
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE OpenSSL PROJECT ``AS IS'' AND ANY
+- * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE OpenSSL PROJECT OR
+- * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+- * OF THE POSSIBILITY OF SUCH DAMAGE.
+- * ====================================================================
+- *
+- * This product includes cryptographic software written by Eric Young
+- * (eay@cryptsoft.com).  This product includes software written by Tim
+- * Hudson (tjh@cryptsoft.com). */
+-
+-#include <openssl/mem.h>
+-#include <openssl/obj.h>
+-#include <openssl/thread.h>
+-#include <openssl/x509.h>
+-#include <openssl/x509v3.h>
+-
+-#include "../internal.h"
+-#include "../x509/internal.h"
+-#include "internal.h"
+-
+-static int policy_data_cmp(const X509_POLICY_DATA **a,
+-                           const X509_POLICY_DATA **b);
+-static int policy_cache_set_int(long *out, ASN1_INTEGER *value);
+-
+-// Set cache entry according to CertificatePolicies extension. Note: this
+-// destroys the passed CERTIFICATEPOLICIES structure.
+-
+-static int policy_cache_create(X509 *x, CERTIFICATEPOLICIES *policies,
+-                               int crit) {
+-  size_t i;
+-  int ret = 0;
+-  X509_POLICY_CACHE *cache = x->policy_cache;
+-  X509_POLICY_DATA *data = NULL;
+-  POLICYINFO *policy;
+-  if (sk_POLICYINFO_num(policies) == 0) {
+-    goto bad_policy;
+-  }
+-  cache->data = sk_X509_POLICY_DATA_new(policy_data_cmp);
+-  if (!cache->data) {
+-    goto bad_policy;
+-  }
+-  for (i = 0; i < sk_POLICYINFO_num(policies); i++) {
+-    policy = sk_POLICYINFO_value(policies, i);
+-    data = policy_data_new(policy, NULL, crit);
+-    if (!data) {
+-      goto bad_policy;
+-    }
+-    // Duplicate policy OIDs are illegal: reject if matches found.
+-    sk_X509_POLICY_DATA_sort(cache->data);
+-    if (OBJ_obj2nid(data->valid_policy) == NID_any_policy) {
+-      if (cache->anyPolicy) {
+-        ret = -1;
+-        goto bad_policy;
+-      }
+-      cache->anyPolicy = data;
+-    } else if (sk_X509_POLICY_DATA_find(cache->data, NULL, data)) {
+-      ret = -1;
+-      goto bad_policy;
+-    } else if (!sk_X509_POLICY_DATA_push(cache->data, data)) {
+-      goto bad_policy;
+-    }
+-    data = NULL;
+-  }
+-  ret = 1;
+-bad_policy:
+-  if (ret == -1) {
+-    x->ex_flags |= EXFLAG_INVALID_POLICY;
+-  }
+-  if (data) {
+-    policy_data_free(data);
+-  }
+-  sk_POLICYINFO_pop_free(policies, POLICYINFO_free);
+-  if (ret <= 0) {
+-    sk_X509_POLICY_DATA_pop_free(cache->data, policy_data_free);
+-    cache->data = NULL;
+-  }
+-  return ret;
+-}
+-
+-static int policy_cache_new(X509 *x) {
+-  X509_POLICY_CACHE *cache;
+-  ASN1_INTEGER *ext_any = NULL;
+-  POLICY_CONSTRAINTS *ext_pcons = NULL;
+-  CERTIFICATEPOLICIES *ext_cpols = NULL;
+-  POLICY_MAPPINGS *ext_pmaps = NULL;
+-  int i;
+-  cache = OPENSSL_malloc(sizeof(X509_POLICY_CACHE));
+-  if (!cache) {
+-    return 0;
+-  }
+-  cache->anyPolicy = NULL;
+-  cache->data = NULL;
+-  cache->any_skip = -1;
+-  cache->explicit_skip = -1;
+-  cache->map_skip = -1;
+-
+-  x->policy_cache = cache;
+-
+-  // Handle requireExplicitPolicy *first*. Need to process this even if we
+-  // don't have any policies.
+-  ext_pcons = X509_get_ext_d2i(x, NID_policy_constraints, &i, NULL);
+-
+-  if (!ext_pcons) {
+-    if (i != -1) {
+-      goto bad_cache;
+-    }
+-  } else {
+-    if (!ext_pcons->requireExplicitPolicy && !ext_pcons->inhibitPolicyMapping) {
+-      goto bad_cache;
+-    }
+-    if (!policy_cache_set_int(&cache->explicit_skip,
+-                              ext_pcons->requireExplicitPolicy)) {
+-      goto bad_cache;
+-    }
+-    if (!policy_cache_set_int(&cache->map_skip,
+-                              ext_pcons->inhibitPolicyMapping)) {
+-      goto bad_cache;
+-    }
+-  }
+-
+-  // Process CertificatePolicies
+-
+-  ext_cpols = X509_get_ext_d2i(x, NID_certificate_policies, &i, NULL);
+-  // If no CertificatePolicies extension or problem decoding then there is
+-  // no point continuing because the valid policies will be NULL.
+-  if (!ext_cpols) {
+-    // If not absent some problem with extension
+-    if (i != -1) {
+-      goto bad_cache;
+-    }
+-    return 1;
+-  }
+-
+-  i = policy_cache_create(x, ext_cpols, i);
+-
+-  // NB: ext_cpols freed by policy_cache_set_policies
+-
+-  if (i <= 0) {
+-    return i;
+-  }
+-
+-  ext_pmaps = X509_get_ext_d2i(x, NID_policy_mappings, &i, NULL);
+-
+-  if (!ext_pmaps) {
+-    // If not absent some problem with extension
+-    if (i != -1) {
+-      goto bad_cache;
+-    }
+-  } else {
+-    i = policy_cache_set_mapping(x, ext_pmaps);
+-    if (i <= 0) {
+-      goto bad_cache;
+-    }
+-  }
+-
+-  ext_any = X509_get_ext_d2i(x, NID_inhibit_any_policy, &i, NULL);
+-
+-  if (!ext_any) {
+-    if (i != -1) {
+-      goto bad_cache;
+-    }
+-  } else if (!policy_cache_set_int(&cache->any_skip, ext_any)) {
+-    goto bad_cache;
+-  }
+-
+-  if (0) {
+-  bad_cache:
+-    x->ex_flags |= EXFLAG_INVALID_POLICY;
+-  }
+-
+-  if (ext_pcons) {
+-    POLICY_CONSTRAINTS_free(ext_pcons);
+-  }
+-
+-  if (ext_any) {
+-    ASN1_INTEGER_free(ext_any);
+-  }
+-
+-  return 1;
+-}
+-
+-void policy_cache_free(X509_POLICY_CACHE *cache) {
+-  if (!cache) {
+-    return;
+-  }
+-  if (cache->anyPolicy) {
+-    policy_data_free(cache->anyPolicy);
+-  }
+-  if (cache->data) {
+-    sk_X509_POLICY_DATA_pop_free(cache->data, policy_data_free);
+-  }
+-  OPENSSL_free(cache);
+-}
+-
+-// g_x509_policy_cache_lock is used to protect against concurrent calls to
+-// |policy_cache_new|. Ideally this would be done with a |CRYPTO_once_t| in
+-// the |X509| structure, but |CRYPTO_once_t| isn't public.
+-static struct CRYPTO_STATIC_MUTEX g_x509_policy_cache_lock =
+-    CRYPTO_STATIC_MUTEX_INIT;
+-
+-const X509_POLICY_CACHE *policy_cache_set(X509 *x) {
+-  X509_POLICY_CACHE *cache;
+-
+-  CRYPTO_STATIC_MUTEX_lock_read(&g_x509_policy_cache_lock);
+-  cache = x->policy_cache;
+-  CRYPTO_STATIC_MUTEX_unlock_read(&g_x509_policy_cache_lock);
+-
+-  if (cache != NULL) {
+-    return cache;
+-  }
+-
+-  CRYPTO_STATIC_MUTEX_lock_write(&g_x509_policy_cache_lock);
+-  if (x->policy_cache == NULL) {
+-    policy_cache_new(x);
+-  }
+-  cache = x->policy_cache;
+-  CRYPTO_STATIC_MUTEX_unlock_write(&g_x509_policy_cache_lock);
+-
+-  return cache;
+-}
+-
+-X509_POLICY_DATA *policy_cache_find_data(const X509_POLICY_CACHE *cache,
+-                                         const ASN1_OBJECT *id) {
+-  size_t idx;
+-  X509_POLICY_DATA tmp;
+-
+-  tmp.valid_policy = (ASN1_OBJECT *)id;
+-  sk_X509_POLICY_DATA_sort(cache->data);
+-  if (!sk_X509_POLICY_DATA_find(cache->data, &idx, &tmp)) {
+-    return NULL;
+-  }
+-  return sk_X509_POLICY_DATA_value(cache->data, idx);
+-}
+-
+-static int policy_data_cmp(const X509_POLICY_DATA **a,
+-                           const X509_POLICY_DATA **b) {
+-  return OBJ_cmp((*a)->valid_policy, (*b)->valid_policy);
+-}
+-
+-static int policy_cache_set_int(long *out, ASN1_INTEGER *value) {
+-  if (value == NULL) {
+-    return 1;
+-  }
+-  if (value->type == V_ASN1_NEG_INTEGER) {
+-    return 0;
+-  }
+-  *out = ASN1_INTEGER_get(value);
+-  return 1;
+-}
+diff --git a/crypto/x509v3/pcy_data.c b/crypto/x509v3/pcy_data.c
+deleted file mode 100644
+index 91ba714ef..000000000
+--- a/crypto/x509v3/pcy_data.c
++++ /dev/null
+@@ -1,133 +0,0 @@
+-/*
+- * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+- * 2004.
+- */
+-/* ====================================================================
+- * Copyright (c) 2004 The OpenSSL Project.  All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions
+- * are met:
+- *
+- * 1. Redistributions of source code must retain the above copyright
+- *    notice, this list of conditions and the following disclaimer.
+- *
+- * 2. Redistributions in binary form must reproduce the above copyright
+- *    notice, this list of conditions and the following disclaimer in
+- *    the documentation and/or other materials provided with the
+- *    distribution.
+- *
+- * 3. All advertising materials mentioning features or use of this
+- *    software must display the following acknowledgment:
+- *    "This product includes software developed by the OpenSSL Project
+- *    for use in the OpenSSL Toolkit. (http://www.OpenSSL.org/)"
+- *
+- * 4. The names "OpenSSL Toolkit" and "OpenSSL Project" must not be used to
+- *    endorse or promote products derived from this software without
+- *    prior written permission. For written permission, please contact
+- *    licensing@OpenSSL.org.
+- *
+- * 5. Products derived from this software may not be called "OpenSSL"
+- *    nor may "OpenSSL" appear in their names without prior written
+- *    permission of the OpenSSL Project.
+- *
+- * 6. Redistributions of any form whatsoever must retain the following
+- *    acknowledgment:
+- *    "This product includes software developed by the OpenSSL Project
+- *    for use in the OpenSSL Toolkit (http://www.OpenSSL.org/)"
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE OpenSSL PROJECT ``AS IS'' AND ANY
+- * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE OpenSSL PROJECT OR
+- * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+- * OF THE POSSIBILITY OF SUCH DAMAGE.
+- * ====================================================================
+- *
+- * This product includes cryptographic software written by Eric Young
+- * (eay@cryptsoft.com).  This product includes software written by Tim
+- * Hudson (tjh@cryptsoft.com).
+- *
+- */
+-
+-#include <openssl/mem.h>
+-#include <openssl/obj.h>
+-#include <openssl/x509.h>
+-#include <openssl/x509v3.h>
+-
+-#include "internal.h"
+-
+-// Policy Node routines
+-
+-void policy_data_free(X509_POLICY_DATA *data) {
+-  ASN1_OBJECT_free(data->valid_policy);
+-  // Don't free qualifiers if shared
+-  if (!(data->flags & POLICY_DATA_FLAG_SHARED_QUALIFIERS)) {
+-    sk_POLICYQUALINFO_pop_free(data->qualifier_set, POLICYQUALINFO_free);
+-  }
+-  sk_ASN1_OBJECT_pop_free(data->expected_policy_set, ASN1_OBJECT_free);
+-  OPENSSL_free(data);
+-}
+-
+-// Create a data based on an existing policy. If 'id' is NULL use the oid in
+-// the policy, otherwise use 'id'. This behaviour covers the two types of
+-// data in RFC 3280: data with from a CertificatePolcies extension and
+-// additional data with just the qualifiers of anyPolicy and ID from another
+-// source.
+-
+-X509_POLICY_DATA *policy_data_new(POLICYINFO *policy, const ASN1_OBJECT *cid,
+-                                  int crit) {
+-  X509_POLICY_DATA *ret;
+-  ASN1_OBJECT *id;
+-  if (!policy && !cid) {
+-    return NULL;
+-  }
+-  if (cid) {
+-    id = OBJ_dup(cid);
+-    if (!id) {
+-      return NULL;
+-    }
+-  } else {
+-    id = NULL;
+-  }
+-  ret = OPENSSL_malloc(sizeof(X509_POLICY_DATA));
+-  if (!ret) {
+-    OPENSSL_PUT_ERROR(X509V3, ERR_R_MALLOC_FAILURE);
+-    ASN1_OBJECT_free(id);
+-    return NULL;
+-  }
+-  ret->expected_policy_set = sk_ASN1_OBJECT_new_null();
+-  if (!ret->expected_policy_set) {
+-    OPENSSL_free(ret);
+-    ASN1_OBJECT_free(id);
+-    return NULL;
+-  }
+-
+-  if (crit) {
+-    ret->flags = POLICY_DATA_FLAG_CRITICAL;
+-  } else {
+-    ret->flags = 0;
+-  }
+-
+-  if (id) {
+-    ret->valid_policy = id;
+-  } else {
+-    ret->valid_policy = policy->policyid;
+-    policy->policyid = NULL;
+-  }
+-
+-  if (policy) {
+-    ret->qualifier_set = policy->qualifiers;
+-    policy->qualifiers = NULL;
+-  } else {
+-    ret->qualifier_set = NULL;
+-  }
+-
+-  return ret;
+-}
+diff --git a/crypto/x509v3/pcy_map.c b/crypto/x509v3/pcy_map.c
+deleted file mode 100644
+index 06c70b219..000000000
+--- a/crypto/x509v3/pcy_map.c
++++ /dev/null
+@@ -1,128 +0,0 @@
+-/*
+- * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+- * 2004.
+- */
+-/* ====================================================================
+- * Copyright (c) 2004 The OpenSSL Project.  All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions
+- * are met:
+- *
+- * 1. Redistributions of source code must retain the above copyright
+- *    notice, this list of conditions and the following disclaimer.
+- *
+- * 2. Redistributions in binary form must reproduce the above copyright
+- *    notice, this list of conditions and the following disclaimer in
+- *    the documentation and/or other materials provided with the
+- *    distribution.
+- *
+- * 3. All advertising materials mentioning features or use of this
+- *    software must display the following acknowledgment:
+- *    "This product includes software developed by the OpenSSL Project
+- *    for use in the OpenSSL Toolkit. (http://www.OpenSSL.org/)"
+- *
+- * 4. The names "OpenSSL Toolkit" and "OpenSSL Project" must not be used to
+- *    endorse or promote products derived from this software without
+- *    prior written permission. For written permission, please contact
+- *    licensing@OpenSSL.org.
+- *
+- * 5. Products derived from this software may not be called "OpenSSL"
+- *    nor may "OpenSSL" appear in their names without prior written
+- *    permission of the OpenSSL Project.
+- *
+- * 6. Redistributions of any form whatsoever must retain the following
+- *    acknowledgment:
+- *    "This product includes software developed by the OpenSSL Project
+- *    for use in the OpenSSL Toolkit (http://www.OpenSSL.org/)"
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE OpenSSL PROJECT ``AS IS'' AND ANY
+- * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE OpenSSL PROJECT OR
+- * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+- * OF THE POSSIBILITY OF SUCH DAMAGE.
+- * ====================================================================
+- *
+- * This product includes cryptographic software written by Eric Young
+- * (eay@cryptsoft.com).  This product includes software written by Tim
+- * Hudson (tjh@cryptsoft.com).
+- *
+- */
+-
+-#include <openssl/obj.h>
+-#include <openssl/x509.h>
+-#include <openssl/x509v3.h>
+-
+-#include "../x509/internal.h"
+-#include "internal.h"
+-
+-// Set policy mapping entries in cache. Note: this modifies the passed
+-// POLICY_MAPPINGS structure
+-
+-int policy_cache_set_mapping(X509 *x, POLICY_MAPPINGS *maps) {
+-  POLICY_MAPPING *map;
+-  X509_POLICY_DATA *data;
+-  X509_POLICY_CACHE *cache = x->policy_cache;
+-  size_t i;
+-  int ret = 0;
+-  if (sk_POLICY_MAPPING_num(maps) == 0) {
+-    ret = -1;
+-    goto bad_mapping;
+-  }
+-  for (i = 0; i < sk_POLICY_MAPPING_num(maps); i++) {
+-    map = sk_POLICY_MAPPING_value(maps, i);
+-    // Reject if map to or from anyPolicy
+-    if ((OBJ_obj2nid(map->subjectDomainPolicy) == NID_any_policy) ||
+-        (OBJ_obj2nid(map->issuerDomainPolicy) == NID_any_policy)) {
+-      ret = -1;
+-      goto bad_mapping;
+-    }
+-
+-    // Attempt to find matching policy data
+-    data = policy_cache_find_data(cache, map->issuerDomainPolicy);
+-    // If we don't have anyPolicy can't map
+-    if (!data && !cache->anyPolicy) {
+-      continue;
+-    }
+-
+-    // Create a NODE from anyPolicy
+-    if (!data) {
+-      data =
+-          policy_data_new(NULL, map->issuerDomainPolicy,
+-                          cache->anyPolicy->flags & POLICY_DATA_FLAG_CRITICAL);
+-      if (!data) {
+-        goto bad_mapping;
+-      }
+-      data->qualifier_set = cache->anyPolicy->qualifier_set;
+-      // map->issuerDomainPolicy = NULL;
+-      data->flags |= POLICY_DATA_FLAG_MAPPED_ANY;
+-      data->flags |= POLICY_DATA_FLAG_SHARED_QUALIFIERS;
+-      if (!sk_X509_POLICY_DATA_push(cache->data, data)) {
+-        policy_data_free(data);
+-        goto bad_mapping;
+-      }
+-    } else {
+-      data->flags |= POLICY_DATA_FLAG_MAPPED;
+-    }
+-    if (!sk_ASN1_OBJECT_push(data->expected_policy_set,
+-                             map->subjectDomainPolicy)) {
+-      goto bad_mapping;
+-    }
+-    map->subjectDomainPolicy = NULL;
+-  }
+-
+-  ret = 1;
+-bad_mapping:
+-  if (ret == -1) {
+-    x->ex_flags |= EXFLAG_INVALID_POLICY;
+-  }
+-  sk_POLICY_MAPPING_pop_free(maps, POLICY_MAPPING_free);
+-  return ret;
+-}
+diff --git a/crypto/x509v3/pcy_node.c b/crypto/x509v3/pcy_node.c
+deleted file mode 100644
+index 8966b065d..000000000
+--- a/crypto/x509v3/pcy_node.c
++++ /dev/null
+@@ -1,186 +0,0 @@
+-/*
+- * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+- * 2004.
+- */
+-/* ====================================================================
+- * Copyright (c) 2004 The OpenSSL Project.  All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions
+- * are met:
+- *
+- * 1. Redistributions of source code must retain the above copyright
+- *    notice, this list of conditions and the following disclaimer.
+- *
+- * 2. Redistributions in binary form must reproduce the above copyright
+- *    notice, this list of conditions and the following disclaimer in
+- *    the documentation and/or other materials provided with the
+- *    distribution.
+- *
+- * 3. All advertising materials mentioning features or use of this
+- *    software must display the following acknowledgment:
+- *    "This product includes software developed by the OpenSSL Project
+- *    for use in the OpenSSL Toolkit. (http://www.OpenSSL.org/)"
+- *
+- * 4. The names "OpenSSL Toolkit" and "OpenSSL Project" must not be used to
+- *    endorse or promote products derived from this software without
+- *    prior written permission. For written permission, please contact
+- *    licensing@OpenSSL.org.
+- *
+- * 5. Products derived from this software may not be called "OpenSSL"
+- *    nor may "OpenSSL" appear in their names without prior written
+- *    permission of the OpenSSL Project.
+- *
+- * 6. Redistributions of any form whatsoever must retain the following
+- *    acknowledgment:
+- *    "This product includes software developed by the OpenSSL Project
+- *    for use in the OpenSSL Toolkit (http://www.OpenSSL.org/)"
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE OpenSSL PROJECT ``AS IS'' AND ANY
+- * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE OpenSSL PROJECT OR
+- * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+- * OF THE POSSIBILITY OF SUCH DAMAGE.
+- * ====================================================================
+- *
+- * This product includes cryptographic software written by Eric Young
+- * (eay@cryptsoft.com).  This product includes software written by Tim
+- * Hudson (tjh@cryptsoft.com). */
+-
+-#include <openssl/asn1.h>
+-#include <openssl/mem.h>
+-#include <openssl/obj.h>
+-#include <openssl/x509.h>
+-#include <openssl/x509v3.h>
+-
+-#include "internal.h"
+-
+-static int node_cmp(const X509_POLICY_NODE **a, const X509_POLICY_NODE **b) {
+-  return OBJ_cmp((*a)->data->valid_policy, (*b)->data->valid_policy);
+-}
+-
+-STACK_OF(X509_POLICY_NODE) *policy_node_cmp_new(void) {
+-  return sk_X509_POLICY_NODE_new(node_cmp);
+-}
+-
+-X509_POLICY_NODE *tree_find_sk(STACK_OF(X509_POLICY_NODE) *nodes,
+-                               const ASN1_OBJECT *id) {
+-  X509_POLICY_DATA n;
+-  X509_POLICY_NODE l;
+-  size_t idx;
+-
+-  n.valid_policy = (ASN1_OBJECT *)id;
+-  l.data = &n;
+-
+-  sk_X509_POLICY_NODE_sort(nodes);
+-  if (!sk_X509_POLICY_NODE_find(nodes, &idx, &l)) {
+-    return NULL;
+-  }
+-
+-  return sk_X509_POLICY_NODE_value(nodes, idx);
+-}
+-
+-X509_POLICY_NODE *level_find_node(const X509_POLICY_LEVEL *level,
+-                                  const X509_POLICY_NODE *parent,
+-                                  const ASN1_OBJECT *id) {
+-  X509_POLICY_NODE *node;
+-  size_t i;
+-  for (i = 0; i < sk_X509_POLICY_NODE_num(level->nodes); i++) {
+-    node = sk_X509_POLICY_NODE_value(level->nodes, i);
+-    if (node->parent == parent) {
+-      if (!OBJ_cmp(node->data->valid_policy, id)) {
+-        return node;
+-      }
+-    }
+-  }
+-  return NULL;
+-}
+-
+-X509_POLICY_NODE *level_add_node(X509_POLICY_LEVEL *level,
+-                                 X509_POLICY_DATA *data,
+-                                 X509_POLICY_NODE *parent,
+-                                 X509_POLICY_TREE *tree) {
+-  X509_POLICY_NODE *node;
+-  node = OPENSSL_malloc(sizeof(X509_POLICY_NODE));
+-  if (!node) {
+-    return NULL;
+-  }
+-  node->data = data;
+-  node->parent = parent;
+-  node->nchild = 0;
+-  if (level) {
+-    if (OBJ_obj2nid(data->valid_policy) == NID_any_policy) {
+-      if (level->anyPolicy) {
+-        goto node_error;
+-      }
+-      level->anyPolicy = node;
+-    } else {
+-      if (!level->nodes) {
+-        level->nodes = policy_node_cmp_new();
+-      }
+-      if (!level->nodes) {
+-        goto node_error;
+-      }
+-      if (!sk_X509_POLICY_NODE_push(level->nodes, node)) {
+-        goto node_error;
+-      }
+-    }
+-  }
+-
+-  if (tree) {
+-    if (!tree->extra_data) {
+-      tree->extra_data = sk_X509_POLICY_DATA_new_null();
+-    }
+-    if (!tree->extra_data) {
+-      goto node_error;
+-    }
+-    if (!sk_X509_POLICY_DATA_push(tree->extra_data, data)) {
+-      goto node_error;
+-    }
+-  }
+-
+-  if (parent) {
+-    parent->nchild++;
+-  }
+-
+-  return node;
+-
+-node_error:
+-  policy_node_free(node);
+-  return 0;
+-}
+-
+-void policy_node_free(X509_POLICY_NODE *node) { OPENSSL_free(node); }
+-
+-// See if a policy node matches a policy OID. If mapping enabled look through
+-// expected policy set otherwise just valid policy.
+-
+-int policy_node_match(const X509_POLICY_LEVEL *lvl,
+-                      const X509_POLICY_NODE *node, const ASN1_OBJECT *oid) {
+-  size_t i;
+-  ASN1_OBJECT *policy_oid;
+-  const X509_POLICY_DATA *x = node->data;
+-
+-  if ((lvl->flags & X509_V_FLAG_INHIBIT_MAP) ||
+-      !(x->flags & POLICY_DATA_FLAG_MAP_MASK)) {
+-    if (!OBJ_cmp(x->valid_policy, oid)) {
+-      return 1;
+-    }
+-    return 0;
+-  }
+-
+-  for (i = 0; i < sk_ASN1_OBJECT_num(x->expected_policy_set); i++) {
+-    policy_oid = sk_ASN1_OBJECT_value(x->expected_policy_set, i);
+-    if (!OBJ_cmp(policy_oid, oid)) {
+-      return 1;
+-    }
+-  }
+-  return 0;
+-}
+diff --git a/crypto/x509v3/pcy_tree.c b/crypto/x509v3/pcy_tree.c
+deleted file mode 100644
+index 7211e0163..000000000
+--- a/crypto/x509v3/pcy_tree.c
++++ /dev/null
+@@ -1,829 +0,0 @@
+-/*
+- * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
+- * 2004.
+- */
+-/* ====================================================================
+- * Copyright (c) 2004 The OpenSSL Project.  All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions
+- * are met:
+- *
+- * 1. Redistributions of source code must retain the above copyright
+- *    notice, this list of conditions and the following disclaimer.
+- *
+- * 2. Redistributions in binary form must reproduce the above copyright
+- *    notice, this list of conditions and the following disclaimer in
+- *    the documentation and/or other materials provided with the
+- *    distribution.
+- *
+- * 3. All advertising materials mentioning features or use of this
+- *    software must display the following acknowledgment:
+- *    "This product includes software developed by the OpenSSL Project
+- *    for use in the OpenSSL Toolkit. (http://www.OpenSSL.org/)"
+- *
+- * 4. The names "OpenSSL Toolkit" and "OpenSSL Project" must not be used to
+- *    endorse or promote products derived from this software without
+- *    prior written permission. For written permission, please contact
+- *    licensing@OpenSSL.org.
+- *
+- * 5. Products derived from this software may not be called "OpenSSL"
+- *    nor may "OpenSSL" appear in their names without prior written
+- *    permission of the OpenSSL Project.
+- *
+- * 6. Redistributions of any form whatsoever must retain the following
+- *    acknowledgment:
+- *    "This product includes software developed by the OpenSSL Project
+- *    for use in the OpenSSL Toolkit (http://www.OpenSSL.org/)"
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE OpenSSL PROJECT ``AS IS'' AND ANY
+- * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE OpenSSL PROJECT OR
+- * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+- * OF THE POSSIBILITY OF SUCH DAMAGE.
+- * ====================================================================
+- *
+- * This product includes cryptographic software written by Eric Young
+- * (eay@cryptsoft.com).  This product includes software written by Tim
+- * Hudson (tjh@cryptsoft.com).
+- *
+- */
+-
+-#include <string.h>
+-
+-#include <openssl/mem.h>
+-#include <openssl/obj.h>
+-#include <openssl/stack.h>
+-#include <openssl/thread.h>
+-#include <openssl/x509.h>
+-#include <openssl/x509v3.h>
+-
+-#include "../internal.h"
+-#include "../x509/internal.h"
+-#include "internal.h"
+-
+-// Enable this to print out the complete policy tree at various point during
+-// evaluation.
+-
+-// #define OPENSSL_POLICY_DEBUG
+-
+-#ifdef OPENSSL_POLICY_DEBUG
+-
+-static void expected_print(BIO *err, X509_POLICY_LEVEL *lev,
+-                           X509_POLICY_NODE *node, int indent) {
+-  if ((lev->flags & X509_V_FLAG_INHIBIT_MAP) ||
+-      !(node->data->flags & POLICY_DATA_FLAG_MAP_MASK)) {
+-    BIO_puts(err, "  Not Mapped\n");
+-  } else {
+-    int i;
+-    STACK_OF(ASN1_OBJECT) *pset = node->data->expected_policy_set;
+-    ASN1_OBJECT *oid;
+-    BIO_puts(err, "  Expected: ");
+-    for (i = 0; i < sk_ASN1_OBJECT_num(pset); i++) {
+-      oid = sk_ASN1_OBJECT_value(pset, i);
+-      if (i) {
+-        BIO_puts(err, ", ");
+-      }
+-      i2a_ASN1_OBJECT(err, oid);
+-    }
+-    BIO_puts(err, "\n");
+-  }
+-}
+-
+-static void tree_print(char *str, X509_POLICY_TREE *tree,
+-                       X509_POLICY_LEVEL *curr) {
+-  X509_POLICY_LEVEL *plev;
+-  X509_POLICY_NODE *node;
+-  int i;
+-  BIO *err;
+-  err = BIO_new_fp(stderr, BIO_NOCLOSE);
+-  if (!curr) {
+-    curr = tree->levels + tree->nlevel;
+-  } else {
+-    curr++;
+-  }
+-  BIO_printf(err, "Level print after %s\n", str);
+-  BIO_printf(err, "Printing Up to Level %ld\n", curr - tree->levels);
+-  for (plev = tree->levels; plev != curr; plev++) {
+-    BIO_printf(err, "Level %ld, flags = %x\n", plev - tree->levels,
+-               plev->flags);
+-    for (i = 0; i < sk_X509_POLICY_NODE_num(plev->nodes); i++) {
+-      node = sk_X509_POLICY_NODE_value(plev->nodes, i);
+-      X509_POLICY_NODE_print(err, node, 2);
+-      expected_print(err, plev, node, 2);
+-      BIO_printf(err, "  Flags: %x\n", node->data->flags);
+-    }
+-    if (plev->anyPolicy) {
+-      X509_POLICY_NODE_print(err, plev->anyPolicy, 2);
+-    }
+-  }
+-
+-  BIO_free(err);
+-}
+-#else
+-
+-#define tree_print(a, b, c)  //
+-
+-#endif
+-
+-//-
+-// Initialize policy tree. Return values:
+-//  0 Some internal error occurred.
+-// -1 Inconsistent or invalid extensions in certificates.
+-//  1 Tree initialized OK.
+-//  2 Policy tree is empty.
+-//  5 Tree OK and requireExplicitPolicy true.
+-//  6 Tree empty and requireExplicitPolicy true.
+-
+-static int tree_init(X509_POLICY_TREE **ptree, STACK_OF(X509) *certs,
+-                     unsigned int flags) {
+-  X509_POLICY_TREE *tree;
+-  X509_POLICY_LEVEL *level;
+-  const X509_POLICY_CACHE *cache;
+-  X509_POLICY_DATA *data = NULL;
+-  X509 *x;
+-  int ret = 1;
+-  int i, n;
+-  int explicit_policy;
+-  int any_skip;
+-  int map_skip;
+-  *ptree = NULL;
+-  n = sk_X509_num(certs);
+-
+-#if 0
+-    // Disable policy mapping for now...
+-    flags |= X509_V_FLAG_INHIBIT_MAP;
+-#endif
+-
+-  if (flags & X509_V_FLAG_EXPLICIT_POLICY) {
+-    explicit_policy = 0;
+-  } else {
+-    explicit_policy = n + 1;
+-  }
+-
+-  if (flags & X509_V_FLAG_INHIBIT_ANY) {
+-    any_skip = 0;
+-  } else {
+-    any_skip = n + 1;
+-  }
+-
+-  if (flags & X509_V_FLAG_INHIBIT_MAP) {
+-    map_skip = 0;
+-  } else {
+-    map_skip = n + 1;
+-  }
+-
+-  // Can't do anything with just a trust anchor
+-  if (n == 1) {
+-    return 1;
+-  }
+-  // First setup policy cache in all certificates apart from the trust
+-  // anchor. Note any bad cache results on the way. Also can calculate
+-  // explicit_policy value at this point.
+-  for (i = n - 2; i >= 0; i--) {
+-    x = sk_X509_value(certs, i);
+-    X509_check_purpose(x, -1, -1);
+-    cache = policy_cache_set(x);
+-    // If cache NULL something bad happened: return immediately
+-    if (cache == NULL) {
+-      return 0;
+-    }
+-    // If inconsistent extensions keep a note of it but continue
+-    if (x->ex_flags & EXFLAG_INVALID_POLICY) {
+-      ret = -1;
+-    }
+-    // Otherwise if we have no data (hence no CertificatePolicies) and
+-    // haven't already set an inconsistent code note it.
+-    else if ((ret == 1) && !cache->data) {
+-      ret = 2;
+-    }
+-    if (explicit_policy > 0) {
+-      if (!(x->ex_flags & EXFLAG_SI)) {
+-        explicit_policy--;
+-      }
+-      if ((cache->explicit_skip != -1) &&
+-          (cache->explicit_skip < explicit_policy)) {
+-        explicit_policy = cache->explicit_skip;
+-      }
+-    }
+-  }
+-
+-  if (ret != 1) {
+-    if (ret == 2 && !explicit_policy) {
+-      return 6;
+-    }
+-    return ret;
+-  }
+-
+-  // If we get this far initialize the tree
+-
+-  tree = OPENSSL_malloc(sizeof(X509_POLICY_TREE));
+-
+-  if (!tree) {
+-    return 0;
+-  }
+-
+-  tree->flags = 0;
+-  tree->levels = OPENSSL_malloc(sizeof(X509_POLICY_LEVEL) * n);
+-  tree->nlevel = 0;
+-  tree->extra_data = NULL;
+-  tree->auth_policies = NULL;
+-  tree->user_policies = NULL;
+-
+-  if (!tree->levels) {
+-    OPENSSL_free(tree);
+-    return 0;
+-  }
+-
+-  OPENSSL_memset(tree->levels, 0, n * sizeof(X509_POLICY_LEVEL));
+-
+-  tree->nlevel = n;
+-
+-  level = tree->levels;
+-
+-  // Root data: initialize to anyPolicy
+-
+-  data = policy_data_new(NULL, OBJ_nid2obj(NID_any_policy), 0);
+-
+-  if (!data || !level_add_node(level, data, NULL, tree)) {
+-    goto bad_tree;
+-  }
+-
+-  for (i = n - 2; i >= 0; i--) {
+-    level++;
+-    x = sk_X509_value(certs, i);
+-    cache = policy_cache_set(x);
+-    X509_up_ref(x);
+-    level->cert = x;
+-
+-    if (!cache->anyPolicy) {
+-      level->flags |= X509_V_FLAG_INHIBIT_ANY;
+-    }
+-
+-    // Determine inhibit any and inhibit map flags
+-    if (any_skip == 0) {
+-      // Any matching allowed if certificate is self issued and not the
+-      // last in the chain.
+-      if (!(x->ex_flags & EXFLAG_SI) || (i == 0)) {
+-        level->flags |= X509_V_FLAG_INHIBIT_ANY;
+-      }
+-    } else {
+-      if (!(x->ex_flags & EXFLAG_SI)) {
+-        any_skip--;
+-      }
+-      if ((cache->any_skip >= 0) && (cache->any_skip < any_skip)) {
+-        any_skip = cache->any_skip;
+-      }
+-    }
+-
+-    if (map_skip == 0) {
+-      level->flags |= X509_V_FLAG_INHIBIT_MAP;
+-    } else {
+-      if (!(x->ex_flags & EXFLAG_SI)) {
+-        map_skip--;
+-      }
+-      if ((cache->map_skip >= 0) && (cache->map_skip < map_skip)) {
+-        map_skip = cache->map_skip;
+-      }
+-    }
+-  }
+-
+-  *ptree = tree;
+-
+-  if (explicit_policy) {
+-    return 1;
+-  } else {
+-    return 5;
+-  }
+-
+-bad_tree:
+-
+-  X509_policy_tree_free(tree);
+-
+-  return 0;
+-}
+-
+-static int tree_link_matching_nodes(X509_POLICY_LEVEL *curr,
+-                                    X509_POLICY_DATA *data) {
+-  X509_POLICY_LEVEL *last = curr - 1;
+-  X509_POLICY_NODE *node;
+-  int matched = 0;
+-  size_t i;
+-  // Iterate through all in nodes linking matches
+-  for (i = 0; i < sk_X509_POLICY_NODE_num(last->nodes); i++) {
+-    node = sk_X509_POLICY_NODE_value(last->nodes, i);
+-    if (policy_node_match(last, node, data->valid_policy)) {
+-      if (!level_add_node(curr, data, node, NULL)) {
+-        return 0;
+-      }
+-      matched = 1;
+-    }
+-  }
+-  if (!matched && last->anyPolicy) {
+-    if (!level_add_node(curr, data, last->anyPolicy, NULL)) {
+-      return 0;
+-    }
+-  }
+-  return 1;
+-}
+-
+-// This corresponds to RFC 3280 6.1.3(d)(1): link any data from
+-// CertificatePolicies onto matching parent or anyPolicy if no match.
+-
+-static int tree_link_nodes(X509_POLICY_LEVEL *curr,
+-                           const X509_POLICY_CACHE *cache) {
+-  size_t i;
+-  X509_POLICY_DATA *data;
+-
+-  for (i = 0; i < sk_X509_POLICY_DATA_num(cache->data); i++) {
+-    data = sk_X509_POLICY_DATA_value(cache->data, i);
+-    // If a node is mapped any it doesn't have a corresponding
+-    // CertificatePolicies entry. However such an identical node would
+-    // be created if anyPolicy matching is enabled because there would be
+-    // no match with the parent valid_policy_set. So we create link
+-    // because then it will have the mapping flags right and we can prune
+-    // it later.
+-#if 0
+-        if ((data->flags & POLICY_DATA_FLAG_MAPPED_ANY)
+-            && !(curr->flags & X509_V_FLAG_INHIBIT_ANY))
+-            continue;
+-#endif
+-    // Look for matching nodes in previous level
+-    if (!tree_link_matching_nodes(curr, data)) {
+-      return 0;
+-    }
+-  }
+-  return 1;
+-}
+-
+-// This corresponds to RFC 3280 6.1.3(d)(2): Create new data for any unmatched
+-// policies in the parent and link to anyPolicy.
+-
+-static int tree_add_unmatched(X509_POLICY_LEVEL *curr,
+-                              const X509_POLICY_CACHE *cache,
+-                              const ASN1_OBJECT *id, X509_POLICY_NODE *node,
+-                              X509_POLICY_TREE *tree) {
+-  X509_POLICY_DATA *data;
+-  if (id == NULL) {
+-    id = node->data->valid_policy;
+-  }
+-  // Create a new node with qualifiers from anyPolicy and id from unmatched
+-  // node.
+-  data = policy_data_new(NULL, id, node_critical(node));
+-
+-  if (data == NULL) {
+-    return 0;
+-  }
+-  // Curr may not have anyPolicy
+-  data->qualifier_set = cache->anyPolicy->qualifier_set;
+-  data->flags |= POLICY_DATA_FLAG_SHARED_QUALIFIERS;
+-  if (!level_add_node(curr, data, node, tree)) {
+-    policy_data_free(data);
+-    return 0;
+-  }
+-
+-  return 1;
+-}
+-
+-static int tree_link_unmatched(X509_POLICY_LEVEL *curr,
+-                               const X509_POLICY_CACHE *cache,
+-                               X509_POLICY_NODE *node, X509_POLICY_TREE *tree) {
+-  const X509_POLICY_LEVEL *last = curr - 1;
+-  size_t i;
+-
+-  if ((last->flags & X509_V_FLAG_INHIBIT_MAP) ||
+-      !(node->data->flags & POLICY_DATA_FLAG_MAPPED)) {
+-    // If no policy mapping: matched if one child present
+-    if (node->nchild) {
+-      return 1;
+-    }
+-    if (!tree_add_unmatched(curr, cache, NULL, node, tree)) {
+-      return 0;
+-    }
+-    // Add it
+-  } else {
+-    // If mapping: matched if one child per expected policy set
+-    STACK_OF(ASN1_OBJECT) *expset = node->data->expected_policy_set;
+-    if ((size_t)node->nchild == sk_ASN1_OBJECT_num(expset)) {
+-      return 1;
+-    }
+-    // Locate unmatched nodes
+-    for (i = 0; i < sk_ASN1_OBJECT_num(expset); i++) {
+-      ASN1_OBJECT *oid = sk_ASN1_OBJECT_value(expset, i);
+-      if (level_find_node(curr, node, oid)) {
+-        continue;
+-      }
+-      if (!tree_add_unmatched(curr, cache, oid, node, tree)) {
+-        return 0;
+-      }
+-    }
+-  }
+-
+-  return 1;
+-}
+-
+-static int tree_link_any(X509_POLICY_LEVEL *curr,
+-                         const X509_POLICY_CACHE *cache,
+-                         X509_POLICY_TREE *tree) {
+-  size_t i;
+-  // X509_POLICY_DATA *data;
+-  X509_POLICY_NODE *node;
+-  X509_POLICY_LEVEL *last = curr - 1;
+-
+-  for (i = 0; i < sk_X509_POLICY_NODE_num(last->nodes); i++) {
+-    node = sk_X509_POLICY_NODE_value(last->nodes, i);
+-
+-    if (!tree_link_unmatched(curr, cache, node, tree)) {
+-      return 0;
+-    }
+-
+-#if 0
+-
+-        // Skip any node with any children: we only want unmathced nodes.
+-        // Note: need something better for policy mapping because each node
+-        // may have multiple children
+-        if (node->nchild)
+-            continue;
+-
+-        // Create a new node with qualifiers from anyPolicy and id from
+-        // unmatched node.
+-        data = policy_data_new(NULL, node->data->valid_policy,
+-                               node_critical(node));
+-
+-        if (data == NULL)
+-            return 0;
+-        // Curr may not have anyPolicy
+-        data->qualifier_set = cache->anyPolicy->qualifier_set;
+-        data->flags |= POLICY_DATA_FLAG_SHARED_QUALIFIERS;
+-        if (!level_add_node(curr, data, node, tree)) {
+-            policy_data_free(data);
+-            return 0;
+-        }
+-#endif
+-  }
+-  // Finally add link to anyPolicy
+-  if (last->anyPolicy) {
+-    if (!level_add_node(curr, cache->anyPolicy, last->anyPolicy, NULL)) {
+-      return 0;
+-    }
+-  }
+-  return 1;
+-}
+-
+-// Prune the tree: delete any child mapped child data on the current level
+-// then proceed up the tree deleting any data with no children. If we ever
+-// have no data on a level we can halt because the tree will be empty.
+-
+-static int tree_prune(X509_POLICY_TREE *tree, X509_POLICY_LEVEL *curr) {
+-  STACK_OF(X509_POLICY_NODE) *nodes;
+-  X509_POLICY_NODE *node;
+-  int i;
+-  nodes = curr->nodes;
+-  if (curr->flags & X509_V_FLAG_INHIBIT_MAP) {
+-    for (i = sk_X509_POLICY_NODE_num(nodes) - 1; i >= 0; i--) {
+-      node = sk_X509_POLICY_NODE_value(nodes, i);
+-      // Delete any mapped data: see RFC 3280 XXXX
+-      if (node->data->flags & POLICY_DATA_FLAG_MAP_MASK) {
+-        node->parent->nchild--;
+-        OPENSSL_free(node);
+-        (void)sk_X509_POLICY_NODE_delete(nodes, i);
+-      }
+-    }
+-  }
+-
+-  for (;;) {
+-    --curr;
+-    nodes = curr->nodes;
+-    for (i = sk_X509_POLICY_NODE_num(nodes) - 1; i >= 0; i--) {
+-      node = sk_X509_POLICY_NODE_value(nodes, i);
+-      if (node->nchild == 0) {
+-        node->parent->nchild--;
+-        OPENSSL_free(node);
+-        (void)sk_X509_POLICY_NODE_delete(nodes, i);
+-      }
+-    }
+-    if (curr->anyPolicy && !curr->anyPolicy->nchild) {
+-      if (curr->anyPolicy->parent) {
+-        curr->anyPolicy->parent->nchild--;
+-      }
+-      OPENSSL_free(curr->anyPolicy);
+-      curr->anyPolicy = NULL;
+-    }
+-    if (curr == tree->levels) {
+-      // If we zapped anyPolicy at top then tree is empty
+-      if (!curr->anyPolicy) {
+-        return 2;
+-      }
+-      return 1;
+-    }
+-  }
+-}
+-
+-static int tree_add_auth_node(STACK_OF(X509_POLICY_NODE) **pnodes,
+-                              X509_POLICY_NODE *pcy) {
+-  if (!*pnodes) {
+-    *pnodes = policy_node_cmp_new();
+-    if (!*pnodes) {
+-      return 0;
+-    }
+-  } else {
+-    sk_X509_POLICY_NODE_sort(*pnodes);
+-    if (sk_X509_POLICY_NODE_find(*pnodes, NULL, pcy)) {
+-      return 1;
+-    }
+-  }
+-  if (!sk_X509_POLICY_NODE_push(*pnodes, pcy)) {
+-    return 0;
+-  }
+-
+-  return 1;
+-}
+-
+-// Calculate the authority set based on policy tree. The 'pnodes' parameter
+-// is used as a store for the set of policy nodes used to calculate the user
+-// set. If the authority set is not anyPolicy then pnodes will just point to
+-// the authority set. If however the authority set is anyPolicy then the set
+-// of valid policies (other than anyPolicy) is store in pnodes. The return
+-// value of '2' is used in this case to indicate that pnodes should be freed.
+-
+-static int tree_calculate_authority_set(X509_POLICY_TREE *tree,
+-                                        STACK_OF(X509_POLICY_NODE) **pnodes) {
+-  X509_POLICY_LEVEL *curr;
+-  X509_POLICY_NODE *node, *anyptr;
+-  STACK_OF(X509_POLICY_NODE) **addnodes;
+-  int i;
+-  size_t j;
+-  curr = tree->levels + tree->nlevel - 1;
+-
+-  // If last level contains anyPolicy set is anyPolicy
+-  if (curr->anyPolicy) {
+-    if (!tree_add_auth_node(&tree->auth_policies, curr->anyPolicy)) {
+-      return 0;
+-    }
+-    addnodes = pnodes;
+-  } else {
+-    // Add policies to authority set
+-    addnodes = &tree->auth_policies;
+-  }
+-
+-  curr = tree->levels;
+-  for (i = 1; i < tree->nlevel; i++) {
+-    // If no anyPolicy node on this this level it can't appear on lower
+-    // levels so end search.
+-    if (!(anyptr = curr->anyPolicy)) {
+-      break;
+-    }
+-    curr++;
+-    for (j = 0; j < sk_X509_POLICY_NODE_num(curr->nodes); j++) {
+-      node = sk_X509_POLICY_NODE_value(curr->nodes, j);
+-      if ((node->parent == anyptr) && !tree_add_auth_node(addnodes, node)) {
+-        return 0;
+-      }
+-    }
+-  }
+-
+-  if (addnodes == pnodes) {
+-    return 2;
+-  }
+-
+-  *pnodes = tree->auth_policies;
+-
+-  return 1;
+-}
+-
+-static int tree_calculate_user_set(X509_POLICY_TREE *tree,
+-                                   STACK_OF(ASN1_OBJECT) *policy_oids,
+-                                   STACK_OF(X509_POLICY_NODE) *auth_nodes) {
+-  size_t i;
+-  X509_POLICY_NODE *node;
+-  ASN1_OBJECT *oid;
+-
+-  X509_POLICY_NODE *anyPolicy;
+-  X509_POLICY_DATA *extra;
+-
+-  // Check if anyPolicy present in authority constrained policy set: this
+-  // will happen if it is a leaf node.
+-
+-  if (sk_ASN1_OBJECT_num(policy_oids) <= 0) {
+-    return 1;
+-  }
+-
+-  anyPolicy = tree->levels[tree->nlevel - 1].anyPolicy;
+-
+-  for (i = 0; i < sk_ASN1_OBJECT_num(policy_oids); i++) {
+-    oid = sk_ASN1_OBJECT_value(policy_oids, i);
+-    if (OBJ_obj2nid(oid) == NID_any_policy) {
+-      tree->flags |= POLICY_FLAG_ANY_POLICY;
+-      return 1;
+-    }
+-  }
+-
+-  for (i = 0; i < sk_ASN1_OBJECT_num(policy_oids); i++) {
+-    oid = sk_ASN1_OBJECT_value(policy_oids, i);
+-    node = tree_find_sk(auth_nodes, oid);
+-    if (!node) {
+-      if (!anyPolicy) {
+-        continue;
+-      }
+-      // Create a new node with policy ID from user set and qualifiers
+-      // from anyPolicy.
+-      extra = policy_data_new(NULL, oid, node_critical(anyPolicy));
+-      if (!extra) {
+-        return 0;
+-      }
+-      extra->qualifier_set = anyPolicy->data->qualifier_set;
+-      extra->flags =
+-          POLICY_DATA_FLAG_SHARED_QUALIFIERS | POLICY_DATA_FLAG_EXTRA_NODE;
+-      node = level_add_node(NULL, extra, anyPolicy->parent, tree);
+-    }
+-    if (!tree->user_policies) {
+-      tree->user_policies = sk_X509_POLICY_NODE_new_null();
+-      if (!tree->user_policies) {
+-        return 0;
+-      }
+-    }
+-    if (!sk_X509_POLICY_NODE_push(tree->user_policies, node)) {
+-      return 0;
+-    }
+-  }
+-  return 1;
+-}
+-
+-static int tree_evaluate(X509_POLICY_TREE *tree) {
+-  int ret, i;
+-  X509_POLICY_LEVEL *curr = tree->levels + 1;
+-  const X509_POLICY_CACHE *cache;
+-
+-  for (i = 1; i < tree->nlevel; i++, curr++) {
+-    cache = policy_cache_set(curr->cert);
+-    if (!tree_link_nodes(curr, cache)) {
+-      return 0;
+-    }
+-
+-    if (!(curr->flags & X509_V_FLAG_INHIBIT_ANY) &&
+-        !tree_link_any(curr, cache, tree)) {
+-      return 0;
+-    }
+-    tree_print("before tree_prune()", tree, curr);
+-    ret = tree_prune(tree, curr);
+-    if (ret != 1) {
+-      return ret;
+-    }
+-  }
+-
+-  return 1;
+-}
+-
+-static void exnode_free(X509_POLICY_NODE *node) {
+-  if (node->data && (node->data->flags & POLICY_DATA_FLAG_EXTRA_NODE)) {
+-    OPENSSL_free(node);
+-  }
+-}
+-
+-void X509_policy_tree_free(X509_POLICY_TREE *tree) {
+-  if (!tree) {
+-    return;
+-  }
+-
+-  sk_X509_POLICY_NODE_free(tree->auth_policies);
+-  sk_X509_POLICY_NODE_pop_free(tree->user_policies, exnode_free);
+-
+-  for (int i = 0; i < tree->nlevel; i++) {
+-    X509_POLICY_LEVEL *curr = &tree->levels[i];
+-    X509_free(curr->cert);
+-    sk_X509_POLICY_NODE_pop_free(curr->nodes, policy_node_free);
+-    policy_node_free(curr->anyPolicy);
+-  }
+-
+-  sk_X509_POLICY_DATA_pop_free(tree->extra_data, policy_data_free);
+-  OPENSSL_free(tree->levels);
+-  OPENSSL_free(tree);
+-}
+-
+-//-
+-// Application policy checking function.
+-// Return codes:
+-//  0   Internal Error.
+-//  1   Successful.
+-// -1   One or more certificates contain invalid or inconsistent extensions
+-// -2   User constrained policy set empty and requireExplicit true.
+-
+-int X509_policy_check(X509_POLICY_TREE **ptree, int *pexplicit_policy,
+-                      STACK_OF(X509) *certs, STACK_OF(ASN1_OBJECT) *policy_oids,
+-                      unsigned int flags) {
+-  int ret;
+-  int calc_ret;
+-  X509_POLICY_TREE *tree = NULL;
+-  STACK_OF(X509_POLICY_NODE) *nodes, *auth_nodes = NULL;
+-  *ptree = NULL;
+-
+-  *pexplicit_policy = 0;
+-  ret = tree_init(&tree, certs, flags);
+-
+-  switch (ret) {
+-      // Tree empty requireExplicit False: OK
+-    case 2:
+-      return 1;
+-
+-      // Some internal error
+-    case -1:
+-      return -1;
+-
+-      // Some internal error
+-    case 0:
+-      return 0;
+-
+-      // Tree empty requireExplicit True: Error
+-
+-    case 6:
+-      *pexplicit_policy = 1;
+-      return -2;
+-
+-      // Tree OK requireExplicit True: OK and continue
+-    case 5:
+-      *pexplicit_policy = 1;
+-      break;
+-
+-      // Tree OK: continue
+-
+-    case 1:
+-      if (!tree) {
+-        // tree_init() returns success and a null tree
+-        // if it's just looking at a trust anchor.
+-        // I'm not sure that returning success here is
+-        // correct, but I'm sure that reporting this
+-        // as an internal error which our caller
+-        // interprets as a malloc failure is wrong.
+-        return 1;
+-      }
+-      break;
+-  }
+-
+-  if (!tree) {
+-    goto error;
+-  }
+-  ret = tree_evaluate(tree);
+-
+-  tree_print("tree_evaluate()", tree, NULL);
+-
+-  if (ret <= 0) {
+-    goto error;
+-  }
+-
+-  // Return value 2 means tree empty
+-  if (ret == 2) {
+-    X509_policy_tree_free(tree);
+-    if (*pexplicit_policy) {
+-      return -2;
+-    } else {
+-      return 1;
+-    }
+-  }
+-
+-  // Tree is not empty: continue
+-
+-  calc_ret = tree_calculate_authority_set(tree, &auth_nodes);
+-
+-  if (!calc_ret) {
+-    goto error;
+-  }
+-
+-  ret = tree_calculate_user_set(tree, policy_oids, auth_nodes);
+-
+-  if (calc_ret == 2) {
+-    sk_X509_POLICY_NODE_free(auth_nodes);
+-  }
+-
+-  if (!ret) {
+-    goto error;
+-  }
+-
+-
+-  if (tree) {
+-    *ptree = tree;
+-  }
+-
+-  if (*pexplicit_policy) {
+-    if (tree->flags & POLICY_FLAG_ANY_POLICY) {
+-      nodes = tree->auth_policies;
+-    } else {
+-      nodes = tree->user_policies;
+-    }
+-    if (sk_X509_POLICY_NODE_num(nodes) <= 0) {
+-      return -2;
+-    }
+-  }
+-
+-  return 1;
+-
+-error:
+-  X509_policy_tree_free(tree);
+-  return 0;
+-}
+diff --git a/crypto/x509v3/v3_cpols.c b/crypto/x509v3/v3_cpols.c
+index e723cf338..84d458c65 100644
+--- a/crypto/x509v3/v3_cpols.c
++++ b/crypto/x509v3/v3_cpols.c
+@@ -484,19 +484,3 @@ static void print_notice(BIO *out, const USERNOTICE *notice, int indent) {
+                notice->exptext->length, notice->exptext->data);
+   }
+ }
+-
+-void X509_POLICY_NODE_print(BIO *out, X509_POLICY_NODE *node, int indent) {
+-  const X509_POLICY_DATA *dat = node->data;
+-
+-  BIO_printf(out, "%*sPolicy: ", indent, "");
+-
+-  i2a_ASN1_OBJECT(out, dat->valid_policy);
+-  BIO_puts(out, "\n");
+-  BIO_printf(out, "%*s%s\n", indent + 2, "",
+-             node_data_critical(dat) ? "Critical" : "Non Critical");
+-  if (dat->qualifier_set) {
+-    print_qualifiers(out, dat->qualifier_set, indent + 2);
+-  } else {
+-    BIO_printf(out, "%*sNo Qualifiers\n", indent + 2, "");
+-  }
+-}
+diff --git a/include/openssl/x509.h b/include/openssl/x509.h
+index ee103ca88..ec65cc532 100644
+--- a/include/openssl/x509.h
++++ b/include/openssl/x509.h
+@@ -2921,5 +2921,6 @@ BSSL_NAMESPACE_END
+ #define X509_R_NO_CERTIFICATE_FOUND 141
+ #define X509_R_NO_CERTIFICATE_OR_CRL_FOUND 142
+ #define X509_R_NO_CRL_FOUND 143
++#define X509_R_INVALID_POLICY_EXTENSION 144
+ 
+ #endif
+diff --git a/include/openssl/x509v3.h b/include/openssl/x509v3.h
+index 2d6e9c57e..640d8b6ee 100644
+--- a/include/openssl/x509v3.h
++++ b/include/openssl/x509v3.h
+@@ -354,7 +354,6 @@ struct ISSUING_DIST_POINT_st {
+ #define EXFLAG_CRITICAL 0x200
+ #define EXFLAG_PROXY 0x400
+ 
+-#define EXFLAG_INVALID_POLICY 0x800
+ #define EXFLAG_FRESHEST 0x1000
+ // Self signed
+ #define EXFLAG_SS 0x2000

@@ -1,0 +1,557 @@
+From 2f156e5a03bdaaaec6d9db6284052cb89edc7cd1 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Tue, 14 Sep 2021 11:05:13 -0700
+Subject: [PATCH] Add explicit alignment to ARM text sections
+
+This uses ".balign 4" to force 4-byte (32-bit) alignment of the
+instructions, as is assumed in the correctness theorems
+("aligned_bytes_loaded ..."), though it seems likely to be the
+default anyway as it's a basic requirement on ARM8.
+
+Note that the equivalent ".align" directive is ".align 2" on ARM,
+since the number is interpreted as an exponent 2^2 = 4. Since
+this might be misleading at first sight and the meaning of
+".align" differs between architectures and even output formats,
+".balign" seemed preferable.
+
+  https://ftp.gnu.org/old-gnu/Manuals/gas-2.9.1/html_chapter/as_7.html#SEC70
+
+  https://developer.arm.com/documentation/100067/0611/armclang-Integrated-Assembler/Alignment-directives
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/65f2a138dacc9a5f031ef28b9357fa8205b5845f
+---
+ arm/fastmul/bignum_emontredc_8n.S | 1 +
+ arm/fastmul/bignum_kmul_16_32.S   | 1 +
+ arm/fastmul/bignum_kmul_32_64.S   | 1 +
+ arm/fastmul/bignum_ksqr_16_32.S   | 1 +
+ arm/fastmul/bignum_ksqr_32_64.S   | 1 +
+ arm/generic/bignum_ge.S           | 1 +
+ arm/generic/bignum_mul.S          | 1 +
+ arm/generic/bignum_optsub.S       | 1 +
+ arm/p384/bignum_add_p384.S        | 1 +
+ arm/p384/bignum_bigendian_6.S     | 1 +
+ arm/p384/bignum_cmul_p384.S       | 1 +
+ arm/p384/bignum_deamont_p384.S    | 1 +
+ arm/p384/bignum_demont_p384.S     | 1 +
+ arm/p384/bignum_double_p384.S     | 1 +
+ arm/p384/bignum_half_p384.S       | 1 +
+ arm/p384/bignum_mod_n384.S        | 1 +
+ arm/p384/bignum_mod_n384_6.S      | 1 +
+ arm/p384/bignum_mod_p384.S        | 1 +
+ arm/p384/bignum_mod_p384_6.S      | 1 +
+ arm/p384/bignum_montmul_p384.S    | 1 +
+ arm/p384/bignum_montsqr_p384.S    | 1 +
+ arm/p384/bignum_mux_6.S           | 1 +
+ arm/p384/bignum_neg_p384.S        | 1 +
+ arm/p384/bignum_nonzero_6.S       | 1 +
+ arm/p384/bignum_optneg_p384.S     | 1 +
+ arm/p384/bignum_sub_p384.S        | 1 +
+ arm/p384/bignum_tomont_p384.S     | 1 +
+ arm/p384/bignum_triple_p384.S     | 1 +
+ arm/p521/bignum_add_p521.S        | 1 +
+ arm/p521/bignum_cmul_p521.S       | 1 +
+ arm/p521/bignum_deamont_p521.S    | 1 +
+ arm/p521/bignum_demont_p521.S     | 1 +
+ arm/p521/bignum_double_p521.S     | 1 +
+ arm/p521/bignum_half_p521.S       | 1 +
+ arm/p521/bignum_mod_p521_9.S      | 1 +
+ arm/p521/bignum_montsqr_p521.S    | 1 +
+ arm/p521/bignum_neg_p521.S        | 1 +
+ arm/p521/bignum_optneg_p521.S     | 1 +
+ arm/p521/bignum_sqr_p521.S        | 1 +
+ arm/p521/bignum_sub_p521.S        | 1 +
+ arm/p521/bignum_triple_p521.S     | 1 +
+ 41 files changed, 41 insertions(+)
+
+diff --git a/arm/fastmul/bignum_emontredc_8n.S b/arm/fastmul/bignum_emontredc_8n.S
+index feb4b9181..337bcdf08 100644
+--- a/arm/fastmul/bignum_emontredc_8n.S
++++ b/arm/fastmul/bignum_emontredc_8n.S
+@@ -28,6 +28,7 @@
+ 
+         .globl  bignum_emontredc_8n
+         .text
++        .balign 4
+ 
+ // ---------------------------------------------------------------------------
+ // Macro computing (c,h,l) = 3-word 1s complement (x - y) * (w - z)
+diff --git a/arm/fastmul/bignum_kmul_16_32.S b/arm/fastmul/bignum_kmul_16_32.S
+index 8d36251bf..b6f294341 100644
+--- a/arm/fastmul/bignum_kmul_16_32.S
++++ b/arm/fastmul/bignum_kmul_16_32.S
+@@ -29,6 +29,7 @@
+ 
+         .globl  bignum_kmul_16_32
+         .text
++        .balign 4
+ 
+ // Subroutine-safe copies of the output, inputs and temporary buffer pointers
+ 
+diff --git a/arm/fastmul/bignum_kmul_32_64.S b/arm/fastmul/bignum_kmul_32_64.S
+index cc017f7a6..5fe6e5fa5 100644
+--- a/arm/fastmul/bignum_kmul_32_64.S
++++ b/arm/fastmul/bignum_kmul_32_64.S
+@@ -29,6 +29,7 @@
+ 
+         .globl  bignum_kmul_32_64
+         .text
++        .balign 4
+ 
+ #define K 16
+ #define L (K/2)
+diff --git a/arm/fastmul/bignum_ksqr_16_32.S b/arm/fastmul/bignum_ksqr_16_32.S
+index 72b627087..8587b244d 100644
+--- a/arm/fastmul/bignum_ksqr_16_32.S
++++ b/arm/fastmul/bignum_ksqr_16_32.S
+@@ -28,6 +28,7 @@
+ 
+         .globl  bignum_ksqr_16_32
+         .text
++        .balign 4
+ 
+ // Subroutine-safe copies of the output, inputs and temporary buffer pointers
+ 
+diff --git a/arm/fastmul/bignum_ksqr_32_64.S b/arm/fastmul/bignum_ksqr_32_64.S
+index 14d86042e..492d700ac 100644
+--- a/arm/fastmul/bignum_ksqr_32_64.S
++++ b/arm/fastmul/bignum_ksqr_32_64.S
+@@ -28,6 +28,7 @@
+ 
+         .globl  bignum_ksqr_32_64
+         .text
++        .balign 4
+ 
+ #define K 16
+ #define L (K/2)
+diff --git a/arm/generic/bignum_ge.S b/arm/generic/bignum_ge.S
+index 5c9ad9d09..494abf2dd 100644
+--- a/arm/generic/bignum_ge.S
++++ b/arm/generic/bignum_ge.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_ge
+         .text
++        .balign 4
+ 
+ #define m x0
+ #define x x1
+diff --git a/arm/generic/bignum_mul.S b/arm/generic/bignum_mul.S
+index 872f218cb..2291602e6 100644
+--- a/arm/generic/bignum_mul.S
++++ b/arm/generic/bignum_mul.S
+@@ -29,6 +29,7 @@
+ 
+         .globl  bignum_mul
+         .text
++        .balign 4
+ 
+ #define p x0
+ #define z x1
+diff --git a/arm/generic/bignum_optsub.S b/arm/generic/bignum_optsub.S
+index 6f8baccc2..3ba6e293b 100644
+--- a/arm/generic/bignum_optsub.S
++++ b/arm/generic/bignum_optsub.S
+@@ -28,6 +28,7 @@
+ 
+         .globl  bignum_optsub
+         .text
++        .balign 4
+ 
+ #define k x0
+ #define z x1
+diff --git a/arm/p384/bignum_add_p384.S b/arm/p384/bignum_add_p384.S
+index 86aa9afab..f32965ef5 100644
+--- a/arm/p384/bignum_add_p384.S
++++ b/arm/p384/bignum_add_p384.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_add_p384
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p384/bignum_bigendian_6.S b/arm/p384/bignum_bigendian_6.S
+index cffdee925..780ee07ce 100644
+--- a/arm/p384/bignum_bigendian_6.S
++++ b/arm/p384/bignum_bigendian_6.S
+@@ -40,6 +40,7 @@
+         .globl  bignum_frombytes_6
+         .globl  bignum_tobytes_6
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p384/bignum_cmul_p384.S b/arm/p384/bignum_cmul_p384.S
+index 0a643bb17..7f1e1e3c9 100644
+--- a/arm/p384/bignum_cmul_p384.S
++++ b/arm/p384/bignum_cmul_p384.S
+@@ -26,6 +26,7 @@
+ 
+         .globl  bignum_cmul_p384
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define c x1
+diff --git a/arm/p384/bignum_deamont_p384.S b/arm/p384/bignum_deamont_p384.S
+index 6b07d8138..76d00cd27 100644
+--- a/arm/p384/bignum_deamont_p384.S
++++ b/arm/p384/bignum_deamont_p384.S
+@@ -28,6 +28,7 @@
+ 
+         .globl  bignum_deamont_p384
+         .text
++        .balign 4
+ 
+ // ---------------------------------------------------------------------------
+ // Core one-step "short" Montgomery reduction macro. Takes input in
+diff --git a/arm/p384/bignum_demont_p384.S b/arm/p384/bignum_demont_p384.S
+index 10533713f..c7af5f813 100644
+--- a/arm/p384/bignum_demont_p384.S
++++ b/arm/p384/bignum_demont_p384.S
+@@ -28,6 +28,7 @@
+ 
+         .globl  bignum_demont_p384
+         .text
++        .balign 4
+ 
+ // ---------------------------------------------------------------------------
+ // Core one-step "short" Montgomery reduction macro. Takes input in
+diff --git a/arm/p384/bignum_double_p384.S b/arm/p384/bignum_double_p384.S
+index 52e788e48..191b212ef 100644
+--- a/arm/p384/bignum_double_p384.S
++++ b/arm/p384/bignum_double_p384.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_double_p384
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p384/bignum_half_p384.S b/arm/p384/bignum_half_p384.S
+index 665f4c8e4..aa3611649 100644
+--- a/arm/p384/bignum_half_p384.S
++++ b/arm/p384/bignum_half_p384.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_half_p384
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p384/bignum_mod_n384.S b/arm/p384/bignum_mod_n384.S
+index 5fec1d91b..3f4d24ad9 100644
+--- a/arm/p384/bignum_mod_n384.S
++++ b/arm/p384/bignum_mod_n384.S
+@@ -27,6 +27,7 @@
+ 
+         .globl  bignum_mod_n384
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define k x1
+diff --git a/arm/p384/bignum_mod_n384_6.S b/arm/p384/bignum_mod_n384_6.S
+index 0024981ba..e7e22763a 100644
+--- a/arm/p384/bignum_mod_n384_6.S
++++ b/arm/p384/bignum_mod_n384_6.S
+@@ -27,6 +27,7 @@
+ 
+         .globl  bignum_mod_n384_6
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p384/bignum_mod_p384.S b/arm/p384/bignum_mod_p384.S
+index e9154d0dc..a8491eebd 100644
+--- a/arm/p384/bignum_mod_p384.S
++++ b/arm/p384/bignum_mod_p384.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_mod_p384
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define k x1
+diff --git a/arm/p384/bignum_mod_p384_6.S b/arm/p384/bignum_mod_p384_6.S
+index 88097a617..42814adc0 100644
+--- a/arm/p384/bignum_mod_p384_6.S
++++ b/arm/p384/bignum_mod_p384_6.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_mod_p384_6
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p384/bignum_montmul_p384.S b/arm/p384/bignum_montmul_p384.S
+index 036cc269f..4599edcb7 100644
+--- a/arm/p384/bignum_montmul_p384.S
++++ b/arm/p384/bignum_montmul_p384.S
+@@ -29,6 +29,7 @@
+ 
+         .globl  bignum_montmul_p384
+         .text
++        .balign 4
+ 
+ // ---------------------------------------------------------------------------
+ // Macro returning (c,h,l) = 3-word 1s complement (x - y) * (w - z)
+diff --git a/arm/p384/bignum_montsqr_p384.S b/arm/p384/bignum_montsqr_p384.S
+index dcb27f342..aa74ec3a7 100644
+--- a/arm/p384/bignum_montsqr_p384.S
++++ b/arm/p384/bignum_montsqr_p384.S
+@@ -28,6 +28,7 @@
+ 
+         .globl  bignum_montsqr_p384
+         .text
++        .balign 4
+ 
+ // ---------------------------------------------------------------------------
+ // Macro returning (c,h,l) = 3-word 1s complement (x - y) * (w - z)
+diff --git a/arm/p384/bignum_mux_6.S b/arm/p384/bignum_mux_6.S
+index 6acca5152..bc6726920 100644
+--- a/arm/p384/bignum_mux_6.S
++++ b/arm/p384/bignum_mux_6.S
+@@ -28,6 +28,7 @@
+ 
+         .globl  bignum_mux_6
+         .text
++        .balign 4
+ 
+ #define p x0
+ #define z x1
+diff --git a/arm/p384/bignum_neg_p384.S b/arm/p384/bignum_neg_p384.S
+index 6c1dd2537..3e82111bd 100644
+--- a/arm/p384/bignum_neg_p384.S
++++ b/arm/p384/bignum_neg_p384.S
+@@ -24,6 +24,7 @@
+ 
+         .globl  bignum_neg_p384
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p384/bignum_nonzero_6.S b/arm/p384/bignum_nonzero_6.S
+index aeb47b683..2c4fb1a3b 100644
+--- a/arm/p384/bignum_nonzero_6.S
++++ b/arm/p384/bignum_nonzero_6.S
+@@ -24,6 +24,7 @@
+ 
+         .globl  bignum_nonzero_6
+         .text
++        .balign 4
+ 
+ #define x x0
+ #define a x1
+diff --git a/arm/p384/bignum_optneg_p384.S b/arm/p384/bignum_optneg_p384.S
+index 8aece823e..981dc7f75 100644
+--- a/arm/p384/bignum_optneg_p384.S
++++ b/arm/p384/bignum_optneg_p384.S
+@@ -26,6 +26,7 @@
+ 
+         .globl  bignum_optneg_p384
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define p x1
+diff --git a/arm/p384/bignum_sub_p384.S b/arm/p384/bignum_sub_p384.S
+index 81028f908..f7ec7b8ab 100644
+--- a/arm/p384/bignum_sub_p384.S
++++ b/arm/p384/bignum_sub_p384.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_sub_p384
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p384/bignum_tomont_p384.S b/arm/p384/bignum_tomont_p384.S
+index 2bb05552d..90e0ead93 100644
+--- a/arm/p384/bignum_tomont_p384.S
++++ b/arm/p384/bignum_tomont_p384.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_tomont_p384
+         .text
++        .balign 4
+ 
+ // ----------------------------------------------------------------------------
+ // Core "x |-> (2^64 * x) mod p_384" macro, with x assumed to be < p_384.
+diff --git a/arm/p384/bignum_triple_p384.S b/arm/p384/bignum_triple_p384.S
+index 55a852213..b5db48d79 100644
+--- a/arm/p384/bignum_triple_p384.S
++++ b/arm/p384/bignum_triple_p384.S
+@@ -28,6 +28,7 @@
+ 
+         .globl  bignum_triple_p384
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p521/bignum_add_p521.S b/arm/p521/bignum_add_p521.S
+index 862331d23..fb8cd6578 100644
+--- a/arm/p521/bignum_add_p521.S
++++ b/arm/p521/bignum_add_p521.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_add_p521
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p521/bignum_cmul_p521.S b/arm/p521/bignum_cmul_p521.S
+index a3f410252..2da08bae2 100644
+--- a/arm/p521/bignum_cmul_p521.S
++++ b/arm/p521/bignum_cmul_p521.S
+@@ -26,6 +26,7 @@
+ 
+         .globl  bignum_cmul_p521
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define c x1
+diff --git a/arm/p521/bignum_deamont_p521.S b/arm/p521/bignum_deamont_p521.S
+index 920d18c24..770a863b1 100644
+--- a/arm/p521/bignum_deamont_p521.S
++++ b/arm/p521/bignum_deamont_p521.S
+@@ -28,6 +28,7 @@
+ 
+         .globl  bignum_deamont_p521
+         .text
++        .balign 4
+ 
+ // Input parameters
+ 
+diff --git a/arm/p521/bignum_demont_p521.S b/arm/p521/bignum_demont_p521.S
+index 60a9e260e..40bbefff5 100644
+--- a/arm/p521/bignum_demont_p521.S
++++ b/arm/p521/bignum_demont_p521.S
+@@ -28,6 +28,7 @@
+ 
+         .globl  bignum_demont_p521
+         .text
++        .balign 4
+ 
+ // Input parameters
+ 
+diff --git a/arm/p521/bignum_double_p521.S b/arm/p521/bignum_double_p521.S
+index 7def09818..397553a25 100644
+--- a/arm/p521/bignum_double_p521.S
++++ b/arm/p521/bignum_double_p521.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_double_p521
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p521/bignum_half_p521.S b/arm/p521/bignum_half_p521.S
+index 1377b0a53..50d879656 100644
+--- a/arm/p521/bignum_half_p521.S
++++ b/arm/p521/bignum_half_p521.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_half_p521
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p521/bignum_mod_p521_9.S b/arm/p521/bignum_mod_p521_9.S
+index ae5af7dd3..0887d5fe6 100644
+--- a/arm/p521/bignum_mod_p521_9.S
++++ b/arm/p521/bignum_mod_p521_9.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_mod_p521_9
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p521/bignum_montsqr_p521.S b/arm/p521/bignum_montsqr_p521.S
+index 923f59c04..3463c4a3d 100644
+--- a/arm/p521/bignum_montsqr_p521.S
++++ b/arm/p521/bignum_montsqr_p521.S
+@@ -30,6 +30,7 @@
+ 
+         .globl  bignum_montsqr_p521
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p521/bignum_neg_p521.S b/arm/p521/bignum_neg_p521.S
+index 42591add7..5d5b5aba9 100644
+--- a/arm/p521/bignum_neg_p521.S
++++ b/arm/p521/bignum_neg_p521.S
+@@ -24,6 +24,7 @@
+ 
+         .globl  bignum_neg_p521
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p521/bignum_optneg_p521.S b/arm/p521/bignum_optneg_p521.S
+index 7bb421135..5de2dd0b5 100644
+--- a/arm/p521/bignum_optneg_p521.S
++++ b/arm/p521/bignum_optneg_p521.S
+@@ -26,6 +26,7 @@
+ 
+         .globl  bignum_optneg_p521
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define p x1
+diff --git a/arm/p521/bignum_sqr_p521.S b/arm/p521/bignum_sqr_p521.S
+index 547000975..19c0be80b 100644
+--- a/arm/p521/bignum_sqr_p521.S
++++ b/arm/p521/bignum_sqr_p521.S
+@@ -24,6 +24,7 @@
+ 
+         .globl  bignum_sqr_p521
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p521/bignum_sub_p521.S b/arm/p521/bignum_sub_p521.S
+index dcef31867..8354775ca 100644
+--- a/arm/p521/bignum_sub_p521.S
++++ b/arm/p521/bignum_sub_p521.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_sub_p521
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1
+diff --git a/arm/p521/bignum_triple_p521.S b/arm/p521/bignum_triple_p521.S
+index e5cf122a9..77bc5860c 100644
+--- a/arm/p521/bignum_triple_p521.S
++++ b/arm/p521/bignum_triple_p521.S
+@@ -25,6 +25,7 @@
+ 
+         .globl  bignum_triple_p521
+         .text
++        .balign 4
+ 
+ #define z x0
+ #define x x1

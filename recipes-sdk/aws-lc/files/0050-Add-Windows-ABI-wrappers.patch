@@ -1,0 +1,2186 @@
+From 707435bd08db3aaebe22b25a08b353f041ac4538 Mon Sep 17 00:00:00 2001
+From: John Harrison <jargh@amazon.com>
+Date: Wed, 30 Mar 2022 17:44:08 -0700
+Subject: [PATCH] Add Windows ABI wrappers
+
+The x86 ABI on Windows differs from the "standard" one used on Linux,
+Mac OS etc. For our purposes the relevant differences are that RDI and
+RSI are callee-saved (need to be preserved if modified), and that the
+input arguments are in different places. Integer return values are
+still in RAX. Here are the conventions for the first 6 integer
+arguments (the maximum that s2n-bignum functions rely on so far):
+
+   Argument number       Standard        Windows
+
+          1                RDI            RCX
+          2                RSI            RDX
+          3                RDX             R8
+          4                RCX             R9
+          5                 R8           [RSP+40]
+          6                 R9           [RSP+48]
+
+Here we add a wrapper round each s2n-bignum function that optionally
+(controlled by the WINDOWS_ABI variable in preprocessing) makes the
+function compatible with the Windows ABI. This is done in a simplistic
+way simply by pushing the extra callee-saved registers (RSI and RDI),
+shuffling arguments (only the ones actually used by that function),
+performing the same computation in exactly the original way, and
+finally popping back the extra registers.
+
+The Makefile currently selects this WINDOWS_ABI mode when `uname -s`
+gives "CYGWIN_NT-10.0", as on the main test platform, but this can be
+configured.
+
+s2n-bignum original commit: https://github.com/awslabs/s2n-bignum/commit/8ac40107b3ac9b57a1027a07a6bac5065be6b81e
+---
+ x86_att/p384/bignum_add_p384.S         | 13 +++++++++++++
+ x86_att/p384/bignum_bigendian_6.S      | 12 ++++++++++++
+ x86_att/p384/bignum_cmul_p384.S        | 13 +++++++++++++
+ x86_att/p384/bignum_cmul_p384_alt.S    | 13 +++++++++++++
+ x86_att/p384/bignum_deamont_p384.S     | 12 ++++++++++++
+ x86_att/p384/bignum_deamont_p384_alt.S | 12 ++++++++++++
+ x86_att/p384/bignum_demont_p384.S      | 12 ++++++++++++
+ x86_att/p384/bignum_demont_p384_alt.S  | 12 ++++++++++++
+ x86_att/p384/bignum_double_p384.S      | 12 ++++++++++++
+ x86_att/p384/bignum_half_p384.S        | 12 ++++++++++++
+ x86_att/p384/bignum_littleendian_6.S   | 12 ++++++++++++
+ x86_att/p384/bignum_mod_n384.S         | 13 +++++++++++++
+ x86_att/p384/bignum_mod_n384_6.S       | 12 ++++++++++++
+ x86_att/p384/bignum_mod_n384_alt.S     | 13 +++++++++++++
+ x86_att/p384/bignum_mod_p384.S         | 13 +++++++++++++
+ x86_att/p384/bignum_mod_p384_6.S       | 12 ++++++++++++
+ x86_att/p384/bignum_mod_p384_alt.S     | 13 +++++++++++++
+ x86_att/p384/bignum_montmul_p384.S     | 13 +++++++++++++
+ x86_att/p384/bignum_montmul_p384_alt.S | 13 +++++++++++++
+ x86_att/p384/bignum_montsqr_p384.S     | 12 ++++++++++++
+ x86_att/p384/bignum_montsqr_p384_alt.S | 12 ++++++++++++
+ x86_att/p384/bignum_mux_6.S            | 14 ++++++++++++++
+ x86_att/p384/bignum_neg_p384.S         | 12 ++++++++++++
+ x86_att/p384/bignum_nonzero_6.S        | 11 +++++++++++
+ x86_att/p384/bignum_optneg_p384.S      | 13 +++++++++++++
+ x86_att/p384/bignum_sub_p384.S         | 13 +++++++++++++
+ x86_att/p384/bignum_tomont_p384.S      | 12 ++++++++++++
+ x86_att/p384/bignum_tomont_p384_alt.S  | 12 ++++++++++++
+ x86_att/p384/bignum_triple_p384.S      | 12 ++++++++++++
+ x86_att/p384/bignum_triple_p384_alt.S  | 12 ++++++++++++
+ x86_att/p521/bignum_add_p521.S         | 13 +++++++++++++
+ x86_att/p521/bignum_cmul_p521.S        | 13 +++++++++++++
+ x86_att/p521/bignum_cmul_p521_alt.S    | 13 +++++++++++++
+ x86_att/p521/bignum_deamont_p521.S     | 12 ++++++++++++
+ x86_att/p521/bignum_demont_p521.S      | 12 ++++++++++++
+ x86_att/p521/bignum_double_p521.S      | 12 ++++++++++++
+ x86_att/p521/bignum_fromlebytes_p521.S | 12 ++++++++++++
+ x86_att/p521/bignum_half_p521.S        | 12 ++++++++++++
+ x86_att/p521/bignum_mod_n521_9.S       | 12 ++++++++++++
+ x86_att/p521/bignum_mod_n521_9_alt.S   | 12 ++++++++++++
+ x86_att/p521/bignum_mod_p521_9.S       | 12 ++++++++++++
+ x86_att/p521/bignum_montmul_p521.S     | 13 +++++++++++++
+ x86_att/p521/bignum_montmul_p521_alt.S | 13 +++++++++++++
+ x86_att/p521/bignum_montsqr_p521.S     | 12 ++++++++++++
+ x86_att/p521/bignum_montsqr_p521_alt.S | 12 ++++++++++++
+ x86_att/p521/bignum_mul_p521.S         | 13 +++++++++++++
+ x86_att/p521/bignum_mul_p521_alt.S     | 13 +++++++++++++
+ x86_att/p521/bignum_neg_p521.S         | 12 ++++++++++++
+ x86_att/p521/bignum_optneg_p521.S      | 13 +++++++++++++
+ x86_att/p521/bignum_sqr_p521.S         | 12 ++++++++++++
+ x86_att/p521/bignum_sqr_p521_alt.S     | 12 ++++++++++++
+ x86_att/p521/bignum_sub_p521.S         | 13 +++++++++++++
+ x86_att/p521/bignum_tolebytes_p521.S   | 12 ++++++++++++
+ x86_att/p521/bignum_tomont_p521.S      | 12 ++++++++++++
+ x86_att/p521/bignum_triple_p521.S      | 12 ++++++++++++
+ x86_att/p521/bignum_triple_p521_alt.S  | 12 ++++++++++++
+ 56 files changed, 693 insertions(+)
+
+diff --git a/x86_att/p384/bignum_add_p384.S b/x86_att/p384/bignum_add_p384.S
+index 33f7f4532..82f513c70 100644
+--- a/x86_att/p384/bignum_add_p384.S
++++ b/x86_att/p384/bignum_add_p384.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 6], uint64_t x[static 6], uint64_t y[static 6]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
++// Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -52,6 +53,14 @@
+ bignum_add_p384:
+ _bignum_add_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Add the inputs as 2^384 * c + [d5;d4;d3;d2;d1;d0] = x + y
+ // This could be combined with the next block using ADCX and ADOX.
+ 
+@@ -119,6 +128,10 @@ _bignum_add_p384:
+         sbbq    $0, d5
+         movq    d5, 40(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_bigendian_6.S b/x86_att/p384/bignum_bigendian_6.S
+index 268ed5b90..7286fec58 100644
+--- a/x86_att/p384/bignum_bigendian_6.S
++++ b/x86_att/p384/bignum_bigendian_6.S
+@@ -33,6 +33,7 @@
+ // word order, this is simply byte reversal and is implemented as such.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -62,6 +63,13 @@ _bignum_frombebytes_6:
+ bignum_tobebytes_6:
+ _bignum_tobebytes_6:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // 0 and 5 words
+ 
+         movq    (x), a
+@@ -89,6 +97,10 @@ _bignum_tobebytes_6:
+         movq    a, 24(z)
+         movq    b, 16(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_cmul_p384.S b/x86_att/p384/bignum_cmul_p384.S
+index 13a7c0085..97618b19b 100644
+--- a/x86_att/p384/bignum_cmul_p384.S
++++ b/x86_att/p384/bignum_cmul_p384.S
+@@ -22,6 +22,7 @@
+ //     (uint64_t z[static 6], uint64_t c, uint64_t x[static 6]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = c, RDX = x
++// Microsoft x64 ABI:   RCX = z, RDX = c, R8 = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -56,6 +57,14 @@
+ bignum_cmul_p384:
+ _bignum_cmul_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // We seem to need (just!) one extra register, which we need to save and restore
+ 
+         pushq   %r12
+@@ -141,6 +150,10 @@ _bignum_cmul_p384:
+ // Return
+ 
+         popq    %r12
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_cmul_p384_alt.S b/x86_att/p384/bignum_cmul_p384_alt.S
+index 8dd8d7606..93a54b5d6 100644
+--- a/x86_att/p384/bignum_cmul_p384_alt.S
++++ b/x86_att/p384/bignum_cmul_p384_alt.S
+@@ -22,6 +22,7 @@
+ //     (uint64_t z[static 6], uint64_t c, uint64_t x[static 6]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = c, RDX = x
++// Microsoft x64 ABI:   RCX = z, RDX = c, R8 = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -60,6 +61,14 @@
+ bignum_cmul_p384_alt:
+ _bignum_cmul_p384_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // We seem to need (just!) one extra register, which we need to save and restore
+ 
+         pushq   %r12
+@@ -166,6 +175,10 @@ _bignum_cmul_p384_alt:
+ // Return
+ 
+         popq    %r12
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_deamont_p384.S b/x86_att/p384/bignum_deamont_p384.S
+index 733be9a48..18a29f321 100644
+--- a/x86_att/p384/bignum_deamont_p384.S
++++ b/x86_att/p384/bignum_deamont_p384.S
+@@ -24,6 +24,7 @@
+ // "almost" meaning any 6-digit input will work, with no range restriction.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -82,6 +83,13 @@
+ bignum_deamont_p384:
+ _bignum_deamont_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Save more registers to play with
+ 
+         pushq   %r12
+@@ -171,6 +179,10 @@ _bignum_deamont_p384:
+         popq    %r13
+         popq    %r12
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_deamont_p384_alt.S b/x86_att/p384/bignum_deamont_p384_alt.S
+index 6c5a606d1..ca2d56e10 100644
+--- a/x86_att/p384/bignum_deamont_p384_alt.S
++++ b/x86_att/p384/bignum_deamont_p384_alt.S
+@@ -24,6 +24,7 @@
+ // "almost" meaning any 6-digit input will work, with no range restriction.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -82,6 +83,13 @@
+ bignum_deamont_p384_alt:
+ _bignum_deamont_p384_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Save more registers to play with
+ 
+         pushq   %r12
+@@ -171,6 +179,10 @@ _bignum_deamont_p384_alt:
+         popq    %r13
+         popq    %r12
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_demont_p384.S b/x86_att/p384/bignum_demont_p384.S
+index 059993b8b..004041fe1 100644
+--- a/x86_att/p384/bignum_demont_p384.S
++++ b/x86_att/p384/bignum_demont_p384.S
+@@ -24,6 +24,7 @@
+ // use the variant "bignum_deamont_p384" instead.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -74,6 +75,13 @@
+ bignum_demont_p384:
+ _bignum_demont_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Save more registers to play with
+ 
+         pushq   %r12
+@@ -126,6 +134,10 @@ _bignum_demont_p384:
+         popq    %r13
+         popq    %r12
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_demont_p384_alt.S b/x86_att/p384/bignum_demont_p384_alt.S
+index 1ca60c55d..49997c920 100644
+--- a/x86_att/p384/bignum_demont_p384_alt.S
++++ b/x86_att/p384/bignum_demont_p384_alt.S
+@@ -24,6 +24,7 @@
+ // use the variant "bignum_deamont_p384" instead.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -74,6 +75,13 @@
+ bignum_demont_p384_alt:
+ _bignum_demont_p384_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Save more registers to play with
+ 
+         pushq   %r12
+@@ -126,6 +134,10 @@ _bignum_demont_p384_alt:
+         popq    %r13
+         popq    %r12
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_double_p384.S b/x86_att/p384/bignum_double_p384.S
+index dcc0a7262..20b47c5c0 100644
+--- a/x86_att/p384/bignum_double_p384.S
++++ b/x86_att/p384/bignum_double_p384.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 6], uint64_t x[static 6]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -50,6 +51,13 @@
+ bignum_double_p384:
+ _bignum_double_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Load the input and double it so that 2^384 * c + [d5;d4;d3;d2;d1;d0] = 2 * x
+ // Could also consider using shld to decouple carries *or* combining this
+ // and the next block into a double carry chain with ADCX and ADOX.
+@@ -118,6 +126,10 @@ _bignum_double_p384:
+         sbbq    $0, d5
+         movq    d5, 40(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_half_p384.S b/x86_att/p384/bignum_half_p384.S
+index 5b58e3f53..d7020baf0 100644
+--- a/x86_att/p384/bignum_half_p384.S
++++ b/x86_att/p384/bignum_half_p384.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 6], uint64_t x[static 6]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -47,6 +48,13 @@
+ bignum_half_p384:
+ _bignum_half_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Load lowest digit and get a mask for its lowest bit in d3
+ 
+         movq    (x), a
+@@ -94,6 +102,10 @@ _bignum_half_p384:
+ 
+ // Return
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_littleendian_6.S b/x86_att/p384/bignum_littleendian_6.S
+index 314167a7e..a62797d10 100644
+--- a/x86_att/p384/bignum_littleendian_6.S
++++ b/x86_att/p384/bignum_littleendian_6.S
+@@ -32,6 +32,7 @@
+ // Since x86 is little-endian, this is just copying.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -54,6 +55,13 @@ _bignum_fromlebytes_6:
+ bignum_tolebytes_6:
+ _bignum_tolebytes_6:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+         movq    (x), a
+         movq    a, (z)
+ 
+@@ -72,6 +80,10 @@ _bignum_tolebytes_6:
+         movq    40(x), a
+         movq    a, 40(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_mod_n384.S b/x86_att/p384/bignum_mod_n384.S
+index 1d50e536e..50675e9d2 100644
+--- a/x86_att/p384/bignum_mod_n384.S
++++ b/x86_att/p384/bignum_mod_n384.S
+@@ -23,6 +23,7 @@
+ // Reduction is modulo the group order of the NIST curve P-384.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = k, RDX = x
++// Microsoft x64 ABI:   RCX = z, RDX = k, R8 = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -54,6 +55,14 @@
+ bignum_mod_n384:
+ _bignum_mod_n384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Save extra registers
+ 
+         pushq   %rbx
+@@ -191,6 +200,10 @@ writeback:
+         popq    %r13
+         popq    %r12
+         popq    %rbx
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ shortinput:
+diff --git a/x86_att/p384/bignum_mod_n384_6.S b/x86_att/p384/bignum_mod_n384_6.S
+index b866e7040..4a0a4ac56 100644
+--- a/x86_att/p384/bignum_mod_n384_6.S
++++ b/x86_att/p384/bignum_mod_n384_6.S
+@@ -23,6 +23,7 @@
+ // Reduction is modulo the group order of the NIST curve P-384.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -51,6 +52,13 @@
+ bignum_mod_n384_6:
+ _bignum_mod_n384_6:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Load the input and compute x + (2^384 - n_384)
+ 
+         movq    $0x1313e695333ad68d, a
+@@ -106,6 +114,10 @@ _bignum_mod_n384_6:
+         sbbq    $0, d5
+         movq    d5, 40(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_mod_n384_alt.S b/x86_att/p384/bignum_mod_n384_alt.S
+index bdce0a092..6d2dc2b7f 100644
+--- a/x86_att/p384/bignum_mod_n384_alt.S
++++ b/x86_att/p384/bignum_mod_n384_alt.S
+@@ -23,6 +23,7 @@
+ // Reduction is modulo the group order of the NIST curve P-384.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = k, RDX = x
++// Microsoft x64 ABI:   RCX = z, RDX = k, R8 = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -55,6 +56,14 @@
+ bignum_mod_n384_alt:
+ _bignum_mod_n384_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Save extra registers
+ 
+         pushq   %rbp
+@@ -195,6 +204,10 @@ writeback:
+         popq    %r12
+         popq    %rbx
+         popq    %rbp
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ shortinput:
+diff --git a/x86_att/p384/bignum_mod_p384.S b/x86_att/p384/bignum_mod_p384.S
+index 7f3de8c07..c82561d6a 100644
+--- a/x86_att/p384/bignum_mod_p384.S
++++ b/x86_att/p384/bignum_mod_p384.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 6], uint64_t k, uint64_t *x);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = k, RDX = x
++// Microsoft x64 ABI:   RCX = z, RDX = k, R8 = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -53,6 +54,14 @@
+ bignum_mod_p384:
+ _bignum_mod_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Save extra registers
+ 
+         pushq   %rbx
+@@ -190,6 +199,10 @@ writeback:
+         popq    %r13
+         popq    %r12
+         popq    %rbx
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ shortinput:
+diff --git a/x86_att/p384/bignum_mod_p384_6.S b/x86_att/p384/bignum_mod_p384_6.S
+index c275e83f9..bbd12524a 100644
+--- a/x86_att/p384/bignum_mod_p384_6.S
++++ b/x86_att/p384/bignum_mod_p384_6.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 6], uint64_t x[static 6]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -50,6 +51,13 @@
+ bignum_mod_p384_6:
+ _bignum_mod_p384_6:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Load the input and subtract p_384 from it
+ 
+         movq    (x), d0
+@@ -104,6 +112,10 @@ _bignum_mod_p384_6:
+         sbbq    $0, d5
+         movq    d5, 40(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_mod_p384_alt.S b/x86_att/p384/bignum_mod_p384_alt.S
+index a4ef191f4..69ee47432 100644
+--- a/x86_att/p384/bignum_mod_p384_alt.S
++++ b/x86_att/p384/bignum_mod_p384_alt.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 6], uint64_t k, uint64_t *x);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = k, RDX = x
++// Microsoft x64 ABI:   RCX = z, RDX = k, R8 = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -57,6 +58,14 @@
+ bignum_mod_p384_alt:
+ _bignum_mod_p384_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Save extra registers
+ 
+         pushq   %rbx
+@@ -194,6 +203,10 @@ writeback:
+         popq    %r13
+         popq    %r12
+         popq    %rbx
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ shortinput:
+diff --git a/x86_att/p384/bignum_montmul_p384.S b/x86_att/p384/bignum_montmul_p384.S
+index e6b8ba559..160c29343 100644
+--- a/x86_att/p384/bignum_montmul_p384.S
++++ b/x86_att/p384/bignum_montmul_p384.S
+@@ -25,6 +25,7 @@
+ // the "usual" case x < p_384 and y < p_384).
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
++// Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // -----------------------------------------------------------------------------
+ 
+ 
+@@ -97,6 +98,14 @@
+ bignum_montmul_p384:
+ _bignum_montmul_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Save more registers to play with
+ 
+         pushq   %rbx
+@@ -276,6 +285,10 @@ _bignum_montmul_p384:
+         popq    %rbp
+         popq    %rbx
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_montmul_p384_alt.S b/x86_att/p384/bignum_montmul_p384_alt.S
+index b68426523..3d24dc4cc 100644
+--- a/x86_att/p384/bignum_montmul_p384_alt.S
++++ b/x86_att/p384/bignum_montmul_p384_alt.S
+@@ -25,6 +25,7 @@
+ // the "usual" case x < p_384 and y < p_384).
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
++// Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // -----------------------------------------------------------------------------
+ 
+ 
+@@ -119,6 +120,14 @@
+ bignum_montmul_p384_alt:
+ _bignum_montmul_p384_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Save more registers to play with
+ 
+         pushq   %rbx
+@@ -301,6 +310,10 @@ _bignum_montmul_p384_alt:
+         popq    %rbp
+         popq    %rbx
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_montsqr_p384.S b/x86_att/p384/bignum_montsqr_p384.S
+index 2e3d96459..bd0517b91 100644
+--- a/x86_att/p384/bignum_montsqr_p384.S
++++ b/x86_att/p384/bignum_montsqr_p384.S
+@@ -24,6 +24,7 @@
+ // guaranteed in particular if x < p_384 initially (the "intended" case).
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -94,6 +95,13 @@
+ bignum_montsqr_p384:
+ _bignum_montsqr_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Save more registers to play with
+ 
+         pushq   %rbx
+@@ -281,6 +289,10 @@ _bignum_montsqr_p384:
+         popq    %r12
+         popq    %rbp
+         popq    %rbx
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_montsqr_p384_alt.S b/x86_att/p384/bignum_montsqr_p384_alt.S
+index 3a3f9a271..558883553 100644
+--- a/x86_att/p384/bignum_montsqr_p384_alt.S
++++ b/x86_att/p384/bignum_montsqr_p384_alt.S
+@@ -24,6 +24,7 @@
+ // guaranteed in particular if x < p_384 initially (the "intended" case).
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -116,6 +117,13 @@
+ bignum_montsqr_p384_alt:
+ _bignum_montsqr_p384_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Save more registers to play with
+ 
+         pushq   %rbx
+@@ -326,6 +334,10 @@ _bignum_montsqr_p384_alt:
+         popq    %r12
+         popq    %rbp
+         popq    %rbx
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_mux_6.S b/x86_att/p384/bignum_mux_6.S
+index cc484bf9b..92f222c08 100644
+--- a/x86_att/p384/bignum_mux_6.S
++++ b/x86_att/p384/bignum_mux_6.S
+@@ -24,6 +24,7 @@
+ // It is assumed that all numbers x, y and z have the same size 6 digits.
+ //
+ // Standard x86-64 ABI: RDI = p, RSI = z, RDX = x, RCX = y
++// Microsoft x64 ABI:   RCX = p, RDX = z, R8 = x, R9 = y
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -41,6 +42,15 @@
+ 
+ bignum_mux_6:
+ _bignum_mux_6:
++
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++        movq    %r9, %rcx
++#endif
+         testq   p, p
+ 
+         movq    (x), a
+@@ -73,6 +83,10 @@ _bignum_mux_6:
+         cmovzq  b, a
+         movq    a, 40(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_neg_p384.S b/x86_att/p384/bignum_neg_p384.S
+index 5a6c62ea5..42094e3bc 100644
+--- a/x86_att/p384/bignum_neg_p384.S
++++ b/x86_att/p384/bignum_neg_p384.S
+@@ -20,6 +20,7 @@
+ //    extern void bignum_neg_p384 (uint64_t z[static 6], uint64_t x[static 6]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -42,6 +43,13 @@
+ bignum_neg_p384:
+ _bignum_neg_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Or together the input digits and create a bitmask q if this is nonzero, so
+ // that we avoid doing -0 = p_384 and hence maintain strict modular reduction
+ 
+@@ -85,6 +93,10 @@ _bignum_neg_p384:
+         movq    n4, 32(z)
+         movq    q, 40(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_nonzero_6.S b/x86_att/p384/bignum_nonzero_6.S
+index 585aa1e58..f75b3ebec 100644
+--- a/x86_att/p384/bignum_nonzero_6.S
++++ b/x86_att/p384/bignum_nonzero_6.S
+@@ -20,6 +20,7 @@
+ //    extern uint64_t bignum_nonzero_6(uint64_t x[static 6]);
+ //
+ // Standard x86-64 ABI: RDI = x, returns RAX
++// Microsoft x64 ABI:   RCX = x, returns RAX
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -37,6 +38,12 @@
+ bignum_nonzero_6:
+ _bignum_nonzero_6:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++#endif
++
+ // Generate a = an OR of all the words in the bignum
+ 
+         movq    (x), a
+@@ -52,6 +59,10 @@ _bignum_nonzero_6:
+         movl    $1, dshort
+         cmovnzq d, a
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_optneg_p384.S b/x86_att/p384/bignum_optneg_p384.S
+index f14f8dc68..1b20bb52e 100644
+--- a/x86_att/p384/bignum_optneg_p384.S
++++ b/x86_att/p384/bignum_optneg_p384.S
+@@ -22,6 +22,7 @@
+ //      (uint64_t z[static 6], uint64_t p, uint64_t x[static 6]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = p, RDX = x
++// Microsoft x64 ABI:   RCX = z, RDX = p, R8 = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -45,6 +46,14 @@
+ bignum_optneg_p384:
+ _bignum_optneg_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Adjust q by zeroing it if the input is zero (to avoid giving -0 = p_384,
+ // which is not strictly reduced even though it's correct modulo p_384).
+ // This step is redundant if we know a priori that the input is nonzero, which
+@@ -106,6 +115,10 @@ _bignum_optneg_p384:
+         xorq    q, n5
+         movq    n5, 40(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_sub_p384.S b/x86_att/p384/bignum_sub_p384.S
+index 36322ed9d..2738c1b44 100644
+--- a/x86_att/p384/bignum_sub_p384.S
++++ b/x86_att/p384/bignum_sub_p384.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 6], uint64_t x[static 6], uint64_t y[static 6]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
++// Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -51,6 +52,14 @@
+ bignum_sub_p384:
+ _bignum_sub_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Subtract the inputs as [d5;d4;d3;d2;d1;d0] = x - y (modulo 2^384)
+ // Capture the top carry as a bitmask for the condition x < y
+ 
+@@ -103,6 +112,10 @@ _bignum_sub_p384:
+         sbbq    $0, d5
+         movq    d5, 40(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_tomont_p384.S b/x86_att/p384/bignum_tomont_p384.S
+index 85105e466..03e2ca53e 100644
+--- a/x86_att/p384/bignum_tomont_p384.S
++++ b/x86_att/p384/bignum_tomont_p384.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 6], uint64_t x[static 6]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -96,6 +97,13 @@
+ bignum_tomont_p384:
+ _bignum_tomont_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // We are essentially just doing a Montgomery multiplication of x and the
+ // precomputed constant y = 2^768 mod p, so the code is almost the same
+ // modulo a few registers and the change from loading y[i] to using constants,
+@@ -282,6 +290,10 @@ _bignum_tomont_p384:
+         popq    %r12
+         popq    %rbp
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_tomont_p384_alt.S b/x86_att/p384/bignum_tomont_p384_alt.S
+index 6686e7804..5eab13d19 100644
+--- a/x86_att/p384/bignum_tomont_p384_alt.S
++++ b/x86_att/p384/bignum_tomont_p384_alt.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 6], uint64_t x[static 6]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -114,6 +115,13 @@
+ bignum_tomont_p384_alt:
+ _bignum_tomont_p384_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // We are essentially just doing a Montgomery multiplication of x and the
+ // precomputed constant y = 2^768 mod p, so the code is almost the same
+ // modulo a few registers and the change from loading y[i] to using constants,
+@@ -311,6 +319,10 @@ _bignum_tomont_p384_alt:
+         popq    %r12
+         popq    %rbx
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_triple_p384.S b/x86_att/p384/bignum_triple_p384.S
+index 05464aa71..237f10b92 100644
+--- a/x86_att/p384/bignum_triple_p384.S
++++ b/x86_att/p384/bignum_triple_p384.S
+@@ -24,6 +24,7 @@
+ // and the result is always fully reduced, i.e. z = (3 * x) mod p_384.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -51,6 +52,13 @@
+ bignum_triple_p384:
+ _bignum_triple_p384:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // We seem to need (just!) one extra register, which we need to save and restore
+ 
+         pushq   %rbx
+@@ -136,6 +144,10 @@ _bignum_triple_p384:
+ // Return
+ 
+         popq    %rbx
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p384/bignum_triple_p384_alt.S b/x86_att/p384/bignum_triple_p384_alt.S
+index 9fb4a9df0..7ae907863 100644
+--- a/x86_att/p384/bignum_triple_p384_alt.S
++++ b/x86_att/p384/bignum_triple_p384_alt.S
+@@ -24,6 +24,7 @@
+ // and the result is always fully reduced, i.e. z = (3 * x) mod p_384.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -54,6 +55,13 @@
+ bignum_triple_p384_alt:
+ _bignum_triple_p384_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // We seem to need (just!) one extra register, which we need to save and restore
+ 
+         pushq   %rbx
+@@ -146,6 +154,10 @@ _bignum_triple_p384_alt:
+ // Return
+ 
+         popq    %rbx
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_add_p521.S b/x86_att/p521/bignum_add_p521.S
+index 71913b810..34ad429c7 100644
+--- a/x86_att/p521/bignum_add_p521.S
++++ b/x86_att/p521/bignum_add_p521.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 9], uint64_t x[static 9], uint64_t y[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
++// Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -51,6 +52,14 @@
+ bignum_add_p521:
+ _bignum_add_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Save more registers to play with
+ 
+         pushq   %rbx
+@@ -116,6 +125,10 @@ _bignum_add_p521:
+         popq    %r12
+         popq    %rbx
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_cmul_p521.S b/x86_att/p521/bignum_cmul_p521.S
+index 04601fe68..d4381c99b 100644
+--- a/x86_att/p521/bignum_cmul_p521.S
++++ b/x86_att/p521/bignum_cmul_p521.S
+@@ -22,6 +22,7 @@
+ //     (uint64_t z[static 9], uint64_t c, uint64_t x[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = c, RDX = x
++// Microsoft x64 ABI:   RCX = z, RDX = c, R8 = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -63,6 +64,14 @@
+ bignum_cmul_p521:
+ _bignum_cmul_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Save additional registers to use
+ 
+         pushq   %rbx
+@@ -162,6 +171,10 @@ _bignum_cmul_p521:
+         popq    %rbp
+         popq    %rbx
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_cmul_p521_alt.S b/x86_att/p521/bignum_cmul_p521_alt.S
+index 8dc1b72f4..8dec8879a 100644
+--- a/x86_att/p521/bignum_cmul_p521_alt.S
++++ b/x86_att/p521/bignum_cmul_p521_alt.S
+@@ -22,6 +22,7 @@
+ //     (uint64_t z[static 9], uint64_t c, uint64_t x[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = c, RDX = x
++// Microsoft x64 ABI:   RCX = z, RDX = c, R8 = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -67,6 +68,14 @@
+ bignum_cmul_p521_alt:
+ _bignum_cmul_p521_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Save additional registers to use
+ 
+         pushq   %rbx
+@@ -196,6 +205,10 @@ _bignum_cmul_p521_alt:
+         popq    %rbp
+         popq    %rbx
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_deamont_p521.S b/x86_att/p521/bignum_deamont_p521.S
+index 762a8472e..2543c0ec8 100644
+--- a/x86_att/p521/bignum_deamont_p521.S
++++ b/x86_att/p521/bignum_deamont_p521.S
+@@ -24,6 +24,7 @@
+ // "almost" meaning any 9-digit input will work, with no range restriction.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -51,6 +52,13 @@
+ bignum_deamont_p521:
+ _bignum_deamont_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Save more registers to play with
+ 
+         pushq   %rbx
+@@ -134,6 +142,10 @@ _bignum_deamont_p521:
+         popq    %r12
+         popq    %rbx
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_demont_p521.S b/x86_att/p521/bignum_demont_p521.S
+index 29e699f04..f38cea219 100644
+--- a/x86_att/p521/bignum_demont_p521.S
++++ b/x86_att/p521/bignum_demont_p521.S
+@@ -24,6 +24,7 @@
+ // use the variant "bignum_deamont_p521" instead.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -51,6 +52,13 @@
+ bignum_demont_p521:
+ _bignum_demont_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Rotate, as a 521-bit quantity, by 9*64 - 521 = 55 bits right.
+ 
+         movq    (x), d0
+@@ -83,6 +91,10 @@ _bignum_demont_p521:
+         movq    d7, 56(z)
+         shrq    $55, d8
+         movq    d8, 64(z)
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_double_p521.S b/x86_att/p521/bignum_double_p521.S
+index b14740185..33b29f8ec 100644
+--- a/x86_att/p521/bignum_double_p521.S
++++ b/x86_att/p521/bignum_double_p521.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 9], uint64_t x[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -39,6 +40,13 @@
+ bignum_double_p521:
+ _bignum_double_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // We can decide whether 2 * x >= p_521 just by 2 * x >= 2^521, which
+ // as we assume x < p_521 amounts to looking at bit 8 of the top word
+ 
+@@ -85,6 +93,10 @@ _bignum_double_p521:
+         andq    $0x1FF, c
+         movq    c, 64(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_fromlebytes_p521.S b/x86_att/p521/bignum_fromlebytes_p521.S
+index 4da552b09..0fdc34ae0 100644
+--- a/x86_att/p521/bignum_fromlebytes_p521.S
++++ b/x86_att/p521/bignum_fromlebytes_p521.S
+@@ -25,6 +25,7 @@
+ // Since x86 is little-endian, this is just copying.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -39,6 +40,13 @@
+ bignum_fromlebytes_p521:
+ _bignum_fromlebytes_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+         movq    (x), a
+         movq    a, (z)
+ 
+@@ -67,6 +75,10 @@ _bignum_fromlebytes_p521:
+         movw    64(x), %ax
+         movq    a, 64(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_half_p521.S b/x86_att/p521/bignum_half_p521.S
+index 84b244a23..5550ba54d 100644
+--- a/x86_att/p521/bignum_half_p521.S
++++ b/x86_att/p521/bignum_half_p521.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 9], uint64_t x[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -50,6 +51,13 @@
+ bignum_half_p521:
+ _bignum_half_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // We do a 521-bit rotation one bit right, since 2^521 == 1 (mod p_521)
+ 
+         movq    (x), d0
+@@ -94,6 +102,10 @@ _bignum_half_p521:
+ 
+ // Return
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_mod_n521_9.S b/x86_att/p521/bignum_mod_n521_9.S
+index e0a6af161..eb21672ef 100644
+--- a/x86_att/p521/bignum_mod_n521_9.S
++++ b/x86_att/p521/bignum_mod_n521_9.S
+@@ -23,6 +23,7 @@
+ // Reduction is modulo the group order of the NIST curve P-521.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -51,6 +52,13 @@
+ bignum_mod_n521_9:
+ _bignum_mod_n521_9:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Load the top digit, putting a bit-stuffed version in output buffer.
+ // The initial quotient estimate is q = h + 1 where x = 2^521 * h + t
+ // The last add also clears the CF and OF flags ready for the carry chain.
+@@ -139,6 +147,10 @@ _bignum_mod_n521_9:
+         andl    $0x1FF, cshort
+         movq    c, 64(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_mod_n521_9_alt.S b/x86_att/p521/bignum_mod_n521_9_alt.S
+index ebf7476c6..2251304d9 100644
+--- a/x86_att/p521/bignum_mod_n521_9_alt.S
++++ b/x86_att/p521/bignum_mod_n521_9_alt.S
+@@ -23,6 +23,7 @@
+ // Reduction is modulo the group order of the NIST curve P-521.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -51,6 +52,13 @@
+ bignum_mod_n521_9_alt:
+ _bignum_mod_n521_9_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Load the top digit, putting a bit-stuffed version in output buffer.
+ // The initial quotient estimate is q = h + 1 where x = 2^521 * h + t
+ // The last add also clears the CF and OF flags ready for the carry chain.
+@@ -148,6 +156,10 @@ _bignum_mod_n521_9_alt:
+         andl    $0x1FF, cshort
+         movq    c, 64(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_mod_p521_9.S b/x86_att/p521/bignum_mod_p521_9.S
+index 07deac20e..cb808d914 100644
+--- a/x86_att/p521/bignum_mod_p521_9.S
++++ b/x86_att/p521/bignum_mod_p521_9.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 9], uint64_t x[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -50,6 +51,13 @@
+ bignum_mod_p521_9:
+ _bignum_mod_p521_9:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Save one more register
+ 
+         pushq   %rbx
+@@ -111,6 +119,10 @@ _bignum_mod_p521_9:
+ // Restore register
+ 
+         popq    %rbx
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_montmul_p521.S b/x86_att/p521/bignum_montmul_p521.S
+index 98eb07693..377a6514e 100644
+--- a/x86_att/p521/bignum_montmul_p521.S
++++ b/x86_att/p521/bignum_montmul_p521.S
+@@ -26,6 +26,7 @@
+ // can be considered a Montgomery operation to base 2^521.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
++// Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -52,6 +53,14 @@
+ bignum_montmul_p521:
+ _bignum_montmul_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Save more registers to play with and make temporary space on stack
+ 
+         pushq   %rbp
+@@ -403,6 +412,10 @@ _bignum_montmul_p521:
+         popq    %rbx
+         popq    %rbp
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_montmul_p521_alt.S b/x86_att/p521/bignum_montmul_p521_alt.S
+index 21a9995e0..97dbf57d4 100644
+--- a/x86_att/p521/bignum_montmul_p521_alt.S
++++ b/x86_att/p521/bignum_montmul_p521_alt.S
+@@ -26,6 +26,7 @@
+ // can be considered a Montgomery operation to base 2^521.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
++// Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -69,6 +70,14 @@
+ bignum_montmul_p521_alt:
+ _bignum_montmul_p521_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Make more registers available and make temporary space on stack
+ 
+         pushq   %r12
+@@ -333,6 +342,10 @@ _bignum_montmul_p521_alt:
+         popq    %r14
+         popq    %r13
+         popq    %r12
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_montsqr_p521.S b/x86_att/p521/bignum_montsqr_p521.S
+index 2ef12343d..8b5cc46d0 100644
+--- a/x86_att/p521/bignum_montsqr_p521.S
++++ b/x86_att/p521/bignum_montsqr_p521.S
+@@ -26,6 +26,7 @@
+ // considered a Montgomery operation to base 2^521.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -63,6 +64,13 @@
+ bignum_montsqr_p521:
+ _bignum_montsqr_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Save more registers to play with and make temporary space on stack
+ 
+         pushq   %rbp
+@@ -313,6 +321,10 @@ _bignum_montsqr_p521:
+         popq    %r12
+         popq    %rbp
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_montsqr_p521_alt.S b/x86_att/p521/bignum_montsqr_p521_alt.S
+index 2dbb5bb04..62b63ea61 100644
+--- a/x86_att/p521/bignum_montsqr_p521_alt.S
++++ b/x86_att/p521/bignum_montsqr_p521_alt.S
+@@ -26,6 +26,7 @@
+ // considered a Montgomery operation to base 2^521.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -98,6 +99,13 @@
+ bignum_montsqr_p521_alt:
+ _bignum_montsqr_p521_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Make more registers available and make temporary space on stack
+ 
+         pushq   %rbx
+@@ -326,6 +334,10 @@ _bignum_montsqr_p521_alt:
+         popq    %r12
+         popq    %rbx
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_mul_p521.S b/x86_att/p521/bignum_mul_p521.S
+index ec13a859e..d5656f8e4 100644
+--- a/x86_att/p521/bignum_mul_p521.S
++++ b/x86_att/p521/bignum_mul_p521.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 9], uint64_t x[static 9], uint64_t y[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
++// Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -47,6 +48,14 @@
+ bignum_mul_p521:
+ _bignum_mul_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Save more registers to play with and make temporary space on stack
+ 
+         pushq   %rbp
+@@ -380,6 +389,10 @@ _bignum_mul_p521:
+         popq    %rbx
+         popq    %rbp
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_mul_p521_alt.S b/x86_att/p521/bignum_mul_p521_alt.S
+index b6c88348c..2eee34b99 100644
+--- a/x86_att/p521/bignum_mul_p521_alt.S
++++ b/x86_att/p521/bignum_mul_p521_alt.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 9], uint64_t x[static 9], uint64_t y[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
++// Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -64,6 +65,14 @@
+ bignum_mul_p521_alt:
+ _bignum_mul_p521_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Make more registers available and make temporary space on stack
+ 
+         pushq   %r12
+@@ -310,6 +319,10 @@ _bignum_mul_p521_alt:
+         popq    %r14
+         popq    %r13
+         popq    %r12
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_neg_p521.S b/x86_att/p521/bignum_neg_p521.S
+index 5c865180b..453ce2a2d 100644
+--- a/x86_att/p521/bignum_neg_p521.S
++++ b/x86_att/p521/bignum_neg_p521.S
+@@ -20,6 +20,7 @@
+ //    extern void bignum_neg_p521 (uint64_t z[static 9], uint64_t x[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -41,6 +42,13 @@
+ bignum_neg_p521:
+ _bignum_neg_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Load most inputs (into the limited registers) and OR all of them to get p
+ 
+         movq    (x), d0
+@@ -93,6 +101,10 @@ _bignum_neg_p521:
+ 
+ // Return
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_optneg_p521.S b/x86_att/p521/bignum_optneg_p521.S
+index ebd48f5d2..1203a8e73 100644
+--- a/x86_att/p521/bignum_optneg_p521.S
++++ b/x86_att/p521/bignum_optneg_p521.S
+@@ -22,6 +22,7 @@
+ //      (uint64_t z[static 9], uint64_t p, uint64_t x[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = p, RDX = x
++// Microsoft x64 ABI:   RCX = z, RDX = p, R8 = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -43,6 +44,14 @@
+ bignum_optneg_p521:
+ _bignum_optneg_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Load most inputs (into the limited registers) and OR all of them to get q
+ 
+         movq    (x), d0
+@@ -97,6 +106,10 @@ _bignum_optneg_p521:
+ 
+ // Return
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_sqr_p521.S b/x86_att/p521/bignum_sqr_p521.S
+index 6f999d0d7..7f6bb5822 100644
+--- a/x86_att/p521/bignum_sqr_p521.S
++++ b/x86_att/p521/bignum_sqr_p521.S
+@@ -20,6 +20,7 @@
+ //    extern void bignum_sqr_p521 (uint64_t z[static 9], uint64_t x[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -57,6 +58,13 @@
+ bignum_sqr_p521:
+ _bignum_sqr_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Save more registers to play with and make temporary space on stack
+ 
+         pushq   %rbp
+@@ -289,6 +297,10 @@ _bignum_sqr_p521:
+         popq    %r12
+         popq    %rbp
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_sqr_p521_alt.S b/x86_att/p521/bignum_sqr_p521_alt.S
+index 527313b0c..03317366d 100644
+--- a/x86_att/p521/bignum_sqr_p521_alt.S
++++ b/x86_att/p521/bignum_sqr_p521_alt.S
+@@ -20,6 +20,7 @@
+ //    extern void bignum_sqr_p521_alt (uint64_t z[static 9], uint64_t x[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -92,6 +93,13 @@
+ bignum_sqr_p521_alt:
+ _bignum_sqr_p521_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Make more registers available and make temporary space on stack
+ 
+         pushq   %rbx
+@@ -301,6 +309,10 @@ _bignum_sqr_p521_alt:
+         popq    %r13
+         popq    %r12
+         popq    %rbx
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_sub_p521.S b/x86_att/p521/bignum_sub_p521.S
+index 0d587c9bb..fd68c9802 100644
+--- a/x86_att/p521/bignum_sub_p521.S
++++ b/x86_att/p521/bignum_sub_p521.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 9], uint64_t x[static 9], uint64_t y[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x, RDX = y
++// Microsoft x64 ABI:   RCX = z, RDX = x, R8 = y
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -50,6 +51,14 @@
+ bignum_sub_p521:
+ _bignum_sub_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++        movq    %r8, %rdx
++#endif
++
+ // Save more registers to play with
+ 
+         pushq   %rbx
+@@ -106,6 +115,10 @@ _bignum_sub_p521:
+         popq    %r12
+         popq    %rbx
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_tolebytes_p521.S b/x86_att/p521/bignum_tolebytes_p521.S
+index b64fc9bbe..e6f614840 100644
+--- a/x86_att/p521/bignum_tolebytes_p521.S
++++ b/x86_att/p521/bignum_tolebytes_p521.S
+@@ -25,6 +25,7 @@
+ // Since x86 is little-endian, this is just copying.
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -39,6 +40,13 @@
+ bignum_tolebytes_p521:
+ _bignum_tolebytes_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+         movq    (x), a
+         movq    a, (z)
+ 
+@@ -66,6 +74,10 @@ _bignum_tolebytes_p521:
+         movq    64(x), a
+         movw    %ax, 64(z)
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_tomont_p521.S b/x86_att/p521/bignum_tomont_p521.S
+index c6aabce85..a289dcff1 100644
+--- a/x86_att/p521/bignum_tomont_p521.S
++++ b/x86_att/p521/bignum_tomont_p521.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 9], uint64_t x[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -50,6 +51,13 @@
+ bignum_tomont_p521:
+ _bignum_tomont_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Save one more register
+ 
+         pushq   %rbx
+@@ -129,6 +137,10 @@ _bignum_tomont_p521:
+ // Restore register
+ 
+         popq    %rbx
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_triple_p521.S b/x86_att/p521/bignum_triple_p521.S
+index 0b1f397ca..47c65c978 100644
+--- a/x86_att/p521/bignum_triple_p521.S
++++ b/x86_att/p521/bignum_triple_p521.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 9], uint64_t x[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -51,6 +52,13 @@
+ bignum_triple_p521:
+ _bignum_triple_p521:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Save more registers to play with
+ 
+         pushq   %rbx
+@@ -149,6 +157,10 @@ _bignum_triple_p521:
+         popq    %r12
+         popq    %rbx
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)
+diff --git a/x86_att/p521/bignum_triple_p521_alt.S b/x86_att/p521/bignum_triple_p521_alt.S
+index 966b42408..3dfdfb50a 100644
+--- a/x86_att/p521/bignum_triple_p521_alt.S
++++ b/x86_att/p521/bignum_triple_p521_alt.S
+@@ -21,6 +21,7 @@
+ //     (uint64_t z[static 9], uint64_t x[static 9]);
+ //
+ // Standard x86-64 ABI: RDI = z, RSI = x
++// Microsoft x64 ABI:   RCX = z, RDX = x
+ // ----------------------------------------------------------------------------
+ 
+ 
+@@ -52,6 +53,13 @@
+ bignum_triple_p521_alt:
+ _bignum_triple_p521_alt:
+ 
++#if WINDOWS_ABI
++        pushq   %rdi
++        pushq   %rsi
++        movq    %rcx, %rdi
++        movq    %rdx, %rsi
++#endif
++
+ // Save additional registers to use
+ 
+         pushq   %rbx
+@@ -157,6 +165,10 @@ _bignum_triple_p521_alt:
+         popq    %rbp
+         popq    %rbx
+ 
++#if WINDOWS_ABI
++        popq   %rsi
++        popq   %rdi
++#endif
+         ret
+ 
+ #if defined(__linux__) && defined(__ELF__)

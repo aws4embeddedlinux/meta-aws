@@ -1,0 +1,383 @@
+From a962ee3f3e612fb7d799e1b1cf69da87f2d01ba8 Mon Sep 17 00:00:00 2001
+From: torben-hansen <50673096+torben-hansen@users.noreply.github.com>
+Date: Tue, 4 Apr 2023 11:14:42 -0700
+Subject: [PATCH] Reference OPENSSL_ia32cap_P at Intel machine code level
+ through a unique symbol instead of a common offset symbol avoiding add
+ instruction (#862)
+
+See #856 for background and description of issue resolved in this PR.
+
+This is the second PR out of two PRs that bridge the performance gap.
+
+See ticket for performance comparisons.
+
+The first PR took care of the C-level. But the machine-optimised algorithm implementation sometimes directly dereference OPENSSL_ia32cap_P. These also need to be fixed-up. As before, we can't just add a call instruction to OPENSSL_ia32cap_get because it would compromise soundness/correctness.
+
+Recall, that the issue was the add instruction. Instead of injecting that instruction, we instead do the following for each occurrence of OPENSSL_ia32cap_P discovered in the textual assembly:
+
+* Define a new unique symbol. Uniquness is ensured using both the original (not true in all cases, but see "call outs") register name and a unique global counter. Bit redundant using both, but makes it easier to read IMO.
+* Under the new unique symbol, copy the address of OPENSSL_ia32cap_P into the original register. This will probably spawn a relocation, but this is fine, because we put this new unique symbol outside the FIPS module scope in .text. Putting it here also means that we know the address relative to RIP.
+* To jump back to the original execution point, we inject a "return" symbol/label where OPENSSL_ia32cap_P was discovered.
+---
+ util/fipstools/delocate/delocate.go           | 100 +++++++++++-------
+ .../testdata/generic-FileDirectives/out.s     |   5 -
+ .../delocate/testdata/x86_64-BSS/out.s        |   5 -
+ .../delocate/testdata/x86_64-Basic/out.s      |   5 -
+ .../delocate/testdata/x86_64-GOTRewrite/out.s |  49 +++++----
+ .../testdata/x86_64-LabelRewrite/out.s        |   5 -
+ .../testdata/x86_64-LargeMemory/out.s         |   5 -
+ .../delocate/testdata/x86_64-Sections/out.s   |   5 -
+ .../delocate/testdata/x86_64-ThreeArg/out.s   |   5 -
+ 9 files changed, 83 insertions(+), 101 deletions(-)
+
+diff --git a/util/fipstools/delocate/delocate.go b/util/fipstools/delocate/delocate.go
+index 1d6b9baef..c4384db0e 100644
+--- a/util/fipstools/delocate/delocate.go
++++ b/util/fipstools/delocate/delocate.go
+@@ -59,6 +59,30 @@ const (
+ 	aarch64
+ )
+ 
++// represents a unique symbol for an occurrence of OPENSSL_ia32cap_P.
++type cpuCapUniqueSymbol struct {
++	registerName string
++	suffixUniqueness string
++}
++
++const cpuCapx86SymbolPrefix = "LOPENSSL_ia32cap_P_"
++
++func (uniqueSymbol cpuCapUniqueSymbol) getx86Symbol() string {
++	return cpuCapx86SymbolPrefix + uniqueSymbol.registerName + uniqueSymbol.suffixUniqueness
++}
++
++func (uniqueSymbol cpuCapUniqueSymbol) getx86SymbolReturn() string {
++	return uniqueSymbol.getx86Symbol() + "_return"
++}
++
++// uniqueness must be a globally unique integer value.
++func newCpuCapUniqueSymbol(uniqueness int, registerName string) *cpuCapUniqueSymbol {
++	return &cpuCapUniqueSymbol{
++	    registerName: strings.Trim(registerName, "%"), // should work with both AT&T and Intel syntax.
++	    suffixUniqueness: strconv.Itoa(uniqueness),
++	}
++}
++
+ // delocation holds the state needed during a delocation operation.
+ type delocation struct {
+ 	processor processorType
+@@ -70,6 +94,9 @@ type delocation struct {
+ 	symbols map[string]struct{}
+ 	// localEntrySymbols is the set of symbols with .localentry directives.
+ 	localEntrySymbols map[string]struct{}
++	// cpuCapUniqueSymbols represents the set of unique symbols for each
++	// discovered occurrence of OPENSSL_ia32cap_P.
++	cpuCapUniqueSymbols []*cpuCapUniqueSymbol
+ 	// redirectors maps from out-call symbol name to the name of a
+ 	// redirector function for that symbol. E.g. “memcpy” ->
+ 	// “bcm_redirector_memcpy”.
+@@ -1213,18 +1240,6 @@ func (d *delocation) loadFromGOT(w stringWriter, destination, symbol, section st
+ 	}
+ }
+ 
+-func saveFlags(w stringWriter, redzoneCleared bool) wrapperFunc {
+-	return func(k func()) {
+-		if !redzoneCleared {
+-			w.WriteString("\tleaq -128(%rsp), %rsp\n") // Clear the red zone.
+-			defer w.WriteString("\tleaq 128(%rsp), %rsp\n")
+-		}
+-		w.WriteString("\tpushfq\n")
+-		k()
+-		w.WriteString("\tpopfq\n")
+-	}
+-}
+-
+ func saveRegister(w stringWriter, avoidRegs []string) (wrapperFunc, string) {
+ 	candidates := []string{"%rax", "%rbx", "%rcx", "%rdx"}
+ 
+@@ -1370,16 +1385,14 @@ Args:
+ 					return nil, fmt.Errorf("tried to load OPENSSL_ia32cap_P into %q, which is not a standard register.", reg)
+ 				}
+ 
+-				changed = true
+-
+-				// Flag-altering instructions (i.e. addq) are going to be used so the
+-				// flags need to be preserved.
+-				wrappers = append(wrappers, saveFlags(d.output, false /* Red Zone not yet cleared */))
+-
++				uniqueSymbol := newCpuCapUniqueSymbol(len(d.cpuCapUniqueSymbols), reg)
+ 				wrappers = append(wrappers, func(k func()) {
+-					d.output.WriteString("\tleaq\tOPENSSL_ia32cap_addr_delta(%rip), " + reg + "\n")
+-					d.output.WriteString("\taddq\t(" + reg + "), " + reg + "\n")
++					d.output.WriteString("\tjmp\t" + uniqueSymbol.getx86Symbol() + "\n")
++					d.output.WriteString(uniqueSymbol.getx86SymbolReturn() + ":\n")
+ 				})
++				d.cpuCapUniqueSymbols = append(d.cpuCapUniqueSymbols, uniqueSymbol)
++
++				changed = true
+ 
+ 				break Args
+ 			}
+@@ -1527,13 +1540,14 @@ Args:
+ 				}
+ 
+ 				if symbol == "OPENSSL_ia32cap_P" {
+-					// Flag-altering instructions (i.e. addq) are going to be used so the
+-					// flags need to be preserved.
+-					wrappers = append(wrappers, saveFlags(d.output, redzoneCleared))
++
++					uniqueSymbol := newCpuCapUniqueSymbol(len(d.cpuCapUniqueSymbols), targetReg)
+ 					wrappers = append(wrappers, func(k func()) {
+-						d.output.WriteString("\tleaq\tOPENSSL_ia32cap_addr_delta(%rip), " + targetReg + "\n")
+-						d.output.WriteString("\taddq\t(" + targetReg + "), " + targetReg + "\n")
++						d.output.WriteString("\tjmp\t" + uniqueSymbol.getx86Symbol() + "\n")
++						d.output.WriteString(uniqueSymbol.getx86SymbolReturn() + ":\n")
+ 					})
++					d.cpuCapUniqueSymbols = append(d.cpuCapUniqueSymbols, uniqueSymbol)
++
+ 				} else if useGOT {
+ 					wrappers = append(wrappers, d.loadFromGOT(d.output, targetReg, symbol, section, redzoneCleared))
+ 				} else {
+@@ -1790,17 +1804,18 @@ func transform(w stringWriter, inputs []inputFile) error {
+ 	}
+ 
+ 	d := &delocation{
+-		symbols:             symbols,
+-		localEntrySymbols:   localEntrySymbols,
+-		processor:           processor,
+-		commentIndicator:    commentIndicator,
+-		output:              w,
+-		redirectors:         make(map[string]string),
+-		bssAccessorsNeeded:  make(map[string]string),
+-		tocLoaders:          make(map[string]struct{}),
+-		gotExternalsNeeded:  make(map[string]struct{}),
+-		gotOffsetsNeeded:    make(map[string]struct{}),
+-		gotOffOffsetsNeeded: make(map[string]struct{}),
++		symbols:             	symbols,
++		localEntrySymbols:   	localEntrySymbols,
++		processor:           	processor,
++		commentIndicator:    	commentIndicator,
++		output:              	w,
++		cpuCapUniqueSymbols:    []*cpuCapUniqueSymbol{},
++		redirectors:         	make(map[string]string),
++		bssAccessorsNeeded:  	make(map[string]string),
++		tocLoaders:          	make(map[string]struct{}),
++		gotExternalsNeeded:  	make(map[string]struct{}),
++		gotOffsetsNeeded:    	make(map[string]struct{}),
++		gotOffOffsetsNeeded: 	make(map[string]struct{}),
+ 	}
+ 
+ 	w.WriteString(".text\n")
+@@ -1953,11 +1968,14 @@ func transform(w stringWriter, inputs []inputFile) error {
+ 		w.WriteString("\tleaq OPENSSL_ia32cap_P(%rip), %rax\n")
+ 		w.WriteString("\tret\n")
+ 
+-		w.WriteString(".extern OPENSSL_ia32cap_P\n")
+-		w.WriteString(".type OPENSSL_ia32cap_addr_delta, @object\n")
+-		w.WriteString(".size OPENSSL_ia32cap_addr_delta, 8\n")
+-		w.WriteString("OPENSSL_ia32cap_addr_delta:\n")
+-		w.WriteString(".quad OPENSSL_ia32cap_P-OPENSSL_ia32cap_addr_delta\n")
++		// Luckily, this is a fixed order iteration. So, we can write
++		// deterministic tests for this in /testdata.
++		for _, uniqueSymbol := range d.cpuCapUniqueSymbols {
++			w.WriteString(".type " + uniqueSymbol.getx86Symbol() + ", @function\n")
++			w.WriteString(uniqueSymbol.getx86Symbol() + ":\n")
++			w.WriteString("\tleaq OPENSSL_ia32cap_P(%rip), %" + uniqueSymbol.registerName + "\n")
++			w.WriteString("\tjmp " + uniqueSymbol.getx86SymbolReturn() + "\n")
++		}
+ 
+ 		if d.gotDeltaNeeded {
+ 			w.WriteString(".Lboringssl_got_delta:\n")
+diff --git a/util/fipstools/delocate/testdata/generic-FileDirectives/out.s b/util/fipstools/delocate/testdata/generic-FileDirectives/out.s
+index 84b5134f9..80d7d526c 100644
+--- a/util/fipstools/delocate/testdata/generic-FileDirectives/out.s
++++ b/util/fipstools/delocate/testdata/generic-FileDirectives/out.s
+@@ -17,11 +17,6 @@ BORINGSSL_bcm_text_end:
+ OPENSSL_ia32cap_get:
+ 	leaq OPENSSL_ia32cap_P(%rip), %rax
+ 	ret
+-.extern OPENSSL_ia32cap_P
+-.type OPENSSL_ia32cap_addr_delta, @object
+-.size OPENSSL_ia32cap_addr_delta, 8
+-OPENSSL_ia32cap_addr_delta:
+-.quad OPENSSL_ia32cap_P-OPENSSL_ia32cap_addr_delta
+ .type BORINGSSL_bcm_text_hash, @object
+ .size BORINGSSL_bcm_text_hash, 32
+ BORINGSSL_bcm_text_hash:
+diff --git a/util/fipstools/delocate/testdata/x86_64-BSS/out.s b/util/fipstools/delocate/testdata/x86_64-BSS/out.s
+index 2bb54a808..fd64b8f8f 100644
+--- a/util/fipstools/delocate/testdata/x86_64-BSS/out.s
++++ b/util/fipstools/delocate/testdata/x86_64-BSS/out.s
+@@ -71,11 +71,6 @@ z_bss_get:
+ OPENSSL_ia32cap_get:
+ 	leaq OPENSSL_ia32cap_P(%rip), %rax
+ 	ret
+-.extern OPENSSL_ia32cap_P
+-.type OPENSSL_ia32cap_addr_delta, @object
+-.size OPENSSL_ia32cap_addr_delta, 8
+-OPENSSL_ia32cap_addr_delta:
+-.quad OPENSSL_ia32cap_P-OPENSSL_ia32cap_addr_delta
+ .type BORINGSSL_bcm_text_hash, @object
+ .size BORINGSSL_bcm_text_hash, 32
+ BORINGSSL_bcm_text_hash:
+diff --git a/util/fipstools/delocate/testdata/x86_64-Basic/out.s b/util/fipstools/delocate/testdata/x86_64-Basic/out.s
+index 657d09031..d9dc9ef3b 100644
+--- a/util/fipstools/delocate/testdata/x86_64-Basic/out.s
++++ b/util/fipstools/delocate/testdata/x86_64-Basic/out.s
+@@ -65,11 +65,6 @@ BORINGSSL_bcm_text_end:
+ OPENSSL_ia32cap_get:
+ 	leaq OPENSSL_ia32cap_P(%rip), %rax
+ 	ret
+-.extern OPENSSL_ia32cap_P
+-.type OPENSSL_ia32cap_addr_delta, @object
+-.size OPENSSL_ia32cap_addr_delta, 8
+-OPENSSL_ia32cap_addr_delta:
+-.quad OPENSSL_ia32cap_P-OPENSSL_ia32cap_addr_delta
+ .type BORINGSSL_bcm_text_hash, @object
+ .size BORINGSSL_bcm_text_hash, 32
+ BORINGSSL_bcm_text_hash:
+diff --git a/util/fipstools/delocate/testdata/x86_64-GOTRewrite/out.s b/util/fipstools/delocate/testdata/x86_64-GOTRewrite/out.s
+index f118e4fa9..2ee6e5081 100644
+--- a/util/fipstools/delocate/testdata/x86_64-GOTRewrite/out.s
++++ b/util/fipstools/delocate/testdata/x86_64-GOTRewrite/out.s
+@@ -9,30 +9,20 @@ foo:
+ bar:
+ 	# leaq of OPENSSL_ia32cap_P is supported.
+ # WAS leaq OPENSSL_ia32cap_P(%rip), %r11
+-	leaq -128(%rsp), %rsp
+-	pushfq
+-	leaq	OPENSSL_ia32cap_addr_delta(%rip), %r11
+-	addq	(%r11), %r11
+-	popfq
+-	leaq 128(%rsp), %rsp
++	jmp	LOPENSSL_ia32cap_P_r110
++LOPENSSL_ia32cap_P_r110_return:
+ 
+ 	# As is the equivalent GOTPCREL movq.
+ # WAS movq OPENSSL_ia32cap_P@GOTPCREL(%rip), %r12
+-	leaq -128(%rsp), %rsp
+-	pushfq
+-	leaq	OPENSSL_ia32cap_addr_delta(%rip), %r12
+-	addq	(%r12), %r12
+-	popfq
+-	leaq 128(%rsp), %rsp
++	jmp	LOPENSSL_ia32cap_P_r121
++LOPENSSL_ia32cap_P_r121_return:
+ 
+ 	# And a non-movq instruction via the GOT.
+ # WAS orq OPENSSL_ia32cap_P@GOTPCREL(%rip), %r12
+ 	leaq -128(%rsp), %rsp
+ 	pushq %rax
+-	pushfq
+-	leaq	OPENSSL_ia32cap_addr_delta(%rip), %rax
+-	addq	(%rax), %rax
+-	popfq
++	jmp	LOPENSSL_ia32cap_P_rax2
++LOPENSSL_ia32cap_P_rax2_return:
+ 	orq %rax, %r12
+ 	popq %rax
+ 	leaq 128(%rsp), %rsp
+@@ -41,10 +31,8 @@ bar:
+ # WAS orq OPENSSL_ia32cap_P@GOTPCREL(%rip), %rax
+ 	leaq -128(%rsp), %rsp
+ 	pushq %rbx
+-	pushfq
+-	leaq	OPENSSL_ia32cap_addr_delta(%rip), %rbx
+-	addq	(%rbx), %rbx
+-	popfq
++	jmp	LOPENSSL_ia32cap_P_rbx3
++LOPENSSL_ia32cap_P_rbx3_return:
+ 	orq %rbx, %rax
+ 	popq %rbx
+ 	leaq 128(%rsp), %rsp
+@@ -297,11 +285,22 @@ stderr_GOTPCREL_external:
+ OPENSSL_ia32cap_get:
+ 	leaq OPENSSL_ia32cap_P(%rip), %rax
+ 	ret
+-.extern OPENSSL_ia32cap_P
+-.type OPENSSL_ia32cap_addr_delta, @object
+-.size OPENSSL_ia32cap_addr_delta, 8
+-OPENSSL_ia32cap_addr_delta:
+-.quad OPENSSL_ia32cap_P-OPENSSL_ia32cap_addr_delta
++.type LOPENSSL_ia32cap_P_r110, @function
++LOPENSSL_ia32cap_P_r110:
++	leaq OPENSSL_ia32cap_P(%rip), %r11
++	jmp LOPENSSL_ia32cap_P_r110_return
++.type LOPENSSL_ia32cap_P_r121, @function
++LOPENSSL_ia32cap_P_r121:
++	leaq OPENSSL_ia32cap_P(%rip), %r12
++	jmp LOPENSSL_ia32cap_P_r121_return
++.type LOPENSSL_ia32cap_P_rax2, @function
++LOPENSSL_ia32cap_P_rax2:
++	leaq OPENSSL_ia32cap_P(%rip), %rax
++	jmp LOPENSSL_ia32cap_P_rax2_return
++.type LOPENSSL_ia32cap_P_rbx3, @function
++LOPENSSL_ia32cap_P_rbx3:
++	leaq OPENSSL_ia32cap_P(%rip), %rbx
++	jmp LOPENSSL_ia32cap_P_rbx3_return
+ .type BORINGSSL_bcm_text_hash, @object
+ .size BORINGSSL_bcm_text_hash, 32
+ BORINGSSL_bcm_text_hash:
+diff --git a/util/fipstools/delocate/testdata/x86_64-LabelRewrite/out.s b/util/fipstools/delocate/testdata/x86_64-LabelRewrite/out.s
+index 6549db71d..ee4577c90 100644
+--- a/util/fipstools/delocate/testdata/x86_64-LabelRewrite/out.s
++++ b/util/fipstools/delocate/testdata/x86_64-LabelRewrite/out.s
+@@ -107,11 +107,6 @@ bcm_redirector_memcpy:
+ OPENSSL_ia32cap_get:
+ 	leaq OPENSSL_ia32cap_P(%rip), %rax
+ 	ret
+-.extern OPENSSL_ia32cap_P
+-.type OPENSSL_ia32cap_addr_delta, @object
+-.size OPENSSL_ia32cap_addr_delta, 8
+-OPENSSL_ia32cap_addr_delta:
+-.quad OPENSSL_ia32cap_P-OPENSSL_ia32cap_addr_delta
+ .type BORINGSSL_bcm_text_hash, @object
+ .size BORINGSSL_bcm_text_hash, 32
+ BORINGSSL_bcm_text_hash:
+diff --git a/util/fipstools/delocate/testdata/x86_64-LargeMemory/out.s b/util/fipstools/delocate/testdata/x86_64-LargeMemory/out.s
+index 091e8b72d..c460c5702 100644
+--- a/util/fipstools/delocate/testdata/x86_64-LargeMemory/out.s
++++ b/util/fipstools/delocate/testdata/x86_64-LargeMemory/out.s
+@@ -47,11 +47,6 @@ BORINGSSL_bcm_text_end:
+ OPENSSL_ia32cap_get:
+ 	leaq OPENSSL_ia32cap_P(%rip), %rax
+ 	ret
+-.extern OPENSSL_ia32cap_P
+-.type OPENSSL_ia32cap_addr_delta, @object
+-.size OPENSSL_ia32cap_addr_delta, 8
+-OPENSSL_ia32cap_addr_delta:
+-.quad OPENSSL_ia32cap_P-OPENSSL_ia32cap_addr_delta
+ .Lboringssl_got_delta:
+ 	.quad _GLOBAL_OFFSET_TABLE_-.Lboringssl_got_delta
+ .Lboringssl_got_h:
+diff --git a/util/fipstools/delocate/testdata/x86_64-Sections/out.s b/util/fipstools/delocate/testdata/x86_64-Sections/out.s
+index 11123876f..d107e30eb 100644
+--- a/util/fipstools/delocate/testdata/x86_64-Sections/out.s
++++ b/util/fipstools/delocate/testdata/x86_64-Sections/out.s
+@@ -53,11 +53,6 @@ BORINGSSL_bcm_text_end:
+ OPENSSL_ia32cap_get:
+ 	leaq OPENSSL_ia32cap_P(%rip), %rax
+ 	ret
+-.extern OPENSSL_ia32cap_P
+-.type OPENSSL_ia32cap_addr_delta, @object
+-.size OPENSSL_ia32cap_addr_delta, 8
+-OPENSSL_ia32cap_addr_delta:
+-.quad OPENSSL_ia32cap_P-OPENSSL_ia32cap_addr_delta
+ .type BORINGSSL_bcm_text_hash, @object
+ .size BORINGSSL_bcm_text_hash, 32
+ BORINGSSL_bcm_text_hash:
+diff --git a/util/fipstools/delocate/testdata/x86_64-ThreeArg/out.s b/util/fipstools/delocate/testdata/x86_64-ThreeArg/out.s
+index 7a57ed46b..79cdbe60a 100644
+--- a/util/fipstools/delocate/testdata/x86_64-ThreeArg/out.s
++++ b/util/fipstools/delocate/testdata/x86_64-ThreeArg/out.s
+@@ -40,11 +40,6 @@ BORINGSSL_bcm_text_end:
+ OPENSSL_ia32cap_get:
+ 	leaq OPENSSL_ia32cap_P(%rip), %rax
+ 	ret
+-.extern OPENSSL_ia32cap_P
+-.type OPENSSL_ia32cap_addr_delta, @object
+-.size OPENSSL_ia32cap_addr_delta, 8
+-OPENSSL_ia32cap_addr_delta:
+-.quad OPENSSL_ia32cap_P-OPENSSL_ia32cap_addr_delta
+ .type BORINGSSL_bcm_text_hash, @object
+ .size BORINGSSL_bcm_text_hash, 32
+ BORINGSSL_bcm_text_hash:
