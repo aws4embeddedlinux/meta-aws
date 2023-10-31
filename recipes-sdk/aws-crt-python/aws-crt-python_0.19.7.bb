@@ -27,7 +27,7 @@ SRC_URI = "\
            file://fix-shared-linking.patch \
            file://run-ptest \
            "
-SRCREV = "b83949d089c92e1a7e455ea87a830002ea27ae0a"
+SRCREV = "d62491f327345c662f73a2e9e1bd23a2e806769e"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
