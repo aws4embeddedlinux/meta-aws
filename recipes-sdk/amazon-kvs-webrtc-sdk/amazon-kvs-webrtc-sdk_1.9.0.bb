@@ -5,6 +5,7 @@ LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 DEPENDS += "\
+    aws-sdk-cpp \
     amazon-kvs-producer-sdk-c \
     curl \
     gstreamer1.0 \
@@ -24,7 +25,7 @@ SRC_URI = "\
     file://ptest_result.py \
 "
 
-SRCREV = "15e60193456709a3786f7c0f237c49ea7bd9c81f"
+SRCREV = "0ae9ec6b80deff9df724555927fb6595a23054f1"
 
 S = "${WORKDIR}/git"
 
