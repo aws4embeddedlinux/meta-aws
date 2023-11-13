@@ -6,12 +6,12 @@ on:
       - master-next
     types: ["closed"]
 
-jobs:  
+jobs:
   cherry_pick:
     strategy:
       fail-fast: false
       matrix:
-        branch: [kirkstone, dunfell, mickledore]
+        branch: [kirkstone, dunfell, nanbield]
     runs-on: ubuntu-22.04
     name: Cherry pick into release branches
     if: |
