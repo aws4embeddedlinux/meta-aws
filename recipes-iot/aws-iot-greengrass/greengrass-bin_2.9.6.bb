@@ -141,5 +141,5 @@ GROUP_MEMS_PARAM:${PN} = ""
 INSANE_SKIP:${PN} += "already-stripped ldflags file-rdeps"
 
 RDEPENDS:${PN}-ptest += "\
-    greengrass-bin-demo \
+    greengrass-bin \
     "
