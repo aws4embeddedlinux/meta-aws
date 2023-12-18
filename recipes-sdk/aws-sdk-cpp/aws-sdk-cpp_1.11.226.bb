@@ -20,7 +20,7 @@ SRC_URI = "\
     file://ptest_result.py \
     "
 
-SRCREV = "08603b2b0d8b365c4378057ce97199a8032cef98"
+SRCREV = "3a536864870e9d4edb6d753ed4882e1ce229d1c8"
 
 S = "${WORKDIR}/git"
 
@@ -79,7 +79,7 @@ do_install_ptest () {
     install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
 }
 
-# this is related to this bug 
+# this is related to this bug
 # https://github.com/aws/aws-sdk-cpp/issues/2242
 EXTRA_OECMAKE:append:armv4 = " ${LIBS_BUILD_ON_ARM32} "
 EXTRA_OECMAKE:append:armv5 = " ${LIBS_BUILD_ON_ARM32} "
