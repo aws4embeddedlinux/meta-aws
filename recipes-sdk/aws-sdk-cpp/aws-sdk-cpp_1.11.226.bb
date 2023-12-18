@@ -20,7 +20,7 @@ SRC_URI = "\
     file://ptest_result.py \
     "
 
-SRCREV = "8d59757b3cddf839142baa1d56fe7f704db82f1b"
+SRCREV = "3a536864870e9d4edb6d753ed4882e1ce229d1c8"
 
 S = "${WORKDIR}/git"
 
@@ -47,7 +47,7 @@ python populate_packages:prepend () {
 }
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
-PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
 # Notify that libraries are not versioned
 FILES_SOLIBSDEV = ""
@@ -79,7 +79,7 @@ do_install_ptest () {
     install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
 }
 
-# this is related to this bug 
+# this is related to this bug
 # https://github.com/aws/aws-sdk-cpp/issues/2242
 EXTRA_OECMAKE:append:armv4 = " ${LIBS_BUILD_ON_ARM32} "
 EXTRA_OECMAKE:append:armv5 = " ${LIBS_BUILD_ON_ARM32} "
