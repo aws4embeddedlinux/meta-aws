@@ -72,7 +72,7 @@ PACKAGECONFIG[dsn] = "-DEXCLUDE_SAMPLE_SHADOW=OFF,-DEXCLUDE_SAMPLE_SHADOW=ON,,"
 
 FILES:${PN} += "${base_sbindir}/sbin/aws-iot-device-client"
 FILES:${PN} += "${systemd_system_unitdir}/aws-iot-device-client.service"
-FILES:${PN} += "${sysconfdir}/aws-iot-device-client.json"do_configure[network] = "1"
+FILES:${PN} += "${sysconfdir}/aws-iot-device-client.json"
 
 RDEPENDS:${PN} = "\
     aws-iot-device-sdk-cpp-v2 \
