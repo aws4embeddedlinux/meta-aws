@@ -21,12 +21,11 @@ SRC_URI = "\
     file://ptest_result.py \
     "
 
-SRCREV = "95db8c94d96758f974e88716cc8b2e2bd849a6d2"
+SRCREV = "da10323c3d2a4221baaf7d786ee3172d243faa60"
 
 S = "${WORKDIR}/git"
 
-inherit cmake ptest systemd
-
+inherit cmake systemd ptest
 do_compile_ptest()  {
     cmake_runcmake_build --target test-aws-iot-device-client
 }
@@ -45,8 +44,7 @@ do_install() {
 
 EXTRA_OECMAKE += "\
     -DBUILD_SDK=OFF \
-    -DBUILD_TEST_DEPS=OFF \
-    -DBUILD_TESTING=OFF \
+    -DBUILD_TEST_DEPS=ON \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_VERBOSE_MAKEFILE=ON \
     -DCMAKE_CXX_FLAGS_RELEASE=-s \
@@ -55,7 +53,7 @@ EXTRA_OECMAKE += "\
 CXXFLAGS += "-Wno-ignored-attributes"
 
 # enable all modules by default, except st because of: https://github.com/awslabs/aws-iot-device-client/issues/411
-PACKAGECONFIG ??= " dsn dsc ds fp dd pubsub samples jobs "
+PACKAGECONFIG ??= " dsn dsc ds fp dd pubsub samples jobs"
 
 # enable PACKAGECONFIG = "static" to build static instead of shared
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
@@ -93,4 +91,9 @@ do_install_ptest() {
     cp -r ${B}/test/test-aws-iot-device-client ${D}${PTEST_PATH}/
 
     install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
+
+    install -d ${D}/${libdir}
+    install -m 755 ${B}/lib/libgtest.so.1.11.0 ${D}/${libdir}
+    install -m 755 ${B}/lib/libgmock.so.1.11.0 ${D}/${libdir}
+    install -m 755 ${B}/lib/libgmock_main.so.1.11.0 ${D}/${libdir}
 }
