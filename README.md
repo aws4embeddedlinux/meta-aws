@@ -20,6 +20,11 @@ We are supporting customers building solutions on AWS with meta-aws. Let us know
 We are yocto project compatible<a href="https://www.yoctoproject.org/software-overview/layers/?searchTerm=meta-aws" target="none" title="What is this?">(?)</a>.
 Currently maintained releases are all [NOT-EOL ones](https://wiki.yoctoproject.org/wiki/Releases). All prior releases will be handled on a case by case basis. Again, please let us know if you're in a crunch on earlier releases and we'll help you the best we can!
 
+### CVE checks
+We do nightly CVE checks on the master branch for every recipe in our layer. You can see those check results here:
+
+[![nightly-cve-check](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/nightly-cve-check.yml/badge.svg)](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/nightly-cve-check.yml)
+
 ### Dependencies
 
 **meta-aws** supports a wide variety of device software.  This layer defines a minimum dependency set that covers many of the recipes.  Sometimes, the recipe will require additional layers either to support optional features or programming languages not supported by OpenEmbedded. When those requirements surface, they are documented in recipe specific README files.
@@ -55,7 +60,7 @@ These are the currently supported services, software, and SDKs you can use to bu
 |<center>![Image of AWS IoT Device SDK Icon](images/Arch_AWS-Tools-and-SDKs_64.png)</br>AWS IoT Device SDK for Python v2|The AWS IoT Device SDK for Python makes it possible for developers to write Python scripts to use their devices to access the AWS IoT platform through MQTT or MQTT over the WebSocket protocol. By connecting their devices to AWS IoT, users can securely work with the message broker, rules, and shadows provided by AWS IoT and with other AWS services like AWS Lambda, Kinesis, and Amazon S3, and more.|
 |<center>![Image of AWS Firecracker Icon](images/Arch_AWS-Firecracker.png)</br>AWS Firecracker|AWS Firecracker Firecracker enables you to deploy workloads in lightweight virtual machines, called microVMs, which provide enhanced security and workload isolation over traditional VMs, while enabling the speed and resource efficiency of containers.|
 
-**IMPORTANT NOTES**: 
+**IMPORTANT NOTES**:
 
 * Automotive Grade Linux: The AGL distribution uses a specific static ID process. When adding AWS IoT Greengrass, you will need to define users in the passwd and group files manually. Please see https://github.com/aws/meta-aws/issues/75 for more information.
 
