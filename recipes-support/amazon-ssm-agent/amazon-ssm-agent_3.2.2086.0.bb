@@ -1,6 +1,7 @@
 SUMMARY = "Amazon SSM Agent"
 DESCRIPTION = "An agent to enable remote management of your EC2 instances, on-premises servers, or virtual machines (VMs)."
 HOMEPAGE = "https://github.com/aws/amazon-ssm-agent"
+CVE_PRODUCT = "amazon_ssm_agent"
 
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "\
@@ -93,4 +94,3 @@ do_install () {
     install -d ${D}${systemd_unitdir}/system/
     install -m 644 ${S}/packaging/linux/amazon-ssm-agent.service ${D}${systemd_unitdir}/system/amazon-ssm-agent.service
 }
-
