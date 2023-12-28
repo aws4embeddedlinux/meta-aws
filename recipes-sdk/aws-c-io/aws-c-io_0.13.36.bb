@@ -3,6 +3,8 @@ DESCRIPTION = "aws-c-io is an event driven framework for implementing applicatio
 
 HOMEPAGE = "https://github.com/awslabs/aws-c-io"
 
+CVE_PRODUCT = "amazon_web_services_aws-c-io"
+
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 

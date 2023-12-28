@@ -1,6 +1,7 @@
 SUMMARY = "jailer - Binary Distribution"
 DESCRIPTION = "Process for starting Firecracker in production scenarios; applies a cgroup/namespace isolation barrier and then drops privileges."
 HOMEPAGE = "https://firecracker-microvm.github.io/"
+CVE_PRODUCT = "jailer"
 LICENSE = "Apache-2.0"
 # nooelint: oelint.var.licenseremotefile:License-File
 LIC_FILES_CHKSUM = "file://${S}/release-v${PV}-${TARGET_ARCH}/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
