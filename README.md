@@ -20,6 +20,11 @@ We are supporting customers building solutions on AWS with meta-aws. Let us know
 We are yocto project compatible<a href="https://www.yoctoproject.org/software-overview/layers/?searchTerm=meta-aws" target="none" title="What is this?">(?)</a>.
 Currently maintained releases are all [NOT-EOL ones](https://wiki.yoctoproject.org/wiki/Releases). All prior releases will be handled on a case by case basis. Again, please let us know if you're in a crunch on earlier releases and we'll help you the best we can!
 
+### CVE checks
+We do nightly CVE checks on the master branch for every recipe in our layer. You can see those check results here:
+
+[![nightly-cve-check](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/nightly-cve-check.yml/badge.svg?branch=master)](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/nightly-cve-check.yml)
+
 ### Dependencies
 
 **meta-aws** supports a wide variety of device software.  This layer defines a minimum dependency set that covers many of the recipes.  Sometimes, the recipe will require additional layers either to support optional features or programming languages not supported by OpenEmbedded. When those requirements surface, they are documented in recipe specific README files.
