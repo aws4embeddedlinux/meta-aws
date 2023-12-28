@@ -23,7 +23,7 @@ Currently maintained releases are all [NOT-EOL ones](https://wiki.yoctoproject.o
 ### CVE checks
 We do nightly CVE checks on the master branch for every recipe in our layer. You can see those check results here:
 
-[![nightly-cve-check](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/nightly-cve-check.yml/badge.svg)](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/nightly-cve-check.yml)
+[![nightly-cve-check](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/nightly-cve-check.yml/badge.svg?branch=master)](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/nightly-cve-check.yml)
 
 ### Dependencies
 
