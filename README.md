@@ -32,7 +32,7 @@ We are supporting customers building solutions on AWS with meta-aws for the foll
 <tr><td>sumo (breakfix only)</td><td><img src="https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiOHhleEREbml5SDJnanZQL0FIb1lKZDlmT1JFZ3dROGdwekhiVEhYWGxSVzQwSGFKM09DaWplcnNwNFVRMTVsd2hTZytwdE9KNXNMRUdlNDZ6ck0xaDBzPSIsIml2UGFyYW1ldGVyU3BlYyI6InVmQnp4a2h4d1pEU0xDeUYiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=sumo"/></td></tr>
 </table>
 
-All prior releases will be handled on a case by case basis.  Again, please let us know if you're in a crunch on earlier releases and we'll help you the best we can!
+[![nightly-cve-check](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/nightly-cve-check.yml/badge.svg?branch=master)](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/nightly-cve-check.yml)
 
 ### Dependencies
 
