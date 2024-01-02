@@ -29,7 +29,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "95be1338da913ff632f388cf29d262c557bc907f"
+SRCREV = "646f9e86eb35e12f45180761e47ebb9ed47923d5"
 
 S = "${WORKDIR}/git"
 
