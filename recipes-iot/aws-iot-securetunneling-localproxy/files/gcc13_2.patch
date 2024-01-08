@@ -1,0 +1,34 @@
+
+Upstream-Status: Pending -> https://github.com/aws-samples/aws-iot-securetunneling-localproxy/pull/136
+
+Index: git/src/Url.cpp
+===================================================================
+--- git.orig/src/Url.cpp
++++ git/src/Url.cpp
+@@ -5,6 +5,7 @@
+ #include <algorithm>
+ #include <cctype>
+ #include <functional>
++#include <cstdint>
+
+ #include <boost/log/core.hpp>
+ #include <boost/log/trivial.hpp>
+@@ -106,4 +107,4 @@ string aws::iot::securedtunneling::url::
+         }
+         return out;
+     }
+-}
+\ No newline at end of file
++}
+Index: git/src/Url.h
+===================================================================
+--- git.orig/src/Url.h
++++ git/src/Url.h
+@@ -3,6 +3,7 @@
+ #pragma once
+
+ #include <string>
++#include <cstdint>
+ namespace aws {
+     namespace iot {
+         namespace securedtunneling {
