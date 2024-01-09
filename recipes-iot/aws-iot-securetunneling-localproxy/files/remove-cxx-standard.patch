@@ -1,0 +1,21 @@
+Index: git/CMakeLists.txt
+===================================================================
+--- git.orig/CMakeLists.txt
++++ git/CMakeLists.txt
+@@ -1,5 +1,3 @@
+-cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
+-
+ set(AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME localproxy)
+ set(AWS_TUNNEL_LOCAL_PROXY_LIB_NAME lproxy)
+ project(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} CXX)
+@@ -21,9 +19,7 @@ endif ()
+ ########################################
+ # Section : Common Build setttings #
+ ########################################
+-# Set required compiler standard to standard c++11. Disable extensions.
+-set(CMAKE_CXX_STANDARD 14) # C++14
+-set(CMAKE_CXX_STANDARD_REQUIRED ON) #...is required...
++# Disable extensions.
+ set(CMAKE_CXX_EXTENSIONS OFF) #...without compiler extensions like gnu++11
+ 
+ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
