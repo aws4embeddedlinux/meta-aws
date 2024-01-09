@@ -3,7 +3,7 @@ DESCRIPTION = "Secure and fast microVMs for serverless computing."
 HOMEPAGE = "https://firecracker-microvm.github.io/"
 LICENSE = "Apache-2.0"
 # nooelint: oelint.var.licenseremotefile:License-File
-LIC_FILES_CHKSUM = "file://${S}/release-v${PV}-${TARGET_ARCH}/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
+LIC_FILES_CHKSUM = "file://${WORKDIR}/${PN}/release-v${PV}-${TARGET_ARCH}/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 ARCH_DIR:x86-64 = "x86_64"
 ARCH_DIR:aarch64 = "aarch64"
