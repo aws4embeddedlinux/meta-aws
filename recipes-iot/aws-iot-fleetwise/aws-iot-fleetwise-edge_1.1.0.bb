@@ -18,6 +18,7 @@ DEPENDS = "\
 # nooelint: oelint.file.patchsignedoff
 SRC_URI = "\
            git://github.com/aws/aws-iot-fleetwise-edge.git;protocol=https;branch=main \
+           file://remove-cxx-standard.patch \
            file://run-ptest \
            "
 
@@ -70,7 +71,7 @@ do_configure:append() {
         --persistency-path ${PERSISTENCY_PATH}  \
         --topic-prefix ${TOPIC_PREFIX} \
         --log-level ${LOG_LEVEL} \
-        --log-color ${LOG_COLOR} 
+        --log-color ${LOG_COLOR}
 }
 
 do_install() {
