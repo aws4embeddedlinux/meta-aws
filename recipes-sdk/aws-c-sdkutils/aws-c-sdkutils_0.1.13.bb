@@ -46,3 +46,5 @@ do_install_ptest () {
 }
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
+
+BBCLASSEXTEND = "native nativesdk"
