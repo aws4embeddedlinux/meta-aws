@@ -45,6 +45,14 @@ python go_do_unpack() {
 go_do_configure() {
 #      ln -snf ${S}/src ${B}/
     ln -snf ${S} ${B}/
+
+    # Manually set the correct version.
+    cat <<END > ${S}/agent/version/version.go
+package version
+
+const Version = "${PV}"
+END
+
 }
 
 do_compile () {
