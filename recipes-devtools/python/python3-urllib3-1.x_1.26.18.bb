@@ -26,3 +26,7 @@ RDEPENDS:${PN} += "\
 CVE_PRODUCT = "urllib3"
 
 BBCLASSEXTEND = "native nativesdk"
+
+RCONFLICTS:${PN} = "python3-urllib3"
+
+RREPLACES:${PN} = "python3-urllib3 (< 2)"
