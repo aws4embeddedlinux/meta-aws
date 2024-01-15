@@ -93,3 +93,5 @@ do_install_ptest() {
 PACKAGES =+ "${PN}-examples"
 
 FILES:${PN}-examples = "${libdir}/${PYTHON_DIR}/site-packages/awscli/examples"
+
+RCONFLICTS:${PN} = "awscli"
