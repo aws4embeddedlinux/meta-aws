@@ -30,6 +30,8 @@ UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 
 UPSTREAM_CHECK_URI = "https://github.com/corretto/corretto-11/tags"
 
+ALTERNATIVE_PRIORITY = "60"
+
 # nooelint: oelint.file.underscores
 require corretto-bin-common.inc
 
@@ -39,3 +41,6 @@ INSANE_SKIP:${PN} += "ldflags"
 RDEPENDS:${PN}-ptest:prepend = "\
     greengrass-bin \
     "
+
+# this is used by meta-aws-tests to find this recipe for ptests, so it should stay in this file instead of moving into corretto-bin-common
+inherit ptest
