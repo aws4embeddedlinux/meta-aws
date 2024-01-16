@@ -16,5 +16,10 @@ UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 
 UPSTREAM_CHECK_URI = "https://github.com/corretto/corretto-21/tags"
 
+ALTERNATIVE_PRIORITY = "80"
+
 # nooelint: oelint.file.underscores
 require corretto-bin-common.inc
+
+# this is used by meta-aws-tests to find this recipe for ptests, so it should stay in this file instead of moving into corretto-bin-common
+inherit ptest
