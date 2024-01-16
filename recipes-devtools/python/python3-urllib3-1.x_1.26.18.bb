@@ -4,14 +4,16 @@ HOMEPAGE = "https://github.com/shazow/urllib3"
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=c2823cb995439c984fd62a973d79815c"
 
-SRC_URI[md5sum] = "f986d8e9616d2a43389f678d5dad9893"
-
 # version 1.x.x
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>1\.\d+(\.\d+)+)"
 
-inherit pypi setuptools3
+inherit setuptools3
 
-PYPI_PACKAGE = "urllib3"
+PIP_INSTALL_PACKAGE = "urllib3"
+
+S = "${WORKDIR}/git"
+SRC_URI = "git://github.com/urllib3/urllib3.git;protocol=https;branch=1.26.x"
+SRCREV = "9c2c2307dd1d6af504e09aac0326d86ee3597a0b"
 
 RDEPENDS:${PN} += "\
     ${PYTHON_PN}-certifi \
