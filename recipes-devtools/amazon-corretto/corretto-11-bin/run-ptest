@@ -1,7 +1,14 @@
 #!/bin/sh
 set -euxo pipefail
 
-java --version
+FILE=/usr/bin/java.corretto-11-bin
+if [ -f "$FILE" ]; then
+    echo "$FILE exists. Using alternate java name to test."
+    $FILE --version
+else
+    echo "$FILE does not exist. Using default java to test."
+    java --version
+fi
 
 RETVAL=$?
 if [ $RETVAL -eq 0 ] ; then
