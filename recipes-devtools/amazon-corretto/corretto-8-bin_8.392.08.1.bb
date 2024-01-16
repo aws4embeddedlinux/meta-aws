@@ -13,6 +13,30 @@ SRC_URI[aarch64.sha256sum] = "25f2bf6103c97cc44371d888b649449178baeaa4033d1867a3
 
 UPSTREAM_CHECK_URI = "https://github.com/corretto/corretto-8/tags"
 
+ALTERNATIVE_PRIORITY = "50"
+
+ALTERNATIVE_NAMES = "\
+    jar \
+    jarsigner \
+    java \
+    javac \
+    javadoc \
+    javap \
+    jcmd \
+    jconsole \
+    jdb \
+    jdeps \
+    jfr \
+    jinfo \
+    jmap \
+    jps \
+    jrunscript \
+    jstack \
+    jstat \
+    jstatd \
+    serialver \
+"
+
 # nooelint: oelint.file.underscores
 require corretto-bin-common.inc
 
@@ -26,3 +50,6 @@ RDEPENDS:${PN} += "\
     libgl \
     pango \
 "
+
+# this is used by meta-aws-tests to find this recipe for ptests, so it should stay in this file instead of moving into corretto-bin-common
+inherit ptest
