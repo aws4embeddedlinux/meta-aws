@@ -18,8 +18,6 @@ SRC_URI:append = " file://run-ptest"
 
 S = "${WORKDIR}/${BASE}"
 
-inherit ptest
-
 FILES:${PN} += "\
     /usr/lib/${SHR} \
     /usr/bin \
@@ -30,39 +28,10 @@ do_install() {
     install -d ${D}${libdir}/${SHR}
     cp -r ${WORKDIR}/${BASE}/* ${D}${libdir}/${SHR}/
     cd ${D}${bindir}
-    ln -s ../lib/${SHR}/bin/jaotc
-    ln -s ../lib/${SHR}/bin/jarsigner
-    ln -s ../lib/${SHR}/bin/javac
-    ln -s ../lib/${SHR}/bin/javap
-    ln -s ../lib/${SHR}/bin/jconsole
-    ln -s ../lib/${SHR}/bin/jdeprscan
-    ln -s ../lib/${SHR}/bin/jfr
-    ln -s ../lib/${SHR}/bin/jimage
-    ln -s ../lib/${SHR}/bin/jjs
-    ln -s ../lib/${SHR}/bin/jmap
-    ln -s ../lib/${SHR}/bin/jps
-    ln -s ../lib/${SHR}/bin/jshell
-    ln -s ../lib/${SHR}/bin/jstat
-    ln -s ../lib/${SHR}/bin/keytool
-    ln -s ../lib/${SHR}/bin/rmic
-    ln -s ../lib/${SHR}/bin/rmiregistry
-    ln -s ../lib/${SHR}/bin/unpack200
-    ln -s ../lib/${SHR}/bin/jar
-    ln -s ../lib/${SHR}/bin/java
-    ln -s ../lib/${SHR}/bin/javadoc
-    ln -s ../lib/${SHR}/bin/jcmd
-    ln -s ../lib/${SHR}/bin/jdb
-    ln -s ../lib/${SHR}/bin/jdeps
-    ln -s ../lib/${SHR}/bin/jhsdb
-    ln -s ../lib/${SHR}/bin/jinfo
-    ln -s ../lib/${SHR}/bin/jlink
-    ln -s ../lib/${SHR}/bin/jmod
-    ln -s ../lib/${SHR}/bin/jrunscript
-    ln -s ../lib/${SHR}/bin/jstack
-    ln -s ../lib/${SHR}/bin/jstatd
-    ln -s ../lib/${SHR}/bin/pack200
-    ln -s ../lib/${SHR}/bin/rmid
-    ln -s ../lib/${SHR}/bin/serialver
+
+    for alt_name in ${ALTERNATIVE_NAMES}; do
+        ln -s ../lib/${SHR}/bin/${alt_name}
+    done
 }
 
 do_install:append:x86-64() {
@@ -96,3 +65,44 @@ do_install:append() {
         rm ${D}${libdir}/${SHR}/lib/libjsound.so
     fi
 }
+
+inherit update-alternatives
+
+ALTERNATIVE_NAMES ?= "\
+    jar \
+    jarsigner \
+    java \
+    javac \
+    javadoc \
+    javap \
+    jcmd \
+    jconsole \
+    jdb \
+    jdeprscan \
+    jdeps \
+    jfr \
+    jhsdb \
+    jimage \
+    jinfo \
+    jlink \
+    jmap \
+    jmod \
+    jps \
+    jrunscript \
+    jshell \
+    jstack \
+    jstat \
+    jstatd \
+    serialver \
+"
+
+python do_package:prepend () {
+    prio = d.getVar('ALTERNATIVE_PRIORITY')
+    alt_names = d.getVar('ALTERNATIVE_NAMES')
+
+    for alt_name in alt_names.split():
+        d.appendVar("ALTERNATIVE_PRIORITY_VARDEPS", ' ' + alt_name + ':' + prio)
+}
+
+
+ALTERNATIVE:${PN} = "${ALTERNATIVE_NAMES}"
