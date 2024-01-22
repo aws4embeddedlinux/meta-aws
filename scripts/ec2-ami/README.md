@@ -51,7 +51,7 @@ meta-aws/scripts/ec2-ami/create-ec2-ami.sh amitest-bucket 16 core-image-minimal 
 1. In the Web Console, Navigate to EC2->Images->AMIs
 1. Select the desired AMI and click 'Launch instance from Image'
 1. Follow the wizard as usual
-1. Access the image with the previously provided ssh key with user **user**
+1. Access the image with the previously provided ssh key with user **user** or the user specified in [the cloud init configuration](../../dynamic-layers/virtualization-layer/recipes-extended/cloud-init/files/cloud.cfg).
 
 ## Limitations
 
