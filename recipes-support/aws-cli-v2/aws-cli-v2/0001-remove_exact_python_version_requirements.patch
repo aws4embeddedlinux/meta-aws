@@ -1,4 +1,4 @@
-From eb3d33f5304485b8b03cba7384d7ae3e6e3a2866 Mon Sep 17 00:00:00 2001
+From 3c3bc04d3aa71ff22abb0694c7d8dbb6840626fd Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Fri, 12 Jan 2024 13:24:54 +0000
 Subject: [PATCH] add new recipe aws-cli-v2
