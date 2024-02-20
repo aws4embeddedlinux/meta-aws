@@ -1,4 +1,4 @@
-From d7a0eab35fe4269febdacf361adb8d143e46da59 Mon Sep 17 00:00:00 2001
+From d96108d259d6a6340c391c2bb59f78685633cfa1 Mon Sep 17 00:00:00 2001
 From: Bartosz Golaszewski <brgl@bgdev.pl>
 Date: Mon, 7 Feb 2022 12:23:10 +0100
 Subject: [PATCH] build: fix building without external dependencies
@@ -10,7 +10,6 @@ main git repo to fix it.
 Signed-off-by: Bartosz Golaszewski <brgl@bgdev.pl>
 
 Upstream-Status: Unknown
-
 ---
  cmake/AwsFindPackage.cmake | 22 ++++++++++++++++++++++
  1 file changed, 22 insertions(+)
