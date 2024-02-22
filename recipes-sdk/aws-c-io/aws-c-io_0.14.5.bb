@@ -20,7 +20,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-c-io.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "1779683c6ba566d3ed4750871eb5cb2ff430a678"
+SRCREV = "5b89f50a813271d68b8efe58f0515b480b1356c7"
 
 S = "${WORKDIR}/git"
 
