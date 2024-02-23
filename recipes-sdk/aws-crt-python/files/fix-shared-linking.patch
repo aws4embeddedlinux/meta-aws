@@ -1,10 +1,9 @@
-From a30d058a279a86dbad53ab3374efd8600b1a95bc Mon Sep 17 00:00:00 2001
+From d4a290332835da3859a1141159a1f7bd9b699141 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Thu, 4 May 2023 12:31:54 +0000
 Subject: [PATCH] aws-crt-python: upgrade 0.16.15 -> 0.16.16, readd shared
 
 Upstream-Status: Denied [Desired default]
-
 ---
  setup.py | 10 ----------
  1 file changed, 10 deletions(-)
