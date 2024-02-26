@@ -96,7 +96,6 @@ TESTS="\
 ./s2n_server_signature_algorithms_extension_test \
 ./s2n_server_supported_versions_extension_test \
 ./s2n_set_test \
-./s2n_shutdown_test \
 ./s2n_ssl_prf_test \
 ./s2n_stream_cipher_null_test \
 ./s2n_stuffer_base64_test \
@@ -138,6 +137,8 @@ do
 done
 
 # disabled tests
+
+# s2n_shutdown_test: https://github.com/aws/s2n-tls/issues/4442
 # s2n_ecc_evp_test
 # s2n_tls13_server_cert_test
 # s2n_tls13_hybrid_shared_secret_test
