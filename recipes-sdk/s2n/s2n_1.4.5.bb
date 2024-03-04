@@ -12,8 +12,8 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-# -   
-# -   
+# -
+# -
 # -============================================================================
 # -    S2N SUBCOMPONENTS:
 # -
@@ -32,9 +32,9 @@
 # -    SIKE
 # -      -> s2n/pq-crypto/sike_r1/LICENSE.txt
 # -
-# -   
-# -   
-# 
+# -
+# -
+#
 #
 
 SUMMARY = "s2n"
@@ -83,11 +83,15 @@ EXTRA_OECMAKE += "-DUNSAFE_TREAT_WARNINGS_AS_ERRORS=OFF"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
-RDEPENDS:${PN}-ptest += "openssl"
+RDEPENDS:${PN}-ptest += "\
+    bash \
+    openssl \
+    "
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
    cp -r ${B}/bin/* ${D}${PTEST_PATH}/tests/
+   cp -r ${S}/tests/pems ${D}${PTEST_PATH}/
 }
 
 BBCLASSEXTEND = "native nativesdk"
