@@ -54,8 +54,7 @@ EXTRA_OECMAKE += "\
 
 CXXFLAGS += "-Wno-ignored-attributes"
 
-# enable all modules by default, except st because of: https://github.com/awslabs/aws-iot-device-client/issues/411
-PACKAGECONFIG ??= " dsn dsc ds fp dd pubsub samples jobs"
+PACKAGECONFIG ??= " dsn dsc ds st fp dd pubsub samples jobs"
 
 # enable PACKAGECONFIG = "static" to build static instead of shared
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
