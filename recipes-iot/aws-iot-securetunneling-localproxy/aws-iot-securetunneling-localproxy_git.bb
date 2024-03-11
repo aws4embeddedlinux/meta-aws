@@ -23,6 +23,7 @@ SRC_URI = "\
   file://gcc13.patch \
   file://gcc13_2.patch \
   file://remove-cxx-standard.patch \
+  file://boost-include-format.patch \
   file://run-ptest \
   "
 SRCREV = "f63f8fd6c7be216e484b066a8330df415a8600cf"
