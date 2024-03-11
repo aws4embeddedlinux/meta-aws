@@ -1,0 +1,20 @@
+Index: git/src/config/ConfigFile.cpp
+Upstream-Status: Submitted [https://github.com/aws-samples/aws-iot-securetunneling-localproxy/issues/148]
+===================================================================
+--- git.orig/src/config/ConfigFile.cpp
++++ git/src/config/ConfigFile.cpp
+@@ -19,6 +19,7 @@
+ #include <boost/log/expressions.hpp>
+ #include <boost/asio.hpp>
+ #include <boost/filesystem.hpp>
++#include <boost/format.hpp>
+ #include <boost/property_tree/ini_parser.hpp>
+ #include <boost/algorithm/string.hpp>
+ #include <boost/lexical_cast.hpp>
+@@ -211,4 +212,4 @@ namespace aws { namespace iot { namespac
+         boost::filesystem::path full_path(boost::filesystem::current_path());
+         return (boost::format("%1%/config") % full_path.string()).str();
+     }
+-}}}}
+\ No newline at end of file
++}}}}
