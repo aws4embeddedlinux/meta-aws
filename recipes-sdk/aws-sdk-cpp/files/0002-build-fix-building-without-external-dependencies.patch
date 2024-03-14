@@ -1,4 +1,4 @@
-From 731e1f4d8c280e318de6a3513edb51b95a4b03b6 Mon Sep 17 00:00:00 2001
+From 3151b2e731bdbaca7860f437a9be0ab6634c116a Mon Sep 17 00:00:00 2001
 From: Bartosz Golaszewski <brgl@bgdev.pl>
 Date: Mon, 7 Feb 2022 12:23:10 +0100
 Subject: [PATCH] build: fix building without external dependencies
