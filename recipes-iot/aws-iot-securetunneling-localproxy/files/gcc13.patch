@@ -1,10 +1,9 @@
-From cb510583d502c7b48c8ad6b3b7f175882cacb8eb Mon Sep 17 00:00:00 2001
+From 929903164543c39ea91abbb26f430e5962107b85 Mon Sep 17 00:00:00 2001
 From: tro <throos@amazon.de>
 Date: Tue, 30 May 2023 12:10:36 +0200
 Subject: [PATCH] ProxySettings.h: add #include <cstdint>
 
 Upstream-Status: Pending -> https://github.com/aws-samples/aws-iot-securetunneling-localproxy/pull/136
-
 ---
  src/ProxySettings.h | 1 +
  1 file changed, 1 insertion(+)
