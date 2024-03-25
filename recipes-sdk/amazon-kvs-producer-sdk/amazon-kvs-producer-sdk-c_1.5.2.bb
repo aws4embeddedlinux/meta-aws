@@ -23,13 +23,11 @@ SRC_URI = "\
 UPSTREAM_VERSION_UNKNOWN = "1"
 # set to match only git_invalid_tag_regex because UPSTREAM_VERSION_UNKNOWN seems to be broken for git
 UPSTREAM_CHECK_GITTAGREGEX = "git_invalid_tag_regex"
-# this SRCREV commit id should not different to this specified here:
-# https://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp/blob/70f74f14cf27b09f71dc1889f36eb6e04cdd90a8/CMake/Dependencies/libkvscproducer-CMakeLists.txt#L10
-SRCREV = "7d1b76f53680c1e23afb6f35f0cca97ccdb35e3f"
+SRCREV = "3e519b7670e39031375d227f983ad2cde888078e"
 
 S = "${WORKDIR}/git"
 
-inherit cmake pkgconfig 
+inherit cmake pkgconfig
 
 # ptest are disabled, cause running tests require a certificate
 
@@ -43,11 +41,15 @@ PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON -DBUILD_
 PACKAGECONFIG[with-tests] = "-DBUILD_TEST=ON,-DBUILD_TEST=OFF,gtest"
 
 FILES:${PN} += "\
-    ${libdir}/libcproducer.so \
     ${libdir}/pkgconfig/*.pc \
     "
 
-FILES:${PN}-dev += "${includedir}/com/amazonaws/kinesis/video/*"
+FILES:${PN}-dev += "\
+    ${includedir}/com/amazonaws/kinesis/video/* \
+    ${libdir}/libkvsCommonLws.so \
+    ${libdir}/libkvsCommonCurl.so \
+    ${libdir}/libcproducer.so \
+    "
 
 RDEPENDS:${PN} = ""
 CFLAGS:append = " -Wl,-Bsymbolic"
@@ -55,6 +57,7 @@ CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "\
     -DBUILD_DEPENDENCIES=OFF \
     -DCODE_COVERAGE=OFF \
+    -DBUILD_COMMON_LWS=ON \
     -DCOMPILER_WARNINGS=OFF \
     -DADDRESS_SANITIZER=OFF \
     -DMEMORY_SANITIZER=OFF \
@@ -63,7 +66,6 @@ EXTRA_OECMAKE += "\
     -DDEBUG_HEAP=OFF \
     -DALIGNED_MEMORY_MODEL=OFF \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=$D/usr \
 "
 
 # Notify that libraries are not versioned

@@ -17,8 +17,8 @@ UPSTREAM_VERSION_UNKNOWN = "1"
 # set to match only git_invalid_tag_regex because UPSTREAM_VERSION_UNKNOWN seems to be broken for git
 UPSTREAM_CHECK_GITTAGREGEX = "git_invalid_tag_regex"
 # this SRCREV commit id should not different than this:
-# https://github.com/awslabs/amazon-kinesis-video-streams-producer-c/blob/80c74ac9200b58427a8fcb7782a03b1774020983/CMake/Dependencies/libkvspic-CMakeLists.txt#L10
-SRCREV = "d08be2e16303507d21b4cb376aecda98271687ad"
+# https://github.com/awslabs/amazon-kinesis-video-streams-producer-c/blob/master/CMake/Dependencies/libkvspic-CMakeLists.txt
+SRCREV = "65e38dac9b30523d43a57bc009d679e627b58d9a"
 
 S = "${WORKDIR}/git"
 
@@ -67,7 +67,7 @@ RDEPENDS:${PN}-ptest += "\
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
    install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
-   cp -r ${B}/kvspic_test ${D}${PTEST_PATH}/tests/
+   cp -r ${B}/tst/kvspic_test ${D}${PTEST_PATH}/tests/
 }
 
 BBCLASSEXTEND = "native nativesdk"
