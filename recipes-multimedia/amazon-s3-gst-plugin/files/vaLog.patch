@@ -1,0 +1,23 @@
+amazon-s3-gst-plugin: Fix logging interface
+
+[Issue] -- https://github.com/amzn/amazon-s3-gst-plugin/issues/44
+
+The aws-sdk-cpp log interface did change
+
+Upstream-Status: Submitted [github]
+
+Index: git/src/gsts3multipartuploader.cpp
+===================================================================
+--- git.orig/src/gsts3multipartuploader.cpp
++++ git/src/gsts3multipartuploader.cpp
+@@ -67,6 +67,10 @@ public:
+         }
+         va_end (varargs);
+     }
++
++    void vaLog(Aws::Utils::Logging::LogLevel logLevel, const char* tag, const char* formatStr, va_list args) override
++    {
++    }
+
+     void LogStream(Aws::Utils::Logging::LogLevel log_level, const char* tag, const Aws::OStringStream &message_stream) override
+     {
