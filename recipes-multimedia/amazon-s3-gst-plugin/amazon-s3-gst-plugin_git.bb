@@ -12,6 +12,7 @@ DEPENDS = "\
 
 # nooelint: oelint.file.patchsignedoff:Patch
 SRC_URI = "git://github.com/amzn/amazon-s3-gst-plugin.git;protocol=https;branch=master \
+           file://vaLog.patch \
            file://run-ptest \
            "
 SRCREV = "9515e85871047eeaed6a1612b88b72955373b310"
