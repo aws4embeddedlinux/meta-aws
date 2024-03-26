@@ -25,7 +25,7 @@ SRC_URI = "\
     file://ptest_result.py \
 "
 
-SRCREV = "bfa6667e2f2eeb800a0edd6e6e4745b4faf34536"
+SRCREV = "1eaede838bc42e5ecb4ac6e6ea060a2e3e4e0076"
 
 S = "${WORKDIR}/git"
 
@@ -44,7 +44,13 @@ PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,"
 
 do_configure[network] = "1"
 
-FILES:${PN} += "${libdir}"
+do_install:append () {
+    install ${B}/libkvsWebRtcThreadpool.so ${D}${libdir}
+}
+
+FILES:${PN} += "\
+    ${libdir} \
+    "
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
