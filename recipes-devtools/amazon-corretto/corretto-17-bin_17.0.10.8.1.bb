@@ -17,6 +17,7 @@ UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 UPSTREAM_CHECK_URI = "https://github.com/corretto/corretto-17/tags"
 
 ALTERNATIVE_PRIORITY = "70"
+RPROVIDES:${PN} = "java jdk-17 java-17"
 
 # nooelint: oelint.file.underscores
 require corretto-bin-common.inc
