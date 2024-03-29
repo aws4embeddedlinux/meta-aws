@@ -14,6 +14,7 @@ SRC_URI[aarch64.sha256sum] = "0175334bec3b5aaace0b600f0f67eb7770deb5e41abefdebaf
 UPSTREAM_CHECK_URI = "https://github.com/corretto/corretto-8/tags"
 
 ALTERNATIVE_PRIORITY = "50"
+RPROVIDES:${PN} = "java jdk-8 java-8"
 
 ALTERNATIVE_NAMES = "\
     jar \
