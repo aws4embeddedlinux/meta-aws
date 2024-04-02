@@ -1,4 +1,4 @@
-From b66421701dc57ecc680e179e55417df29339d361 Mon Sep 17 00:00:00 2001
+From 7e08aedf26a09ddfd8b7c8a287d6ae90a66d4957 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Mon, 11 Mar 2024 10:35:55 +0000
 Subject: [PATCH] aws-iot-securetunneling-localproxy: boost 1.84 format include
@@ -8,7 +8,7 @@ Subject: [PATCH] aws-iot-securetunneling-localproxy: boost 1.84 format include
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/src/config/ConfigFile.cpp b/src/config/ConfigFile.cpp
-index 9afb7ca..3191fc5 100644
+index 105ca10..ce9f17b 100644
 --- a/src/config/ConfigFile.cpp
 +++ b/src/config/ConfigFile.cpp
 @@ -19,6 +19,7 @@
@@ -19,7 +19,7 @@ index 9afb7ca..3191fc5 100644
  #include <boost/property_tree/ini_parser.hpp>
  #include <boost/algorithm/string.hpp>
  #include <boost/lexical_cast.hpp>
-@@ -211,4 +212,4 @@ namespace aws { namespace iot { namespace securedtunneling { namespace config_fi
+@@ -212,4 +213,4 @@ namespace aws { namespace iot { namespace securedtunneling { namespace config_fi
          boost::filesystem::path full_path(boost::filesystem::current_path());
          return (boost::format("%1%/config") % full_path.string()).str();
      }
