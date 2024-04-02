@@ -1,4 +1,4 @@
-From b1c6c754c104fca2395a26f6fcf53b2c1761d752 Mon Sep 17 00:00:00 2001
+From 948a70c5e33f5afc8c5eeda97457ae5e164b5bbc Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Tue, 9 Jan 2024 14:34:32 +0000
 Subject: [PATCH] aws-iot-securetunneling-localproxy: remove setting of
@@ -8,7 +8,7 @@ Subject: [PATCH] aws-iot-securetunneling-localproxy: remove setting of
  1 file changed, 1 insertion(+), 5 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 38f1af4..0fb7bbf 100644
+index 34c897a..972e5a8 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -1,5 +1,3 @@
