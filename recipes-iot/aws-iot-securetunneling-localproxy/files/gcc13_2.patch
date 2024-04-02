@@ -1,42 +1,21 @@
-From a6cfc361b2535a783ea465d2092ff17009342167 Mon Sep 17 00:00:00 2001
+From bc308a1fd9dabb100b6ab1083714eada8439be2b Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Mon, 8 Jan 2024 15:07:56 +0000
 Subject: [PATCH] aws-iot-securetunneling-localproxy: fix GCC 13 build
 
 Upstream-Status: Pending -> https://github.com/aws-samples/aws-iot-securetunneling-localproxy/pull/136
 ---
- src/Url.cpp | 3 ++-
- src/Url.h   | 1 +
- 2 files changed, 3 insertions(+), 1 deletion(-)
+ src/Url.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/src/Url.cpp b/src/Url.cpp
-index 7542cff..7ff2b23 100644
+index 3323706..7ff2b23 100644
 --- a/src/Url.cpp
 +++ b/src/Url.cpp
-@@ -5,6 +5,7 @@
- #include <algorithm>
- #include <cctype>
- #include <functional>
-+#include <cstdint>
- 
- #include <boost/log/core.hpp>
- #include <boost/log/trivial.hpp>
-@@ -106,4 +107,4 @@ string aws::iot::securedtunneling::url::url_decode(const string &url_s) {
+@@ -107,4 +107,4 @@ string aws::iot::securedtunneling::url::url_decode(const string &url_s) {
          }
          return out;
      }
 -}
 \ No newline at end of file
 +}
-diff --git a/src/Url.h b/src/Url.h
-index 81fc932..fa084d3 100644
---- a/src/Url.h
-+++ b/src/Url.h
-@@ -3,6 +3,7 @@
- #pragma once
- 
- #include <string>
-+#include <cstdint>
- namespace aws {
-     namespace iot {
-         namespace securedtunneling {
