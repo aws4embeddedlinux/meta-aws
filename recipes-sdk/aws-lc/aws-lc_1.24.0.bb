@@ -1,10 +1,34 @@
+# FIXME: the LIC_FILES_CHKSUM values have been updated by 'devtool upgrade'.
+# The following is the difference between the old and the new license text.
+# Please update the LICENSE value if needed, and summarize the changes in
+# the commit message via 'License-Update:' tag.
+# (example: 'License-Update: copyright years updated.')
+#
+# The changes:
+#
+# --- LICENSE
+# +++ LICENSE
+# @@ -206,8 +206,8 @@
+#     written permission.
+#  
+#  
+# -The code in crypto/kyber/pqcrystals-kyber_kyber512_ref carries the
+# -Public Domain license:
+# +The code in crypto/kyber/pqcrystals-kyber_kyber512_ref and
+# +crypto/ml_kem/ml_kem_ipd_ref_common carries the Public Domain license:
+#  
+#  Public Domain (https://creativecommons.org/share-your-work/public-domain/cc0/)
+#  
+# 
+#
+
 SUMMARY = "AWS libcrypto (AWS-LC)"
 DESCRIPTION = "AWS-LC is a general-purpose cryptographic library maintained by the AWS Cryptography team for AWS and their customers. It іs based on code from the Google BoringSSL project and the OpenSSL project."
 
 HOMEPAGE = "https://github.com/awslabs/aws-lc"
 
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=2c554710bb1c4067a60ae89090fcbc06"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=d7bea8c886a6934b7d38eb42bee9019c"
 
 PROVIDES += "aws/lc"
 
@@ -14,7 +38,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "4e690737e0a386f8c5eb9a0a88becc7985b5d24e"
+SRCREV = "6284822a2e30d9a8497ba7e07bf3f506808912f2"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
