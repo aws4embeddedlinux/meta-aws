@@ -48,6 +48,5 @@ do_install() {
     install -m 0755 ${S}/release-v${PV}-${TARGET_ARCH}/jailer-v${PV}-${TARGET_ARCH} ${D}${bindir}/jailer
 }
 
-# there are sporadic errors when enable debug split, but no value in this debug information
-INHIBIT_PACKAGE_DEBUG_SPLIT = "1"
-INHIBIT_PACKAGE_STRIP = "1"
+# https://bugzilla.yoctoproject.org/show_bug.cgi?id=15227
+PACKAGE_DEPENDS:append:class-target = " virtual/${TARGET_PREFIX}binutils"
