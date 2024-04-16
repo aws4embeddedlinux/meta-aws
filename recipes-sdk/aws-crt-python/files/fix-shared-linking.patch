@@ -1,4 +1,4 @@
-From 2e7aa6a1176243831e1cc6dde4e645ce60397b9f Mon Sep 17 00:00:00 2001
+From 844933430c038fdfd0392e3565a84cff098960a8 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Thu, 4 May 2023 12:31:54 +0000
 Subject: [PATCH] aws-crt-python: upgrade 0.16.15 -> 0.16.16, readd shared
