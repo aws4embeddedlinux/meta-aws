@@ -1,4 +1,4 @@
-name: Auto-Recipe-Update
+name: auto-recipe-update
 
 on:
   schedule:
