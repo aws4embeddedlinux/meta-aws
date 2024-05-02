@@ -24,7 +24,7 @@ SRCREV = "a5cab0adf90cf8e85c771e1de58534e0abd41fdd"
 
 S = "${WORKDIR}/git"
 
-inherit cmake-qemu ptest pkgconfig
+inherit cmake ptest pkgconfig
 
 PACKAGECONFIG ??= "\
     ${@bb.utils.filter('DISTRO_FEATURES', 'pulseaudio', d)} \
