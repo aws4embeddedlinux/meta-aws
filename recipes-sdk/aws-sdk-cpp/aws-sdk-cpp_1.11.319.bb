@@ -55,6 +55,9 @@ FILES_SOLIBSDEV = ""
 # -Werror will cause deprecation warnings to fail the build e.g. OpenSSL cause one, so disable these warnings
 OECMAKE_CXX_FLAGS += "-Wno-deprecated-declarations"
 
+# note: variable tracking size limit exceeded with '-fvar-tracking-assignments', retrying without
+OECMAKE_CXX_FLAGS += "-fno-var-tracking"
+
 # -Wno-maybe-uninitialized is related to this: https://github.com/aws/aws-sdk-cpp/issues/2234
 OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PTEST_ENABLED', '1', '-Wno-maybe-uninitialized', '', d)}"
 
@@ -95,7 +98,6 @@ accessanalyzer;\
 account;\
 acm-pca;\
 acm;\
-alexaforbusiness;\
 amp;\
 amplify;\
 amplifybackend;\
@@ -138,7 +140,6 @@ cloud9;\
 cloudcontrol;\
 clouddirectory;\
 cloudformation;\
-cloudfront;\
 cloudhsm;\
 cloudhsmv2;\
 cloudsearch;\
@@ -220,7 +221,6 @@ forecastquery;\
 frauddetector;\
 fsx;\
 gamelift;\
-gamesparks;\
 glacier;\
 globalaccelerator;\
 glue;\
@@ -240,7 +240,6 @@ inspector2;\
 inspector;\
 iot-data;\
 iot-jobs-data;\
-iot-roborunner;\
 iot1click-devices;\
 iot1click-projects;\
 iot;\
@@ -286,7 +285,6 @@ lookoutvision;\
 m2;\
 machinelearning;\
 macie2;\
-macie;\
 managedblockchain;\
 marketplace-catalog;\
 marketplace-entitlement;\
@@ -352,10 +350,6 @@ resiliencehub;\
 resource-explorer-2;\
 resource-groups;\
 resourcegroupstaggingapi;\
-s3-crt;\
-s3;\
-s3control;\
-s3outposts;\
 sagemaker-a2i-runtime;\
 sagemaker-edge;\
 sagemaker-featurestore-runtime;\
@@ -424,7 +418,15 @@ xray;'\
 
 ### removed due to build failures with arm32
 ### with arm64 and x86-64 they work
+# alexaforbusiness;\
+# cloudfront;\
+# gamesparks;\
 # ec2;\
-# s3-encryption;\
+# iot-roborunner;\
+# s3-crt;\
+# s3;\
+# s3control;\
+# s3outposts;\
 # identity-management;\
+# macie;\
 ###
