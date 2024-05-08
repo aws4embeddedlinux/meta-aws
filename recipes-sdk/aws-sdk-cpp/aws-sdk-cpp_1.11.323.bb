@@ -20,7 +20,7 @@ SRC_URI = "\
     file://ptest_result.py \
     "
 
-SRCREV = "469d8956d0a1d9eab2e12401f6bcf9fe90cf550b"
+SRCREV = "4bc45aee217ca4813bd5a0fabdeae74d3e36eee5"
 
 S = "${WORKDIR}/git"
 
