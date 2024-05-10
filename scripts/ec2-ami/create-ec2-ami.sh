@@ -15,7 +15,7 @@ IMAGE_NAME=$3
 MACHINE_NAME=$4
 
 
-IMG_DIR="build/tmp/deploy/images/${MACHINE_NAME}"
+IMG_DIR=$(bitbake-getvar --value -q  DEPLOY_DIR_IMAGE)
 
 TESTDATA_JSON="${IMG_DIR}/${IMAGE_NAME}-${MACHINE_NAME}.rootfs.testdata.json"
 
@@ -28,7 +28,7 @@ TARGET_ARCH=$(jq -r '.TARGET_ARCH' $TESTDATA_JSON)
 IMAGE_NAME=$(jq -r '.IMAGE_NAME' $TESTDATA_JSON)
 IMAGE_ROOTFS_SIZE=$(jq -r '.IMAGE_ROOTFS_SIZE' $TESTDATA_JSON)
 
-
+echo IMG_DIR=$IMG_DIR
 echo DISTRO=$DISTRO
 echo DISTRO_CODENAME=$DISTRO_CODENAME
 echo DISTRO_NAME=$DISTRO_NAME
@@ -120,4 +120,3 @@ AMI_ID=$(aws ec2 register-image --name ${AMI_NAME} --cli-input-json="file://regi
 echo "AMI name: $AMI_NAME"
 echo "AMI ID: $AMI_ID"
 rm register-ami.json
-
