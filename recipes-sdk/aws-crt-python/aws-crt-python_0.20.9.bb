@@ -40,6 +40,10 @@ RDEPENDS:${PN} += "python3-asyncio"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
+do_configure:prepend(){
+        sed -i "s/__version__ = '1.0.0.dev0'/__version__ = '${PV}'/" ${S}/awscrt/__init__.py
+}
+
 RDEPENDS:${PN}-ptest += "\
         ${PYTHON_PN} \
         ${PYTHON_PN}-websockets \
