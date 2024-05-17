@@ -18,6 +18,10 @@ BRANCH ?= "main"
 
 RDEPENDS:${PN} += "aws-crt-python python3-json"
 
+do_configure:prepend(){
+        sed -i "s/__version__ = '1.0.0-dev'/__version__ = '${PV}'/" ${S}/awsiot/__init__.py
+}
+
 RDEPENDS:${PN}-ptest += "\
         ${PYTHON_PN} \
         bash \
