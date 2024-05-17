@@ -5,8 +5,6 @@
 src="images/lf_yp_plat.png"></td>
 <td width="150" height="150"><img alt="Yocto Project Layer Compatible"
 src="images/LF_17_02_Yocto-Badge-Update_Compatible_Final_Blank.png"></td>
-<td width="150" height="150"><img alt="Automotive Grade Linux Platinum Member"
-src="images/agl-member-plat.png"></td>
 </tr>
 </table>
 
