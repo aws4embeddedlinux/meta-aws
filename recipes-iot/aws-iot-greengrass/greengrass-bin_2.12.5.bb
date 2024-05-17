@@ -8,7 +8,7 @@ GG_ROOT = "${D}/${GG_BASENAME}"
 GGV2_FLEETPROVISIONING_VERSION ?= "latest"
 GGV2_FLEET_PROVISIONING_TEMPLATE_NAME ?= "GreengrassFleetProvisioningTemplate"
 
-LIC_FILES_CHKSUM = "file://${WORKDIR}/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
+LIC_FILES_CHKSUM = "file://${UNPACKDIR}/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 DEPENDS += "gettext-native"
 
@@ -42,7 +42,8 @@ UPSTREAM_CHECK_URI = "https://github.com/aws-greengrass/aws-greengrass-nucleus/t
 
 GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
 
-S = "${WORKDIR}"
+S = "${WORKDIR}/sources"
+UNPACKDIR = "${S}"
 
 inherit systemd useradd ptest pkgconfig
 
@@ -93,18 +94,18 @@ do_install() {
         install -d ${GG_ROOT}/claim-certs
         install -d ${GG_ROOT}/plugins
         install -d ${GG_ROOT}/plugins/trusted
-        install -m 0440 ${WORKDIR}/claim.pkey.pem ${GG_ROOT}/claim-certs
-        install -m 0440 ${WORKDIR}/claim.cert.pem ${GG_ROOT}/claim-certs
-        install -m 0440 ${WORKDIR}/claim.root.pem ${GG_ROOT}/claim-certs
+        install -m 0440 ${UNPACKDIR}/claim.pkey.pem ${GG_ROOT}/claim-certs
+        install -m 0440 ${UNPACKDIR}/claim.cert.pem ${GG_ROOT}/claim-certs
+        install -m 0440 ${UNPACKDIR}/claim.root.pem ${GG_ROOT}/claim-certs
 
-        install -m 0740 ${WORKDIR}/fleetprovisioningbyclaim-${GGV2_FLEETPROVISIONING_VERSION}.jar ${GG_ROOT}/plugins/trusted/aws.greengrass.FleetProvisioningByClaim.jar
+        install -m 0740 ${UNPACKDIR}/fleetprovisioningbyclaim-${GGV2_FLEETPROVISIONING_VERSION}.jar ${GG_ROOT}/plugins/trusted/aws.greengrass.FleetProvisioningByClaim.jar
 
-        install -m 0755 ${WORKDIR}/replace_board_id.sh ${GG_ROOT}/config/
+        install -m 0755 ${UNPACKDIR}/replace_board_id.sh ${GG_ROOT}/config/
 
-        patch ${GG_ROOT}/alts/init/distro/bin/loader -p1 < ${WORKDIR}/loader.diff
-        patch ${D}${systemd_unitdir}/system/greengrass.service -p1 < ${WORKDIR}/greengrass.service.diff
+        patch ${GG_ROOT}/alts/init/distro/bin/loader -p1 < ${UNPACKDIR}/loader.diff
+        patch ${D}${systemd_unitdir}/system/greengrass.service -p1 < ${UNPACKDIR}/greengrass.service.diff
 
-        install -m 0640 ${WORKDIR}/config.yaml.template ${GG_ROOT}/config/config.yaml
+        install -m 0640 ${UNPACKDIR}/config.yaml.template ${GG_ROOT}/config/config.yaml
 
         AWS_DEFAULT_REGION=${GGV2_REGION} \
         PROXY_USER=ggc_user:ggc_group \
@@ -117,7 +118,7 @@ do_install() {
         ROOT_CA_PATH=/${GG_BASENAME}/claim-certs/claim.root.pem \
         THING_NAME=${GGV2_THING_NAME} \
         THING_GROUP_NAME=${GGV2_THING_GROUP} \
-        envsubst < ${WORKDIR}/config.yaml.template > ${GG_ROOT}/config/config.yaml
+        envsubst < ${UNPACKDIR}/config.yaml.template > ${GG_ROOT}/config/config.yaml
     fi
 }
 

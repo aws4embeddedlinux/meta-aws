@@ -21,7 +21,8 @@ SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5
 
 UPSTREAM_VERSION_UNKNOWN = "1"
 
-S = "${WORKDIR}"
+S = "${WORKDIR}/sources"
+UNPACKDIR = "${S}"
 
 FILES:${PN} += "/${GG_BASENAME}"
 
@@ -39,11 +40,11 @@ do_compile[noexec]   = "1"
 do_install() {
     install -d ${GG_ROOT}/auth
     install -d ${GG_ROOT}/config
-    install -m 0440 ${WORKDIR}/demo.pkey.pem ${GG_ROOT}/auth
-    install -m 0440 ${WORKDIR}/demo.cert.pem ${GG_ROOT}/auth
-    install -m 0440 ${WORKDIR}/demo.root.pem ${GG_ROOT}/auth
+    install -m 0440 ${UNPACKDIR}/demo.pkey.pem ${GG_ROOT}/auth
+    install -m 0440 ${UNPACKDIR}/demo.cert.pem ${GG_ROOT}/auth
+    install -m 0440 ${UNPACKDIR}/demo.root.pem ${GG_ROOT}/auth
 
-    install -m 0640 ${WORKDIR}/greengrassv2-init.yaml ${GG_ROOT}/config/config.yaml
+    install -m 0640 ${UNPACKDIR}/greengrassv2-init.yaml ${GG_ROOT}/config/config.yaml
 
     sed -i -e "s,##private_key##,/${GG_BASENAME}/auth/demo.pkey.pem,g" ${GG_ROOT}/config/config.yaml
     sed -i -e "s,##certificate_path##,/${GG_BASENAME}/auth/demo.cert.pem,g" ${GG_ROOT}/config/config.yaml
