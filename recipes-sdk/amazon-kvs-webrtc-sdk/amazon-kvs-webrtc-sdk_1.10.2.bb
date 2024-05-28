@@ -84,7 +84,7 @@ EXTRA_OECMAKE += "-DCMAKE_SKIP_RPATH=1"
 
 do_install_ptest () {
     cp -r ${B}/tst/webrtc_client_test ${D}${PTEST_PATH}/
-    install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
+    install -m 0755 ${UNPACKDIR}/ptest_result.py ${D}${PTEST_PATH}/
 }
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP

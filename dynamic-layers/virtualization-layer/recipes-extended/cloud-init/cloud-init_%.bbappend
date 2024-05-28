@@ -5,7 +5,7 @@ SRC_URI:append:aws-ec2 = " file://cloud.cfg"
 # nooelint: oelint.func.specific
 do_install:append:aws-ec2 () {
     # Adding cloud-init configuration with reasonable settings.
-    install -T -m 0644 ${WORKDIR}/cloud.cfg ${D}${sysconfdir}/cloud/cloud.cfg
+    install -T -m 0644 ${UNPACKDIR}/cloud.cfg ${D}${sysconfdir}/cloud/cloud.cfg
 }
 
 SYSTEMD_PACKAGES = "${PN}-systemd"
