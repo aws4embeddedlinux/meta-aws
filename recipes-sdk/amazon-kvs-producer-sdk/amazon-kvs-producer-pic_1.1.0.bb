@@ -35,6 +35,9 @@ PACKAGECONFIG[with-tests] = "-DBUILD_TEST=ON,-DBUILD_TEST=OFF,gtest"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
+# fix error: implicit declaration of function pthread_getname_np
+CFLAGS:append = " -D_GNU_SOURCE"
+
 EXTRA_OECMAKE += "\
     -DBUILD_DEPENDENCIES=OFF \
     -DCODE_COVERAGE=OFF \
@@ -65,7 +68,7 @@ RDEPENDS:${PN}-ptest += "\
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
-   install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
+   install -m 0755 ${UNPACKDIR}/ptest_result.py ${D}${PTEST_PATH}/
    cp -r ${B}/tst/kvspic_test ${D}${PTEST_PATH}/tests/
 }
 

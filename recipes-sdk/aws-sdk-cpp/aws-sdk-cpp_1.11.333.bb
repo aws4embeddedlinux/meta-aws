@@ -79,7 +79,7 @@ RRECOMMENDS:${PN}:class-native = ""
 do_install_ptest () {
     install -d ${D}${PTEST_PATH}/tests
     find ${B}/generated/tests -executable -type f -exec install -m 0755 "{}" ${D}${PTEST_PATH}/tests/ \;
-    install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
+    install -m 0755 ${UNPACKDIR}/ptest_result.py ${D}${PTEST_PATH}/
 }
 
 # this is related to this bug
