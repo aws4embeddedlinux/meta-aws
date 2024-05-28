@@ -46,7 +46,7 @@ do_install_ptest() {
     find ${D}${PTEST_PATH}/build -name "*.so*" | xargs rm -rf
     find ${D}${PTEST_PATH}/src -name ".git" | xargs rm -rf
 
-    install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
+    install -m 0755 ${UNPACKDIR}/ptest_result.py ${D}${PTEST_PATH}/
 }
 
 BBCLASSEXTEND = "native nativesdk"
