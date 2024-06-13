@@ -9,7 +9,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "f6f200222c472ad267810902808adbb3c71e4d11"
+SRCREV = "e1032e28159fd687c81fcc61ce2cadcb507ba4e3"
 S = "${WORKDIR}/git"
 
 inherit setuptools3 ptest
