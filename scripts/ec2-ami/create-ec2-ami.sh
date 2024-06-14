@@ -7,6 +7,8 @@ set -e
 ARGC=$#
 if [ $ARGC -lt 3 ]; then
     echo "ERROR: Please inform import bucket name as first argument and AMI disk size in GB as second, IMAGE_NAME as third and MACHINE_NAME as last."
+    echo "E.g.:"
+    echo "$0 my-test-bucket 4 core-image-minimal aws-ec2-arm64"
     exit 1
 fi
 IMPORT_BUCKET_NAME=$1
@@ -14,6 +16,13 @@ AMI_DISK_SIZE_GB=$2
 IMAGE_NAME=$3
 MACHINE_NAME=$4
 
+# validation steps
+# AMI_DISK_SIZE_GB
+re='^[0-9]+$'
+if ! [[ $AMI_DISK_SIZE_GB =~ $re ]] ; then
+    echo "AMI_DISK_SIZE needs to be a number only without unit. E.g. '4'." >&2
+    exit 1
+fi
 
 IMG_DIR=$(bitbake-getvar --value -q  DEPLOY_DIR_IMAGE)
 
