@@ -1,0 +1,16 @@
+Index: git/src/CacheAndPersist.cpp
+
+Upstream-Status: Submitted [https://github.com/aws/aws-iot-fleetwise-edge/issues/90]
+
+===================================================================
+--- git.orig/src/CacheAndPersist.cpp
++++ git/src/CacheAndPersist.cpp
+@@ -517,7 +517,7 @@ CacheAndPersist::cleanupPersistedData()
+                     // TODO: do not skip ion files but add the metadata for them so they don't get deleted
+                     // coverity[misra_cpp_2008_rule_14_8_2_violation] - boost filesystem path header defines both
+                     // template and and non-template function
+-                    if ( boost::filesystem::extension( filename ) != ".10n" ) // skip ion files
++                    if ( boost::filesystem::path( filename ).extension().string() != ".10n" ) // skip ion files
+                     {
+                         filesToDelete.push_back( filename );
+                     }

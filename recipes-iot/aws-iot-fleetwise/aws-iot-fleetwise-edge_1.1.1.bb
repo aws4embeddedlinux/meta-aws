@@ -19,6 +19,7 @@ DEPENDS = "\
 SRC_URI = "\
            git://github.com/aws/aws-iot-fleetwise-edge.git;protocol=https;branch=main \
            file://remove-cxx-standard.patch \
+           file://boost_filesystem_extension.patch \
            file://run-ptest \
            "
 
