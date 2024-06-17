@@ -15,7 +15,6 @@ PACKAGES_DYNAMIC = "^${PN}-.*"
 
 SRC_URI = "\
     git://github.com/aws/aws-sdk-cpp.git;protocol=https;branch=main \
-    file://0002-build-fix-building-without-external-dependencies.patch \
     file://run-ptest \
     file://ptest_result.py \
     "
@@ -65,6 +64,7 @@ OECMAKE_CXX_FLAGS += "-Wno-psabi"
 
 EXTRA_OECMAKE += "\
      -DBUILD_DEPS=OFF \
+     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
 "
 
 RDEPENDS:${PN}-ptest += "\
