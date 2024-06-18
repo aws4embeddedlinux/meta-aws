@@ -91,7 +91,7 @@ do_install_ptest() {
 
     cp -r ${B}/test/test-aws-iot-device-client ${D}${PTEST_PATH}/
 
-    install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
+    install -m 0755 ${UNPACKDIR}/ptest_result.py ${D}${PTEST_PATH}/
 
     install -d ${D}/${libdir}
     install -m 755 ${B}/lib/libgtest.so.1.11.0 ${D}/${libdir}
