@@ -31,7 +31,7 @@ SRC_URI:append = " ${@bb.utils.contains('PACKAGECONFIG', 'fleetprovisioning', '\
     file://claim.root.pem \
     ', '', d)}"
 
-SRC_URI[payload.sha256sum] = "36c1108601c0392fa0f5efc54a5a3d16838ebdf5769bde2cbbea4bf54f386e0f"
+SRC_URI[payload.sha256sum] = "d48c936aa636197b8af29d374b3ea12ebf8c7a598768403bc11e0a1a397402ad"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 SRC_URI[license.md5sum] = "34400b68072d710fecd0a2940a0d1658"
 SRC_URI[sha256sum] = "25926c02e0b8b449d2f5fbc1a8320a82106199d0f7f5a35c88be403a3cfe6560"
@@ -54,7 +54,7 @@ FILES:${PN} += "\
 
 RDEPENDS:${PN} += "\
     ca-certificates \
-    java-11 \
+    java-17 \
     python3-core \
     python3-json \
     python3-numbers \
@@ -62,24 +62,25 @@ RDEPENDS:${PN} += "\
     "
 
 do_configure[noexec] = "1"
-do_compile[noexec]   = "1"
+do_compile[noexec] = "1"
 do_patch[noexec] = "1"
 
 do_install() {
     install -d ${GG_ROOT}/config
     install -d ${GG_ROOT}/alts
     install -d ${GG_ROOT}/alts/init
-    install -d ${GG_ROOT}/alts/init/distro
-    install -d ${GG_ROOT}/alts/init/distro/bin
-    install -d ${GG_ROOT}/alts/init/distro/conf
-    install -d ${GG_ROOT}/alts/init/distro/lib
+    install -d ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus
+    install -d ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin
+    install -d ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/conf
+    install -d ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/lib
+    ln -s /${GG_BASENAME}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus ${GG_ROOT}/alts/init/distro
 
     install -m 0440 ${S}/LICENSE                         ${GG_ROOT}
     install -m 0640 ${S}/greengrassv2-init.yaml          ${GG_ROOT}/config/config.yaml.clean
-    install -m 0640 ${S}/bin/greengrass.service.template ${GG_ROOT}/alts/init/distro/bin/greengrass.service.template
-    install -m 0640 ${S}/bin/loader                      ${GG_ROOT}/alts/init/distro/bin/loader
-    install -m 0640 ${S}/conf/recipe.yaml                ${GG_ROOT}/alts/init/distro/conf/recipe.yaml
-    install -m 0740 ${S}/lib/Greengrass.jar              ${GG_ROOT}/alts/init/distro/lib/Greengrass.jar
+    install -m 0640 ${S}/bin/greengrass.service.template ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/greengrass.service.template
+    install -m 0640 ${S}/bin/loader                      ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/loader
+    install -m 0640 ${S}/conf/recipe.yaml                ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/conf/recipe.yaml
+    install -m 0740 ${S}/lib/Greengrass.jar              ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/lib/Greengrass.jar
 
     ln -s /${GG_BASENAME}/alts/init ${GG_ROOT}/alts/current
 
