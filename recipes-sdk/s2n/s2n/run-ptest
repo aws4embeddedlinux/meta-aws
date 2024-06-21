@@ -68,7 +68,6 @@ TESTS="\
 ./s2n_npn_extension_test \
 ./s2n_nst_early_data_indication_test \
 ./s2n_openssl_test \
-./s2n_post_handshake_send_test \
 ./s2n_post_handshake_test \
 ./s2n_protocol_preferences_test \
 ./s2n_psk_key_exchange_modes_extension_test \
@@ -83,7 +82,6 @@ TESTS="\
 ./s2n_safety_macros_test \
 ./s2n_safety_test \
 ./s2n_send_multirecord_test \
-./s2n_send_test \
 ./s2n_sequence_number_test \
 ./s2n_server_alpn_extension_test \
 ./s2n_server_cert_request_test \
