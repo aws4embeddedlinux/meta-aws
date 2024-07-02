@@ -54,7 +54,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "114ccab0ff2cde491203ac841837d0d39b767412"
+SRCREV = "073c7b415a17d271a7b2c8c385d0e641fc94871f"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
