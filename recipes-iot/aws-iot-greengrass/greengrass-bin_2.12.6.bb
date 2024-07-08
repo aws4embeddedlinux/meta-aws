@@ -54,7 +54,7 @@ FILES:${PN} += "\
 
 RDEPENDS:${PN} += "\
     ca-certificates \
-    java-17 \
+    java-11 \
     python3-core \
     python3-json \
     python3-numbers \
