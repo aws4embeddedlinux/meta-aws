@@ -1,0 +1,35 @@
+#!/bin/sh
+set -euxo pipefail
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+
+DATE=$(date "+%F_%H-%M-%S")
+ROLE="fprole_$DATE"
+TEMPLATE="fptemplate_$DATE"
+AWS_ACCOUNT_NUMBER=$(aws sts get-caller-identity --query "Account" --output text)
+TEMPLATE_JSON='{"Parameters":{"DeviceLocation":{"Type":"String"},"AWS::IoT::Certificate::Id":{"Type":"String"},"SerialNumber":{"Type":"String"}},"Mappings":{"LocationTable":{"Seattle":{"LocationUrl":"https://example.aws"}}},"Resources":{"thing":{"Type":"AWS::IoT::Thing","Properties":{"ThingName":{"Fn::Join":["",["ThingPrefix_",{"Ref":"SerialNumber"}]]},"AttributePayload":{"version":"v1","serialNumber":"serialNumber"}},"OverrideSettings":{"AttributePayload":"MERGE","ThingTypeName":"REPLACE","ThingGroups":"DO_NOTHING"}},"certificate":{"Type":"AWS::IoT::Certificate","Properties":{"CertificateId":{"Ref":"AWS::IoT::Certificate::Id"},"Status":"Active"},"OverrideSettings":{"Status":"REPLACE"}},"policy":{"Type":"AWS::IoT::Policy","Properties":{"PolicyDocument":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["iot:Connect","iot:Subscribe","iot:Publish","iot:Receive"],"Resource":"*"}]}}}},"DeviceConfiguration":{"FallbackUrl":"https://www.example.com/test-site","LocationUrl":{"Fn::FindInMap":["LocationTable",{"Ref":"DeviceLocation"},"LocationUrl"]}}}'
+IOT_DATA_ENDPOINT=`aws --output text iot describe-endpoint --endpoint-type iot:Data-ATS`
+
+aws iam create-role \
+    --role-name $ROLE \
+    --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Action":"sts:AssumeRole","Effect":"Allow","Principal":{"Service":"iot.amazonaws.com"}}]}'
+
+aws iam attach-role-policy \
+        --role-name $ROLE \
+        --policy-arn arn:aws:iam::aws:policy/service-role/AWSIoTThingsRegistration
+
+# wait for role to be populated
+sleep 10
+
+aws iot create-provisioning-template \
+        --template-name $TEMPLATE \
+        --provisioning-role-arn arn:aws:iam::$AWS_ACCOUNT_NUMBER:role/$ROLE \
+        --template-body $TEMPLATE_JSON \
+        --enabled
+
+aws iot create-provisioning-claim \
+    --template-name $TEMPLATE \
+    | python3 ./parse_cert_set_result.py \
+    --path ./tmp \
+    --filename provision
+
+fleet-provisioning --endpoint $IOT_DATA_ENDPOINT --cert ./tmp/provision.cert.pem --key ./tmp/provision.private.key --template_name $TEMPLATE --template_parameters '{"SerialNumber":"'$DATE'","DeviceLocation":"Seattle"}'
