@@ -36,11 +36,10 @@ FILES_SOLIBSDEV = ""
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
 
-# this does not work because: https://github.com/aws/aws-iot-device-sdk-cpp-v2/issues/393
-# PACKAGECONFIG ??= "\
-#    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
-#    "
-# PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
+PACKAGECONFIG ??= "\
+   ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
+   "
+PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
