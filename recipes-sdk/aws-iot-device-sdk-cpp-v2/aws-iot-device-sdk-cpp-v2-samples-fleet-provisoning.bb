@@ -20,12 +20,9 @@ do_install_ptest() {
     install -d ${D}${PTEST_PATH}/tests
 
     install -m 0755 ${S}/../../../utils/parse_cert_set_result.py ${D}${PTEST_PATH}/
-
-    install -m 0755 ${WORKDIR}/run-ptest ${D}${PTEST_PATH}/
 }
 
-# disable automatic run of this ptest, since it require credentials to be set before
-PTEST_ENABLE="0"
+# ptest require credentials to be set before otherwise it will skipped
 # this can be done by adding a file aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning.bbappend in a separate layer or uncomment here
 # do_install_ptest_append() {
 #     install -d ${D}/home/root/.aws

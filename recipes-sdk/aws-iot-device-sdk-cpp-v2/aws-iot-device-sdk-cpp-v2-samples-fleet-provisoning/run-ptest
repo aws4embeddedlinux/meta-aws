@@ -1,12 +1,19 @@
 #!/bin/sh
-set -euxo pipefail
+
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
+
+if [ ! -f "/home/root/.aws/credentials" ]; then  
+    echo "SKIP: aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning test - aws cli needs to be configured"
+    exit
+fi
+
+set -euxo pipefail
 
 DATE=$(date "+%F_%H-%M-%S")
 ROLE="fprole_$DATE"
 TEMPLATE="fptemplate_$DATE"
-AWS_ACCOUNT_NUMBER=$(aws sts get-caller-identity --query "Account" --output text)
 TEMPLATE_JSON='{"Parameters":{"DeviceLocation":{"Type":"String"},"AWS::IoT::Certificate::Id":{"Type":"String"},"SerialNumber":{"Type":"String"}},"Mappings":{"LocationTable":{"Seattle":{"LocationUrl":"https://example.aws"}}},"Resources":{"thing":{"Type":"AWS::IoT::Thing","Properties":{"ThingName":{"Fn::Join":["",["ThingPrefix_",{"Ref":"SerialNumber"}]]},"AttributePayload":{"version":"v1","serialNumber":"serialNumber"}},"OverrideSettings":{"AttributePayload":"MERGE","ThingTypeName":"REPLACE","ThingGroups":"DO_NOTHING"}},"certificate":{"Type":"AWS::IoT::Certificate","Properties":{"CertificateId":{"Ref":"AWS::IoT::Certificate::Id"},"Status":"Active"},"OverrideSettings":{"Status":"REPLACE"}},"policy":{"Type":"AWS::IoT::Policy","Properties":{"PolicyDocument":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["iot:Connect","iot:Subscribe","iot:Publish","iot:Receive"],"Resource":"*"}]}}}},"DeviceConfiguration":{"FallbackUrl":"https://www.example.com/test-site","LocationUrl":{"Fn::FindInMap":["LocationTable",{"Ref":"DeviceLocation"},"LocationUrl"]}}}'
+AWS_ACCOUNT_NUMBER=$(aws sts get-caller-identity --query "Account" --output text)
 IOT_DATA_ENDPOINT=`aws --output text iot describe-endpoint --endpoint-type iot:Data-ATS`
 
 aws iam create-role \
@@ -33,3 +40,10 @@ aws iot create-provisioning-claim \
     --filename provision
 
 fleet-provisioning --endpoint $IOT_DATA_ENDPOINT --cert ./tmp/provision.cert.pem --key ./tmp/provision.private.key --template_name $TEMPLATE --template_parameters '{"SerialNumber":"'$DATE'","DeviceLocation":"Seattle"}'
+
+# this also acts like a (try-) catch block
+if [ $? -eq 0 ] ; then
+    echo "PASS: aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning test"
+else
+    echo "FAIL: aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning test"
+fi
