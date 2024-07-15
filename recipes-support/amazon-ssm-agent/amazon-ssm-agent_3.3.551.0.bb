@@ -104,4 +104,4 @@ do_install () {
 }
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP:${PN}-ptest += "buildpaths"
+INSANE_SKIP:${PN} += "textrel"
