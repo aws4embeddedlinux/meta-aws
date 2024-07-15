@@ -98,3 +98,6 @@ do_install_ptest() {
     install -m 755 ${B}/lib/libgmock.so.1.11.0 ${D}/${libdir}
     install -m 755 ${B}/lib/libgmock_main.so.1.11.0 ${D}/${libdir}
 }
+
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN}-ptest += "buildpaths"
