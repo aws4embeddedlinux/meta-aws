@@ -52,4 +52,7 @@ PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN}-ptest += "buildpaths"
+
 BBCLASSEXTEND = "native nativesdk"

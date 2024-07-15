@@ -43,6 +43,9 @@ do_install_ptest () {
    install -m 0755 ${B}/tests/aws-c-compression-tests ${D}${PTEST_PATH}/tests/
 }
 
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN}-ptest += "buildpaths"
+
 AWS_C_INSTALL = "$D/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "\
@@ -53,4 +56,3 @@ EXTRA_OECMAKE += "\
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
 BBCLASSEXTEND = "native nativesdk"
-

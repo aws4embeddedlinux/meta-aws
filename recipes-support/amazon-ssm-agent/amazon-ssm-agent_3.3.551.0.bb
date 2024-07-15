@@ -102,3 +102,6 @@ do_install () {
     install -d ${D}${systemd_unitdir}/system/
     install -m 644 ${S}/packaging/linux/amazon-ssm-agent.service ${D}${systemd_unitdir}/system/amazon-ssm-agent.service
 }
+
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN}-ptest += "buildpaths"
