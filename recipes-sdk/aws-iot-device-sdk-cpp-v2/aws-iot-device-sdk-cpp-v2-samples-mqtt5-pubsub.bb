@@ -7,3 +7,6 @@ do_install() {
  install -d ${D}${bindir}
  install ${B}/mqtt5_pubsub ${D}${bindir}
 }
+
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN}-dbg += "buildpaths"
