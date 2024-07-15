@@ -22,6 +22,9 @@ do_install_ptest() {
     install -m 0755 ${S}/../../../utils/parse_cert_set_result.py ${D}${PTEST_PATH}/
 }
 
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN}-dbg += "buildpaths"
+
 # ptest require credentials to be set before otherwise it will skipped
 # this can be done by adding a file aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning.bbappend in a separate layer or uncomment here
 # do_install_ptest_append() {
