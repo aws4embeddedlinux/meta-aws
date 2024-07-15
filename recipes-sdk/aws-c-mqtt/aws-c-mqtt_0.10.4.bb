@@ -53,4 +53,7 @@ do_install_ptest () {
    install -m 0755 ${B}/tests/aws-c-mqtt-tests ${D}${PTEST_PATH}/tests/
 }
 
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN}-ptest += "buildpaths"
+
 BBCLASSEXTEND = "native nativesdk"
