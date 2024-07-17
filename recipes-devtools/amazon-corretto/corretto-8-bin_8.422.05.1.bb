@@ -8,8 +8,8 @@ SRC_URI:aarch64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corrett
 SRC_URI:x86-64 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
 # you can find checksum here: https://github.com/corretto/corretto-8/releases since devtool upgrade can only do one arch atm.
-SRC_URI[x86-64.sha256sum] = "f3061601f1774aa0a52804a4a744b8c3eae93a9e6d289ad80576faa3e8d99cb1"
-SRC_URI[aarch64.sha256sum] = "ccdaa40022e63c7b29f8c25ef41145d5ec1bf9e5f65800e6e4087ea172949569"
+SRC_URI[x86-64.sha256sum] = "065de7f9a700b1fb65990325f137a96ee49bed0b2be708463fe7695fcd36e0df"
+SRC_URI[aarch64.sha256sum] = "f225874a5b90f004f88dec0b38bf7361189ee00ac336ab2aa6cea7ad508acc05"
 
 UPSTREAM_CHECK_URI = "https://github.com/corretto/corretto-8/tags"
 
