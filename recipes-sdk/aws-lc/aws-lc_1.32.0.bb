@@ -1,27 +1,3 @@
-# FIXME: the LIC_FILES_CHKSUM values have been updated by 'devtool upgrade'.
-# The following is the difference between the old and the new license text.
-# Please update the LICENSE value if needed, and summarize the changes in
-# the commit message via 'License-Update:' tag.
-# (example: 'License-Update: copyright years updated.')
-#
-# The changes:
-#
-# --- LICENSE
-# +++ LICENSE
-# @@ -206,8 +206,8 @@
-#     written permission.
-#  
-#  
-# -The code in crypto/kyber/pqcrystals-kyber_kyber512_ref carries the
-# -Public Domain license:
-# +The code in crypto/kyber/pqcrystals-kyber_kyber512_ref and
-# +crypto/ml_kem/ml_kem_ipd_ref_common carries the Public Domain license:
-#  
-#  Public Domain (https://creativecommons.org/share-your-work/public-domain/cc0/)
-#  
-# 
-#
-
 SUMMARY = "AWS libcrypto (AWS-LC)"
 DESCRIPTION = "AWS-LC is a general-purpose cryptographic library maintained by the AWS Cryptography team for AWS and their customers. It іs based on code from the Google BoringSSL project and the OpenSSL project."
 
@@ -90,3 +66,22 @@ RDEPENDS:${PN}-ptest = "\
 FILES_SOLIBSDEV = ""
 
 BBCLASSEXTEND = "native nativesdk"
+
+inherit update-alternatives
+
+ALTERNATIVE_PRIORITY = "50"
+
+ALTERNATIVE_NAMES ?= "\
+    bssl \
+    openssl \
+    "
+
+python do_package:prepend () {
+    prio = d.getVar('ALTERNATIVE_PRIORITY')
+    alt_names = d.getVar('ALTERNATIVE_NAMES')
+
+    for alt_name in alt_names.split():
+        d.appendVar("ALTERNATIVE_PRIORITY_VARDEPS", ' ' + alt_name + ':' + prio)
+}
+
+ALTERNATIVE:${PN} = "${ALTERNATIVE_NAMES}"
