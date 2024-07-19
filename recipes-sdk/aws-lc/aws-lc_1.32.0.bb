@@ -68,20 +68,7 @@ FILES_SOLIBSDEV = ""
 BBCLASSEXTEND = "native nativesdk"
 
 inherit update-alternatives
+ALTERNATIVE_PRIORITY = "100"
+ALTERNATIVE:${PN} = "openssl"
 
-ALTERNATIVE_PRIORITY = "50"
-
-ALTERNATIVE_NAMES ?= "\
-    bssl \
-    openssl \
-    "
-
-python do_package:prepend () {
-    prio = d.getVar('ALTERNATIVE_PRIORITY')
-    alt_names = d.getVar('ALTERNATIVE_NAMES')
-
-    for alt_name in alt_names.split():
-        d.appendVar("ALTERNATIVE_PRIORITY_VARDEPS", ' ' + alt_name + ':' + prio)
-}
-
-ALTERNATIVE:${PN} = "${ALTERNATIVE_NAMES}"
+ALTERNATIVE_TARGET[openssl] = "${bindir}/openssl"
