@@ -16,6 +16,7 @@ BRANCH ?= "master"
 # nooelint: oelint.file.patchsignedoff
 SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git;protocol=https;branch=${BRANCH} \
            file://amazon-kvs-producer-sdk-cpp-deps.patch \
+           file://global-thread-sleep-linkerror.patch \
            "
 
 SRCREV = "8e59b313950d4dbb1ecfb88e2108df87e3331c4e"
@@ -24,9 +25,7 @@ S = "${WORKDIR}/git"
 
 inherit cmake pkgconfig
 
-PACKAGECONFIG ??= "\
-    ${@bb.utils.contains('PTEST_ENABLED', '1', 'gstreamer', '', d)} \
-"
+PACKAGECONFIG ??= "gstreamer"
 
 PACKAGECONFIG[gstreamer] = "-DBUILD_GSTREAMER_PLUGIN=ON,-DBUILD_GSTREAMER_PLUGIN=OFF,curl log4cplus openssl gstreamer1.0 gstreamer1.0-plugins-base"
 
