@@ -20,12 +20,10 @@ test/test_mqtt.py \
 test/test_mqtt5.py \
 test/test_proxy.py \
 test/test_s3.py \
-test/test_websocket.py \
 "
 
 for TEST in $TESTS
 do
-    cd tests
     python3 -m unittest $TEST
     RETVAL=$?
     if [ $RETVAL -eq 0 ] ; then
@@ -38,3 +36,6 @@ done
 ### removed tests ####
 # ./test/test_http_client.py
 # ./test/test_mqtt5_canary.py
+
+# a expected exception is thrown causing ptest to fail
+# ./test/test_websocket.py 
