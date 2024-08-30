@@ -13,7 +13,7 @@ PIP_INSTALL_PACKAGE = "urllib3"
 
 S = "${WORKDIR}/git"
 SRC_URI = "git://github.com/urllib3/urllib3.git;protocol=https;branch=1.26.x"
-SRCREV = "d9d85c88aa644af56d5e129634e750ce76e1a765"
+SRCREV = "6f2ad7ca0cdde53751bab29cbc10bcc965bb4387"
 
 RDEPENDS:${PN} += "\
     ${PYTHON_PN}-certifi \
