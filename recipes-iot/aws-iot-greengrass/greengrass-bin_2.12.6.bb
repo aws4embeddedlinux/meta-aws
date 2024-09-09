@@ -34,7 +34,7 @@ SRC_URI:append = " ${@bb.utils.contains('PACKAGECONFIG', 'fleetprovisioning', '\
 SRC_URI[payload.sha256sum] = "d48c936aa636197b8af29d374b3ea12ebf8c7a598768403bc11e0a1a397402ad"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 SRC_URI[license.md5sum] = "34400b68072d710fecd0a2940a0d1658"
-SRC_URI[sha256sum] = "25926c02e0b8b449d2f5fbc1a8320a82106199d0f7f5a35c88be403a3cfe6560"
+SRC_URI[sha256sum] = "ed4b745420bcf47e354299b2149ef10288a9bc65d5e786b859143157714da5e0"
 
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 
@@ -102,7 +102,7 @@ do_install() {
 
         install -m 0755 ${WORKDIR}/replace_board_id.sh ${GG_ROOT}/config/
 
-        patch ${GG_ROOT}/alts/init/distro/bin/loader -p1 < ${WORKDIR}/loader.diff
+        patch ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/loader -p1 < ${WORKDIR}/loader.diff
         patch ${D}${systemd_unitdir}/system/greengrass.service -p1 < ${WORKDIR}/greengrass.service.diff
 
         install -m 0640 ${WORKDIR}/config.yaml.template ${GG_ROOT}/config/config.yaml
