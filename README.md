@@ -62,4 +62,4 @@ These are the currently supported services, software, and SDKs you can use to bu
 
 * Automotive Grade Linux: The AGL distribution uses a specific static ID process. When adding AWS IoT Greengrass, you will need to define users in the passwd and group files manually. Please see https://github.com/aws/meta-aws/issues/75 for more information.
 
-© 2019-2023, Amazon Web Services, Inc. or its affiliates. All rights reserved.
+© 2019-2024, Amazon Web Services, Inc. or its affiliates. All rights reserved.
