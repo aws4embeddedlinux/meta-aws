@@ -1,40 +1,38 @@
-SUMMARY = "AWS C Auth"
-DESCRIPTION = "C99 library implementation of AWS client-side authentication: standard credentials providers and signing."
+SUMMARY = "AWS C MQTT"
+DESCRIPTION = "C99 implementation of the MQTT 3.1.1 specification."
+HOMEPAGE = "https://github.com/awslabs/aws-c-mqtt"
 
-HOMEPAGE = "https://github.com/awslabs/aws-c-auth"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
-DEPENDS += "\
+DEPENDS = "\
     aws-c-cal \
     aws-c-common \
     aws-c-compression \
     aws-c-http \
     aws-c-io \
-    aws-c-sdkutils \
     s2n \
-    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
     "
 
-PROVIDES += "aws/crt-c-auth"
+PROVIDES += "aws/crt-c-mqtt"
 
 BRANCH ?= "main"
+
 SRC_URI = "\
-    git://github.com/awslabs/aws-c-auth.git;protocol=https;branch=${BRANCH} \
+    git://github.com/awslabs/aws-c-mqtt.git;protocol=https;branch=${BRANCH}\
     file://run-ptest \
     "
-SRCREV = "d5e6eb03b5dc36845cc44995c6afbbce19a287af"
+
+SRCREV = "77d6f00e89b10e3263d8a17576ec8e91c45b4606"
 
 S = "${WORKDIR}/git"
 
-inherit cmake ptest pkgconfig
+inherit cmake ptest
 
 CFLAGS:append = " -Wl,-Bsymbolic"
-
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DCMAKE_PREFIX_PATH=${STAGING_LIBDIR} \
-    -DCMAKE_BUILD_TYPE=Release \
 "
 
 PACKAGECONFIG ??= "\
@@ -42,19 +40,20 @@ PACKAGECONFIG ??= "\
     "
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
-PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
 
-PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
+# CMAKE_CROSSCOMPILING=ON will disable building additional tests
+PACKAGECONFIG[with-tests] = "-DBUILD_TEST_DEPS=ON -DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TEST_DEPS=OFF -DBUILD_TESTING=OFF,"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
    cp -r ${B}/tests/* ${D}${PTEST_PATH}/tests/
-   install -m 0755 ${B}/tests/aws-c-auth-tests ${D}${PTEST_PATH}/tests/
+   install -m 0755 ${B}/tests/aws-c-mqtt-tests ${D}${PTEST_PATH}/tests/
 }
-
-BBCLASSEXTEND = "native nativesdk"
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN}-ptest += "buildpaths"
+
+BBCLASSEXTEND = "native nativesdk"
