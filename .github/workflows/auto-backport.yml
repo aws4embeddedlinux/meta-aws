@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: [kirkstone, scarthgap]
+        branch: [kirkstone, scarthgap, styhead]
     runs-on: ubuntu-22.04
     name: Cherry pick into release branches
     if: |
