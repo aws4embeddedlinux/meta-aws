@@ -5,31 +5,29 @@ on:
     types: [review_requested]
     branches:
       - '*-next'
-      
-jobs:  
+
+jobs:
   auto-approve-and-merge:
-    runs-on: ubuntu-latest
-    name: auto approve and enable auto-merge     
+    runs-on: ubuntu-22.04
+    name: auto approve and enable auto-merge
     steps:
-      - name: Sleep for 5 min (give PR time to create labels)
-        run: sleep 5m
+      - name: Sleep (give PR time to create labels)
+        run: sleep 1m
         shell: bash
-        
-      - name: check label after delay
-        uses: docker://agilepathway/pull-request-label-checker:latest
+
+      - name: Check label after delay
+        uses: docker://agilepathway/pull-request-label-checker:v1.6.55
         with:
-          any_of: auto-integrate,version-upgrade
+          any_of: version-upgrade
           repo_token: ${{ secrets.BOT2_CREDENTIAL }}
-          
+
       - name: Auto approve
-        uses: juliangruber/approve-pull-request-action@v2.0.1
+        uses: juliangruber/approve-pull-request-action@v2.0.6
         with:
           github-token: ${{ secrets.BOT2_CREDENTIAL }}
           number: ${{ github.event.pull_request.number }}
 
       - name: Enable Pull Request Automerge
-        uses: peter-evans/enable-pull-request-automerge@v2.2.0
-        with:
-          token: ${{ secrets.BOT2_CREDENTIAL }}
-          pull-request-number: ${{ github.event.pull_request.number }}
-          merge-method: rebase
+        run: gh pr merge --rebase --auto "1"
+        env:
+          GH_TOKEN: ${{ secrets.BOT2_CREDENTIAL }}
