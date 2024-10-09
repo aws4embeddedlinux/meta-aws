@@ -10,7 +10,7 @@ on:
 
 jobs:
   ff-merge:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: clone meta-aws ${{ github.event.inputs.branch }} branch
       uses: actions/checkout@v3
@@ -31,4 +31,3 @@ jobs:
       working-directory: meta-aws
       run: |
         git push -u origin ${{ github.event.inputs.branch }}
-
