@@ -28,6 +28,8 @@ jobs:
           number: ${{ github.event.pull_request.number }}
 
       - name: Enable Pull Request Automerge
-        run: gh pr merge --rebase --auto ${{ github.event.pull_request.number }}
-        env:
-          GH_TOKEN: ${{ secrets.BOT2_CREDENTIAL }}
+        uses: peter-evans/enable-pull-request-automerge@v3.0.0
+        with:
+          token: ${{ secrets.BOT2_CREDENTIAL }}
+          pull-request-number: ${{ github.event.pull_request.number }}
+          merge-method: rebase
