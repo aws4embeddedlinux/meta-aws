@@ -1,22 +1,21 @@
-name: Auto-Recipe-Update
+name: auto-recipe-update
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 1 * * 2-5'
   workflow_dispatch:
 
 jobs:
   update:
     name: Recipe Update
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Setup Yocto Dependencies
         run: |
           sudo apt install gawk wget git diffstat unzip texinfo gcc \
           build-essential chrpath socat cpio python3 python3-pip \
           python3-pexpect xz-utils debianutils iputils-ping python3-git \
-          python3-jinja2 libegl1-mesa libsdl1.2-dev pylint3 xterm \
-          python3-subunit mesa-common-dev zstd liblz4-tool
+          python3-jinja2 xterm python3-subunit zstd liblz4-tool
           git config --global user.name aws-iot-embedded-linux-ci
           git config --global user.email aws-iot-embedded-linux-ci@users.noreply.github.com
           git clone git://git.yoctoproject.org/poky -b  master
@@ -40,6 +39,7 @@ jobs:
           source poky/oe-init-build-env build
           bitbake-layers add-layer ../meta-openembedded/meta-oe
           bitbake-layers add-layer ../meta-openembedded/meta-python
+          bitbake-layers add-layer ../meta-openembedded/meta-multimedia
           bitbake-layers add-layer ../meta-openembedded/meta-networking
           bitbake-layers add-layer ../meta-aws
           upgrader update --layer-path ../meta-aws
@@ -52,7 +52,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.BOT_CREDENTIAL }}
         run: |
-          upgrader create-pulls --branch-file=../build/branches.txt --repo=${{ github.repository }} --target-branch="master-next"
+          upgrader create-pulls --branch-file=../build/branches.txt --repo=${{ github.repository }} --target-branch="master-next" --delay 300
       - name: Publish Artifacts
         uses: actions/upload-artifact@v3
         with:
