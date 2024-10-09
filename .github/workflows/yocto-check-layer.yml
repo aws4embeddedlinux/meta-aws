@@ -40,7 +40,7 @@ jobs:
         run: |
           cd yocto_checklayer/
           source poky/oe-init-build-env build
-          yocto-check-layer ../meta-aws/ --dependency ../meta-openembedded/meta-oe/ ../meta-openembedded/meta-python/  ../meta-openembedded/meta-networking ../meta-openembedded/meta-multimedia --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency
+          yocto-check-layer ../meta-aws/ --dependency ../meta-openembedded/meta-oe/ ../meta-openembedded/meta-python/ ../meta-openembedded/meta-multimedia ../meta-openembedded/meta-networking --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency
       - name: save test result
         uses: actions/upload-artifact@v3.1.1
         with:
