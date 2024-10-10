@@ -24,7 +24,7 @@ SRC_URI = "\
   file://boost-include-format.patch \
   file://run-ptest \
   "
-SRCREV = "a2423da3b074e39c720393ffd0255f5df68fd1e7"
+SRCREV = "af10b9cfca45723559f3bc44e9033521c0f792a4"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
