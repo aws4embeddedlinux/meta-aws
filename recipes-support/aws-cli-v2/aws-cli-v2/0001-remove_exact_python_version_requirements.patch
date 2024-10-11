@@ -1,4 +1,4 @@
-From a62e39e03866e7bf104de7688b2bf080349d77e4 Mon Sep 17 00:00:00 2001
+From 3606f75a14fc9d654e4c284890678a34d366f1c4 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Fri, 12 Jan 2024 13:24:54 +0000
 Subject: [PATCH] This patch is removing exact python version dependency
@@ -30,7 +30,7 @@ index f2f9b6dc0..a41cfba35 100644
  dependencies = [
 -    "colorama>=0.2.5,<0.4.7",
 -    "docutils>=0.10,<0.20",
--    "cryptography>=40.0.0,<40.0.2",
+-    "cryptography>=40.0.0,<43.0.2",
 -    "ruamel.yaml>=0.15.0,<=0.17.21",
 -    # ruamel.yaml only requires ruamel.yaml.clib for Python versions
 -    # less than or equal to Python 3.10. In order to ensure we have
@@ -55,7 +55,7 @@ index f2f9b6dc0..a41cfba35 100644
 +    "urllib3>=1.25.4",
  ]
  dynamic = ["version"]
- 
+
 diff --git a/requirements/bootstrap.txt b/requirements/bootstrap.txt
 index fcc7ca534..98265db90 100644
 --- a/requirements/bootstrap.txt
