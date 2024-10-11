@@ -19,7 +19,7 @@ SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cp
            file://global-thread-sleep-linkerror.patch \
            "
 
-SRCREV = "8e59b313950d4dbb1ecfb88e2108df87e3331c4e"
+SRCREV = "7acf272672ced72bbbad85fe39d366deca57280e"
 
 S = "${WORKDIR}/git"
 
