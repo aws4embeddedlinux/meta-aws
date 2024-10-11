@@ -1,16 +1,15 @@
-From 29f76d9358e39561e35f12687efd7f96310c48ef Mon Sep 17 00:00:00 2001
+From 7b608679a6885820ba29037a60aca19bb685bb05 Mon Sep 17 00:00:00 2001
 From: rpcme <rich@richelberger.com>
 Date: Sun, 16 Jan 2022 06:00:06 -0500
 Subject: [PATCH] add support for amazon kvs producer sdk cpp
 
 Upstream-Status: Submitted [author]
-
 ---
  CMakeLists.txt | 3 +++
  1 file changed, 3 insertions(+)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index ec001a7..470e069 100644
+index 7f1e1c1..b302086 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -94,6 +94,7 @@ set(BUILD_COMMON_LWS
@@ -24,9 +23,9 @@ index ec001a7..470e069 100644
 @@ -101,6 +102,8 @@ endif()
  fetch_repo(kvscproducer)
  add_subdirectory(${DEPENDENCY_DOWNLOAD_PATH}/libkvscproducer/kvscproducer-src EXCLUDE_FROM_ALL)
-
+ 
 +endif()
 +
  ############# find dependent libraries ############
-
+ 
  find_package(Threads)
