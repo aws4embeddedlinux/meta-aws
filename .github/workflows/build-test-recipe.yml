@@ -15,13 +15,16 @@ jobs:
     steps:
       - name: Checkout meta-aws
         uses: actions/checkout@v4
+        with: 
+            path: ${{ github.workspace }}
       - name: Checkout meta-oe
         uses: actions/checkout@v4
         with:
           repository: openembedded/meta-openembedded
+          path: ${{ github.workspace }}
       - name: Checkout poky
         run: |
-          git clone git://git.yoctoproject.org/poky --single-branch
+          git clone git://git.yoctoproject.org/poky --single-branch  ${{ github.workspace }}/poky
       - name: Run build
         run: |
            apt-get -y install sudo 
@@ -33,6 +36,7 @@ jobs:
            sudo -u yoctouser bash -c '\
            whoami && \
            id && \
+           cd  ${{ github.workspace }} && 
            source poky/oe-init-build-env build
            bitbake-layers add-layer ../meta-openembedded/meta-oe &&
            bitbake-layers add-layer ../meta-openembedded/meta-python &&
