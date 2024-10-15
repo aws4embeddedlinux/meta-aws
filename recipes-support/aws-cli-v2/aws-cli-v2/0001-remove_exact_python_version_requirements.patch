@@ -1,4 +1,4 @@
-From 3606f75a14fc9d654e4c284890678a34d366f1c4 Mon Sep 17 00:00:00 2001
+From 0912a31b6338ffa1e9463bf4ca0435016e479d14 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Fri, 12 Jan 2024 13:24:54 +0000
 Subject: [PATCH] This patch is removing exact python version dependency
@@ -13,7 +13,7 @@ Upstream-Status: Inappropriate [OE specific]
  2 files changed, 12 insertions(+), 17 deletions(-)
 
 diff --git a/pyproject.toml b/pyproject.toml
-index f2f9b6dc0..a41cfba35 100644
+index 2bc94a4ba..a41cfba35 100644
 --- a/pyproject.toml
 +++ b/pyproject.toml
 @@ -1,6 +1,6 @@
@@ -55,7 +55,7 @@ index f2f9b6dc0..a41cfba35 100644
 +    "urllib3>=1.25.4",
  ]
  dynamic = ["version"]
-
+ 
 diff --git a/requirements/bootstrap.txt b/requirements/bootstrap.txt
 index fcc7ca534..98265db90 100644
 --- a/requirements/bootstrap.txt
