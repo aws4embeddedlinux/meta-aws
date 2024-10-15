@@ -14,9 +14,9 @@ jobs:
     runs-on: codebuild-${{ vars.CODEBUILD_RUNNER_NAME }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout meta-aws
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Checkout meta-oe
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: openembedded/meta-openembedded
       - name: Checkout poky
