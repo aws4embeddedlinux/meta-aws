@@ -1,12 +1,12 @@
 name: build-test-recipe
-
-workflow_dispatch:
-pull_request:
-branches:
-  - 'master-next'
-paths:
-  - '**.bb'
-  - '**.inc'
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - 'master-next'
+    paths:
+      - '**.bb'
+      - '**.inc'
 
 jobs:
   update:
