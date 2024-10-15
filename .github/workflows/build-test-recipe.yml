@@ -24,6 +24,7 @@ jobs:
           git clone git://git.yoctoproject.org/poky --single-branch
       - name: Run build
         run: |
+           apt-get -y install sudo 
            chown yoctouser /sstate-cache
            chown yoctouser /downloads
            chown -R yoctouser .
