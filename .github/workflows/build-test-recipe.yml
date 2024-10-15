@@ -16,12 +16,12 @@ jobs:
       - name: Checkout meta-aws
         uses: actions/checkout@v4
         with: 
-            path: ${{ github.workspace }}
+            path: ${{ github.workspace }}/meta-aws
       - name: Checkout meta-oe
         uses: actions/checkout@v4
         with:
           repository: openembedded/meta-openembedded
-          path: ${{ github.workspace }}
+          path: ${{ github.workspace }}/meta-openembedded
       - name: Checkout poky
         run: |
           git clone git://git.yoctoproject.org/poky --single-branch  ${{ github.workspace }}/poky
