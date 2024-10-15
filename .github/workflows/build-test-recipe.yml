@@ -1,0 +1,45 @@
+name: build-test-recipe
+
+workflow_dispatch:
+pull_request:
+branches:
+  - 'master-next'
+paths:
+  - '**.bb'
+  - '**.inc'
+
+jobs:
+  update:
+    name: build
+    runs-on: codebuild-${{ vars.CODEBUILD_RUNNER_NAME }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout meta-aws
+        uses: actions/checkout@v3
+      - name: Checkout meta-oe
+        uses: actions/checkout@v3
+        with:
+          repository: openembedded/meta-openembedded
+      - name: Checkout poky
+        run: |
+          git clone git://git.yoctoproject.org/poky --single-branch
+      - name: Run build
+        run: |
+           chown yoctouser /sstate-cache
+           chown yoctouser /downloads
+           chown -R yoctouser .
+           sysctl vm.mmap_min_addr=65536
+           env
+           sudo -u yoctouser bash -c '\
+           whoami && \
+           id && \
+           source poky/oe-init-build-env build
+           bitbake-layers add-layer ../meta-openembedded/meta-oe &&
+           bitbake-layers add-layer ../meta-openembedded/meta-python &&
+           bitbake-layers add-layer ../meta-openembedded/meta-networking &&
+           bitbake-layers add-layer ../meta-openembedded/meta-multimedia &&
+           bitbake-layers add-layer ../meta-aws &&           
+           export SSTATE_DIR=/sstate-cache && \
+           export DL_DIR=/downloads && \
+           export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR" && \
+           bitbake aws-cli '
+      
