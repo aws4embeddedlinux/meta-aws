@@ -1,7 +1,7 @@
 name: build-test-recipe
 on:
   workflow_dispatch:
-  [push, pull_request]:
+  pull_request:
     branches:
       - 'master-next'
     paths:
