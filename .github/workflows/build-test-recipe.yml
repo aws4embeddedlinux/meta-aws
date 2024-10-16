@@ -10,85 +10,85 @@ on:
 
 jobs:
   generate-matrix:
-  name: Generate matrix for build
-  runs-on: ubuntu-latest
-  outputs:
-  matrix: ${{ steps.set-matrix.outputs.matrix }}
-  steps:
-  - uses: actions/checkout@v2
-  - name: Check changed files
-    id: diff
-    run: |
-# See https://github.community/t/check-pushed-file-changes-with-git-diff-tree-in-github-actions/17220/10
-if [ $GITHUB_BASE_REF ]; then
-# Pull Request
-git fetch origin $GITHUB_BASE_REF --depth=1
-export DIFF=$( git diff --name-only origin/$GITHUB_BASE_REF $GITHUB_SHA )
-echo "Diff between origin/$GITHUB_BASE_REF and $GITHUB_SHA"
-else
-# Push
-git fetch origin ${{ github.event.before }} --depth=1
-export DIFF=$( git diff --name-only ${{ github.event.before }} $GITHUB_SHA )
-echo "Diff between ${{ github.event.before }} and $GITHUB_SHA"
-fi
-echo "$DIFF"
-# Escape newlines (replace \n with %0A)
-echo "::set-output name=diff::$( echo "$DIFF" | sed ':a;N;$!ba;s/\n/%0A/g' )"
-- name: Set matrix for build
-id: set-matrix
-run: |
-# See https://stackoverflow.com/a/62953566/11948346
-DIFF="${{ steps.diff.outputs.diff }}"
-JSON="{"include":["
-      # Loop by lines
-      while read path; do
-        # Set $directory to substring before /
-        directory="$( echo $path | cut -d'/' -f1 -s )"
-
-        if [ -z "$directory" ]; then
-          continue # Exclude root directory
-        elif [ "$directory" == docs ]; then
-          continue # Exclude docs directory
-        elif [ "$path" == *.rst ]; then
-          continue # Exclude *.rst files
+    name: Generate matrix for build
+    runs-on: ubuntu-latest
+    outputs:
+    matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Check changed files
+      id: diff
+      run: |
+        # See https://github.community/t/check-pushed-file-changes-with-git-diff-tree-in-github-actions/17220/10
+        if [ $GITHUB_BASE_REF ]; then
+          # Pull Request
+          git fetch origin $GITHUB_BASE_REF --depth=1
+          export DIFF=$( git diff --name-only origin/$GITHUB_BASE_REF $GITHUB_SHA )
+          echo "Diff between origin/$GITHUB_BASE_REF and $GITHUB_SHA"
+        else
+          # Push
+          git fetch origin ${{ github.event.before }} --depth=1
+          export DIFF=$( git diff --name-only ${{ github.event.before }} $GITHUB_SHA )
+          echo "Diff between ${{ github.event.before }} and $GITHUB_SHA"
         fi
+        echo "$DIFF"
+        # Escape newlines (replace \n with %0A)
+        echo "::set-output name=diff::$( echo "$DIFF" | sed ':a;N;$!ba;s/\n/%0A/g' )"
+    - name: Set matrix for build
+      id: set-matrix
+      run: |
+        # See https://stackoverflow.com/a/62953566/11948346
+        DIFF="${{ steps.diff.outputs.diff }}"
+        JSON="{"include":["
+          # Loop by lines
+          while read path; 
+          do
+            # Set $directory to substring before /
+            directory="$( echo $path | cut -d'/' -f1 -s )"
 
-        # Set $os. "ubuntu-latest" by default. if directory starts with windows, then "windows-latest"
-        os="ubuntu-latest"
-        if [ "$directory" == windows* ]; then
-          os="windows-latest"
-        fi
+            if [ -z "$directory" ]; then
+              continue # Exclude root directory
+            elif [ "$directory" == docs ]; then
+              continue # Exclude docs directory
+            elif [ "$path" == *.rst ]; then
+              continue # Exclude *.rst files
+            fi
 
-        # Add build to the matrix only if it is not already included
-        JSONline="{\"directory\": \"$directory\", \"os\": \"$os\"},"
-        if [[ "$JSON" != *"$JSONline"* ]]; then
-          JSON="$JSON$JSONline"
-        fi
-      done &lt;&lt;&lt; "$DIFF"
+            # Set $os. "ubuntu-latest" by default. if directory starts with windows, then "windows-latest"
+            os="ubuntu-latest"
+            if [ "$directory" == windows* ]; then
+              os="windows-latest"
+            fi
 
-      # Remove last "," and add closing brackets
-      if [[ $JSON == *, ]]; then
-        JSON="${JSON%?}"
-      fi
-      JSON="$JSON]}"
-      echo $JSON
+            # Add build to the matrix only if it is not already included
+            JSONline="{\"directory\": \"$directory\", \"os\": \"$os\"},"
+            if [[ "$JSON" != *"$JSONline"* ]]; then
+              JSON="$JSON$JSONline"
+            fi
+          done &lt;&lt;&lt; "$DIFF"
 
-      # Set output
-      echo "::set-output name=matrix::$( echo "$JSON" )"
-build:
-name: Build "${{ matrix.directory }}" on ${{ matrix.os }}
-needs: generate-matrix
-strategy:
-matrix: ${{fromJson(needs.generate-matrix.outputs.matrix)}}
-runs-on: ${{ matrix.os }}
-steps:
-- uses: actions/checkout@v2
-- name: Build
-run: |
-cd ${{ matrix.directory }}
-echo "${{ matrix.directory }} ${{ matrix.os }}"
+          # Remove last "," and add closing brackets
+          if [[ $JSON == *, ]]; then
+            JSON="${JSON%?}"
+          fi
+          JSON="$JSON]}"
+          echo $JSON
 
-update:
+          # Set output
+          echo "::set-output name=matrix::$( echo "$JSON" )"
+  build:
+    name: Build "${{ matrix.directory }}" on ${{ matrix.os }}
+    needs: generate-matrix
+    strategy:
+      matrix: ${{fromJson(needs.generate-matrix.outputs.matrix)}}
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build
+      run: |
+        cd ${{ matrix.directory }}
+        echo "${{ matrix.directory }} ${{ matrix.os }}"
+  update:
     name: build
     runs-on: codebuild-${{ vars.CODEBUILD_RUNNER_NAME }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
