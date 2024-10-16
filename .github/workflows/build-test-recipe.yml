@@ -18,7 +18,7 @@ jobs:
   - uses: actions/checkout@v2
   - name: Check changed files
     id: diff
-    run: 
+    run: |
 # See https://github.community/t/check-pushed-file-changes-with-git-diff-tree-in-github-actions/17220/10
 if [ $GITHUB_BASE_REF ]; then
 # Pull Request
