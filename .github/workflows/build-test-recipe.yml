@@ -2,15 +2,13 @@ name: build-test-recipe
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - '**.bb'
-      - '**.inc'
 jobs:
-  changed-recipes:
+  changed:
     name: Get changed recipes
     runs-on: ubuntu-latest
     outputs:
       recipes: ${{ steps.diff.outputs.recipes }}
+      diff: ${{ steps.diff.outputs.diff }}
       release: ${{ steps.get-yocto-release-name.outputs.release }}
     steps:
     - uses: actions/checkout@v4
@@ -30,28 +28,16 @@ jobs:
           echo "Diff between ${{ github.event.before }} and $GITHUB_SHA"
         fi
         echo "$DIFF"
-        echo "diff=$( echo "$DIFF" | tr -d '\n' )" >> $GITHUB_OUTPUT
-        # Get recipe names
-        export RECIPES=$( echo "$DIFF" | sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
-        if [ -z "$DIFF" ]; then     
-          echo "No changed recipes, adding everything with a ptest to test, build"
-          THINGS_TO_EXCLUDE="! -name aws-lc* ! -name neo-ai-tv* ! -name corretto-17-bin* ! -name corretto-21-bin* ! -name corretto-8-bin* ! -name firecracker-bin* ! -name jailer-bin* ! -name amazon-kvs-producer-sdk-c* ! -name  aws-cli-v2*"
-          RECIPES=$(find . -name *.bb -type f \( ${THINGS_TO_EXCLUDE} \) -print | xargs grep -l 'inherit.*ptest.*'| sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')                    
-        else
-          echo "Changed recipes"
-        fi
-        echo "$RECIPES"
-        echo "recipes=$( echo "$RECIPES" | tr -d '\n' )" >> $GITHUB_OUTPUT  
+        echo "diff=$( echo "$DIFF" | tr '\n' ' ' )" >> $GITHUB_OUTPUT
     - name: get yocto release name
       id: get-yocto-release-name
       run: |
-          RELEASE=$(echo ${{github.event.pull_request.base.ref}} | cut -d- -f1)
-          # this is deprecated, but replacement does not seem to work now?
+          export RELEASE=$(echo ${{github.event.pull_request.base.ref}} | cut -d- -f1)
           echo "$RELEASE"
           echo "release=${RELEASE:-master}" >> $GITHUB_OUTPUT  
   build-test:
-    name: Build, Test ${{ matrix.machine }} ${{ needs.changed-recipes.outputs.release }}
-    needs: changed-recipes
+    name: Build, Test ${{ matrix.machine }} ${{ needs.changed.outputs.release }}
+    needs: changed
     strategy:
       fail-fast: false
       matrix:
@@ -70,19 +56,42 @@ jobs:
         with:
           repository: openembedded/meta-openembedded
           path: ${{ github.workspace }}/meta-openembedded
-          ref: ${{ needs.changed-recipes.outputs.release }}
+          ref: ${{ needs.changed.outputs.release }}
       - name: Checkout poky
         run: |
-          git clone git://git.yoctoproject.org/poky --single-branch  ${{ github.workspace }}/poky -b ${{ needs.changed-recipes.outputs.release }}
-      - name: Run build
+          git clone git://git.yoctoproject.org/poky --single-branch  ${{ github.workspace }}/poky -b ${{ needs.changed.outputs.release }}
+      - name: Get changed Recipes or defaults
+        id: recipes_to_build_test
+        shell: bash
         run: |
+          echo diff:
+          echo ${{ needs.changed.outputs.diff }}
+          if [ " " == "${{ needs.changed.outputs.diff }}" ]; then     
+            echo "No changed recipes, adding everything with a ptest to test, build"          
+            THINGS_TO_EXCLUDE="! -name aws-lc* ! -name neo-ai-tv* ! -name corretto-17-bin* ! -name corretto-21-bin* ! -name corretto-8-bin* ! -name firecracker-bin* ! -name jailer-bin* ! -name amazon-kvs-producer-sdk-c* ! -name  aws-cli-v2* "
+            if [ ${{ matrix.machine }} == "qemuarm" ]; then
+              THINGS_TO_EXCLUDE+="! -name amazon-kvs-webrtc-sdk*"
+            fi
+            export RECIPES=$(find meta-aws/ -name *.bb -type f \( ${THINGS_TO_EXCLUDE} \) -print | xargs grep -l 'inherit.*ptest.*'| sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')                    
+          else
+            echo "Changed recipes"
+            export RECIPES=$( echo "${{ needs.changed.outputs.diff }}" | tr ' ' '\n' | grep '\.bb.*$' | sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
+          fi
+          echo RECIPES to build, test: $RECIPES
+          echo THINGS_TO_EXCLUDE: $THINGS_TO_EXCLUDE
+          echo "recipes=$RECIPES" >> $GITHUB_OUTPUT  
+      - name: Run build
+        env:
+          RECIPES: ${{ steps.recipes_to_build_test.outputs.recipes }}
+        run: |          
+           echo RECIPES to build: $RECIPES
            chown yoctouser /sstate-cache
            chown yoctouser /downloads
            chown -R yoctouser .
            sysctl vm.mmap_min_addr=65536
-           sudo -u yoctouser bash -c '
+           sudo RECIPES="$RECIPES" -u yoctouser bash -c '
              cd  ${{ github.workspace }}
-             source poky/oe-init-build-env build
+             source poky/oe-init-build-env build             
              echo QEMU_USE_KVM = \"\" >> conf/local.conf
              # set to the same as core-image-ptest
              echo QB_MEM = \"-m 1024\" >> conf/local.conf
@@ -96,6 +105,7 @@ jobs:
              echo TEST_SUITES = \" ping ssh ptest\" >> conf/local.conf
              # this will allow - running testimage cmd: bitbake core-image-minimal -c testimage
              echo IMAGE_CLASSES += \"testimage\" >> conf/local.conf
+             cat conf/local.conf
              bitbake-layers add-layer ../meta-openembedded/meta-oe
              bitbake-layers add-layer ../meta-openembedded/meta-python
              bitbake-layers add-layer ../meta-openembedded/meta-networking
@@ -105,9 +115,10 @@ jobs:
              export DL_DIR=/downloads
              export MACHINE=${{ matrix.machine }}
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR" 
-             bitbake ${{ needs.changed-recipes.outputs.recipes }} -k | tee -a $MACHINE-build.log
+             bitbake $RECIPES -f -k | tee -a $MACHINE-build.log
              test -e $MACHINE-build.log && ! grep -A3 " failed"  $MACHINE-build.log
-             test -e $MACHINE-build.log && ! grep -A3 " ERROR:"  $MACHINE-build.log'
+             test -e $MACHINE-build.log && ! grep -A3 " ERROR:"  $MACHINE-build.log
+             echo RECIPES to build: $RECIPES'
       - name: Save ${{ matrix.machine }}-build.log
         if: '!cancelled()'
         uses: actions/upload-artifact@v4
@@ -115,12 +126,14 @@ jobs:
           name: ${{ matrix.machine }}-build.log
           path: build/${{ matrix.machine }}-build.log         
       - name: Run test
+        env:
+          RECIPES: ${{ steps.recipes_to_build_test.outputs.recipes }}
         run: |
-           sudo -u yoctouser bash -c '
+           sudo RECIPES="$RECIPES" -u yoctouser bash -c '
              cd  ${{ github.workspace }}
              source poky/oe-init-build-env build            
              # PUT = package under test
-             for recipe in ${{ needs.changed-recipes.outputs.recipes }}; do PUT+="${recipe}-ptest "; done
+             for recipe in $RECIPES; do PUT+="${recipe}-ptest "; done
              echo IMAGE_INSTALL:append = \" ptest-runner ssh ${PUT}\" >> conf/local.conf    
              export SSTATE_DIR=/sstate-cache 
              export DL_DIR=/downloads
@@ -128,9 +141,9 @@ jobs:
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR" 
              bitbake core-image-minimal
              bitbake core-image-minimal -c testimage
-             resulttool log tmp/log/oeqa/testresults.json --raw-ptest
              resulttool report tmp/log/oeqa/testresults.json | tee -a ${{ matrix.machine }}-resulttool_report.txt
-             test -e tmp/log/oeqa/testresults.json && ! grep -B3 "\"FAILED\""  tmp/log/oeqa/testresults.json'
+             test -e tmp/log/oeqa/testresults.json && ! grep -B3 "\"FAILED\""  tmp/log/oeqa/testresults.json
+             echo RECIPES to test:$RECIPES '
       - name: Save resulttool_report.txt
         if: '!cancelled()'
         uses: actions/upload-artifact@v4
