@@ -1,33 +1,33 @@
 name: ff-merge
-
 on:
   workflow_dispatch:
       inputs:
-        branch:
-          description: 'branch to ff merge branch-next into'
-          default: 'master'
+        branches:
+          description: 'branches to ff merge branch-next into'                         
+          default: '["master", "dunfell", "gatesgarth", "hardknott", "honister", "kirkstone", "zeus", "langdale", "mickledore", "nanbield", "scarthgap", "styhead"]'
           required: true
-
-jobs:
-  ff-merge:
+jobs: 
+  ff-merge:     
     runs-on: ubuntu-22.04
+    strategy:
+      matrix: 
+        branch:  ${{ fromJson(github.event.inputs.branches) }}
+      fail-fast: false
     steps:
-    - name: clone meta-aws ${{ github.event.inputs.branch }} branch
-      uses: actions/checkout@v4
-      with:
-        ref: ${{ github.event.inputs.branch }}
-        path: meta-aws
-        fetch-depth: 0
-        token: ${{ secrets.BOT_CREDENTIAL }}
-
-    - name: merge ${{ github.event.inputs.branch }}-next into ${{ github.event.inputs.branch }}
-      working-directory: meta-aws
-      run: |
-        git config --global user.name aws-iot-embedded-linux-ci
-        git config --global user.email aws-iot-embedded-linux-ci@users.noreply.github.com
-        git merge --ff-only origin/${{ github.event.inputs.branch }}-next
-
-    - name: push ${{ github.event.inputs.branch }}
-      working-directory: meta-aws
-      run: |
-        git push -u origin ${{ github.event.inputs.branch }}
+         - name: clone meta-aws ${{ github.event.inputs.branches }} branch
+           uses: actions/checkout@v3
+           with:
+              ref: ${{ matrix.branch }}
+              path: meta-aws
+              fetch-depth: 0
+              token: ${{ secrets.BOT_CREDENTIAL }}
+         - name: merge ${{ matrix.branch }}-next into ${{ matrix.branch }}
+           working-directory: meta-aws
+           run: |
+             git config --global user.name aws-iot-embedded-linux-ci
+             git config --global user.email aws-iot-embedded-linux-ci@users.noreply.github.com
+             git merge --ff-only origin/${{ matrix.branch }}-next
+         - name: push ${{ matrix.branch }}
+           working-directory: meta-aws
+           run: |
+             git push -u origin ${{ matrix.branch }}
