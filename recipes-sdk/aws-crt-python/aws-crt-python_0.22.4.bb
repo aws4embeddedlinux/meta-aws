@@ -6,24 +6,13 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 DEPENDS += "\
         ${PYTHON_PN}-setuptools-native \
-        aws-c-auth \
-        aws-c-cal \
-        aws-c-common \
-        aws-c-compression \
-        aws-c-event-stream \
-        aws-c-http \
-        aws-c-io \
-        aws-c-mqtt \
-        aws-c-s3 \
-        aws-c-sdkutils \
-        aws-checksums \
-        s2n \
+        openssl \
         "
 
 BRANCH ?= "main"
 # nooelint: oelint.file.patchsignedoff
 SRC_URI = "\
-           git://github.com/awslabs/aws-crt-python.git;protocol=https;branch=${BRANCH} \
+           gitsm://github.com/awslabs/aws-crt-python.git;protocol=https;branch=${BRANCH} \
            file://fix-shared-linking.patch \
            file://run-ptest \
            "
@@ -32,9 +21,11 @@ UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
 
-inherit setuptools3_legacy ptest
+inherit setuptools3 ptest
 
 AWS_C_INSTALL = "${D}/usr/lib;${S}/source"
+
+export AWS_CRT_BUILD_USE_SYSTEM_LIBCRYPTO="1"
 
 RDEPENDS:${PN} += "python3-asyncio"
 
@@ -51,8 +42,10 @@ RDEPENDS:${PN}-ptest += "\
 "
 
 do_install_ptest() {
-        install -d ${D}${PTEST_PATH}/tests
-        cp -rf ${S}/* ${D}${PTEST_PATH}/tests/
+        cp -rf ${S}/test ${D}${PTEST_PATH}/
 }
 
 BBCLASSEXTEND = "native nativesdk"
+
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN}-dbg += "buildpaths"

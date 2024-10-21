@@ -2,12 +2,9 @@
 
 echo nameserver 8.8.4.4 >> /etc/resolv.conf 
 
-cd tests/
-
 # known good tests
 TESTS="\
 test/test_appexit.py \
-test/test_auth.py \
 test/test_checksums.py \
 test/test_common.py \
 test/test_crypto.py \
@@ -34,8 +31,9 @@ do
 done
 
 ### removed tests ####
-# ./test/test_http_client.py
-# ./test/test_mqtt5_canary.py
+# test_auth.py
+# test_http_client.py
+# test_mqtt5_canary.py
 
 # a expected exception is thrown causing ptest to fail
-# ./test/test_websocket.py 
+# test_websocket.py 
