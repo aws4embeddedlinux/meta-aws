@@ -1,4 +1,4 @@
-From e2342a2ccd83dd4fc804c9c012121818afd0908c Mon Sep 17 00:00:00 2001
+From 409a561a75ca0daf08a033571ead6d544e2f69bf Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Thu, 4 May 2023 12:31:54 +0000
 Subject: [PATCH] aws-crt-python: upgrade 0.16.15 -> 0.16.16, readd shared
@@ -9,7 +9,7 @@ Upstream-Status: Denied [Desired default]
  1 file changed, 10 deletions(-)
 
 diff --git a/setup.py b/setup.py
-index a77b3b1..7916f51 100644
+index 1a874ea..4fe17c5 100644
 --- a/setup.py
 +++ b/setup.py
 @@ -345,16 +345,6 @@ def awscrt_ext():
