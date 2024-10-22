@@ -1,0 +1,13 @@
+Upstream-Status: Submitted [https://github.com/aws-samples/aws-iot-securetunneling-localproxy/issues/167]
+
+Index: git/CMakeLists.txt
+===================================================================
+--- git.orig/CMakeLists.txt
++++ git/CMakeLists.txt
+@@ -155,3 +155,6 @@ if(BUILD_TESTS)
+ endif(BUILD_TESTS)
+
+ install(TARGETS ${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} DESTINATION "bin")
++
++cmake_minimum_required(VERSION 3.22)
++
