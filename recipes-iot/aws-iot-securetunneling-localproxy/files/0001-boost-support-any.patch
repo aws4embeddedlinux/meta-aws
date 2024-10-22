@@ -1,4 +1,4 @@
-From f10e6fd2675108639990925c1ab3b5e41616329b Mon Sep 17 00:00:00 2001
+From 43dc568150e30bcb8f2304efbadcb36ef145706d Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Fri, 10 Mar 2023 12:46:05 +0000
 Subject: [PATCH] aws-iot-securetunneling-localproxy: support any boost version
@@ -9,10 +9,10 @@ Upstream-Status: Denied [Any version that compile should be good, team does only
  1 file changed, 1 insertion(+), 2 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 79db672..8f16a11 100644
+index aa4e90b..02ac23c 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -83,8 +83,7 @@ endif(BUILD_TESTS)
+@@ -92,8 +92,7 @@ endif(BUILD_TESTS)
  set(Boost_USE_STATIC_LIBS ON)
  set(Boost_USE_DEBUG_RUNTIME OFF)
  #set_property(GLOBAL PROPERTY Boost_USE_MULTITHREADED ON)
