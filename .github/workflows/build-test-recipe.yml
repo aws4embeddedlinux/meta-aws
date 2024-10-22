@@ -115,10 +115,11 @@ jobs:
              export DL_DIR=/downloads
              export MACHINE=${{ matrix.machine }}
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR" 
-             bitbake $RECIPES -f -k | tee -a $MACHINE-build.log
-             test -e $MACHINE-build.log && ! grep -A3 " failed"  $MACHINE-build.log
-             test -e $MACHINE-build.log && ! grep -A3 " ERROR:"  $MACHINE-build.log
-             echo RECIPES to build: $RECIPES'
+             bitbake $RECIPES -f -k | tee -a $MACHINE-build.log'
+            set -e
+            echo RECIPES to build: $RECIPES
+            test -e ${{ matrix.machine }}-build.log && ! grep -A3 " failed"  ${{ matrix.machine }}-build.log
+            test -e ${{ matrix.machine }}-build.log && ! grep -A3 " ERROR:"  ${{ matrix.machine }}-build.log
       - name: Save ${{ matrix.machine }}-build.log
         if: '!cancelled()'
         uses: actions/upload-artifact@v4
@@ -140,10 +141,12 @@ jobs:
              export MACHINE=${{ matrix.machine }}
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR" 
              bitbake core-image-minimal
-             bitbake core-image-minimal -c testimage
-             resulttool report tmp/log/oeqa/testresults.json | tee -a ${{ matrix.machine }}-resulttool_report.txt
-             test -e tmp/log/oeqa/testresults.json && ! grep -B3 "\"FAILED\""  tmp/log/oeqa/testresults.json
-             echo RECIPES to test:$RECIPES '
+             bitbake core-image-minimal -c testimage'
+            resulttool report tmp/log/oeqa/testresults.json | tee -a ${{ matrix.machine }}-resulttool_report.txt
+            set -e
+            echo RECIPES to test: $RECIPES
+            test -e tmp/log/oeqa/testresults.json && ! grep -B3 "\"FAILED\""  tmp/log/oeqa/testresults.json
+            
       - name: Save resulttool_report.txt
         if: '!cancelled()'
         uses: actions/upload-artifact@v4
