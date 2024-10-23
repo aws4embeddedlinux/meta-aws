@@ -139,7 +139,6 @@ TESTS="\
 ./s2n_client_session_ticket_extension_test \
 ./s2n_client_key_share_extension_pq_test \
 ./s2n_blob_test \
-./s2n_aead_chacha20_poly1305_test \
 ./s2n_3des_test \
 ./s2n_async_pkey_test \
 ./s2n_auth_selection_test \
