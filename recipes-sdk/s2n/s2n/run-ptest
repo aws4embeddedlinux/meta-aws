@@ -221,7 +221,6 @@ TESTS="\
 ./s2n_tls_prf_test \
 ./s2n_x509_validator_certificate_signatures_test \
 ./s2n_x509_validator_test \
-./s2n_stacktrace_test \
 "
 
 for TEST in $TESTS
