@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * *'
-  pull_request_target:
+  pull_request:
 jobs:
   changed:
     name: Get changed recipes
@@ -20,8 +20,10 @@ jobs:
         # See https://github.community/t/check-pushed-file-changes-with-git-diff-tree-in-github-actions/17220/10
         if [ $GITHUB_BASE_REF ]; then
           # Pull Request
+          git fetch origin ${{ github.base_ref }} ${{ github.event.pull_request.head.ref }}
+          LATEST_COMMIT_IN_PR=${{ github.event.pull_request.head.sha }}
           git fetch origin $GITHUB_BASE_REF --depth=1
-          export DIFF=$( git diff --name-only origin/$GITHUB_BASE_REF $GITHUB_SHA )
+          export DIFF=$( git diff --name-only origin/$GITHUB_BASE_REF $LATEST_COMMIT_IN_PR )
           echo "Diff between origin/$GITHUB_BASE_REF and $GITHUB_SHA"
         else
           # Push
@@ -36,7 +38,7 @@ jobs:
       run: |
           export RELEASE=$(echo ${{github.event.pull_request.base.ref}} | cut -d- -f1)
           echo "$RELEASE"
-          echo "release=${RELEASE:-master}" >> $GITHUB_OUTPUT  
+          echo "release=${RELEASE:-master}" >> $GITHUB_OUTPUT
   build-test:
     name: Build, Test ${{ matrix.machine }} ${{ needs.changed.outputs.release }}
     needs: changed
@@ -46,7 +48,7 @@ jobs:
         machine:
           - qemuarm
           - qemuarm64
-          - qemux86-64          
+          - qemux86-64
     runs-on: codebuild-${{ vars.CODEBUILD_RUNNER_NAME }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout meta-aws
@@ -68,24 +70,22 @@ jobs:
         run: |
           echo diff:
           echo ${{ needs.changed.outputs.diff }}
-          if [ " " == "${{ needs.changed.outputs.diff }}" ]; then     
-            echo "No changed recipes, adding everything with a ptest to test, build"          
+          export RECIPES=$( echo "${{ needs.changed.outputs.diff }}" | tr ' ' '\n' | grep '\.bb.*$' | sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
+          if [ "" == "$RECIPES" ]; then
+            echo "No changed recipes, adding everything with a ptest to test, build"
             THINGS_TO_EXCLUDE="! -name aws-lc* ! -name neo-ai-tv* ! -name corretto-17-bin* ! -name corretto-21-bin* ! -name corretto-8-bin* ! -name firecracker-bin* ! -name jailer-bin* ! -name amazon-kvs-producer-sdk-c* ! -name  aws-cli-v2* "
             if [ ${{ matrix.machine }} == "qemuarm" ]; then
               THINGS_TO_EXCLUDE+="! -name amazon-kvs-webrtc-sdk*"
             fi
-            export RECIPES=$(find meta-aws/ -name *.bb -type f \( ${THINGS_TO_EXCLUDE} \) -print | xargs grep -l 'inherit.*ptest.*'| sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')                    
-          else
-            echo "Changed recipes"
-            export RECIPES=$( echo "${{ needs.changed.outputs.diff }}" | tr ' ' '\n' | grep '\.bb.*$' | sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
+            export RECIPES=$(find meta-aws/ -name *.bb -type f \( ${THINGS_TO_EXCLUDE} \) -print | xargs grep -l 'inherit.*ptest.*'| sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
+            echo THINGS_TO_EXCLUDE: $THINGS_TO_EXCLUDE
           fi
-          echo RECIPES to build, test: $RECIPES
-          echo THINGS_TO_EXCLUDE: $THINGS_TO_EXCLUDE
-          echo "recipes=$RECIPES" >> $GITHUB_OUTPUT  
+          echo RECIPES to build, test: "$RECIPES"
+          echo "recipes=$RECIPES" >> $GITHUB_OUTPUT
       - name: Run build
         env:
           RECIPES: ${{ steps.recipes_to_build_test.outputs.recipes }}
-        run: |          
+        run: |
            echo RECIPES to build: $RECIPES
            chown yoctouser /sstate-cache
            chown yoctouser /downloads
@@ -93,14 +93,14 @@ jobs:
            sysctl vm.mmap_min_addr=65536
            sudo RECIPES="$RECIPES" -u yoctouser bash -c '
              cd  ${{ github.workspace }}
-             source poky/oe-init-build-env build             
+             source poky/oe-init-build-env build
              echo QEMU_USE_KVM = \"\" >> conf/local.conf
              # set to the same as core-image-ptest
              echo QB_MEM = \"-m 1024\" >> conf/local.conf
              # use slirp networking instead of TAP interface (require root rights)
              echo QEMU_USE_SLIRP = \"1\" >> conf/local.conf
              echo TEST_RUNQEMUPARAMS += \"slirp\" >> conf/local.conf
-             echo TEST_SERVER_IP = \"127.0.0.1\" >> conf/local.conf             
+             echo TEST_SERVER_IP = \"127.0.0.1\" >> conf/local.conf
              echo DISTRO_FEATURES += \"ptest\" >> conf/local.conf
              # this will specify what test should run when running testimage cmd - oeqa layer tests + ptests:
              # Ping and SSH are not required, but do help in debugging. ptest will discover all ptest packages.
@@ -116,7 +116,7 @@ jobs:
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
              export MACHINE=${{ matrix.machine }}
-             export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR" 
+             export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
              bitbake $RECIPES -f -k | tee -a $MACHINE-build.log'
             set -e
             echo RECIPES to build: $RECIPES
@@ -127,31 +127,31 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.machine }}-build.log
-          path: build/${{ matrix.machine }}-build.log         
+          path: build/${{ matrix.machine }}-build.log
       - name: Run test
         env:
           RECIPES: ${{ steps.recipes_to_build_test.outputs.recipes }}
         run: |
            sudo RECIPES="$RECIPES" -u yoctouser bash -c '
              cd  ${{ github.workspace }}
-             source poky/oe-init-build-env build            
+             source poky/oe-init-build-env build
              # PUT = package under test
              for recipe in $RECIPES; do PUT+="${recipe}-ptest "; done
-             echo IMAGE_INSTALL:append = \" ptest-runner ssh ${PUT}\" >> conf/local.conf    
-             export SSTATE_DIR=/sstate-cache 
+             echo IMAGE_INSTALL:append = \" ptest-runner ssh ${PUT}\" >> conf/local.conf
+             export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
              export MACHINE=${{ matrix.machine }}
-             export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR" 
+             export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
              bitbake core-image-minimal
              bitbake core-image-minimal -c testimage
-             resulttool report tmp/log/oeqa/testresults.json | tee -a ${{ matrix.machine }}-resulttool_report.txt'            
+             resulttool report tmp/log/oeqa/testresults.json | tee -a ${{ matrix.machine }}-resulttool_report.txt'
             set -e
             echo RECIPES to test: $RECIPES
             test -e build/tmp/log/oeqa/testresults.json && ! grep -B3 "\"FAILED\""  build/tmp/log/oeqa/testresults.json
-            
+
       - name: Save resulttool_report.txt
         if: '!cancelled()'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.machine }}-resulttool_report.txt 
-          path: build/${{ matrix.machine }}-resulttool_report.txt             
+          name: ${{ matrix.machine }}-resulttool_report.txt
+          path: build/${{ matrix.machine }}-resulttool_report.txt
