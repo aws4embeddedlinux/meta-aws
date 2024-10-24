@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * *'
-  pull_request_target:
+  pull_request:
 jobs:
   changed:
     name: Get changed recipes
