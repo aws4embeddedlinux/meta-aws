@@ -1,10 +1,9 @@
-From 75e42cb04a6798322d7601004254ae2b42271a10 Mon Sep 17 00:00:00 2001
+From be982a8f5ac9a289c955b1442b4ae582f81254bf Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Tue, 9 Jan 2024 15:01:35 +0000
 Subject: [PATCH] aws-iot-fleetwise-edge: remove setting of cxx-standard
 
 Upstream-Status: Submitted [author]
-
 ---
  CMakeLists.txt | 5 -----
  1 file changed, 5 deletions(-)
@@ -15,7 +14,7 @@ index 1f6c041..8b74eae 100644
 +++ b/CMakeLists.txt
 @@ -4,11 +4,6 @@ cmake_minimum_required(VERSION 3.10.2)
 
- project(iotfleetwise VERSION 1.1.1)
+ project(iotfleetwise VERSION 1.1.2)
 
 -# FWE uses C++14 for compatibility reasons with Automotive middlewares (Adaptive AUTOSAR, ROS2)
 -# Note: When built with FWE_FEATURE_ROS2, colcon will override these settings
