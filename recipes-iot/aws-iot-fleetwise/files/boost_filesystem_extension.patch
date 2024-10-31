@@ -1,10 +1,16 @@
-Index: git/src/CacheAndPersist.cpp
+From 1d32ae73e167912a016a69ec71a9d998cf615629 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Mon, 17 Jun 2024 20:49:03 +0000
+Subject: [PATCH] aws-iot-fleetwise-edge: Fix boost filesystem extension
 
-Upstream-Status: Submitted [https://github.com/aws/aws-iot-fleetwise-edge/issues/90]
+---
+ src/CacheAndPersist.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
-===================================================================
---- git.orig/src/CacheAndPersist.cpp
-+++ git/src/CacheAndPersist.cpp
+diff --git a/src/CacheAndPersist.cpp b/src/CacheAndPersist.cpp
+index a51320a..b55129a 100644
+--- a/src/CacheAndPersist.cpp
++++ b/src/CacheAndPersist.cpp
 @@ -517,7 +517,7 @@ CacheAndPersist::cleanupPersistedData()
                      // TODO: do not skip ion files but add the metadata for them so they don't get deleted
                      // coverity[misra_cpp_2008_rule_14_8_2_violation] - boost filesystem path header defines both
