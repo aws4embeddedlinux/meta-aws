@@ -1,4 +1,4 @@
-From 1c52954ea2f63e4a5567061a6735216704db44d9 Mon Sep 17 00:00:00 2001
+From 2042724036b1f621882207bbe7c073577626375c Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Fri, 12 Jan 2024 13:24:54 +0000
 Subject: [PATCH] This patch is removing exact python version dependency
@@ -12,7 +12,7 @@ Upstream-Status: Inappropriate [OE specific]
  2 files changed, 11 insertions(+), 12 deletions(-)
 
 diff --git a/pyproject.toml b/pyproject.toml
-index 1f3547429..7312842b2 100644
+index 58ba14278..a83e0c173 100644
 --- a/pyproject.toml
 +++ b/pyproject.toml
 @@ -30,21 +30,20 @@ classifiers = [
