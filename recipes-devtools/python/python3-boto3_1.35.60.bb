@@ -8,7 +8,7 @@ SRC_URI = "\
     git://github.com/boto/boto3.git;protocol=https;branch=master \
     file://run-ptest"
 
-SRCREV = "68202ef03dfbb6fadc91b692b9331b550108b415"
+SRCREV = "0e08511c76fc4b5f866555de0dc26819b27b9fc3"
 S = "${WORKDIR}/git"
 
 inherit setuptools3 ptest
