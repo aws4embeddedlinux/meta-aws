@@ -3,14 +3,16 @@ DESCRIPTION = "aws-c-io is an event driven framework for implementing applicatio
 
 HOMEPAGE = "https://github.com/awslabs/aws-c-io"
 
+CVE_PRODUCT = "amazon_web_services_aws-c-io"
+
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 DEPENDS = "\
     aws-c-cal \
     aws-c-common \
-    openssl \
     s2n \
+    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
     "
 
 PROVIDES += "aws/crt-c-io"
@@ -20,7 +22,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-c-io.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "e36374047beadc72a0eb6df14ce3cbc822a789a3"
+SRCREV = "fcb38c804364dd627c335da752a99a125a88f6e9"
 
 S = "${WORKDIR}/git"
 
@@ -31,25 +33,18 @@ PACKAGECONFIG ??= "\
     "
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
-PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
 # CMAKE_CROSSCOMPILING=ON will disable building the tests
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
-RDEPENDS:${PN} = "\
-    aws-c-cal \
-    aws-c-common \
-    s2n \
-    "
-
 AWS_C_INSTALL = "$D/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH=$D/usr \
-    -DCMAKE_INSTALL_PREFIX=$D/usr \
+    -DCMAKE_PREFIX_PATH=${STAGING_LIBDIR} \
 "
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
