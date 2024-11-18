@@ -10,7 +10,6 @@ DEPENDS += "\
     aws-c-cal \
     aws-c-common \
     aws-c-io \
-    openssl \
     s2n \
     "
 
@@ -23,7 +22,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "f36d01672d61e49d96a777870d456f66fa391cd4"
+SRCREV = "c6c1191e525e5aa6ead9e1afc392e35d3b50331e"
 
 S = "${WORKDIR}/git"
 
@@ -34,9 +33,9 @@ PACKAGECONFIG ??= "\
     "
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
-PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
-PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
+PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF"
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
@@ -51,8 +50,7 @@ AWS_C_INSTALL = "$D/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH=$D/usr \
-    -DCMAKE_INSTALL_PREFIX=$D/usr \
+    -DCMAKE_PREFIX_PATH=${STAGING_LIBDIR} \
 "
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
