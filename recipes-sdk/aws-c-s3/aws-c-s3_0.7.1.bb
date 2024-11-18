@@ -9,7 +9,7 @@ DEPENDS = "\
     aws-c-auth \
     aws-c-http \
     aws-checksums \
-    openssl \
+    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
     "
 
 PROVIDES += "aws/crt-c-s3"
@@ -19,7 +19,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-c-s3.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "16701501fa9d1684b0ff5406211d058ce2a5b404"
+SRCREV = "5877f40f87c77ccf2b278839995a6ee91983080f"
 
 S = "${WORKDIR}/git"
 
@@ -30,7 +30,7 @@ PACKAGECONFIG ??= "\
     "
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
-PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
 # CMAKE_CROSSCOMPILING=ON will disable building the tests
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
@@ -41,8 +41,7 @@ FILES:${PN}-dev += "${libdir}/*/cmake"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH=$D/usr \
-    -DCMAKE_INSTALL_PREFIX=$D/usr \
+    -DCMAKE_PREFIX_PATH=${STAGING_LIBDIR} \
 "
 
 do_install_ptest () {
