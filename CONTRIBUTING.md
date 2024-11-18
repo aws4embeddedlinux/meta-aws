@@ -59,10 +59,10 @@ With every pull request following tests are performed:
 ### build
 All recipes are tested to build with qemuarm, qemuarm64, qemux86-64.
 ### ptest
-We like to have a [ptest](https://wiki.yoctoproject.org/wiki/Ptest) for every recipe. With every pull request we ptest with the different architectures we support. 
+We like to have a [ptest](https://wiki.yoctoproject.org/wiki/Ptest) for every recipe. With every pull request we ptest with the different architectures we support.
 If there is a ptest it must pass. To get an idea how to write an ptest just grep for it in the layer.
 ### oelint-adv
-We think having the same "coding" style for recipes is a good idea. Therefore we test with [oelint-adv](https://github.com/priv-kweihmann/oelint-adv) for errors. 
+We think having the same "coding" style for recipes is a good idea. Therefore we test with [oelint-adv](https://github.com/priv-kweihmann/oelint-adv) for errors.
 ### checklayer
 Meta-aws is Yocto project [compatible](https://www.yoctoproject.org/software-overview/layers/). To keep this status we test this.
 
@@ -74,7 +74,6 @@ issue labels (enhancement/bug/duplicate/help
 wanted/invalid/question/wontfix), looking at any 'help wanted' issues
 is a great place to start.
 
-
 ## Code of Conduct
 This project has adopted the [Amazon Open Source Code of
 Conduct](https://aws.github.io/code-of-conduct).  For more information
@@ -84,10 +83,7 @@ opensource-codeofconduct@amazon.com with any additional questions or
 comments.
 
 ## Security issue notifications
-If you discover a potential security issue in this project we ask that
-you notify AWS/Amazon Security via our [vulnerability reporting
-page](http://aws.amazon.com/security/vulnerability-reporting/). Please
-do **not** create a public github issue.
+See the [SECURITY](SECURITY).
 
 ## Licensing
 
