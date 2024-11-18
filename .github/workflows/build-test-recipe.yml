@@ -20,16 +20,13 @@ jobs:
         # See https://github.community/t/check-pushed-file-changes-with-git-diff-tree-in-github-actions/17220/10
         if [ $GITHUB_BASE_REF ]; then
           # Pull Request
+          # 'github.event.before/after' and 'github.event.pull_request.base.sha' are inconsistent for PRs
+          # Find the commit where the PR branch was forked from the base branch
           git fetch origin ${{ github.base_ref }} ${{ github.event.pull_request.head.ref }}
-          FORK_POINT=$( git show-branch --merge-base "origin/${{ github.base_ref }}" "${{ github.event.pull_request.head.ref }}" )
+          FORK_POINT=$( git show-branch --merge-base "origin/${{ github.base_ref }}" "origin/${{ github.event.pull_request.head.ref }}" )
           LATEST_COMMIT_IN_PR=${{ github.event.pull_request.head.sha }}
           export DIFF=$( git diff --name-only $FORK_POINT $LATEST_COMMIT_IN_PR )
           echo "Diff between $FORK_POINT and $LATEST_COMMIT_IN_PR"
-        else
-          # Push
-          git fetch origin ${{ github.event.before }} --depth=1
-          export DIFF=$( git diff --name-only ${{ github.event.before }} $GITHUB_SHA )
-          echo "Diff between ${{ github.event.before }} and $GITHUB_SHA"
         fi
         echo "$DIFF"
         echo "diff=$( echo "$DIFF" | tr '\n' ' ' )" >> $GITHUB_OUTPUT
