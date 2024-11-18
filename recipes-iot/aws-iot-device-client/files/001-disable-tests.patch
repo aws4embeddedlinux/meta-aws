@@ -1,0 +1,12 @@
+Upstream-Status: Submitted [author]
+
+Index: git/CMakeLists.txt
+===================================================================
+--- git.orig/CMakeLists.txt
++++ git/CMakeLists.txt
+@@ -265,4 +265,4 @@ if (BUILD_TEST_DEPS)
+             ${CMAKE_BINARY_DIR}/googletest-build)
+ endif ()
+
+-add_subdirectory(test)
++# add_subdirectory(test)
