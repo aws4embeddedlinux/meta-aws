@@ -52,7 +52,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.BOT_CREDENTIAL }}
         run: |
-          upgrader create-pulls --branch-file=../build/branches.txt --repo=${{ github.repository }} --target-branch="master-next" --delay 300
+          upgrader create-pulls --branch-file=../build/branches.txt --repo=${{ github.repository }} --target-branch="master-next" --delay 1800
       - name: Publish Artifacts
         uses: actions/upload-artifact@v3
         with:
