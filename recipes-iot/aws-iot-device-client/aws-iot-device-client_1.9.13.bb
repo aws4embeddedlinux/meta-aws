@@ -24,7 +24,7 @@ SRC_URI = "\
     file://001-disable-tests.patch \
     "
 
-SRCREV = "faf80330b96681f05a03e9409c0c0dcc67e4e915"
+SRCREV = "b3a2ba12967bee183cba6af37dad1242c147fd9b"
 
 S = "${WORKDIR}/git"
 
