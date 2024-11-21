@@ -8,7 +8,7 @@ SRC_URI = "\
     git://github.com/boto/s3transfer.git;protocol=https;branch=master \
     file://run-ptest \
     "
-SRCREV = "7878fbfa12096a79da22ade8d857f1ab2320689f"
+SRCREV = "0323658c863654911d385899d4b907ae003d80ff"
 
 S = "${WORKDIR}/git"
 
