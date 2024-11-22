@@ -20,16 +20,13 @@ jobs:
         # See https://github.community/t/check-pushed-file-changes-with-git-diff-tree-in-github-actions/17220/10
         if [ $GITHUB_BASE_REF ]; then
           # Pull Request
+          # 'github.event.before/after' and 'github.event.pull_request.base.sha' are inconsistent for PRs
+          # Find the commit where the PR branch was forked from the base branch
           git fetch origin ${{ github.base_ref }} ${{ github.event.pull_request.head.ref }}
+          FORK_POINT=$( git show-branch --merge-base "origin/${{ github.base_ref }}" "origin/${{ github.event.pull_request.head.ref }}" )
           LATEST_COMMIT_IN_PR=${{ github.event.pull_request.head.sha }}
-          git fetch origin $GITHUB_BASE_REF --depth=1
-          export DIFF=$( git diff --name-only origin/$GITHUB_BASE_REF $LATEST_COMMIT_IN_PR )
-          echo "Diff between origin/$GITHUB_BASE_REF and $GITHUB_SHA"
-        else
-          # Push
-          git fetch origin ${{ github.event.before }} --depth=1
-          export DIFF=$( git diff --name-only ${{ github.event.before }} $GITHUB_SHA )
-          echo "Diff between ${{ github.event.before }} and $GITHUB_SHA"
+          export DIFF=$( git diff --name-only $FORK_POINT $LATEST_COMMIT_IN_PR )
+          echo "Diff between $FORK_POINT and $LATEST_COMMIT_IN_PR"
         fi
         echo "$DIFF"
         echo "diff=$( echo "$DIFF" | tr '\n' ' ' )" >> $GITHUB_OUTPUT
@@ -75,7 +72,7 @@ jobs:
             echo "No changed recipes, adding everything with a ptest to test, build"
             THINGS_TO_EXCLUDE="! -name aws-lc* ! -name neo-ai-tv* ! -name corretto-17-bin* ! -name corretto-21-bin* ! -name corretto-8-bin* ! -name firecracker-bin* ! -name jailer-bin* ! -name amazon-kvs-producer-sdk-c* ! -name  aws-cli-v2* "
             if [ ${{ matrix.machine }} == "qemuarm" ]; then
-              THINGS_TO_EXCLUDE+="! -name amazon-kvs-webrtc-sdk*"
+              THINGS_TO_EXCLUDE+="! -name amazon-kvs-webrtc-sdk* ! -name amazon-kvs-producer-pic*"
             fi
             export RECIPES=$(find meta-aws/ -name *.bb -type f \( ${THINGS_TO_EXCLUDE} \) -print | xargs grep -l 'inherit.*ptest.*'| sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
             echo THINGS_TO_EXCLUDE: $THINGS_TO_EXCLUDE
