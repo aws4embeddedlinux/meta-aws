@@ -17,16 +17,14 @@ DEPENDS += "\
 BRANCH ?= "main"
 
 # nooelint: oelint.file.patchsignedoff
-SRC_URI = "\
-  git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https \
-  file://boost-support-any.patch \
-  file://gcc13.patch \
-  file://gcc13_2.patch \
-  file://remove-cxx-standard.patch \
-  file://boost-include-format.patch \
-  file://run-ptest \
-  "
-SRCREV = "9eace7470fbbee00473074f6dc763afdc9e11a4c"
+SRC_URI = "git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https \
+           file://boost-support-any.patch \
+           file://gcc13_2.patch \
+           file://remove-cxx-standard.patch \
+           file://boost-include-format.patch \
+           file://run-ptest \
+           "
+SRCREV = "b9d706f92b64dc003514fa31ae804564fb0af429"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
