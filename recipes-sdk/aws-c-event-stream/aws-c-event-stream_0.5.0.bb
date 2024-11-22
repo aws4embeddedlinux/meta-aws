@@ -20,7 +20,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-c-event-stream.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "1b3825fc9cae2e9c7ed7479ee5d354d52ebdf7a0"
+SRCREV = "d2dcc9344dae24de320866045d85166d8a91a0d1"
 
 S = "${WORKDIR}/git"
 
