@@ -1,12 +1,20 @@
-Upstream-Status: Submitted [author]
+From a0aa54e366f48f2c38c1a054dc51ec3bf5987f61 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Mon, 18 Nov 2024 19:32:41 +0000
+Subject: [PATCH] aws-iot-device-client: disable tests, as the new aws-c-io
 
-Index: git/CMakeLists.txt
-===================================================================
---- git.orig/CMakeLists.txt
-+++ git/CMakeLists.txt
+Upstream-Status: Submitted [author]
+---
+ CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 50f2020..235e7cf 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
 @@ -265,4 +265,4 @@ if (BUILD_TEST_DEPS)
              ${CMAKE_BINARY_DIR}/googletest-build)
  endif ()
-
+ 
 -add_subdirectory(test)
 +# add_subdirectory(test)
