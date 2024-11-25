@@ -7,7 +7,6 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 DEPENDS += "\
     boost \
-    catch2 \
     openssl \
     protobuf \
     protobuf-native \
@@ -18,21 +17,20 @@ BRANCH ?= "main"
 
 # nooelint: oelint.file.patchsignedoff
 SRC_URI = "\
-  git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https \
-  file://boost-support-any.patch \
-  file://gcc13.patch \
-  file://gcc13_2.patch \
-  file://remove-cxx-standard.patch \
-  file://boost-include-format.patch \
-  file://run-ptest \
-  "
-SRCREV = "9eace7470fbbee00473074f6dc763afdc9e11a4c"
+    git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https \
+    file://0001-boost-support-any.patch \
+    file://0002-remove-cxx-standard.patch \
+    file://0003-boost-include-format.patch \
+    file://0004-cmake-version.patch \
+    file://run-ptest \
+    "
+SRCREV = "b9d706f92b64dc003514fa31ae804564fb0af429"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
 S = "${WORKDIR}/git"
 
-inherit cmake ptest
+inherit cmake pkgconfig
 
 do_configure:prepend() {
     sed -i "s/Protobuf_LITE_STATIC_LIBRARY/Protobuf_LITE_LIBRARY/g" ${S}/CMakeLists.txt
@@ -46,12 +44,6 @@ do_install () {
 }
 
 FILES:${PN} += "${bindir}/localproxy"
-FILES:${PN}-ptest += "${bindir}/localproxytest"
-
-do_install_ptest() {
-  install -d ${D}${bindir}
-  install -m 0755 ${B}/bin/localproxytest ${D}${bindir}/localproxytest
-}
 
 # fix DSO missing from command line
 LDFLAGS += "-Wl,--copy-dt-needed-entries"
