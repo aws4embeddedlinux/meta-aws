@@ -82,9 +82,6 @@ do_install_ptest () {
 }
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP:${PN}-ptest += "expanded-d"
-
-# nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN}-ptest += "buildpaths"
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
