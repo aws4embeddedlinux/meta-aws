@@ -20,3 +20,5 @@ RDEPENDS:${PN} += "\
 do_install:prepend() {
     export RUAMEL_NO_PIP_INSTALL_CHECK=1
 }
+
+BBCLASSEXTEND = "native"
