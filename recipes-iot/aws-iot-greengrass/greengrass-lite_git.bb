@@ -111,7 +111,7 @@ do_install:append() {
     install -d ${D}/${sysconfdir}/greengrass
     install -d -m 0755 ${D}/${sysconfdir}/greengrass/config.d
 
-    install -m 0644 ${WORKDIR}/greengrass-lite.yaml ${D}/${sysconfdir}/greengrass/config.d
+    install -m 0644 ${UNPACKDIR}/greengrass-lite.yaml ${D}/${sysconfdir}/greengrass/config.d
     sed -i -e 's,@GG_WORKING_DIR@,${gg_workingdir},g' \
             -e 's,@GG_USER@,${gg_user},g' \
             -e 's,@GG_GROUP@,${gg_group},g' \
