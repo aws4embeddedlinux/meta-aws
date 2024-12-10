@@ -99,6 +99,7 @@ jobs:
              echo TEST_RUNQEMUPARAMS += \"slirp\" >> conf/local.conf
              echo TEST_SERVER_IP = \"127.0.0.1\" >> conf/local.conf
              echo DISTRO_FEATURES += \"ptest\" >> conf/local.conf
+             echo DISTRO = \"poky-altcfg\" >> conf/local.conf
              # this will specify what test should run when running testimage cmd - oeqa layer tests + ptests:
              # Ping and SSH are not required, but do help in debugging. ptest will discover all ptest packages.
              echo TEST_SUITES = \" ping ssh ptest\" >> conf/local.conf
