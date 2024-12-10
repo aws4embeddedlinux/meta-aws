@@ -1,0 +1,11 @@
+#!/bin/sh
+set -euxo pipefail
+
+/usr/bin/configtest
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: greengrass lite configcheck test"
+else
+    echo "FAIL: greengrass lite configcheck test"
+fi
