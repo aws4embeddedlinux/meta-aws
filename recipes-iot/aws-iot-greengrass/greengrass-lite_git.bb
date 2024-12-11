@@ -39,6 +39,9 @@ SRC_URI = "\
 SRCREV = "ec3bddec250c185894c69ea8957eab97bb536a01"
 #
 
+# this project do not use version tags, use latest commit
+UPSTREAM_CHECK_COMMITS = "1"
+
 S = "${WORKDIR}/git"
 
 FILES:${PN}:append = " \
