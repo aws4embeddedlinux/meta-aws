@@ -36,7 +36,7 @@ SRC_URI = "\
     file://greengrass-lite.yaml \
     file://run-ptest \
 "
-SRCREV = "ec3bddec250c185894c69ea8957eab97bb536a01"
+SRCREV = "85bd550ae592d2d798eb890616fb08ffb2e0de87"
 #
 
 # this project do not use version tags, use latest commit
