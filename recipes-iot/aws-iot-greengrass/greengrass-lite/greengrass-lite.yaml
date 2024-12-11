@@ -8,3 +8,4 @@ services:
       runWithDefault:
         posixUser: "@GG_USER@:@GG_GROUP@"
       greengrassDataPlanePort: "8443"
+      platformOverride: {}
