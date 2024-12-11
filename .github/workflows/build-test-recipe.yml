@@ -1,8 +1,6 @@
 name: build-test-recipe
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * *'
   pull_request:
 jobs:
   changed:
@@ -30,12 +28,16 @@ jobs:
         fi
         echo "$DIFF"
         echo "diff=$( echo "$DIFF" | tr '\n' ' ' )" >> $GITHUB_OUTPUT
-    - name: get yocto release name
+    - name: Get Yocto release name
       id: get-yocto-release-name
       run: |
-          export RELEASE=$(echo ${{github.event.pull_request.base.ref}} | cut -d- -f1)
-          echo "$RELEASE"
-          echo "release=${RELEASE:-master}" >> $GITHUB_OUTPUT
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          RELEASE=$(echo "${{ github.event.pull_request.base.ref }}" | cut -d- -f1)
+        else
+          RELEASE=$(echo "${{ github.ref_name }}" | cut -d- -f1)
+        fi
+        echo "Determined release: $RELEASE"
+        echo "release=${RELEASE}" >> $GITHUB_OUTPUT
   build-test:
     name: Build, Test ${{ matrix.machine }} ${{ needs.changed.outputs.release }}
     needs: changed
