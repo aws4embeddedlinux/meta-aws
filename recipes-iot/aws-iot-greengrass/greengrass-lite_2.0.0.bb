@@ -36,11 +36,8 @@ SRC_URI = "\
     file://greengrass-lite.yaml \
     file://run-ptest \
 "
-SRCREV = "b2606f3c37ef72730a723776466b8d349af993ef"
+SRCREV = "329f5caa9acde030c2b259fabe985e65b7706731"
 #
-
-# this project do not use version tags, use latest commit
-UPSTREAM_CHECK_COMMITS = "1"
 
 S = "${WORKDIR}/git"
 
@@ -85,6 +82,7 @@ SYSTEMD_SERVICE:${PN} = "\
     ggl.gg_health.socket \
     ggl.gg_pubsub.socket \
     ggl.gg-ipc.socket.socket \
+    ggl.ipc_component.socket \
     greengrass-lite.target \
 "
 
