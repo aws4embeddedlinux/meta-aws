@@ -32,7 +32,7 @@ SRC_URI:append = " ${@bb.utils.contains('PACKAGECONFIG', 'fleetprovisioning', '\
     file://claim.root.pem \
     ', '', d)}"
 
-SRC_URI[payload.sha256sum] = "c441d2e40884bfa58c42d96c9a6857531848bd66349e1b4499a7a41e37d8cdeb"
+SRC_URI[payload.sha256sum] = "6793bc6c7411a928734bbf8b10d330be8ab4cecb66362681cdda76eb761af232"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
 SRC_URI[license.md5sum] = "34400b68072d710fecd0a2940a0d1658"
 SRC_URI[sha256sum] = "ed4b745420bcf47e354299b2149ef10288a9bc65d5e786b859143157714da5e0"
