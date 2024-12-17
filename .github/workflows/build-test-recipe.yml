@@ -64,8 +64,8 @@ jobs:
         machine:
           - qemuarm
           - qemuarm64
-          - qemux86-64
-    runs-on: codebuild-${{ vars.CODEBUILD_RUNNER_NAME }}-${{ github.run_id }}-${{ github.run_attempt }}
+          - qemux86-64          
+    runs-on: codebuild-${{ vars.CODEBUILD_RUNNER_NAME || 'meta-aws' }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout meta-aws
         uses: actions/checkout@v4
