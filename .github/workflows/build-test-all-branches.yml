@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * *'
-    
+
 jobs:
   trigger-branch-workflows:
     runs-on: ubuntu-latest
@@ -22,26 +22,26 @@ jobs:
           declare -A run_urls
           for branch in "${branches[@]}"; do
             echo "Attempting to trigger workflow for branch: $branch"
-            
+
             # Trigger the workflow using the GitHub API directly
             response=$(curl -sS -X POST \
               -H "Authorization: token $GITHUB_TOKEN" \
               -H "Accept: application/vnd.github.v3+json" \
               "https://api.github.com/repos/${{ github.repository }}/actions/workflows/build-test-recipe.yml/dispatches" \
               -d "{\"ref\":\"$branch\"}")
-            
+
             echo "API Response: $response"
-            
+
             # Check if the workflow was triggered successfully
             if [ -z "$response" ]; then
               echo "Workflow triggered successfully for $branch"
-              
+
               # Get the run ID and URL of the newly triggered workflow
               sleep 5  # Wait a bit for the workflow to start
               run_info=$(gh run list --workflow=build-test-recipe.yml --branch=$branch --limit 1 --json databaseId,url)
               run_id=$(echo "$run_info" | jq -r '.[0].databaseId')
               run_url=$(echo "$run_info" | jq -r '.[0].url')
-              
+
               if [ -n "$run_id" ]; then
                 run_ids["$branch"]="$run_id"
                 run_urls["$branch"]="$run_url"
@@ -54,7 +54,7 @@ jobs:
               echo "API Response: $response"
             fi
           done
-          
+
           # Save run IDs and URLs to files for the next steps
           echo "$(declare -p run_ids)" > run_ids.txt
           echo "$(declare -p run_urls)" > run_urls.txt
@@ -68,16 +68,16 @@ jobs:
           echo "" >> report.md
           echo "| Branch | Run ID | Workflow Run |" >> report.md
           echo "|--------|--------|--------------|" >> report.md
-          
+
           for branch in "${!run_ids[@]}"; do
             id="${run_ids[$branch]}"
             url="${run_urls[$branch]}"
             echo "| $branch | $id | [View Run]($url) |" >> report.md
           done
-          
+
           echo "## Triggered Workflows" >> $GITHUB_STEP_SUMMARY
           cat report.md >> $GITHUB_STEP_SUMMARY
-          
+
           echo "Triggered workflows:"
           cat report.md
 
@@ -86,8 +86,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           IFS=' ' read -ra run_ids <<< "${{ env.run_ids }}"
-          max_attempts=120  # Maximum 120 min exec time
-          
+          max_attempts=180  # Maximum 180 min exec time
+
           for attempt in $(seq 1 $max_attempts); do
             all_completed=true
             for run_id in "${run_ids[@]}"; do
@@ -97,17 +97,17 @@ jobs:
                 break
               fi
             done
-            
+
             if $all_completed; then
               echo "All branch workflows have completed."
               break
             fi
-            
+
             if [ $attempt -eq $max_attempts ]; then
               echo "Timeout waiting for workflows to complete."
               exit 1
             fi
-            
+
             echo "Waiting for workflows to complete... (Attempt $attempt/$max_attempts)"
             sleep 60
           done
