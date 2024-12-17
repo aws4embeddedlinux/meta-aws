@@ -15,25 +15,36 @@ jobs:
     - name: Diff files and set variables
       id: diff
       run: |
-          if [ $GITHUB_BASE_REF ]; then
-            # Pull Request
-            # Fetch both the base and head of the pull request
-            git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} ${{ github.head_ref }}:${{ github.head_ref }}
-            # Determine the merge base
-            FORK_POINT=$(git merge-base ${{ github.base_ref }} ${{ github.head_ref }})
-            LATEST_COMMIT_IN_PR=${{ github.event.pull_request.head.sha }}
-            # Get the diff
-            DIFF=$(git diff --name-only $FORK_POINT $LATEST_COMMIT_IN_PR)
-            echo "Diff between $FORK_POINT and $LATEST_COMMIT_IN_PR"
+        if [ $GITHUB_BASE_REF ]; then
+          # Pull Request
+          # Fetch the base ref
+          git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+
+          # For forks, we need to fetch from the head repository
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            git remote add fork ${{ github.event.pull_request.head.repo.clone_url }}
+            git fetch fork ${{ github.head_ref }}
           else
-            # Push to a branch
-            BEFORE_SHA=${{ github.event.before }}
-            AFTER_SHA=${{ github.event.after }}
-            DIFF=$(git diff --name-only $BEFORE_SHA $AFTER_SHA)
-            echo "Diff between $BEFORE_SHA and $AFTER_SHA"
+            git fetch origin ${{ github.head_ref }}:${{ github.head_ref }}
           fi
-          echo "$DIFF"
-          echo "diff=$( echo "$DIFF" | tr '\n' ' ' )" >> $GITHUB_OUTPUT
+
+          # Determine the merge base
+          FORK_POINT=$(git merge-base ${{ github.base_ref }} ${{ github.event.pull_request.head.sha }})
+          LATEST_COMMIT_IN_PR=${{ github.event.pull_request.head.sha }}
+
+          # Get the diff
+          DIFF=$(git diff --name-only $FORK_POINT $LATEST_COMMIT_IN_PR)
+          echo "Diff between $FORK_POINT and $LATEST_COMMIT_IN_PR"
+        else
+          # Push to a branch
+          BEFORE_SHA=${{ github.event.before }}
+          AFTER_SHA=${{ github.event.after }}
+          DIFF=$(git diff --name-only $BEFORE_SHA $AFTER_SHA)
+          echo "Diff between $BEFORE_SHA and $AFTER_SHA"
+        fi
+
+        echo "$DIFF"
+        echo "diff=$( echo "$DIFF" | tr '\n' ' ' )" >> $GITHUB_OUTPUT
     - name: Get Yocto release name
       id: get-yocto-release-name
       run: |
