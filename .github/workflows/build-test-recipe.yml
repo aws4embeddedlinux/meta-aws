@@ -15,19 +15,25 @@ jobs:
     - name: Diff files and set variables
       id: diff
       run: |
-        # See https://github.community/t/check-pushed-file-changes-with-git-diff-tree-in-github-actions/17220/10
-        if [ $GITHUB_BASE_REF ]; then
-          # Pull Request
-          # 'github.event.before/after' and 'github.event.pull_request.base.sha' are inconsistent for PRs
-          # Find the commit where the PR branch was forked from the base branch
-          git fetch origin ${{ github.base_ref }} ${{ github.event.pull_request.head.ref }}
-          FORK_POINT=$( git show-branch --merge-base "origin/${{ github.base_ref }}" "origin/${{ github.event.pull_request.head.ref }}" )
-          LATEST_COMMIT_IN_PR=${{ github.event.pull_request.head.sha }}
-          export DIFF=$( git diff --name-only $FORK_POINT $LATEST_COMMIT_IN_PR )
-          echo "Diff between $FORK_POINT and $LATEST_COMMIT_IN_PR"
-        fi
-        echo "$DIFF"
-        echo "diff=$( echo "$DIFF" | tr '\n' ' ' )" >> $GITHUB_OUTPUT
+          if [ $GITHUB_BASE_REF ]; then
+            # Pull Request
+            # Fetch both the base and head of the pull request
+            git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} ${{ github.head_ref }}:${{ github.head_ref }}
+            # Determine the merge base
+            FORK_POINT=$(git merge-base ${{ github.base_ref }} ${{ github.head_ref }})
+            LATEST_COMMIT_IN_PR=${{ github.event.pull_request.head.sha }}
+            # Get the diff
+            DIFF=$(git diff --name-only $FORK_POINT $LATEST_COMMIT_IN_PR)
+            echo "Diff between $FORK_POINT and $LATEST_COMMIT_IN_PR"
+          else
+            # Push to a branch
+            BEFORE_SHA=${{ github.event.before }}
+            AFTER_SHA=${{ github.event.after }}
+            DIFF=$(git diff --name-only $BEFORE_SHA $AFTER_SHA)
+            echo "Diff between $BEFORE_SHA and $AFTER_SHA"
+          fi
+          echo "$DIFF"
+          echo "diff=$( echo "$DIFF" | tr '\n' ' ' )" >> $GITHUB_OUTPUT
     - name: Get Yocto release name
       id: get-yocto-release-name
       run: |
