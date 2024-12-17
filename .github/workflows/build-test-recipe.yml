@@ -15,17 +15,34 @@ jobs:
     - name: Diff files and set variables
       id: diff
       run: |
-        # See https://github.community/t/check-pushed-file-changes-with-git-diff-tree-in-github-actions/17220/10
         if [ $GITHUB_BASE_REF ]; then
           # Pull Request
-          # 'github.event.before/after' and 'github.event.pull_request.base.sha' are inconsistent for PRs
-          # Find the commit where the PR branch was forked from the base branch
-          git fetch origin ${{ github.base_ref }} ${{ github.event.pull_request.head.ref }}
-          FORK_POINT=$( git show-branch --merge-base "origin/${{ github.base_ref }}" "origin/${{ github.event.pull_request.head.ref }}" )
+          # Fetch the base ref
+          git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+
+          # For forks, we need to fetch from the head repository
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            git remote add fork ${{ github.event.pull_request.head.repo.clone_url }}
+            git fetch fork ${{ github.head_ref }}
+          else
+            git fetch origin ${{ github.head_ref }}:${{ github.head_ref }}
+          fi
+
+          # Determine the merge base
+          FORK_POINT=$(git merge-base ${{ github.base_ref }} ${{ github.event.pull_request.head.sha }})
           LATEST_COMMIT_IN_PR=${{ github.event.pull_request.head.sha }}
-          export DIFF=$( git diff --name-only $FORK_POINT $LATEST_COMMIT_IN_PR )
+
+          # Get the diff
+          DIFF=$(git diff --name-only $FORK_POINT $LATEST_COMMIT_IN_PR)
           echo "Diff between $FORK_POINT and $LATEST_COMMIT_IN_PR"
+        else
+          # Push to a branch
+          BEFORE_SHA=${{ github.event.before }}
+          AFTER_SHA=${{ github.event.after }}
+          DIFF=$(git diff --name-only $BEFORE_SHA $AFTER_SHA)
+          echo "Diff between $BEFORE_SHA and $AFTER_SHA"
         fi
+
         echo "$DIFF"
         echo "diff=$( echo "$DIFF" | tr '\n' ' ' )" >> $GITHUB_OUTPUT
     - name: Get Yocto release name
@@ -48,7 +65,7 @@ jobs:
           - qemuarm
           - qemuarm64
           - qemux86-64
-    runs-on: codebuild-${{ vars.CODEBUILD_RUNNER_NAME }}-${{ github.run_id }}-${{ github.run_attempt }}
+    runs-on: codebuild-${{ vars.CODEBUILD_RUNNER_NAME || 'meta-aws' }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout meta-aws
         uses: actions/checkout@v4
@@ -72,7 +89,7 @@ jobs:
           export RECIPES=$( echo "${{ needs.changed.outputs.diff }}" | tr ' ' '\n' | grep '\.bb.*$' | sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
           if [ "" == "$RECIPES" ]; then
             echo "No changed recipes, adding everything with a ptest to test, build"
-            THINGS_TO_EXCLUDE="! -name aws-lc* ! -name neo-ai-tv* ! -name corretto-17-bin* ! -name corretto-21-bin* ! -name corretto-8-bin* ! -name firecracker-bin* ! -name jailer-bin* ! -name amazon-kvs-producer-sdk-c* ! -name  aws-cli-v2* "
+            THINGS_TO_EXCLUDE="! -name aws-lc* ! -name neo-ai-tv* ! -name corretto-17-bin* ! -name corretto-21-bin* ! -name corretto-8-bin* ! -name firecracker-bin* ! -name jailer-bin* ! -name amazon-kvs-producer-sdk-c* ! -name  aws-cli-v2* ! -name aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning* "
             if [ ${{ matrix.machine }} == "qemuarm" ]; then
               THINGS_TO_EXCLUDE+="! -name amazon-kvs-webrtc-sdk* ! -name amazon-kvs-producer-pic*"
             fi
