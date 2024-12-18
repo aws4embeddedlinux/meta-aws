@@ -1,4 +1,4 @@
-From fa0b2b89aa7c82eefdc9ce047d2a9d6c25406063 Mon Sep 17 00:00:00 2001
+From 920b93a95ac40e87f1395163e3cbccf02537559d Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Fri, 12 Jan 2024 13:24:54 +0000
 Subject: [PATCH] This patch is removing exact python version dependency
@@ -7,13 +7,14 @@ requirements.
 
 Upstream-Status: Inappropriate [OE specific]
 ---
- pyproject.toml             | 23 +++++++++++------------
- requirements/bootstrap.txt |  2 +-
- 2 files changed, 12 insertions(+), 13 deletions(-)
-Index: git/pyproject.toml
-===================================================================
---- git.orig/pyproject.toml
-+++ git/pyproject.toml
+ pyproject.toml             | 32 ++++++++++++--------------------
+ requirements/bootstrap.txt |  4 ++--
+ 2 files changed, 14 insertions(+), 22 deletions(-)
+
+diff --git a/pyproject.toml b/pyproject.toml
+index 671e41b2a..0f09ad8ed 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
 @@ -1,6 +1,6 @@
  [build-system]
  requires = [
@@ -59,10 +60,10 @@ Index: git/pyproject.toml
  ]
  dynamic = ["version"]
  
-Index: git/requirements/bootstrap.txt
-===================================================================
---- git.orig/requirements/bootstrap.txt
-+++ git/requirements/bootstrap.txt
+diff --git a/requirements/bootstrap.txt b/requirements/bootstrap.txt
+index fcc7ca534..3a9fa2e97 100644
+--- a/requirements/bootstrap.txt
++++ b/requirements/bootstrap.txt
 @@ -1,2 +1,2 @@
 -pip>=22.0.0,<25.0.0
 -flit_core>=3.7.1,<3.9.1
