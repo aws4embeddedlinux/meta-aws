@@ -122,6 +122,10 @@ do_install:append() {
     chown ${gg_user}:${gg_group} ${D}/${gg_workingdir}
 }
 
+# disable automatic startup of gg-lite, cause this will use the same port as greengrass-bin, conflicting.
+SYSTEMD_SERVICE:${PN}-ptest:remove = "greengrass-lite.target"
+SYSTEMD_SERVICE:${PN}-ptest:remove = "ggl.gg-ipc.socket.socket"
+
 USERADD_PACKAGES = "${PN}"
 GROUPADD_PARAM:${PN} = "-r ${gg_group}; -r ${ggc_group}"
 USERADD_PARAM:${PN} = "-r -M -N -g  ${gg_group} -s /bin/false ${gg_user}; -r -M -N -g  ${ggc_group} -s /bin/false ${ggc_user}"
