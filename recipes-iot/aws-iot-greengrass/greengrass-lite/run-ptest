@@ -1,6 +1,13 @@
 #!/bin/sh
 set -euxo pipefail
 
+# this has been disabled cause this has issues with greengrass-bin
+systemctl enable ggl.gg-ipc.socket.socket
+systemctl start greengrass-lite.target
+
+# settle time
+sleep 10
+
 /usr/bin/configtest
 
 RETVAL=$?
