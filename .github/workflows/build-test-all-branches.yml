@@ -112,15 +112,26 @@ jobs:
             sleep 60
           done
 
-      - name: Report status
+      - name: Report status and check for failures
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "All branch workflows have completed."
           IFS=' ' read -ra run_ids <<< "${{ env.run_ids }}"
+          overall_status=0
           for run_id in "${run_ids[@]}"; do
             run_info=$(gh run view $run_id --json headBranch,conclusion)
             branch=$(echo "$run_info" | jq -r '.headBranch')
             conclusion=$(echo "$run_info" | jq -r '.conclusion')
             echo "Branch $branch workflow conclusion: $conclusion"
+            if [ "$conclusion" != "success" ]; then
+              overall_status=1
+            fi
           done
+          if [ $overall_status -ne 0 ]; then
+            echo "One or more branch workflows failed."
+            exit 1
+          else
+            echo "All branch workflows succeeded."
+          fi
+
