@@ -3,6 +3,7 @@ set -euxo pipefail
 
 # this has been disabled cause this has issues with greengrass-bin
 systemctl enable ggl.gg-ipc.socket.socket
+systemctl enable ggl.ipc_component.socket
 systemctl start greengrass-lite.target
 
 # settle time
