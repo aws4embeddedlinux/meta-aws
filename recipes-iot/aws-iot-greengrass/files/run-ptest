@@ -1,6 +1,11 @@
 #!/bin/sh
 set -euxo pipefail
 
+# Cause we starting this here manually.
+systemctl stop greengrass
+# some settle time
+sleep 10
+
 cd /greengrass/v2/alts/current/distro/bin
 chmod 755 loader
 ./loader  2>&1 > test.log &
