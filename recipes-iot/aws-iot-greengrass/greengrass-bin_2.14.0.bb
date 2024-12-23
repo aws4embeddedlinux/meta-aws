@@ -146,3 +146,6 @@ INSANE_SKIP:${PN} += "already-stripped ldflags file-rdeps"
 RDEPENDS:${PN}-ptest += "\
     greengrass-bin \
     "
+
+# disable automatic startup of greengrass, cause we want to monitor the startup.
+SYSTEMD_SERVICE:${PN}-ptest:remove = "greengrass.service"
