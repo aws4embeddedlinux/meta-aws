@@ -3,7 +3,7 @@ name: trigger build-test in all supported branches
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 5 * * *'
 
 jobs:
   trigger-branch-workflows:
