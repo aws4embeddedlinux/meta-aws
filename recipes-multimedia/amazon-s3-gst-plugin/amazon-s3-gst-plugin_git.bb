@@ -14,7 +14,7 @@ DEPENDS = "\
 SRC_URI = "git://github.com/amzn/amazon-s3-gst-plugin.git;protocol=https;branch=master \
            file://run-ptest \
            "
-SRCREV = "b0887cf881b915a07e78b5e9ff87835b51c8e26c"
+SRCREV = "89c2ed54eb057a557bb26d4ef3332734794e23c2"
 
 # this project do not use version tags, use latest commit
 UPSTREAM_CHECK_COMMITS = "1"
