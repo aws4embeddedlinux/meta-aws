@@ -25,9 +25,12 @@ S = "${WORKDIR}/git"
 
 inherit cmake ptest pkgconfig
 
-PACKAGECONFIG ??= "\
+PACKAGECONFIG ?= "\
     ${@bb.utils.filter('DISTRO_FEATURES', 'pulseaudio', d)} \
-    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)}"
+    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
+    "
+
+PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
 
 PACKAGECONFIG[pulseaudio] = "-DPULSEAUDIO=TRUE, -DPULSEAUDIO=FALSE, pulseaudio"
 
@@ -43,6 +46,7 @@ python populate_packages:prepend () {
     do_split_packages(d, d.expand('${libdir}'), r'^lib(.*)\.so$', '%s', 'library for %s', extra_depends='', prepend=True, hook=hook)
 
     d.setVar("AWS_SDK_PACKAGES", " ".join(packages))
+
 }
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
@@ -63,8 +67,8 @@ OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PTEST_ENABLED', '1', '-Wno-maybe-uni
 OECMAKE_CXX_FLAGS += "-Wno-psabi"
 
 EXTRA_OECMAKE += "\
-     -DBUILD_DEPS=OFF \
-     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
+    -DBUILD_DEPS=OFF \
+    -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
 "
 
 RDEPENDS:${PN}-ptest += "\
@@ -86,3 +90,9 @@ do_install_ptest () {
 # https://github.com/aws/aws-sdk-cpp/issues/2242
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN}-src:append:class-target:arm = " buildpaths"
+
+# -fsanitize=address does cause this
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:x86-64 += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
+
+PACKAGECONFIG[sanitize] = "'-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS} -g -fsanitize=address -fno-omit-frame-pointer',,gcc-sanitizers"
