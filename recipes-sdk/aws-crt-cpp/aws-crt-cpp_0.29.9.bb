@@ -43,9 +43,11 @@ EXTRA_OECMAKE += "\
 # for generating Makefiles to run tests
 OECMAKE_GENERATOR = "Unix Makefiles"
 
-PACKAGECONFIG ??= "\
+PACKAGECONFIG ?= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
     "
+
+PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
@@ -69,3 +71,8 @@ do_install_ptest () {
     install -d ${D}${PTEST_PATH}/tests
     install -m 0755 ${B}/tests/aws-crt-cpp-tests ${D}${PTEST_PATH}/tests/
 }
+
+# -fsanitize=address does cause this
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:x86-64 += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
+PACKAGECONFIG[sanitize] = "-DENABLE_SANITIZERS=ON -DSANITIZERS=address, -DENABLE_SANITIZERS=OFF,gcc-sanitizers"
