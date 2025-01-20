@@ -37,6 +37,7 @@ PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUI
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
+FILES:${PN}-staticdev += "${libdir}/lib*.a"
 
 RDEPENDS:${PN} = "\
     aws-c-common \
