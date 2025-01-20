@@ -5,7 +5,9 @@ LICENSE = "Apache-2.0"
 
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
-DEPENDS = "${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)}"
+DEPENDS = "\
+    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
+    "
 
 PROVIDES += "aws/s2n"
 
@@ -24,8 +26,12 @@ inherit cmake ptest pkgconfig
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
-PACKAGECONFIG ??= "\
+PACKAGECONFIG ?= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
+    "
+
+PACKAGECONFIG:append:x86-64 = "\
+    ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)} \
     "
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
@@ -56,3 +62,5 @@ do_install_ptest () {
 }
 
 BBCLASSEXTEND = "native nativesdk"
+
+PACKAGECONFIG[sanitize] = "-DS2N_ADDRESS_SANITIZER=ON, -DS2N_ADDRESS_SANITIZER=OFF, gcc-sanitizers"
