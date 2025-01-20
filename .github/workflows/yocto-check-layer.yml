@@ -18,10 +18,11 @@ jobs:
             # this is deprecated, but replacement does not seem to work now?
             echo "::set-output name=release_name::$release_name"
       - name: install required packages to run yocto-check-layer
-        run: | 
+        run: |
           sudo apt-get -y install gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio python3 xz-utils zstd liblz4-tool locales
           echo "en_US.UTF-8 UTF-8" | sudo tee --append /etc/locale.gen
           sudo locale-gen
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: checkout meta-aws branch to test
         uses: actions/checkout@v3
         with:
