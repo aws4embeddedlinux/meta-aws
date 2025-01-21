@@ -30,18 +30,17 @@ PACKAGECONFIG ?= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
     "
 
-PACKAGECONFIG:append:x86-64 = "\
-    ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)} \
-    "
+PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
 
-EXTRA_OECMAKE += "\
-    -DCMAKE_BUILD_TYPE=Release \
-"
+PACKAGECONFIG[sanitize] = "-DS2N_ADDRESS_SANITIZER=ON, -DS2N_ADDRESS_SANITIZER=OFF, gcc-sanitizers"
+
+EXTRA_OECMAKE += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-DCMAKE_BUILD_TYPE=Debug', '-DCMAKE_BUILD_TYPE=Release', d)}"
+
 # Fix "doesn't have GNU_HASH (didn't pass LDFLAGS?)" issue
 TARGET_CC_ARCH += "${LDFLAGS}"
 
@@ -63,4 +62,4 @@ do_install_ptest () {
 
 BBCLASSEXTEND = "native nativesdk"
 
-PACKAGECONFIG[sanitize] = "-DS2N_ADDRESS_SANITIZER=ON, -DS2N_ADDRESS_SANITIZER=OFF, gcc-sanitizers"
+OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address', '', d)}"

@@ -29,6 +29,9 @@ PACKAGECONFIG ??= "\
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
+# this will conflict with PTESTS, do disable them in your local.conf
+# by setting
+# PTEST_ENABLED:pn-aws-lc = "0"
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
 do_install_ptest () {

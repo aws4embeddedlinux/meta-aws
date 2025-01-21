@@ -68,4 +68,4 @@ do
 ./aws-crt-cpp-tests $TEST >> tests.log 2>&1
 done
 
-sed  -e '/\[\s/!d  ; /OK/ s/^/PASS: / ; /FAILED/ s/^/FAIL: /'  tests.log
+sed  -e '/\[\s\|==.*==\|runtime error:/!d ; /OK/ s/^/PASS: / ; /FAILED\|ERROR: .*Sanitizer\|runtime error:/ s/^/FAIL: /'  tests.log
