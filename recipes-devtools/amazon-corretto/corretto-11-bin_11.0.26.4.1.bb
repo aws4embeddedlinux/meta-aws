@@ -16,11 +16,10 @@ BASE:x86 = "amazon-corretto-${PV}-linux-x86"
 SRC_URI:x86 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x86.tar.gz;name=x86"
 
 # you can find checksum here: https://github.com/corretto/corretto-11/releases  since devtool upgrade can only do one arch atm.
-
-SRC_URI[aarch64.sha256sum] = "130b51021d30e13f7b15c0b1febb6c6dfa8bcd52f9212528a342f1bc4432f9f6"
-SRC_URI[arm.sha256sum] = "be187726104d66392f76f9f4abe3f4190b15048aedb1566c4701873c939b80be"
-SRC_URI[x86-64.sha256sum] = "68e75fa1048b9e2aec0c19f8defe399868f11862028a93b9afba0dbb462dfc02"
-SRC_URI[x86.sha256sum] = "9977fab8fe12777be06787d64e8abb0e50d62f408d9821f632824810322d6ea3"
+SRC_URI[aarch64.sha256sum] = "68bb72f1b6311aab240c9ed8bf6b00019596a3d19af9016bd4913f2727a507e6"
+SRC_URI[arm.sha256sum] = "22ac529d9791fdf8b99000d3dceccf25cbbc58c3cbf7859342c9a75c79cdd77c"
+SRC_URI[x86.sha256sum] = "3bd6c3de9f8b982c532a74e5ec6d2d8728aee93f1cc14516f484024146afce5a"
+SRC_URI[x86-64.sha256sum] = "42f4fd2f863f376d98911cd20700223eb988d535db984d7679a4bc10506b9cdf"
 
 COMPATIBLE_MACHINE:armv7a = "(.*)"
 COMPATIBLE_MACHINE:armv7ve = "(.*)"
