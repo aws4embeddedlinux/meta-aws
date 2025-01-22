@@ -16,7 +16,7 @@ index aa4e90b..02ac23c 100644
  set(Boost_USE_STATIC_LIBS ON)
  set(Boost_USE_DEBUG_RUNTIME OFF)
  #set_property(GLOBAL PROPERTY Boost_USE_MULTITHREADED ON)
--set(BOOST_PKG_VERSION "1.81.0" CACHE STRING "")
+-set(BOOST_PKG_VERSION "1.87.0" CACHE STRING "")
 -find_package(Boost ${BOOST_PKG_VERSION} REQUIRED COMPONENTS system log log_setup thread program_options date_time filesystem chrono)
 +find_package(Boost REQUIRED COMPONENTS system log log_setup thread program_options date_time filesystem chrono)
  include_directories(${Boost_INCLUDE_DIRS})
