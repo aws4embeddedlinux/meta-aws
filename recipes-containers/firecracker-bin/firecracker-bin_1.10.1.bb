@@ -46,4 +46,4 @@ do_install() {
 }
 
 # https://bugzilla.yoctoproject.org/show_bug.cgi?id=15227
-PACKAGE_DEPENDS:append:class-target = " virtual/${TARGET_PREFIX}binutils"
+PACKAGE_DEPENDS:append:class-target = " virtual/cross-binutils"
