@@ -1,0 +1,38 @@
+Upstream-Status: Submitted [author]
+
+Index: git/test/unit/IoTFleetWiseConfigTest.cpp
+===================================================================
+--- git.orig/test/unit/IoTFleetWiseConfigTest.cpp
++++ git/test/unit/IoTFleetWiseConfigTest.cpp
+@@ -6,6 +6,7 @@
+ #include "Testing.h"
+ #include <boost/none.hpp>
+ #include <boost/optional/optional.hpp>
++#include <boost/optional/optional_io.hpp>
+ #include <cstddef>
+ #include <cstdint>
+ #include <gtest/gtest.h>
+Index: git/test/unit/RawDataManagerTest.cpp
+===================================================================
+--- git.orig/test/unit/RawDataManagerTest.cpp
++++ git/test/unit/RawDataManagerTest.cpp
+@@ -7,6 +7,7 @@
+ #include "TimeTypes.h"
+ #include <boost/none.hpp>
+ #include <boost/optional/optional.hpp>
++#include <boost/optional/optional_io.hpp>
+ #include <cstdint>
+ #include <cstring>
+ #include <gtest/gtest.h>
+Index: git/test/unit/ROS2DataSourceTest.cpp
+===================================================================
+--- git.orig/test/unit/ROS2DataSourceTest.cpp
++++ git/test/unit/ROS2DataSourceTest.cpp
+@@ -13,6 +13,7 @@
+ #include <array>
+ #include <atomic>
+ #include <boost/optional/optional.hpp>
++#include <boost/optional/optional_io.hpp>
+ #include <boost/variant.hpp>
+ #include <chrono>
+ #include <cstdint>
