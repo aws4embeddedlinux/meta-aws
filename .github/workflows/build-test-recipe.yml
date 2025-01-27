@@ -135,10 +135,17 @@ jobs:
              export MACHINE=${{ matrix.machine }}
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
              bitbake $RECIPES -f -k | tee -a $MACHINE-build.log'
-            set -e
-            echo RECIPES to build: $RECIPES
-            test -e build/${{ matrix.machine }}-build.log && ! grep -A3 " failed"  build/${{ matrix.machine }}-build.log
-            test -e build/${{ matrix.machine }}-build.log && ! grep -A3 " ERROR:"  build/${{ matrix.machine }}-build.log
+           set -e
+           echo RECIPES to build: $RECIPES
+           if [ -e "build/${{ matrix.machine }}-build.log" ]; then
+            if grep -A3 -E ' failed| ERROR:' "build/${{ matrix.machine }}-build.log"; then
+              echo "Found failed or ERROR in build log"
+              exit 1
+            fi   
+           else
+            echo "Build log file not found: build/${{ matrix.machine }}-build.log"
+            exit 1
+           fi
       - name: Save ${{ matrix.machine }}-build.log
         if: '!cancelled()'
         uses: actions/upload-artifact@v4
