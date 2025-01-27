@@ -71,7 +71,7 @@ EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
 "
 
-EXTRA_OECMAKE += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-DCMAKE_BUILD_TYPE=Debug', '-DCMAKE_BUILD_TYPE=Release', d)}"
+EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
 
 RDEPENDS:${PN}-ptest += "\
     bash \
@@ -97,4 +97,4 @@ INSANE_SKIP:${PN}-src:append:class-target:arm = " buildpaths"
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
 PACKAGECONFIG[sanitize] = ",,gcc-sanitizers"
-OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address -fno-omit-frame-pointer', '', d)}"
+OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"
