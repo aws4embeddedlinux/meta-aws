@@ -1,5 +1,7 @@
 #!/bin/sh
 
+export LD_PRELOAD=$(find /usr/lib /lib -type f -name "libasan.so*")
+
 mqtt5_pubsub --help
 RETVAL=$?
 if [ $RETVAL -eq 255 ] ; then

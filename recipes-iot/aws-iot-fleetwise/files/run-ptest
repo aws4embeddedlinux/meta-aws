@@ -10,3 +10,34 @@ if [ $RETVAL -eq 0 ] ; then
 else
     echo "FAIL: aws-iot-fleetwise startup test"
 fi
+
+### fwe-gtest
+tests/fwe-gtest --gtest_filter=\
+-AwsIotConnectivityModuleTest*:\
+-CANDecoderTest*:\
+-CANDataSourceTest.*:\
+-CollectionInspectionEngine*:\
+-CollectionInspectionWorkerThreadTest.*:\
+-IoTFleetWiseConfigTest.ReadOk:\
+-IoTFleetWiseEngineTest.*:\
+-CollectionInspectionEngineDoubleTest.RandomDataTest\
+-ISOTPOverCANProtocolTest.*:\
+-OBDOverCANModuleTest.* \
+--gtest_fail_fast --gtest_output=json:result.json > /dev/null ;  python3 ptest_result.py result.json 
+
+
+### fwe-benchmark
+cd tests
+
+rm -rf tests.log
+
+./fwe-benchmark >> tests.log 2>&1
+
+RETVAL=$?
+sed  -e '/\[\s\|==.*==\|runtime error:/!d ; /OK/ s/^/PASS: / ; /FAILED\|ERROR: .*Sanitizer\|runtime error:/ s/^/FAIL: /'  tests.log
+
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: fwe-benchmark test"
+else
+    echo "FAIL: fwe-benchmark test"
+fi
