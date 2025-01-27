@@ -17,6 +17,7 @@ DEPENDS += "gettext-native"
 SRC_URI = "\
     https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-${PV}.zip;name=payload; \
     https://raw.githubusercontent.com/aws-greengrass/aws-greengrass-nucleus/main/LICENSE;name=license; \
+    file://001-serviced-startup-sh.patch \
     file://greengrassv2-init.yaml \
     file://run-ptest \
     "
@@ -63,7 +64,6 @@ RDEPENDS:${PN} += "\
 
 do_configure[noexec] = "1"
 do_compile[noexec] = "1"
-do_patch[noexec] = "1"
 
 do_install() {
     install -d ${GG_ROOT}/config
