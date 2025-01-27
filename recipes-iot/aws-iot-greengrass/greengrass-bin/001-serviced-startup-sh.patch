@@ -1,0 +1,15 @@
+Upstream-Status: Backport [https://github.com/aws-greengrass/aws-greengrass-nucleus/commit/ebae6be2c8c701306b1e0fa3ac5f727406e04d20]
+
+Index: sources/bin/greengrass.service.template
+===================================================================
+--- sources.orig/bin/greengrass.service.template
++++ sources/bin/greengrass.service.template
+@@ -8,7 +8,7 @@ PIDFile=REPLACE_WITH_GG_LOADER_PID_FILE
+ RemainAfterExit=no
+ Restart=on-failure
+ RestartSec=10
+-ExecStart=/bin/sh -c "REPLACE_WITH_GG_LOADER_FILE >> REPLACE_WITH_LOADER_LOG_FILE 2>&1"
++ExecStart=/bin/sh REPLACE_WITH_GG_LOADER_FILE
+ KillMode=mixed
+
+ [Install]
