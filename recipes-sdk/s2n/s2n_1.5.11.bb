@@ -39,7 +39,7 @@ PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
 
 PACKAGECONFIG[sanitize] = "-DS2N_ADDRESS_SANITIZER=ON, -DS2N_ADDRESS_SANITIZER=OFF, gcc-sanitizers"
 
-EXTRA_OECMAKE += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-DCMAKE_BUILD_TYPE=Debug', '-DCMAKE_BUILD_TYPE=Release', d)}"
+EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
 
 # Fix "doesn't have GNU_HASH (didn't pass LDFLAGS?)" issue
 TARGET_CC_ARCH += "${LDFLAGS}"
@@ -62,4 +62,4 @@ do_install_ptest () {
 
 BBCLASSEXTEND = "native nativesdk"
 
-OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address', '', d)}"
+OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined', '', d)}"
