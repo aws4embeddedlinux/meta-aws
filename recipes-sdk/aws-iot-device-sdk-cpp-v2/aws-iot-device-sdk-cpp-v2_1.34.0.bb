@@ -37,9 +37,10 @@ FILES_SOLIBSDEV = ""
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,,"
 
 PACKAGECONFIG ??= "\
-   ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
-   "
+    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
+    "
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
+PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
@@ -48,3 +49,12 @@ RDEPENDS:${PN}-ptest:prepend = "\
     "
 
 BBCLASSEXTEND = "native nativesdk"
+
+EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
+
+# -fsanitize=address does cause this
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
+
+PACKAGECONFIG[sanitize] = ",, gcc-sanitizers"
+OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"
