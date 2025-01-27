@@ -79,4 +79,4 @@ do_install_ptest () {
 INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
 
 PACKAGECONFIG[sanitize] = ",, gcc-sanitizers"
-OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address -fno-omit-frame-pointer', '', d)}"
+OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"

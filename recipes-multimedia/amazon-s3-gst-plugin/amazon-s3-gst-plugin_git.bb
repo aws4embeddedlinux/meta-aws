@@ -23,6 +23,8 @@ S = "${WORKDIR}/git"
 
 CXXFLAGS:append = " -Wno-missing-field-initializers"
 
+EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
+
 inherit meson pkgconfig ptest
 
 FILES:${PN} += "\
@@ -30,3 +32,11 @@ FILES:${PN} += "\
     ${libdir}/libgstawscredentials-1.0.so \
 "
 FILES_SOLIBSDEV = ""
+
+PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
+# -fsanitize=address does cause this
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+# INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
+
+PACKAGECONFIG[sanitize] = ",, gcc-sanitizers"
+OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"

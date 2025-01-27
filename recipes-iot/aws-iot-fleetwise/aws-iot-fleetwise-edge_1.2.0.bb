@@ -17,24 +17,36 @@ DEPENDS = "\
 
 # nooelint: oelint.file.patchsignedoff
 SRC_URI = "\
-           git://github.com/aws/aws-iot-fleetwise-edge.git;protocol=https;branch=main \
-           file://remove-cxx-standard.patch \
-           file://run-ptest \
-           "
+    git://github.com/aws/aws-iot-fleetwise-edge.git;protocol=https;branch=main \
+    file://001-remove-cxx-standard.patch \
+    file://002-fleetwise-config-test.patch \
+    file://run-ptest \
+    "
 
 SRCREV = "4c74c61a5001037f3979f6dbe74a72abd2ec4e76"
 
 S = "${WORKDIR}/git"
 
-inherit cmake systemd ptest
+inherit cmake systemd ptest pkgconfig
 
 FILES:${PN} += "${systemd_system_unitdir}"
 
+PACKAGECONFIG ?= "\
+    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
+    "
+
+PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
+
+PACKAGECONFIG[pulseaudio] = "-DPULSEAUDIO=TRUE, -DPULSEAUDIO=FALSE, pulseaudio"
+
+# CMAKE_CROSSCOMPILING=OFF will enable build of unit tests
+PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF, googlebenchmark"
+
 RDEPENDS:${PN} = "protobuf"
 
-EXTRA_OECMAKE += "-DBUILD_TESTING=OFF"
-
 EXTRA_OECMAKE += "-DFWE_AWS_SDK_SHARED_LIBS=ON"
+
+EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
 
 SYSTEMD_SERVICE:${PN} = "fwe@.service"
 
@@ -86,5 +98,19 @@ do_install() {
 }
 
 do_install_ptest() {
+    install -d ${D}${PTEST_PATH}/tests
     install -m 0755 ${S}/configuration/static-config.json ${D}${PTEST_PATH}/config-0.json
+    install -m 0755 ${B}/fwe-gtest ${D}${PTEST_PATH}/tests/
+    install -m 0755 ${B}/fwe-benchmark ${D}${PTEST_PATH}/tests/
 }
+
+RDEPENDS:${PN}-ptest += "\
+    python3 \
+"
+
+# -fsanitize=address does cause this
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
+
+PACKAGECONFIG[sanitize] = ",,gcc-sanitizers"
+OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address -fno-omit-frame-pointer', '', d)}"
