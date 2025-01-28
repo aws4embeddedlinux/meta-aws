@@ -1,4 +1,4 @@
-From f65a0155178e0a6b5d22639f4e34daf95e5c1d94 Mon Sep 17 00:00:00 2001
+From 14259417edf3a23762ab1a4284240c078a0bce4e Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Tue, 9 Jan 2024 14:34:32 +0000
 Subject: [PATCH] aws-iot-securetunneling-localproxy: remove setting of
