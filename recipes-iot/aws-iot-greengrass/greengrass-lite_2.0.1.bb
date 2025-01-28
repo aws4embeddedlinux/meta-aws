@@ -36,7 +36,7 @@ SRC_URI = "\
     file://greengrass-lite.yaml \
     file://run-ptest \
 "
-SRCREV = "1ecbd6d6e47de144b7cb586b063ea4b6d232f16d"
+SRCREV = "6d9e9419a4921d44be44a4c7e3f6431388e1b525"
 #
 
 S = "${WORKDIR}/git"
