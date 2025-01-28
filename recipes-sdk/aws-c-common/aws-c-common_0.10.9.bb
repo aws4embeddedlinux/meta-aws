@@ -13,7 +13,7 @@ SRC_URI = "\
     file://run-ptest \
     file://ptest_result.py \
 "
-SRCREV = "f6622acf287a63ba1213876f731ef49c83967a88"
+SRCREV = "5e6c08186fa5d8c7679acf95b86ada4119ca23b8"
 
 # will match only x.x.x for auto upgrades, because: https://github.com/awslabs/aws-c-common/issues/1025
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>\d\.\d+(\.\d+)+)"
