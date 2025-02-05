@@ -1,4 +1,4 @@
-From 1d3fa264844efd4e6fbe3843a5231a273ba4e403 Mon Sep 17 00:00:00 2001
+From cb642a3a4d061b1f5b4c2a1c69a4db69e0c2bf09 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Fri, 12 Jan 2024 13:24:54 +0000
 Subject: [PATCH] This patch is removing exact python version dependency
@@ -38,7 +38,7 @@ index e2387f86c..bd8ddaea3 100644
 -    "ruamel.yaml.clib>=0.2.0,<=0.2.8",
 -    "prompt-toolkit>=3.0.24,<3.0.39",
 -    "distro>=1.5.0,<1.9.0",
--    "awscrt==0.23.4",
+-    "awscrt==0.23.8",
 -    "python-dateutil>=2.1,<=2.9.0",
 -    "jmespath>=0.7.1,<1.1.0",
 -    "urllib3>=1.25.4,<1.27",
@@ -52,14 +52,14 @@ index e2387f86c..bd8ddaea3 100644
 +    "ruamel.yaml>=0.15.0",
 +    "prompt-toolkit>=3.0.24",
 +    "distro>=1.5.0",
-+    "awscrt>=0.23.4",
++    "awscrt>=0.23.8",
 +    "python-dateutil>=2.1",
 +    "jmespath>=0.7.1",
 +    "urllib3>=1.25.4",
 +    "zipp",
  ]
  dynamic = ["version"]
- 
+
 diff --git a/requirements/bootstrap.txt b/requirements/bootstrap.txt
 index fcc7ca534..3a9fa2e97 100644
 --- a/requirements/bootstrap.txt
