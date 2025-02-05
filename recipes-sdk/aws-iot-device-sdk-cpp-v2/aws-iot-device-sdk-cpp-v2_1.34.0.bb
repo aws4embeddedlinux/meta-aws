@@ -11,7 +11,10 @@ PROVIDES += "aws/aws-iot-device-sdk-cpp-v2"
 
 require aws-iot-device-sdk-cpp-v2-version.inc
 
-SRC_URI:append = " file://run-ptest"
+SRC_URI:append = " \
+    file://run-ptest \
+    file://001-cmake-aws-module-path.patch \
+    "
 
 S = "${WORKDIR}/git"
 
