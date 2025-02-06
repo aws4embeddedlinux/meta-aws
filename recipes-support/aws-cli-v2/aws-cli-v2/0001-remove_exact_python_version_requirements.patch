@@ -1,4 +1,4 @@
-From cb642a3a4d061b1f5b4c2a1c69a4db69e0c2bf09 Mon Sep 17 00:00:00 2001
+From d547a72d927552b6a00ecda69a4a0bda1fd356b1 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Fri, 12 Jan 2024 13:24:54 +0000
 Subject: [PATCH] This patch is removing exact python version dependency
@@ -12,7 +12,7 @@ Upstream-Status: Inappropriate [OE specific]
  2 files changed, 14 insertions(+), 22 deletions(-)
 
 diff --git a/pyproject.toml b/pyproject.toml
-index e2387f86c..bd8ddaea3 100644
+index 97cef929c..936f12abf 100644
 --- a/pyproject.toml
 +++ b/pyproject.toml
 @@ -1,6 +1,6 @@
@@ -59,7 +59,7 @@ index e2387f86c..bd8ddaea3 100644
 +    "zipp",
  ]
  dynamic = ["version"]
-
+ 
 diff --git a/requirements/bootstrap.txt b/requirements/bootstrap.txt
 index fcc7ca534..3a9fa2e97 100644
 --- a/requirements/bootstrap.txt
