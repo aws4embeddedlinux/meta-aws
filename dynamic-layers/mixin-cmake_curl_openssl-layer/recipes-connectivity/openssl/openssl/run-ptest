@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e
+
+# Optional arguments are 'list' to lists all tests, or the test name (base name
+# ie test_evp, not 03_test_evp.t).
+
+export TOP=.
+# OPENSSL_ENGINES is relative from the test binaries
+export OPENSSL_ENGINES=../engines
+
+perl ./test/run_tests.pl $* | sed -u -r -e '/(.*) \.*.ok/ s/^/PASS: /g' -r -e '/Dubious(.*)/ s/^/FAIL: /g' -e '/(.*) \.*.skipped: (.*)/ s/^/SKIP: /g'

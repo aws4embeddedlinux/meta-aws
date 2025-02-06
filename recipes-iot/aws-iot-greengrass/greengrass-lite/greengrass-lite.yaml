@@ -1,0 +1,11 @@
+---
+system:
+  rootPath: "@GG_WORKING_DIR@"
+services:
+  aws.greengrass.NucleusLite:
+    componentType: "NUCLEUS"
+    configuration:
+      runWithDefault:
+        posixUser: "@GG_USER@:@GG_GROUP@"
+      greengrassDataPlanePort: "8443"
+      platformOverride: {}

@@ -1,0 +1,16 @@
+Upstream-Status: Inappropriate [oe specific]
+
+Index: git/CMakeLists.txt
+===================================================================
+--- git.orig/CMakeLists.txt
++++ git/CMakeLists.txt
+@@ -185,7 +185,8 @@ try_add_link_option(compress-debug-secti
+ # try_add_link_option_if(gc-sections $<NOT:$<CONFIG:Debug>>
+ # LINKER:--gc-sections)
+
+-try_add_link_option_if(strip-all $<CONFIG:Release,MinSizeRel> LINKER:-s)
++# Yocto will stip and create debug packages
++# try_add_link_option_if(strip-all $<CONFIG:Release,MinSizeRel> LINKER:-s)
+
+ set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_DEBUG FALSE)
+ set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
