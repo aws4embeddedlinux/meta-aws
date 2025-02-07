@@ -36,7 +36,7 @@ SRC_URI = "\
     file://greengrass-lite.yaml \
     file://run-ptest \
 "
-SRCREV = "6d9e9419a4921d44be44a4c7e3f6431388e1b525"
+SRCREV = "4f6b025c63b780418110cc12b77d4a7d73b7b4a6"
 #
 
 S = "${WORKDIR}/git"
@@ -68,6 +68,7 @@ EXTRA_OECMAKE:append = " -DGGL_LOG_LEVEL=DEBUG"
 SYSTEMD_SERVICE:${PN} = "\
     ggl.aws_iot_mqtt.socket \
     ggl.aws_iot_tes.socket \
+    ggl.aws.greengrass.TokenExchangeService.service \
     ggl.core.gg-fleet-statusd.service \
     ggl.core.ggconfigd.service \
     ggl.core.ggdeploymentd.service \
