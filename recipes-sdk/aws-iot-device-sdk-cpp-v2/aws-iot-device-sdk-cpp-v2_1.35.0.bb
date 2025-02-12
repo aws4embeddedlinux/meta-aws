@@ -13,6 +13,7 @@ require aws-iot-device-sdk-cpp-v2-version.inc
 
 SRC_URI:append = " \
     file://run-ptest \
+    file://openssl_suppressions.txt \
     "
 
 S = "${WORKDIR}/git"
@@ -41,7 +42,7 @@ PACKAGECONFIG ??= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
     "
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
-#TODO PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
+PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
@@ -53,9 +54,15 @@ BBCLASSEXTEND = "native nativesdk"
 
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
 
-#TODO # -fsanitize=address does cause this
-#TODO # nooelint: oelint.vars.insaneskip:INSANE_SKIP
-#TODO INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
+# -fsanitize=address does cause this
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
 
-#TODO PACKAGECONFIG[sanitize] = ",, gcc-sanitizers"
-#TODO OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"
+PACKAGECONFIG[sanitize] = ",, gcc-sanitizers"
+OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"
+
+do_install_ptest:append() {
+    install -d ${D}${PTEST_PATH}/tests
+
+    install ${UNPACKDIR}/openssl_suppressions.txt ${D}${PTEST_PATH}/
+}
