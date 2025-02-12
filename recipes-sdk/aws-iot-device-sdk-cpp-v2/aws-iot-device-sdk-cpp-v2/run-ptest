@@ -2,7 +2,7 @@
 
 export LD_PRELOAD=$(find /usr/lib /lib -type f -name "libasan.so*")
 
-mqtt5_pubsub --help
+LSAN_OPTIONS=suppressions=openssl_suppressions.txt mqtt5_pubsub --help
 RETVAL=$?
 if [ $RETVAL -eq 255 ] ; then
     echo "PASS: aws-iot-device-sdk-cpp-v2-sample-mqtt5_pubsub help test"
