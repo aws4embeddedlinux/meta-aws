@@ -1,0 +1,2 @@
+# Suppress OpenSSL CRYPTO_malloc leaks
+leak:CRYPTO_malloc
