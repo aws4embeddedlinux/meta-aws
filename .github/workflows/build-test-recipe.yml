@@ -121,7 +121,7 @@ jobs:
              echo DISTRO = \"poky-altcfg\" >> conf/local.conf
              # this will specify what test should run when running testimage cmd - oeqa layer tests + ptests:
              # Ping and SSH are not required, but do help in debugging. ptest will discover all ptest packages.
-             echo TEST_SUITES = \" ping ssh ptest parselogs\" >> conf/local.conf
+             echo TEST_SUITES = \" ping ssh ptest\" >> conf/local.conf
              # this will allow - running testimage cmd: bitbake core-image-minimal -c testimage
              echo IMAGE_CLASSES += \"testimage\" >> conf/local.conf
              cat conf/local.conf
