@@ -1,0 +1,2 @@
+# Create a file named leak.supp with:
+leak:libpython3.10.so

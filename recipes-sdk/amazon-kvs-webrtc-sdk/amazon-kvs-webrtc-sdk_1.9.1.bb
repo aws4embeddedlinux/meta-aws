@@ -21,6 +21,7 @@ PROVIDES += "aws/amazon-kvs-webrtc-sdk"
 BRANCH = "master"
 SRC_URI = "\
     git://github.com/awslabs/amazon-kinesis-video-streams-webrtc-sdk-c.git;protocol=https;branch=${BRANCH} \
+    file://sanitizer_suppressions.txt \
     file://run-ptest \
     file://ptest_result.py \
 "
@@ -79,6 +80,8 @@ EXTRA_OECMAKE += "-DCMAKE_SKIP_RPATH=1"
 do_install_ptest () {
     cp -r ${B}/tst/webrtc_client_test ${D}${PTEST_PATH}/
     install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
+
+    install ${WORKDIR}/sanitizer_suppressions.txt ${D}${PTEST_PATH}/
 }
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
