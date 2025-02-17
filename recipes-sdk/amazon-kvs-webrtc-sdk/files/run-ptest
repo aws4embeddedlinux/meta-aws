@@ -2,6 +2,8 @@
 
 export LD_PRELOAD=$(find /usr/lib /lib -type f -name "libasan.so*")
 
+export LSAN_OPTIONS=suppressions=sanitizer_suppressions.txt
+
 ./webrtc_client_test --gtest_filter=DataChannelApiTest* --gtest_output=json:result.json
 
 python3 ptest_result.py result.json 
