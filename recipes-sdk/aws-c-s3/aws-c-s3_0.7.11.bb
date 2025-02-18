@@ -41,7 +41,7 @@ FILES:${PN}-dev += "${libdir}/*/cmake"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH=${STAGING_LIBDIR} \
+    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
 "
 
 do_install_ptest () {
