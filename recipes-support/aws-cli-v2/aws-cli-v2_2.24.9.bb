@@ -29,7 +29,6 @@ DEPENDS += "\
 
 SRC_URI = "\
     git://github.com/aws/aws-cli.git;protocol=https;branch=v2 \
-    file://0001-remove_exact_python_version_requirements.patch \
     file://run-ptest \
 "
 
@@ -74,6 +73,10 @@ RDEPENDS:${PN} += "\
     python3-urllib3-1.x \
     python3-zipp \
 "
+
+do_patch() {
+    sed -i -E 's/(([a-zA-Z0-9_.-]+)(>=?[0-9.]+)?(,)?(<[0-9.]+\*|<=?[0-9.]+)?|([a-zA-Z0-9_.-]+)==[0-9.]+)/\2\3\6/' ${S}/pyproject.toml ${S}/requirements/bootstrap.txt
+}
 
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
