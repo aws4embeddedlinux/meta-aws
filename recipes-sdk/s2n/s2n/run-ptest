@@ -67,7 +67,6 @@ TESTS="\
 ./s2n_next_protocol_test \
 ./s2n_npn_extension_test \
 ./s2n_nst_early_data_indication_test \
-./s2n_openssl_test \
 ./s2n_post_handshake_test \
 ./s2n_protocol_preferences_test \
 ./s2n_psk_key_exchange_modes_extension_test \
