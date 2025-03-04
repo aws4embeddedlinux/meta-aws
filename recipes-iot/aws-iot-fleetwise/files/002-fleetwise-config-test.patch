@@ -1,9 +1,19 @@
-Upstream-Status: Submitted [author]
+From 8b448f6ae2195cd7bcee9fdca6b79a6fa29b6dd8 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Mon, 27 Jan 2025 11:05:55 +0000
+Subject: [PATCH] aws-iot-fleetwise, amazon-s3-gst-plugin, aws-crt-cpp,
 
-Index: git/test/unit/IoTFleetWiseConfigTest.cpp
-===================================================================
---- git.orig/test/unit/IoTFleetWiseConfigTest.cpp
-+++ git/test/unit/IoTFleetWiseConfigTest.cpp
+Upstream-Status: Submitted [author]
+---
+ test/unit/IoTFleetWiseConfigTest.cpp | 1 +
+ test/unit/ROS2DataSourceTest.cpp     | 1 +
+ test/unit/RawDataManagerTest.cpp     | 1 +
+ 3 files changed, 3 insertions(+)
+
+diff --git a/test/unit/IoTFleetWiseConfigTest.cpp b/test/unit/IoTFleetWiseConfigTest.cpp
+index 1c36726..b97984f 100644
+--- a/test/unit/IoTFleetWiseConfigTest.cpp
++++ b/test/unit/IoTFleetWiseConfigTest.cpp
 @@ -6,6 +6,7 @@
  #include "Testing.h"
  #include <boost/none.hpp>
@@ -12,22 +22,10 @@ Index: git/test/unit/IoTFleetWiseConfigTest.cpp
  #include <cstddef>
  #include <cstdint>
  #include <gtest/gtest.h>
-Index: git/test/unit/RawDataManagerTest.cpp
-===================================================================
---- git.orig/test/unit/RawDataManagerTest.cpp
-+++ git/test/unit/RawDataManagerTest.cpp
-@@ -7,6 +7,7 @@
- #include "TimeTypes.h"
- #include <boost/none.hpp>
- #include <boost/optional/optional.hpp>
-+#include <boost/optional/optional_io.hpp>
- #include <cstdint>
- #include <cstring>
- #include <gtest/gtest.h>
-Index: git/test/unit/ROS2DataSourceTest.cpp
-===================================================================
---- git.orig/test/unit/ROS2DataSourceTest.cpp
-+++ git/test/unit/ROS2DataSourceTest.cpp
+diff --git a/test/unit/ROS2DataSourceTest.cpp b/test/unit/ROS2DataSourceTest.cpp
+index 7f5be17..a6ad078 100644
+--- a/test/unit/ROS2DataSourceTest.cpp
++++ b/test/unit/ROS2DataSourceTest.cpp
 @@ -13,6 +13,7 @@
  #include <array>
  #include <atomic>
@@ -36,3 +34,15 @@ Index: git/test/unit/ROS2DataSourceTest.cpp
  #include <boost/variant.hpp>
  #include <chrono>
  #include <cstdint>
+diff --git a/test/unit/RawDataManagerTest.cpp b/test/unit/RawDataManagerTest.cpp
+index 2d049cc..b80f626 100644
+--- a/test/unit/RawDataManagerTest.cpp
++++ b/test/unit/RawDataManagerTest.cpp
+@@ -7,6 +7,7 @@
+ #include "TimeTypes.h"
+ #include <boost/none.hpp>
+ #include <boost/optional/optional.hpp>
++#include <boost/optional/optional_io.hpp>
+ #include <cstdint>
+ #include <cstring>
+ #include <gtest/gtest.h>

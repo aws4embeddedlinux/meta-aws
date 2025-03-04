@@ -1,4 +1,4 @@
-From e761fd850f0004ad99c7ad69027c6c48f8dcf2ac Mon Sep 17 00:00:00 2001
+From 589334a2dc32874bc490d211ac1572cd3b552f34 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Tue, 9 Jan 2024 15:01:35 +0000
 Subject: [PATCH] aws-iot-fleetwise-edge: remove setting of cxx-standard
