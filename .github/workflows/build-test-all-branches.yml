@@ -86,7 +86,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           IFS=' ' read -ra run_ids <<< "${{ env.run_ids }}"
-          max_attempts=180  # Maximum 180 min exec time
+          max_attempts=300  # Maximum 300 min exec time
 
           for attempt in $(seq 1 $max_attempts); do
             all_completed=true
