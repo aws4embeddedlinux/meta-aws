@@ -19,11 +19,11 @@ DEPENDS = "\
 SRC_URI = "\
     git://github.com/aws/aws-iot-fleetwise-edge.git;protocol=https;branch=main \
     file://001-remove-cxx-standard.patch \
-    file://002-fleetwise-config-test.patch \
+    file://002-digest.patch \
     file://run-ptest \
     "
 
-SRCREV = "4c74c61a5001037f3979f6dbe74a72abd2ec4e76"
+SRCREV = "9c4d4be1857b7c5fd3687d7534c1b42f83f7354d"
 
 S = "${WORKDIR}/git"
 
