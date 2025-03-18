@@ -1,0 +1,20 @@
+#!/bin/sh
+rm -rf tests.log
+pkcs11_demo_objects | tee -a tests.log
+grep "Finished PKCS #11 Objects Demo" tests.log
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: aws-iot-device-sdk-embedded-c: pkcs11_demo_objects"
+else
+    echo "FAIL: aws-iot-device-sdk-embedded-c: pkcs11_demo_objects"
+fi
+
+rm -rf tests.log
+timeout 30s mqtt_demo_plaintext | tee -a tests.log
+grep "Demo completed successfully" tests.log
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: aws-iot-device-sdk-embedded-c: mqtt_demo_plaintext"
+else
+    echo "FAIL: aws-iot-device-sdk-embedded-c: mqtt_demo_plaintext"
+fi
