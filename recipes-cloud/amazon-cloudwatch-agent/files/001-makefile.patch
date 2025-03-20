@@ -1,0 +1,50 @@
+
+Upstream-Status: Inappropriate [oe specific]
+
+Index: git/Makefile
+===================================================================
+--- git.orig/Makefile
++++ git/Makefile
+@@ -1,6 +1,3 @@
+-export BASE_SPACE=$(shell pwd)
+-export BUILD_SPACE=$(BASE_SPACE)/build
+-
+ VERSION = $(shell echo `git describe --tag --dirty``git status --porcelain 2>/dev/null| grep -q "^??" &&echo '-untracked'`)
+ VERSION := $(shell echo ${VERSION} | sed -e "s/^v//")
+ nightly-release: VERSION := $(shell echo ${VERSION}-nightly-build)
+@@ -10,17 +7,11 @@ ifeq ($(VERSION),)
+ VERSION := `cat CWAGENT_VERSION`
+ endif
+
+-# Determine agent build mode, default to PIE mode
+-ifndef CWAGENT_BUILD_MODE
+-CWAGENT_BUILD_MODE=default
+-endif
+-
+ BUILD := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+-LDFLAGS = -s -w
+ LDFLAGS +=  -X github.com/aws/amazon-cloudwatch-agent/cfg/agentinfo.VersionStr=${VERSION}
+ LDFLAGS +=  -X github.com/aws/amazon-cloudwatch-agent/cfg/agentinfo.BuildStr=${BUILD}
+-LINUX_AMD64_BUILD = CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildmode=${CWAGENT_BUILD_MODE} -ldflags="${LDFLAGS}" -o $(BUILD_SPACE)/bin/linux_amd64
+-LINUX_ARM64_BUILD = CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -buildmode=${CWAGENT_BUILD_MODE} -ldflags="${LDFLAGS}" -o $(BUILD_SPACE)/bin/linux_arm64
++LINUX_AMD64_BUILD = GOOS=linux GOARCH=amd64 go build ${GO_BUILD_FLAGS} -ldflags="${CGO_LDFLAGS}" -o $(BUILD_SPACE)/bin/linux_amd64
++LINUX_ARM64_BUILD = GOOS=linux GOARCH=arm64 go build ${GO_BUILD_FLAGS} -ldflags="${CGO_LDFLAGS}" -o $(BUILD_SPACE)/bin/linux_arm64
+ WIN_BUILD = GOOS=windows GOARCH=amd64 go build -trimpath -buildmode=${CWAGENT_BUILD_MODE} -ldflags="${LDFLAGS}" -o $(BUILD_SPACE)/bin/windows_amd64
+ DARWIN_BUILD_AMD64 = CGO_ENABLED=1 GO111MODULE=on GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="${LDFLAGS}" -o $(BUILD_SPACE)/bin/darwin_amd64
+ DARWIN_BUILD_ARM64 = CGO_ENABLED=1 GO111MODULE=on GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="${LDFLAGS}" -o $(BUILD_SPACE)/bin/darwin_arm64
+@@ -109,7 +100,6 @@ build-for-docker-amd64:
+ 	$(LINUX_AMD64_BUILD)/amazon-cloudwatch-agent github.com/aws/amazon-cloudwatch-agent/cmd/amazon-cloudwatch-agent
+ 	$(LINUX_AMD64_BUILD)/start-amazon-cloudwatch-agent github.com/aws/amazon-cloudwatch-agent/cmd/start-amazon-cloudwatch-agent
+ 	$(LINUX_AMD64_BUILD)/config-translator github.com/aws/amazon-cloudwatch-agent/cmd/config-translator
+-	cp $(BASE_SPACE)/packaging/opentelemetry-jmx-metrics.jar $(BUILD_SPACE)/bin/linux_amd64/opentelemetry-jmx-metrics.jar
+
+ build-for-docker-windows-amd64:
+ 	$(WIN_BUILD)/amazon-cloudwatch-agent.exe github.com/aws/amazon-cloudwatch-agent/cmd/amazon-cloudwatch-agent
+@@ -120,7 +110,6 @@ build-for-docker-arm64:
+ 	$(LINUX_ARM64_BUILD)/amazon-cloudwatch-agent github.com/aws/amazon-cloudwatch-agent/cmd/amazon-cloudwatch-agent
+ 	$(LINUX_ARM64_BUILD)/start-amazon-cloudwatch-agent github.com/aws/amazon-cloudwatch-agent/cmd/start-amazon-cloudwatch-agent
+ 	$(LINUX_ARM64_BUILD)/config-translator github.com/aws/amazon-cloudwatch-agent/cmd/config-translator
+-	cp $(BASE_SPACE)/packaging/opentelemetry-jmx-metrics.jar $(BUILD_SPACE)/bin/linux_arm64/opentelemetry-jmx-metrics.jar
+
+ docker-build: build-for-docker-amd64 build-for-docker-arm64
+ 	docker buildx build --platform linux/amd64,linux/arm64 . -f amazon-cloudwatch-container-insights/cloudwatch-agent-dockerfile/localbin/Dockerfile -t $(IMAGE)
