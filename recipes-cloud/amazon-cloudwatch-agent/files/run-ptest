@@ -1,0 +1,11 @@
+#!/bin/sh
+set -euxo pipefail
+
+amazon-cloudwatch-agent --help
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: amazon-cloudwatch-agent: startup test"
+else
+    echo "FAIL: amazon-cloudwatch-agent: startup test"
+fi
