@@ -6,48 +6,44 @@ LICENSE = "Apache-2.0"
 GG_BASENAME = "greengrass/v2"
 GG_ROOT = "${D}/${GG_BASENAME}"
 # GGV2_FLEETPROVISIONING_VERSION ?= "latest"
-GGV2_FLEETPROVISIONING_VERSION ?= "1.2.1"
+GGV2_FLEETPROVISIONING_VERSION ?= "1.2.2"
 GGV2_FLEET_PROVISIONING_TEMPLATE_NAME ?= "GreengrassFleetProvisioningTemplate"
 
-LIC_FILES_CHKSUM = "file://${UNPACKDIR}/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
+LIC_FILES_CHKSUM = "file://${UNPACKDIR}/greengrass-bin/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 DEPENDS += "gettext-native"
 
-# nooelint: oelint.vars.downloadfilename,oelint.vars.srcurichecksum:SRC_URI[payload.md5sum]
+# enable fleetprovisioning for testing by default to get test coverage
+PACKAGECONFIG ??= "${@bb.utils.contains('PTEST_ENABLED', '1', 'fleetprovisioning', '', d)}"
+
 SRC_URI = "\
-    https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-${PV}.zip;name=payload; \
-    https://raw.githubusercontent.com/aws-greengrass/aws-greengrass-nucleus/main/LICENSE;name=license; \
-    file://001-serviced-startup-sh.patch \
+    https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-${PV}.zip;subdir=greengrass-bin \
     file://greengrassv2-init.yaml \
     file://run-ptest \
     "
 
 SRC_URI:append = " ${@bb.utils.contains('PACKAGECONFIG', 'fleetprovisioning', '\
-    https://d2s8p88vqu9w66.cloudfront.net/releases/aws-greengrass-FleetProvisioningByClaim/fleetprovisioningbyclaim-${GGV2_FLEETPROVISIONING_VERSION}.jar;unpack=0 \
+    https://d2s8p88vqu9w66.cloudfront.net/releases/aws-greengrass-FleetProvisioningByClaim/fleetprovisioningbyclaim-${GGV2_FLEETPROVISIONING_VERSION}.jar;name=fleetprovisioning;unpack=0 \
     file://config.yaml.template \
-    file://greengrass.service.diff \
-    file://loader.diff \
     file://replace_board_id.sh \
     file://claim.pkey.pem \
     file://claim.cert.pem \
     file://claim.root.pem \
+    file://loader.patch \
+    file://greengrass.service.patch \
     ', '', d)}"
 
-SRC_URI[payload.sha256sum] = "6793bc6c7411a928734bbf8b10d330be8ab4cecb66362681cdda76eb761af232"
-SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
-SRC_URI[license.md5sum] = "34400b68072d710fecd0a2940a0d1658"
-SRC_URI[sha256sum] = "ed4b745420bcf47e354299b2149ef10288a9bc65d5e786b859143157714da5e0"
-
+SRC_URI[sha256sum] = "a7cbc3cee5d245bfac9c49a036a482884898edbeb2f1e6fb27d17e9321007ce8"
+SRC_URI[fleetprovisioning.sha256sum] = "1e7fdc625d4e1e7795d63f0e97981feecad526277bf211154505de145009e8c1"
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 
 UPSTREAM_CHECK_URI = "https://github.com/aws-greengrass/aws-greengrass-nucleus/tags"
 
 GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
 
-S = "${WORKDIR}/sources"
-UNPACKDIR = "${S}"
-
 inherit systemd useradd ptest pkgconfig
+
+S = "${UNPACKDIR}/greengrass-bin"
 
 FILES:${PN} += "\
     /${GG_BASENAME} \
@@ -77,7 +73,7 @@ do_install() {
     ln -s /${GG_BASENAME}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus ${GG_ROOT}/alts/init/distro
 
     install -m 0440 ${S}/LICENSE                         ${GG_ROOT}
-    install -m 0640 ${S}/greengrassv2-init.yaml          ${GG_ROOT}/config/config.yaml.clean
+    install -m 0640 ${S}/../greengrassv2-init.yaml          ${GG_ROOT}/config/config.yaml.clean
     install -m 0640 ${S}/bin/greengrass.service.template ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/greengrass.service.template
     install -m 0640 ${S}/bin/loader                      ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/loader
     install -m 0640 ${S}/conf/recipe.yaml                ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/conf/recipe.yaml
@@ -103,9 +99,6 @@ do_install() {
         install -m 0740 ${UNPACKDIR}/fleetprovisioningbyclaim-${GGV2_FLEETPROVISIONING_VERSION}.jar ${GG_ROOT}/plugins/trusted/aws.greengrass.FleetProvisioningByClaim.jar
 
         install -m 0755 ${UNPACKDIR}/replace_board_id.sh ${GG_ROOT}/config/
-
-        patch ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/loader -p1 < ${UNPACKDIR}/loader.diff
-        patch ${D}${systemd_unitdir}/system/greengrass.service -p1 < ${UNPACKDIR}/greengrass.service.diff
 
         install -m 0640 ${UNPACKDIR}/config.yaml.template ${GG_ROOT}/config/config.yaml
 
