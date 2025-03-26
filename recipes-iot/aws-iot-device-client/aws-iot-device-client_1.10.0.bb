@@ -8,8 +8,10 @@ DEPENDS = "\
     aws-iot-device-sdk-cpp-v2 \
     openssl \
     "
+
 # disabled googletest because of: https://github.com/awslabs/aws-iot-device-client/issues/404
 # use a older and build by this package version, will be downloaded in the do_configure step
+# nooelint: oelint.task.network
 do_configure[network] = "1"
 
 PROVIDES = "aws/aws-iot-device-client"
@@ -20,21 +22,14 @@ BRANCH ?= "main"
 SRC_URI = "\
     git://github.com/awslabs/aws-iot-device-client.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
-    file://ptest_result.py \
     file://001-disable-tests.patch \
     "
 
-SRCREV = "b3a2ba12967bee183cba6af37dad1242c147fd9b"
+SRCREV = "af44d1508fb683d69dc1b62f9e81709ccaa429aa"
 
 S = "${WORKDIR}/git"
 
-inherit cmake systemd
-# disable package tests
-# this is disabled because of this change here, that is used in the tests:
-# https://github.com/awslabs/aws-c-io/commit/b6bff6f557ecf8b92131471d5668e7b90a196fab
-do_compile_ptest()  {
-    cmake_runcmake_build --target test-aws-iot-device-client
-}
+inherit cmake systemd ptest
 
 do_install() {
   install -d ${D}${base_sbindir}
@@ -84,24 +79,3 @@ RDEPENDS:${PN} = "\
 
 SYSTEMD_AUTO_ENABLE = "enable"
 SYSTEMD_SERVICE:${PN} = "aws-iot-device-client.service"
-
-RDEPENDS:${PN}-ptest += "\
-    bash \
-    python3 \
-    "
-
-do_install_ptest() {
-    install -d ${D}${PTEST_PATH}/tests
-
-    cp -r ${B}/test/test-aws-iot-device-client ${D}${PTEST_PATH}/
-
-    install -m 0755 ${UNPACKDIR}/ptest_result.py ${D}${PTEST_PATH}/
-
-    install -d ${D}/${libdir}
-    install -m 755 ${B}/lib/libgtest.so.1.11.0 ${D}/${libdir}
-    install -m 755 ${B}/lib/libgmock.so.1.11.0 ${D}/${libdir}
-    install -m 755 ${B}/lib/libgmock_main.so.1.11.0 ${D}/${libdir}
-}
-
-# nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP:${PN}-ptest += "buildpaths"
