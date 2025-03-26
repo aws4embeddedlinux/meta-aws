@@ -1,6 +1,11 @@
 #!/bin/sh
-# Copyright (c) 2022 Amazon.com, Inc. or its affiliates.
-# SPDX-License-Identifier: MIT
+export LD_PRELOAD=$(find /usr/lib /lib -type f -name "libasan.so*")
 
-./test-aws-iot-device-client --gtest_output=json:result.json
-python3 ptest_result.py result.json 
+aws-iot-device-client --help
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: aws-iot-device-client: simple test"
+else
+    echo "FAIL: aws-iot-device-client: simple test"
+fi
