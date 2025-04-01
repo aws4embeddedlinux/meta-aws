@@ -1,7 +1,49 @@
 # AWS IoT Greengrass
 
-All new designs should be using AWS IoT Greengrass V2.
+## AWS IoT Greengrass Lite Runtime
 
+AWS IoT Greengrass Lite is an optimized runtime option designed for constrained devices. Written in C for improved performance and reduced footprint.
+
+### Component Compatibility
+
+> [!NOTE]
+> At launch, Greengrass Lite Runtime supports a subset of Greengrass v2 components, with plans for eventual
+> feature parity in subsequent releases.
+> See more details [here](https://github.com/aws-greengrass/aws-greengrass-lite).
+
+## Greengrass Lite on prplOS
+
+### Integration Features
+
+AWS IoT Greengrass has been integrated with prplWare and RDK Telco stacks using prpl foundation's open source Life Cycle Manager (LCM) containers. This integration provides:
+
+* Simplified application development and deployment within LCM containers
+* High-level software abstraction for CPE devices
+* Cloud-to-edge integration capabilities
+* Flexibility to choose between prplWare and RDK stacks
+* Compliance with TR-369 and TR-181 standards
+
+### Key Benefits for Telco Providers
+
+* Quick development and testing of new services
+* Remote application deployment
+* IoT device lifecycle management
+* Managed Wi-Fi capabilities
+* Network security management
+* Mass telemetry support
+* AI/ML capabilities at the edge
+* Advanced analytics
+
+### Implementation Support
+
+* Supports Customer Premises Equipment (CPE)
+* Compatible with TR369 compliant prplWare
+* Works with RDKTelco software stacks
+* Operates through prpl foundation's LCM containers
+* Maintains native stack communications
+
+> [!NOTE]
+> The integration is still a pending PR. See more details about how to get started with Greengrass lite on Prpl OS [here](https://github.com/aws-samples/aws-iot-gg-prplos-workshop/pull/1):
 
 ## AWS IoT Greengrass V2
 
@@ -61,7 +103,7 @@ In order to get the information above you can follow the instructions provided h
 
 ## Using Greengrass Fleet Provisioning
 
-When enabling Fleet provisioning `PACKAGECONFIG:pn-greengrass-bin = "fleetprovisioning"` 
+When enabling Fleet provisioning `PACKAGECONFIG:pn-greengrass-bin = "fleetprovisioning"`
 it is important to provide claim certificates and place them in the `files` dir:
 ```
 meta-aws
