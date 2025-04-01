@@ -14,7 +14,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "8a9ebcfdcf8bb4a685ca83646265ea0aab85c3c8"
+SRCREV = "1e7565c496469d74ab58ea62c08097a01b075a96"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
