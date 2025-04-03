@@ -5,7 +5,7 @@ LICENSE = "Apache-2.0"
 
 LIC_FILES_CHKSUM = "file://documents/LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
 
-DEPENDS += "aws-c-iot"
+DEPENDS += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '', 'aws-c-iot', d)}"
 
 PROVIDES += "aws/aws-iot-device-sdk-cpp-v2"
 
@@ -26,7 +26,6 @@ CFLAGS:append = " -Wl,-Bsymbolic"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DBUILD_DEPS=OFF \
     -DBUILD_TESTING=OFF \
     -DCMAKE_BUILD_TYPE=Release \
 "
@@ -38,13 +37,48 @@ FILES_SOLIBSDEV = ""
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
+# build-deps is enabled by default to use the aws-c-iot lib (and its dependencies) version that comes as a git submodule,
+# this also means that it conflicts with the aws-c-iot as it installs the same library if installed separate.
+PACKAGECONFIG[build-deps] = "-DBUILD_DEPS=ON,-DBUILD_DEPS=OFF"
+
 PACKAGECONFIG ??= "\
+    build-deps \
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
     "
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
 PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
 
-FILES:${PN}-dev += "${libdir}/*/cmake"
+FILES:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '/usr/lib/*', '', d)}"
+FILES:${PN}-dev += "\
+    ${libdir}/*/cmake \
+    ${libdir}/pkgconfig/*.pc \
+    ${libdir}/libaws-c-common.so \
+    ${libdir}/libs2n.so \
+    ${libdir}/libaws-c-sdkutils.so \
+    ${libdir}/libaws-c-io.so \
+    ${libdir}/libaws-c-cal.so \
+    ${libdir}/libaws-c-compression.so \
+    ${libdir}/libaws-c-http.so \
+    ${libdir}/libaws-c-auth.so \
+    ${libdir}/libaws-c-mqtt.so \
+    ${libdir}/libaws-checksums.so \
+    ${libdir}/libaws-c-event-stream.so \
+    ${libdir}/libaws-c-s3.so \
+    ${libdir}/libaws-c-iot.so \
+"
+
+RCONFLICTS:${PN} = "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'aws-c-iot', '', d)}"
+
+do_install:append() {
+    rm -rf ${D}/${libdir}/openssl
+    rm -f ${D}/${libdir}/pkgconfig/libssl.pc
+    rm -f ${D}/${libdir}/pkgconfig/openssl.pc
+    rm -f ${D}/${libdir}/pkgconfig/libcrypto.pc
+    rm -rf ${D}/${includedir}/openssl
+}
+
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'tmpdir ldflags', '', d)}"
 
 RDEPENDS:${PN}-ptest:prepend = "\
     aws-iot-device-sdk-cpp-v2-samples-mqtt5-pubsub \
