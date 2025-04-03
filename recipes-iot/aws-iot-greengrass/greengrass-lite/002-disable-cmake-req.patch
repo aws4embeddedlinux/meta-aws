@@ -1,0 +1,36 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3e129991..80e28918 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -2,7 +2,7 @@
+ # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ # SPDX-License-Identifier: Apache-2.0
+ 
+-cmake_minimum_required(VERSION 3.25)
++cmake_minimum_required(VERSION 3.22)
+ project(aws-greengrass-lite C ASM)
+ 
+ #
+@@ -258,7 +258,7 @@ endforeach()
+ find_package(PkgConfig REQUIRED)
+ 
+ pkg_search_module(openssl REQUIRED IMPORTED_TARGET openssl)
+-pkg_search_module(libcurl REQUIRED IMPORTED_TARGET libcurl>=7.86)
++pkg_search_module(libcurl REQUIRED IMPORTED_TARGET libcurl)
+ pkg_search_module(sqlite3 REQUIRED IMPORTED_TARGET sqlite3)
+ pkg_search_module(yaml REQUIRED IMPORTED_TARGET yaml-0.1)
+ pkg_search_module(libsystemd REQUIRED IMPORTED_TARGET libsystemd)
+diff --git a/modules/ggl-lib/CMakeLists.txt b/modules/ggl-lib/CMakeLists.txt
+index 1b982f37..dc5ec613 100644
+--- a/modules/ggl-lib/CMakeLists.txt
++++ b/modules/ggl-lib/CMakeLists.txt
+@@ -4,9 +4,7 @@
+ 
+ ggl_init_module(ggl-lib)
+ 
+-block()
+ string(TOUPPER "${GGL_LOG_LEVEL}" level)
+ set(default "$<IF:$<CONFIG:Debug>,DEBUG,WARN>")
+ set(choose_level "$<IF:$<BOOL:${level}>,${level},${default}>")
+ target_compile_definitions(ggl-lib PUBLIC GGL_LOG_LEVEL=GGL_LOG_${choose_level})
+-endblock()
