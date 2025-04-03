@@ -72,10 +72,5 @@ FILES:${PN} += "${base_sbindir}/sbin/aws-iot-device-client"
 FILES:${PN} += "${systemd_system_unitdir}/aws-iot-device-client.service"
 FILES:${PN} += "${sysconfdir}/aws-iot-device-client.json"
 
-RDEPENDS:${PN} = "\
-    aws-iot-device-sdk-cpp-v2 \
-    openssl \
-    "
-
 SYSTEMD_AUTO_ENABLE = "enable"
 SYSTEMD_SERVICE:${PN} = "aws-iot-device-client.service"
