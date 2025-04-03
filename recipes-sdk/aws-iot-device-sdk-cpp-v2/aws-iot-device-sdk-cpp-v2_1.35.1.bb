@@ -5,7 +5,7 @@ LICENSE = "Apache-2.0"
 
 LIC_FILES_CHKSUM = "file://documents/LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
 
-DEPENDS += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '', 'aws-c-iot', d)}"
+DEPENDS += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'openssl', 'aws-c-iot', d)}"
 
 PROVIDES += "aws/aws-iot-device-sdk-cpp-v2"
 
@@ -28,6 +28,7 @@ EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DBUILD_TESTING=OFF \
     -DCMAKE_BUILD_TYPE=Release \
+    -DUSE_OPENSSL=ON  \
 "
 
 # Notify that libraries are not versioned
@@ -43,9 +44,8 @@ PACKAGECONFIG[build-deps] = "-DBUILD_DEPS=ON,-DBUILD_DEPS=OFF"
 
 PACKAGECONFIG ??= "\
     build-deps \
-    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
     "
-PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
+
 PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
 
 FILES:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '/usr/lib/*', '', d)}"
@@ -69,16 +69,8 @@ FILES:${PN}-dev += "\
 
 RCONFLICTS:${PN} = "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'aws-c-iot', '', d)}"
 
-do_install:append() {
-    rm -rf ${D}/${libdir}/openssl
-    rm -f ${D}/${libdir}/pkgconfig/libssl.pc
-    rm -f ${D}/${libdir}/pkgconfig/openssl.pc
-    rm -f ${D}/${libdir}/pkgconfig/libcrypto.pc
-    rm -rf ${D}/${includedir}/openssl
-}
-
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'tmpdir ldflags', '', d)}"
+INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'ldflags', '', d)}"
 
 RDEPENDS:${PN}-ptest:prepend = "\
     aws-iot-device-sdk-cpp-v2-samples-mqtt5-pubsub \
