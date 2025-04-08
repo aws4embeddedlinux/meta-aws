@@ -20,7 +20,6 @@ TESTS="\
 ./s2n_client_finished_test \
 ./s2n_client_key_share_extension_test \
 ./s2n_client_max_frag_len_extension_test \
-./s2n_client_pq_kem_extension_test \
 ./s2n_client_record_version_test \
 ./s2n_client_sct_list_extension_test \
 ./s2n_client_secure_renegotiation_test \
@@ -58,7 +57,6 @@ TESTS="\
 ./s2n_init_test \
 ./s2n_kem_preferences_test \
 ./s2n_kex_test \
-./s2n_kex_with_kem_test \
 ./s2n_key_share_extension_test \
 ./s2n_key_update_test \
 ./s2n_locking_test \
@@ -92,7 +90,6 @@ TESTS="\
 ./s2n_server_session_ticket_extension_test \
 ./s2n_server_signature_algorithms_extension_test \
 ./s2n_server_supported_versions_extension_test \
-./s2n_set_test \
 ./s2n_shutdown_test \
 ./s2n_ssl_prf_test \
 ./s2n_stream_cipher_null_test \
