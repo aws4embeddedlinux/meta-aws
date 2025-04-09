@@ -24,7 +24,7 @@ SRC_URI = "\
     file://0004-cmake-version.patch \
     file://run-ptest \
     "
-SRCREV = "e32720a090da73e031d913c1f41faa98434331d2"
+SRCREV = "2e09d447c406e19402c194f1eebd23f7473867f0"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
