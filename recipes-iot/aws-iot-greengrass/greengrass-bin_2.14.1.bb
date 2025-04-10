@@ -16,6 +16,9 @@ DEPENDS += "gettext-native"
 # enable fleetprovisioning for testing by default to get test coverage
 PACKAGECONFIG ??= "${@bb.utils.contains('PTEST_ENABLED', '1', 'fleetprovisioning', '', d)}"
 
+# this is to make the PACKAGECONFIG QA check happy
+PACKAGECONFIG[fleetprovisioning] = ""
+
 SRC_URI = "\
     https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-${PV}.zip;subdir=greengrass-bin \
     file://greengrassv2-init.yaml \
