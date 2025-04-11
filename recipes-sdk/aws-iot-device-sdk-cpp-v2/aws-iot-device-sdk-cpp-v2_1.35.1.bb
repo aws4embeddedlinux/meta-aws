@@ -23,7 +23,8 @@ inherit cmake pkgconfig ptest
 
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>\d+\.\d+(\.\d+)*)"
 
-CFLAGS:append = " -Wl,-Bsymbolic"
+CXXFLAGS:append = " -fPIC"
+LDFLAGS:append = " -Wl,-Bsymbolic"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
