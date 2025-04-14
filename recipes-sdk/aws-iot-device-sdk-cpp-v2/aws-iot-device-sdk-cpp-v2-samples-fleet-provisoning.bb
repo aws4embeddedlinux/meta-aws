@@ -11,7 +11,7 @@ RDEPENDS:${PN}-ptest += "python3 aws-cli"
 
 do_install() {
  install -d ${D}${bindir}
- install ${B}/fleet-provisioning ${D}${bindir}
+ install ${B}/fleet-provisioning ${D}${bindir}/aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning
 }
 
 inherit ptest
