@@ -39,7 +39,7 @@ aws iot create-provisioning-claim \
     --path ./tmp \
     --filename provision
 
-fleet-provisioning --endpoint $IOT_DATA_ENDPOINT --cert ./tmp/provision.cert.pem --key ./tmp/provision.private.key --template_name $TEMPLATE --template_parameters '{"SerialNumber":"'$DATE'","DeviceLocation":"Seattle"}'
+aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning --endpoint $IOT_DATA_ENDPOINT --cert ./tmp/provision.cert.pem --key ./tmp/provision.private.key --template_name $TEMPLATE --template_parameters '{"SerialNumber":"'$DATE'","DeviceLocation":"Seattle"}'
 
 # this also acts like a (try-) catch block
 if [ $? -eq 0 ] ; then
