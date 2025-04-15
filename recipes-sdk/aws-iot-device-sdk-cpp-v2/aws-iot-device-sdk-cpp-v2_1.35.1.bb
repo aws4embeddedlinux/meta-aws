@@ -14,6 +14,7 @@ require aws-iot-device-sdk-cpp-v2-version.inc
 SRC_URI:append = " \
     file://run-ptest \
     file://openssl_suppressions.txt \
+    ${@bb.utils.contains('PACKAGECONFIG', 'static', '', 'file://001-shared-static-crt-libs.patch', d)} \
     "
 
 S = "${WORKDIR}/git"
@@ -47,28 +48,7 @@ PACKAGECONFIG ??= "\
     build-deps \
     "
 
-PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
-
 FILES:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '/usr/lib/*', '', d)}"
-FILES:${PN}-dev += "\
-    ${libdir}/*/cmake \
-    ${libdir}/pkgconfig/*.pc \
-    ${libdir}/libaws-c-common.so \
-    ${libdir}/libs2n.so \
-    ${libdir}/libaws-c-sdkutils.so \
-    ${libdir}/libaws-c-io.so \
-    ${libdir}/libaws-c-cal.so \
-    ${libdir}/libaws-c-compression.so \
-    ${libdir}/libaws-c-http.so \
-    ${libdir}/libaws-c-auth.so \
-    ${libdir}/libaws-c-mqtt.so \
-    ${libdir}/libaws-checksums.so \
-    ${libdir}/libaws-c-event-stream.so \
-    ${libdir}/libaws-c-s3.so \
-    ${libdir}/libaws-c-iot.so \
-"
-
-RCONFLICTS:${PN} = "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'aws-c-iot', '', d)}"
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'ldflags', '', d)}"
@@ -80,16 +60,3 @@ RDEPENDS:${PN}-ptest:prepend = "\
 BBCLASSEXTEND = "native nativesdk"
 
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
-
-# -fsanitize=address does cause this
-# nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
-
-PACKAGECONFIG[sanitize] = ",, gcc-sanitizers"
-OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"
-
-do_install_ptest:append() {
-    install -d ${D}${PTEST_PATH}/tests
-
-    install ${WORKDIR}/openssl_suppressions.txt ${D}${PTEST_PATH}/
-}
