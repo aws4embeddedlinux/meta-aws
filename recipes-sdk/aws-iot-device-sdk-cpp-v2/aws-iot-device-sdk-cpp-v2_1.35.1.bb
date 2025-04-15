@@ -13,7 +13,6 @@ require aws-iot-device-sdk-cpp-v2-version.inc
 
 SRC_URI:append = " \
     file://run-ptest \
-    file://openssl_suppressions.txt \
     ${@bb.utils.contains('PACKAGECONFIG', 'static', '', 'file://001-shared-static-crt-libs.patch', d)} \
     "
 
