@@ -7,7 +7,7 @@ on:
 
 jobs:
   oelint-adv:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
       
     steps:
       - name: install required packages to run oelint_adv
