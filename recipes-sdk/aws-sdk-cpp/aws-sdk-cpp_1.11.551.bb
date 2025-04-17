@@ -21,7 +21,7 @@ SRC_URI = "\
 
 SRCREV = "66a96132b3b74ddf4ca77fa0556aa4fffd660180"
 
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 
 inherit cmake ptest pkgconfig
 
@@ -91,7 +91,7 @@ do_install_ptest () {
 # this is related to this issue
 # https://github.com/aws/aws-sdk-cpp/issues/2242
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP:${PN}-src:append:class-target:arm = " buildpaths"
+INSANE_SKIP:${PN}-src:append:class-target = " buildpaths"
 
 # -fsanitize=address does cause this
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
