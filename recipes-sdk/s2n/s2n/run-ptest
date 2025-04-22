@@ -34,7 +34,6 @@ TESTS="\
 ./s2n_ems_extension_test \
 ./s2n_error_lookup_test \
 ./s2n_error_type_test \
-./s2n_evp_signing_test \
 ./s2n_extension_list_parse_test \
 ./s2n_extension_list_process_test \
 ./s2n_extension_list_send_test \
@@ -159,7 +158,6 @@ TESTS="\
 ./s2n_crl_test \
 ./s2n_drain_alert_test \
 ./s2n_early_data_io_test \
-./s2n_ecdsa_test \
 ./s2n_encrypted_extensions_test \
 ./s2n_extended_master_secret_test \
 ./s2n_extension_type_test \
