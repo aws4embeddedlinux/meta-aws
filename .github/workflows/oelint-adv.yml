@@ -28,4 +28,4 @@ jobs:
       - name: run oelint_adv      
         if: ${{steps.changes.outputs.bb}}
         run: |
-          oelint-adv --nowarn --noinfo ${{steps.changes.outputs.bb}}
+          oelint-adv --nowarn --noinfo ${{steps.changes.outputs.bb}} --release kirkstone
