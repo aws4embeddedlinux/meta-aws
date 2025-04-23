@@ -14,7 +14,7 @@ SRCREV = "b6b3318948fa779c83ad116e5347cfc85978d941"
 # version 2.x has got library link issues - so stick to version 1.x for now
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>1\.\d+(\.\d+)+)"
 
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 
 inherit setuptools3 ptest
 

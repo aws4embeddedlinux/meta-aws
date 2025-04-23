@@ -27,7 +27,7 @@ SRC_URI = "\
 
 SRCREV = "af44d1508fb683d69dc1b62f9e81709ccaa429aa"
 
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 
 inherit cmake systemd ptest
 
@@ -37,7 +37,7 @@ do_install() {
   install -d -m 0700 ${D}${sysconfdir}/aws-iot-device-client
   install -d ${D}${systemd_unitdir}/system
 
-  install -m 0755 ${WORKDIR}/build/aws-iot-device-client \
+  install -m 0755 ${B}/aws-iot-device-client \
                   ${D}${base_sbindir}/aws-iot-device-client
   install -m 0644 ${S}/setup/aws-iot-device-client.service \
                   ${D}${systemd_system_unitdir}/aws-iot-device-client.service
