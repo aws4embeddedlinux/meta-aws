@@ -43,10 +43,10 @@ S = "${WORKDIR}/git"
 
 FILES:${PN}:append = " \
     ${systemd_unitdir}/system/greengrass-lite.service \
-    ${gg_rundir} \
     /usr/components/* \
     ${sysconfdir}/sudoers.d/${BPN} \
     /usr/lib/* \
+    ${gg_workingdir} \
     "
 
 REQUIRED_DISTRO_FEATURES = "systemd"
@@ -89,7 +89,7 @@ SYSTEMD_SERVICE:${PN} = "\
 
 inherit systemd cmake pkgconfig useradd features_check ptest
 
-gg_workingdir = "${localstatedir}/lib/greengrass"
+gg_workingdir ?= "${localstatedir}/lib/greengrass"
 
 # https://github.com/aws-greengrass/aws-greengrass-lite/blob/main/docs/INSTALL.md#usergroup
 # user and group for greengrass itself
@@ -106,9 +106,6 @@ EXTRA_OECMAKE:append = " -DGGL_SYSTEMD_SYSTEM_GROUP=${gg_group}"
 EXTRA_OECMAKE:append = " -DGGL_SYSTEMD_SYSTEM_DIR=${systemd_system_unitdir}"
 
 do_install:append() {
-
-    install -d ${D}/${gg_rundir}
-    chown ${gg_user}:${gg_group} ${D}/${gg_rundir}
 
     install -d ${D}/${sysconfdir}/greengrass
     install -d -m 0755 ${D}/${sysconfdir}/greengrass/config.d
