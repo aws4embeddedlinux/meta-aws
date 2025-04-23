@@ -28,7 +28,7 @@ SRCREV = "8557d5faf5fe21fbf8ddbc82e96840d8fe985cef"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 
 inherit cmake pkgconfig
 

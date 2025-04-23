@@ -15,7 +15,7 @@ SRC_URI = "\
 
 SRCREV = "b47799d07ddf776df1689165aedf21e68bbc3d0f"
 
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 
 GO_IMPORT = ""
 
@@ -38,7 +38,7 @@ python go_do_unpack() {
                 s_dirname = os.path.basename(d.getVar('S'))
 #                fetcher.ud[url].parm['destsuffix'] = os.path.join(s_dirname, 'src', d.getVar('GO_IMPORT')) + '/'
                 fetcher.ud[url].parm['destsuffix'] = os.path.join(s_dirname, '', d.getVar('GO_IMPORT')) + '/'
-    fetcher.unpack(d.getVar('WORKDIR'))
+    fetcher.unpack(d.getVar('UNPACKDIR'))
 }
 
 # src folder will break devtool upgrade
