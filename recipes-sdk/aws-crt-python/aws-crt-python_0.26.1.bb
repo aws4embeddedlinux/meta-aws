@@ -30,7 +30,7 @@ SRC_URI = "\
 SRCREV = "e31ff4a78ab1226aeb2f1686ccdc5fb0a634c313"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 
 inherit setuptools3_legacy ptest
 
