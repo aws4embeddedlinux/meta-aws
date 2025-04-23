@@ -17,7 +17,7 @@ UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 
 SRC_URI:append = " file://run-ptest"
 
-S = "${WORKDIR}/${BASE}"
+S = "${UNPACKDIR}/${BASE}"
 
 FILES:${PN} += "\
     /usr/lib/${SHR} \
@@ -27,7 +27,7 @@ FILES:${PN} += "\
 do_install() {
     install -d ${D}${bindir}
     install -d ${D}${libdir}/${SHR}
-    cp -r ${WORKDIR}/${BASE}/* ${D}${libdir}/${SHR}/
+    cp -r ${UNPACKDIR}/${BASE}/* ${D}${libdir}/${SHR}/
     cd ${D}${bindir}
 
     for alt_name in ${ALTERNATIVE_NAMES}; do
