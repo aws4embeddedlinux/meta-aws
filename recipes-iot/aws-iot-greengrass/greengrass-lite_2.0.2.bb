@@ -39,7 +39,7 @@ SRC_URI = "\
 SRCREV = "4f6b025c63b780418110cc12b77d4a7d73b7b4a6"
 #
 
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 
 FILES:${PN}:append = " \
     ${systemd_unitdir}/system/greengrass-lite.service \
