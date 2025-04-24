@@ -11,10 +11,10 @@
 # @@ -1,4 +1,4 @@
 # -Copyright 2012-2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # +Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-#  
+#
 #  Licensed under the Apache License, Version 2.0 (the "License"). You
 #  may not use this file except in compliance with the License. A copy of
-# 
+#
 #
 
 SUMMARY = "Universal Command Line Interface for Amazon Web Services v2"
@@ -51,7 +51,7 @@ SRC_URI = "\
     file://run-ptest \
 "
 
-SRCREV = "56759b2af90e76a3a1a8c3d2401c03c51d8fe04a"
+SRCREV = "4d0669b930130de32ef75bda29e2f45b3f7f2aa8"
 
 # version 2.x
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>2\.\d+(\.\d+)+)"
@@ -60,7 +60,7 @@ inherit python_pep517 python3native python3-dir setuptools3-base ptest
 
 export CRYPTOGRAPHY_OPENSSL_NO_LEGACY="true"
 
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 
 # this package also contains aws help
 PACKAGES += "${PN}-examples"
