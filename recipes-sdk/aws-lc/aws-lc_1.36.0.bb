@@ -17,7 +17,7 @@ SRC_URI = "\
 SRCREV = "36e0307917fbc0e001811def88bee384bc51d7ad"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 
 inherit cmake ptest pkgconfig
 
