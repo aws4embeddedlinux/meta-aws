@@ -19,7 +19,7 @@ SRC_URI = "\
 
 SRCREV = "01b3fbdbe2d2234a44b1219d4f71d11335b771f2"
 
-S = "${UNPACKDIR}/git/src/${GO_IMPORT}"
+S = "${WORKDIR}/git/src/${GO_IMPORT}"
 
 do_compile[network] = "1"
 
@@ -29,7 +29,7 @@ do_compile:prepend() {
     export BUILDTAGS="static_build"
     export GO_BUILD_FLAGS="-trimpath"
     export GOARCH="${TARGET_GOARCH}"
-    export GOPATH="${UNPACKDIR}/git/:${S}/src/import/.gopath:${S}/src/import/vendor:${STAGING_DIR_TARGET}/${prefix}/local/go:${WORKDIR}/git/"
+    export GOPATH="${WORKDIR}/git/:${S}/src/import/.gopath:${S}/src/import/vendor:${STAGING_DIR_TARGET}/${prefix}/local/go:${WORKDIR}/git/"
 }
 
 # nooelint: oelint.task.dash

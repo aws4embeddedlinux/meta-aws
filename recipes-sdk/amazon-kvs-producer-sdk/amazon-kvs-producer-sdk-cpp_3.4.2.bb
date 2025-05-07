@@ -72,31 +72,31 @@ do_install() {
     install -d ${D}${includedir}/com/amazonaws/kinesis/video/producer/credential-providers
     install -d ${D}${includedir}/com/amazonaws/kinesis/video/producer/gstreamer
 
-    install -m 0640 ${WORKDIR}/git/src/CachingEndpointOnlyCallbackProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/CachingEndpointOnlyCallbackProvider.h
-    install -m 0640 ${WORKDIR}/git/src/ThreadSafeMap.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/ThreadSafeMap.h
-    install -m 0640 ${WORKDIR}/git/src/DefaultCallbackProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/DefaultCallbackProvider.h
-    install -m 0640 ${WORKDIR}/git/src/StreamCallbackProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/StreamCallbackProvider.h
-    install -m 0640 ${WORKDIR}/git/src/KinesisVideoProducer.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/KinesisVideoProducer.h
-    install -m 0640 ${WORKDIR}/git/src/DefaultDeviceInfoProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/DefaultDeviceInfoProvider.h
-    install -m 0640 ${WORKDIR}/git/src/CallbackProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/CallbackProvider.h
-    install -m 0640 ${WORKDIR}/git/src/StreamTags.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/StreamTags.h
-    install -m 0640 ${WORKDIR}/git/src/Logger.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/Logger.h
-    install -m 0640 ${WORKDIR}/git/src/KinesisVideoStream.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/KinesisVideoStream.h
-    install -m 0640 ${WORKDIR}/git/src/ClientCallbackProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/ClientCallbackProvider.h
+    install -m 0640 ${UNPACKDIR}/git/src/CachingEndpointOnlyCallbackProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/CachingEndpointOnlyCallbackProvider.h
+    install -m 0640 ${UNPACKDIR}/git/src/ThreadSafeMap.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/ThreadSafeMap.h
+    install -m 0640 ${UNPACKDIR}/git/src/DefaultCallbackProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/DefaultCallbackProvider.h
+    install -m 0640 ${UNPACKDIR}/git/src/StreamCallbackProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/StreamCallbackProvider.h
+    install -m 0640 ${UNPACKDIR}/git/src/KinesisVideoProducer.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/KinesisVideoProducer.h
+    install -m 0640 ${UNPACKDIR}/git/src/DefaultDeviceInfoProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/DefaultDeviceInfoProvider.h
+    install -m 0640 ${UNPACKDIR}/git/src/CallbackProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/CallbackProvider.h
+    install -m 0640 ${UNPACKDIR}/git/src/StreamTags.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/StreamTags.h
+    install -m 0640 ${UNPACKDIR}/git/src/Logger.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/Logger.h
+    install -m 0640 ${UNPACKDIR}/git/src/KinesisVideoStream.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/KinesisVideoStream.h
+    install -m 0640 ${UNPACKDIR}/git/src/ClientCallbackProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/ClientCallbackProvider.h
 
-    install -m 0640 ${WORKDIR}/git/src/JNI/include/com/amazonaws/kinesis/video/producer/jni/KinesisVideoClientWrapper.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/jni/KinesisVideoClientWrapper.h
-    install -m 0640 ${WORKDIR}/git/src/JNI/include/com/amazonaws/kinesis/video/producer/jni/SyncMutex.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/jni/SyncMutex.h
-    install -m 0640 ${WORKDIR}/git/src/JNI/include/com/amazonaws/kinesis/video/producer/jni/JNICommon.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/jni/JNICommon.h
-    install -m 0640 ${WORKDIR}/git/src/JNI/include/com/amazonaws/kinesis/video/producer/jni/Parameters.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/jni/Parameters.h
-    install -m 0640 ${WORKDIR}/git/src/JNI/include/com/amazonaws/kinesis/video/producer/jni/com_amazonaws_kinesisvideo_internal_producer_jni_NativeKinesisVideoProducerJni.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/jni/com_amazonaws_kinesisvideo_internal_producer_jni_NativeKinesisVideoProducerJni.h
-    install -m 0640 ${WORKDIR}/git/src/JNI/include/com/amazonaws/kinesis/video/producer/jni/TimedSemaphore.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/jni/TimedSemaphore.h
+    install -m 0640 ${UNPACKDIR}/git/src/JNI/include/com/amazonaws/kinesis/video/producer/jni/KinesisVideoClientWrapper.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/jni/KinesisVideoClientWrapper.h
+    install -m 0640 ${UNPACKDIR}/git/src/JNI/include/com/amazonaws/kinesis/video/producer/jni/SyncMutex.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/jni/SyncMutex.h
+    install -m 0640 ${UNPACKDIR}/git/src/JNI/include/com/amazonaws/kinesis/video/producer/jni/JNICommon.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/jni/JNICommon.h
+    install -m 0640 ${UNPACKDIR}/git/src/JNI/include/com/amazonaws/kinesis/video/producer/jni/Parameters.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/jni/Parameters.h
+    install -m 0640 ${UNPACKDIR}/git/src/JNI/include/com/amazonaws/kinesis/video/producer/jni/com_amazonaws_kinesisvideo_internal_producer_jni_NativeKinesisVideoProducerJni.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/jni/com_amazonaws_kinesisvideo_internal_producer_jni_NativeKinesisVideoProducerJni.h
+    install -m 0640 ${UNPACKDIR}/git/src/JNI/include/com/amazonaws/kinesis/video/producer/jni/TimedSemaphore.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/jni/TimedSemaphore.h
 
-    install -m 0640 ${WORKDIR}/git/src/credential-providers/RotatingCredentialProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/credential-providers/RotatingCredentialProvider.h
-    install -m 0640 ${WORKDIR}/git/src/credential-providers/IotCertCredentialProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/credential-providers/IotCertCredentialProvider.h
+    install -m 0640 ${UNPACKDIR}/git/src/credential-providers/RotatingCredentialProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/credential-providers/RotatingCredentialProvider.h
+    install -m 0640 ${UNPACKDIR}/git/src/credential-providers/IotCertCredentialProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/credential-providers/IotCertCredentialProvider.h
 
-    install -m 0640 ${WORKDIR}/git/src/gstreamer/KvsSinkStreamCallbackProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/KvsSinkStreamCallbackProvider.h
-    install -m 0640 ${WORKDIR}/git/src/gstreamer/KvsSinkDeviceInfoProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/credential-providers/KvsSinkDeviceInfoProvider.h
-    install -m 0640 ${WORKDIR}/git/src/gstreamer/gstkvssink.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/credential-providers/gstkvssink.h
+    install -m 0640 ${UNPACKDIR}/git/src/gstreamer/KvsSinkStreamCallbackProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/KvsSinkStreamCallbackProvider.h
+    install -m 0640 ${UNPACKDIR}/git/src/gstreamer/KvsSinkDeviceInfoProvider.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/credential-providers/KvsSinkDeviceInfoProvider.h
+    install -m 0640 ${UNPACKDIR}/git/src/gstreamer/gstkvssink.h ${D}${includedir}/com/amazonaws/kinesis/video/producer/credential-providers/gstkvssink.h
 
     install -m 0755 ${B}/libKinesisVideoProducer.so ${D}${libdir}/
 

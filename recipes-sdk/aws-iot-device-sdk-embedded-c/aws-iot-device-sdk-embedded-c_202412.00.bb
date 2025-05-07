@@ -17,7 +17,7 @@ DEPENDS = "\
     ${@bb.utils.contains('PACKAGECONFIG', 'with-tests', 'ruby-native', '', d)} \
     "
 
-S = "${UNPACKDIR}/git"
+S = "${WORKDIR}/git"
 
 inherit cmake ptest pkgconfig
 

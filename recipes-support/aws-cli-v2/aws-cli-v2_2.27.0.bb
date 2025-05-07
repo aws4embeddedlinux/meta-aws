@@ -60,7 +60,7 @@ inherit python_pep517 python3native python3-dir setuptools3-base ptest
 
 export CRYPTOGRAPHY_OPENSSL_NO_LEGACY = "true"
 
-S = "${UNPACKDIR}/git"
+S = "${WORKDIR}/git"
 
 # this package also contains aws help
 PACKAGES += "${PN}-examples"

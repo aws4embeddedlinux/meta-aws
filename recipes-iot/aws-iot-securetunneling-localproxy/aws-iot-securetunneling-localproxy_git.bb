@@ -29,7 +29,7 @@ SRCREV = "8557d5faf5fe21fbf8ddbc82e96840d8fe985cef"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
-S = "${UNPACKDIR}/git"
+S = "${WORKDIR}/git"
 
 inherit cmake ptest pkgconfig
 

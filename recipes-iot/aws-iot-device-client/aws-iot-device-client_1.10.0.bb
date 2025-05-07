@@ -27,7 +27,7 @@ SRC_URI = "\
 
 SRCREV = "af44d1508fb683d69dc1b62f9e81709ccaa429aa"
 
-S = "${UNPACKDIR}/git"
+S = "${WORKDIR}/git"
 
 inherit cmake systemd ptest
 
