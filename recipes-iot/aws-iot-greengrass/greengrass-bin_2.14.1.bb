@@ -9,7 +9,7 @@ GG_ROOT = "${D}/${GG_BASENAME}"
 GGV2_FLEETPROVISIONING_VERSION ?= "1.2.2"
 GGV2_FLEET_PROVISIONING_TEMPLATE_NAME ?= "GreengrassFleetProvisioningTemplate"
 
-LIC_FILES_CHKSUM = "file://${UNPACKDIR}/greengrass-bin/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
+LIC_FILES_CHKSUM = "file://${WORKDIR}/greengrass-bin/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 DEPENDS += "gettext-native"
 
@@ -46,7 +46,7 @@ GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no',
 
 inherit systemd useradd ptest pkgconfig
 
-S = "${UNPACKDIR}/greengrass-bin"
+S = "${WORKDIR}/greengrass-bin"
 
 FILES:${PN} += "\
     /${GG_BASENAME} \
@@ -76,7 +76,7 @@ do_install() {
     ln -s /${GG_BASENAME}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus ${GG_ROOT}/alts/init/distro
 
     install -m 0440 ${S}/LICENSE                         ${GG_ROOT}
-    install -m 0640 ${S}/../greengrassv2-init.yaml          ${GG_ROOT}/config/config.yaml.clean
+    install -m 0640 ${UNPACKDIR}/greengrassv2-init.yaml          ${GG_ROOT}/config/config.yaml.clean
     install -m 0640 ${S}/bin/greengrass.service.template ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/greengrass.service.template
     install -m 0750 ${S}/bin/loader                      ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/loader
     install -m 0640 ${S}/conf/recipe.yaml                ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/conf/recipe.yaml

@@ -16,7 +16,7 @@ SRC_URI:append = " \
     ${@bb.utils.contains('PACKAGECONFIG', 'static', '', 'file://001-shared-static-crt-libs.patch', d)} \
     "
 
-S = "${UNPACKDIR}/git"
+S = "${WORKDIR}/git"
 
 inherit cmake pkgconfig ptest
 

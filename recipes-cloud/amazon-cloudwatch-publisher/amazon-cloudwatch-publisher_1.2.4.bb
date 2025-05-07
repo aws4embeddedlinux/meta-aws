@@ -12,7 +12,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 SRCREV = "9feebfa9facb6bfddade737de7a90bfbfd65cf6e"
-S = "${UNPACKDIR}/git"
+S = "${WORKDIR}/git"
 
 inherit systemd ptest
 

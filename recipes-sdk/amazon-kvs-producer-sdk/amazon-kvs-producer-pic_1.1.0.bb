@@ -20,7 +20,7 @@ UPSTREAM_CHECK_GITTAGREGEX = "git_invalid_tag_regex"
 # https://github.com/awslabs/amazon-kinesis-video-streams-producer-c/blob/master/CMake/Dependencies/libkvspic-CMakeLists.txt
 SRCREV = "65e38dac9b30523d43a57bc009d679e627b58d9a"
 
-S = "${UNPACKDIR}/git"
+S = "${WORKDIR}/git"
 
 inherit cmake pkgconfig ptest
 
@@ -68,7 +68,7 @@ RDEPENDS:${PN}-ptest += "\
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
-   install -m 0755 ${UNPACKDIR}/ptest_result.py ${D}${PTEST_PATH}/
+   install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
    cp -r ${B}/tst/kvspic_test ${D}${PTEST_PATH}/tests/
 }
 
