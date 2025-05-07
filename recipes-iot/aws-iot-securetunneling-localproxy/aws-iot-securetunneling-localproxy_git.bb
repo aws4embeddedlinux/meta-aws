@@ -60,3 +60,7 @@ do_install_ptest() {
 
 # fix DSO missing from command line
 LDFLAGS += "-Wl,--copy-dt-needed-entries"
+
+# Use -std=c++20 for fixing
+# error: #warning "<ciso646> is deprecated in C++17, use <version> to detect implementation-specific macros" [-Werror=cpp]
+CXXFLAGS += "-std=c++20 -Wno-error=attributes -Wno-error=deprecated"
