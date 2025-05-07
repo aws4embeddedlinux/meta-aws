@@ -58,7 +58,7 @@ UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>2\.\d+(\.\d+)+)"
 
 inherit python_pep517 python3native python3-dir setuptools3-base ptest
 
-export CRYPTOGRAPHY_OPENSSL_NO_LEGACY="true"
+export CRYPTOGRAPHY_OPENSSL_NO_LEGACY = "true"
 
 S = "${UNPACKDIR}/git"
 
