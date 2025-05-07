@@ -31,13 +31,29 @@ LDFLAGS:append:libc-musl = " -largp"
 
 #THIS IS DISABLED IF exernalsrc is enabled
 SRC_URI = "\
-    git://github.com/aws-greengrass/aws-greengrass-lite.git;protocol=https;branch=main \
+    git://github.com/aws-greengrass/aws-greengrass-lite.git;protocol=https;branch=main;name=ggl \
+    git://github.com/FreeRTOS/coreMQTT.git;protocol=https;branch=main;name=mqtt;destsuffix=${S}/thirdparty/core_mqtt \
+    git://github.com/FreeRTOS/backoffAlgorithm.git;protocol=https;branch=main;name=backoff;destsuffix=${S}/thirdparty/backoff_algorithm \
+    git://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main;name=sigv4;destsuffix=${S}/thirdparty/aws_sigv4 \
     file://001-disable_strip.patch \
     file://greengrass-lite.yaml \
     file://run-ptest \
 "
-SRCREV = "4f6b025c63b780418110cc12b77d4a7d73b7b4a6"
-#
+
+SRCREV_ggl = "25ca698f878ee481a8a2ade0d54499992f339122"
+
+# must match fc_deps.json
+SRCREV_mqtt = "f1827d8b46703f1c5ff05d21b34692d3122c9a04"
+SRCREV_backoff = "f2f3bb2d8310f7cb48baa3ee64b635a5d66f838b"
+SRCREV_sigv4 = "f0409ced6c2c9430f0e972019b7e8f20bbf58f4e"
+
+EXTRA_OECMAKE:append = " \
+    -DFETCHCONTENT_SOURCE_DIR_CORE_MQTT=${S}/thirdparty/core_mqtt \
+    -DFETCHCONTENT_SOURCE_DIR_BACKOFF_ALGORITHM=${S}/thirdparty/backoff_algorithm \
+    -DFETCHCONTENT_SOURCE_DIR_AWS_SIGV4=${S}/thirdparty/aws_sigv4 \
+    "
+
+SRCREV_FORMAT .= "_ggl_core_mqtt_backoff_aws_sigv4"
 
 S = "${UNPACKDIR}/git"
 
@@ -51,8 +67,11 @@ FILES:${PN}:append = " \
 
 REQUIRED_DISTRO_FEATURES = "systemd"
 
-do_configure[network] = "1"
-EXTRA_OECMAKE:append = " -DFETCHCONTENT_FULLY_DISCONNECTED=OFF"
+PACKAGECONFIG ?= "\
+    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
+    "
+
+PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DBUILD_EXAMPLES=ON,-DBUILD_TESTING=OFF,"
 
 # default is stripped, we wanna do this by yocto
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
