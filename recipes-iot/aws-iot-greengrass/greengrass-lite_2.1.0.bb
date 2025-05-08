@@ -33,28 +33,36 @@ LDFLAGS:append:libc-musl = " -largp"
 SRC_URI = "\
     git://github.com/aws-greengrass/aws-greengrass-lite.git;protocol=https;branch=main \
     file://001-disable_strip.patch \
-    file://002-disable-cmake-req.patch \
+    file://002-remove-curl_easy_header.patch \
     file://greengrass-lite.yaml \
     file://run-ptest \
 "
-SRCREV = "a0dc02a2315990d80c0e8c04f244b97c66dc65b2"
-#
+
+SRCREV = "25ca698f878ee481a8a2ade0d54499992f339122"
 
 S = "${WORKDIR}/git"
 
 FILES:${PN}:append = " \
     ${systemd_unitdir}/system/greengrass-lite.service \
-    ${gg_rundir} \
     /usr/components/* \
     ${sysconfdir}/sudoers.d/${BPN} \
     /usr/lib/* \
-    /lib/* \
+    ${gg_workingdir} \
     "
 
 REQUIRED_DISTRO_FEATURES = "systemd"
 
+# kirkstone cmake does not support -DFETCHCONTENT_SOURCE_DIR
 do_configure[network] = "1"
 EXTRA_OECMAKE:append = " -DFETCHCONTENT_FULLY_DISCONNECTED=OFF"
+
+CFLAGS:append = "-Wno-error=implicit-function-declaration"
+
+PACKAGECONFIG ?= "\
+    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
+    "
+
+PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DBUILD_EXAMPLES=ON,-DBUILD_TESTING=OFF,"
 
 # default is stripped, we wanna do this by yocto
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
@@ -70,6 +78,7 @@ EXTRA_OECMAKE:append = " -DGGL_LOG_LEVEL=DEBUG"
 SYSTEMD_SERVICE:${PN} = "\
     ggl.aws_iot_mqtt.socket \
     ggl.aws_iot_tes.socket \
+    ggl.aws.greengrass.TokenExchangeService.service \
     ggl.core.gg-fleet-statusd.service \
     ggl.core.ggconfigd.service \
     ggl.core.ggdeploymentd.service \
@@ -90,13 +99,7 @@ SYSTEMD_SERVICE:${PN} = "\
 
 inherit systemd cmake pkgconfig useradd features_check ptest
 
-PACKAGECONFIG ?= "\
-    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
-    "
-
-PACKAGECONFIG[with-tests] = "-DBUILD_EXAMPLES=ON,-DBUILD_EXAMPLES=OFF"
-
-gg_workingdir = "${localstatedir}/lib/greengrass"
+gg_workingdir ?= "${localstatedir}/lib/greengrass"
 
 # https://github.com/aws-greengrass/aws-greengrass-lite/blob/main/docs/INSTALL.md#usergroup
 # user and group for greengrass itself
@@ -113,9 +116,6 @@ EXTRA_OECMAKE:append = " -DGGL_SYSTEMD_SYSTEM_GROUP=${gg_group}"
 EXTRA_OECMAKE:append = " -DGGL_SYSTEMD_SYSTEM_DIR=${systemd_system_unitdir}"
 
 do_install:append() {
-
-    install -d ${D}/${gg_rundir}
-    chown ${gg_user}:${gg_group} ${D}/${gg_rundir}
 
     install -d ${D}/${sysconfdir}/greengrass
     install -d -m 0755 ${D}/${sysconfdir}/greengrass/config.d
