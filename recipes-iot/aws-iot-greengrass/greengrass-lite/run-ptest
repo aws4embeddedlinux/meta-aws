@@ -8,11 +8,11 @@ systemctl start greengrass-lite.target
 # settle time
 sleep 10
 
-/usr/bin/configtest
+systemctl is-active greengrass-lite.target
 
 RETVAL=$?
 if [ $RETVAL -eq 0 ] ; then
-    echo "PASS: greengrass lite configcheck test"
+    echo "PASS: greengrass lite active test"
 else
-    echo "FAIL: greengrass lite configcheck test"
+    echo "FAIL: greengrass lite active test"
 fi
