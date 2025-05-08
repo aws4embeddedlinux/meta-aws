@@ -68,7 +68,7 @@ RDEPENDS:${PN}-ptest += "\
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
-   install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
+   install -m 0755 ${UNPACKDIR}/ptest_result.py ${D}${PTEST_PATH}/
    cp -r ${B}/tst/kvspic_test ${D}${PTEST_PATH}/tests/
 }
 
