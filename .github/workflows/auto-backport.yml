@@ -22,7 +22,7 @@ jobs:
       - name: Create backport pull requests
         uses: korthout/backport-action@v3.1.0
         with:
-          target_branches: kirkstone-next scarthgap-next styhead-next
+          target_branches: kirkstone-next scarthgap-next walnascar-next
           # copy all labels (backport labels are automatically skipped)
           copy_labels_pattern: .+
           github_token: ${{ secrets.BOT_CREDENTIAL }}
