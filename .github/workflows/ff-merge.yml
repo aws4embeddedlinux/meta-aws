@@ -3,14 +3,14 @@ on:
   workflow_dispatch:
       inputs:
         branches:
-          description: 'branches to ff merge branch-next into'                         
-          default: '["master", "dunfell", "gatesgarth", "hardknott", "honister", "kirkstone", "zeus", "langdale", "mickledore", "nanbield", "scarthgap", "styhead"]'
+          description: 'branches to ff merge branch-next into'
+          default: '["master", "dunfell", "gatesgarth", "hardknott", "honister", "kirkstone", "zeus", "langdale", "mickledore", "nanbield", "scarthgap", "styhead", "walnascar"]'
           required: true
-jobs: 
-  ff-merge:     
+jobs:
+  ff-merge:
     runs-on: ubuntu-22.04
     strategy:
-      matrix: 
+      matrix:
         branch:  ${{ fromJson(github.event.inputs.branches) }}
       fail-fast: false
     steps:

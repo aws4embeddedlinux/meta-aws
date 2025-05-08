@@ -17,7 +17,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -x  # Enable command echo for debugging
-          branches=("master" "master-next" "scarthgap" "scarthgap-next" "kirkstone" "kirkstone-next" "styhead" "styhead-next")
+          branches=("master" "master-next" "scarthgap" "scarthgap-next" "kirkstone" "kirkstone-next" "walnascar" "walnascar-next")
           declare -A run_ids
           declare -A run_urls
           for branch in "${branches[@]}"; do
@@ -134,4 +134,3 @@ jobs:
           else
             echo "All branch workflows succeeded."
           fi
-
