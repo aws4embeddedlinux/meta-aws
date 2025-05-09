@@ -1,10 +1,48 @@
+# FIXME: the LIC_FILES_CHKSUM values have been updated by 'devtool upgrade'.
+# The following is the difference between the old and the new license text.
+# Please update the LICENSE value if needed, and summarize the changes in
+# the commit message via 'License-Update:' tag.
+# (example: 'License-Update: copyright years updated.')
+#
+# The changes:
+#
+# --- LICENSE
+# +++ LICENSE
+# @@ -215,6 +215,9 @@
+#  code from sources and by authors listed in
+#  comments on top of the respective files.
+#  
+# +The code in crypto/fipsmodule/ml_kem/mlkem is imported from mlkem-native
+# +(https://github.com/pq-code-package/mlkem-native) and carries the
+# +Apache 2.0 license. This license is reproduced at the bottom of this file.
+#  
+#  Licenses for support code
+#  -------------------------
+# @@ -286,10 +289,10 @@
+#  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#   
+#   
+# -Apache 2.0 license for AWS-LC content
+# --------------------------------------
+# - 
+# - 
+# + 
+# + 
+# +Apache 2.0 license for AWS-LC content and mlkem-native
+# +------------------------------------------------------
+#                                   Apache License
+#                             Version 2.0, January 2004
+#                          http://www.apache.org/licenses/
+# 
+#
+
 SUMMARY = "AWS libcrypto (AWS-LC)"
 DESCRIPTION = "AWS-LC is a general-purpose cryptographic library maintained by the AWS Cryptography team for AWS and their customers. It іs based on code from the Google BoringSSL project and the OpenSSL project."
 
 HOMEPAGE = "https://github.com/awslabs/aws-lc"
 
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=d7bea8c886a6934b7d38eb42bee9019c"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=4d2ce8260a297b70a89c38c25266076e"
 
 PROVIDES += "aws/lc"
 
@@ -14,7 +52,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "b1420f27a7c95762cd11b249ece3d049f530d9e6"
+SRCREV = "a614f97527d16461d5c904ef90d3bb647e35265f"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
