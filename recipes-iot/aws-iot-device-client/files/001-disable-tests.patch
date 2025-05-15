@@ -1,4 +1,4 @@
-From 960590534d80faab230f0de27136bd4b3cbf32e8 Mon Sep 17 00:00:00 2001
+From d3afefb0d8dc0e548f4ed55d2c6d6954c7fed5f5 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Mon, 18 Nov 2024 19:32:41 +0000
 Subject: [PATCH] aws-iot-device-client: disable tests, as the new aws-c-io
