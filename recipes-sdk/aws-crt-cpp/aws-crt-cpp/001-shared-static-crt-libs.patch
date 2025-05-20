@@ -1,0 +1,26 @@
+This disable the shared libs build for aws-crt-cpp and aws-c-iot,
+cause they will conflict with already exising versions on a system.
+Therefor they are static linked into the cpp libs to not conflict.
+
+Upstream-Status: Inappropriate [oe specific]
+
+Index: 0.32.5/CMakeLists.txt
+===================================================================
+--- 0.32.5.orig/CMakeLists.txt
++++ 0.32.5/CMakeLists.txt
+@@ -45,6 +45,7 @@ set(GENERATED_CONFIG_HEADER "${GENERATED
+ configure_file(include/aws/crt/Config.h.in ${GENERATED_CONFIG_HEADER} @ONLY)
+
+ if(BUILD_DEPS)
++    set(BUILD_SHARED_LIBS OFF)
+     list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/crt/aws-c-common/cmake")
+
+     include(AwsFindPackage)
+@@ -103,6 +104,7 @@ if(BUILD_DEPS)
+     add_subdirectory(crt/aws-c-event-stream)
+     add_subdirectory(crt/aws-c-s3)
+     set(BUILD_TESTING ${BUILD_TESTING_PREV})
++    set(BUILD_SHARED_LIBS ON)
+ else()
+     # this is required so we can use aws-c-common's CMake modules
+     find_package(aws-c-common REQUIRED)
