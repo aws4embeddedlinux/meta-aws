@@ -98,3 +98,6 @@ INSANE_SKIP:${PN}-src:append:class-target:arm = " buildpaths"
 INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
 PACKAGECONFIG[sanitize] = ",,gcc-sanitizers"
 OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"
+
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN}-dev += "buildpaths"
