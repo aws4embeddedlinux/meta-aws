@@ -15,7 +15,6 @@ DEPENDS += "\
     aws-c-mqtt \
     aws-c-s3 \
     aws-checksums \
-    aws-crt-cpp \
     s2n \
     openssl \
     "
