@@ -19,7 +19,7 @@ SRC_URI = "\
     file://ptest_result.py \
     "
 
-SRCREV = "c7f2c5b30cb60ea72208aa4d3e513e2b02c3aa5a"
+SRCREV = "72a62c15cb17dc18fe68fb22d350c9fa43362e6d"
 
 S = "${WORKDIR}/git"
 
@@ -29,6 +29,8 @@ PACKAGECONFIG ?= "\
     ${@bb.utils.filter('DISTRO_FEATURES', 'pulseaudio', d)} \
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
     "
+
+PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
 
 PACKAGECONFIG[pulseaudio] = "-DPULSEAUDIO=TRUE, -DPULSEAUDIO=FALSE, pulseaudio"
 
@@ -89,7 +91,7 @@ do_install_ptest () {
 # this is related to this issue
 # https://github.com/aws/aws-sdk-cpp/issues/2242
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP:${PN}-src:append:class-target:arm = " buildpaths"
+INSANE_SKIP:${PN}-src:append:class-target = " buildpaths"
 
 # -fsanitize=address does cause this
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
@@ -99,3 +101,6 @@ OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanit
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN}-dev += "buildpaths"
+
+# there is an issue for the parallel build with x86-64 hitting an ressource limit, thus limiting the parallel build to half of cpu cores
+PARALLEL_MAKE:x86-64 = "-j${@int(os.cpu_count()/2)}"
