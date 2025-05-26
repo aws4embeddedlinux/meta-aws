@@ -63,13 +63,12 @@ PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 # CMAKE_CROSSCOMPILING=ON will disable building the tests
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
 
-FILES:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '${libdir}/*', '', d)}"
-
 FILES:${PN} += "${libdir}/libaws-crt-cpp.so"
 FILES:${PN}-dev += "\
     ${includedir}/aws/crt/* \
     ${libdir}/aws-crt-cpp/* \
     ${includedir}/aws/iot/* \
+    ${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '${libdir}/s2n/cmake', '', d)} \
     "
 
 # Notify that libraries are not versioned
