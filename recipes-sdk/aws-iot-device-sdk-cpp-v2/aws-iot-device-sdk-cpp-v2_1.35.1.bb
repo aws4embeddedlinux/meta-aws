@@ -47,7 +47,7 @@ PACKAGECONFIG ??= "\
     build-deps \
     "
 
-FILES:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '${libdir}/*', '', d)}"
+FILES:${PN}-dev += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '${libdir}/s2n/cmake', '', d)}"
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'ldflags', '', d)}"
