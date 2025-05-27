@@ -8,6 +8,74 @@
 #
 # --- LICENSE
 # +++ LICENSE
+# @@ -215,9 +215,52 @@
+#  code from sources and by authors listed in
+#  comments on top of the respective files.
+#  
+# +mlkem-native licensing
+# +----------------------
+# +
+#  The code in crypto/fipsmodule/ml_kem/mlkem is imported from mlkem-native
+# -(https://github.com/pq-code-package/mlkem-native) and carries the
+# -Apache 2.0 license. This license is reproduced at the bottom of this file.
+# +(https://github.com/pq-code-package/mlkem-native) and made available
+# +under the Apache-2.0 license OR the ISC license OR the MIT license.
+# +
+# +ISC license for mlkem-native content:
+# +
+# +Copyright (c) The mlkem-native project authors
+# +
+# +Permission to use, copy, modify, and/or distribute this software for any purpose
+# +with or without fee is hereby granted, provided that the above copyright notice
+# +and this permission notice appear in all copies.
+# +
+# +THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+# +REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+# +FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+# +INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# +OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+# +TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+# +THIS SOFTWARE.
+# +
+# +MIT license for mlkem-native content:
+# +
+# +Copyright (c) The mlkem-native project authors
+# +
+# +Permission is hereby granted, free of charge, to any person obtaining a copy of
+# +this software and associated documentation files (the “Software”), to deal in
+# +the Software without restriction, including without limitation the rights to
+# +use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+# +the Software, and to permit persons to whom the Software is furnished to do so,
+# +subject to the following conditions:
+# +
+# +The above copyright notice and this permission notice shall be included in all
+# +copies or substantial portions of the Software.
+# +
+# +THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# +IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+# +FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+# +COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+# +IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# +CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+# +
+# +The Apache-2.0 license for mlkem-native content is reproduced at
+# +the bottom of this file.
+#  
+#  Licenses for support code
+#  -------------------------
+# 
+#
+
+# FIXME: the LIC_FILES_CHKSUM values have been updated by 'devtool upgrade'.
+# The following is the difference between the old and the new license text.
+# Please update the LICENSE value if needed, and summarize the changes in
+# the commit message via 'License-Update:' tag.
+# (example: 'License-Update: copyright years updated.')
+#
+# The changes:
+#
+# --- LICENSE
+# +++ LICENSE
 # @@ -215,6 +215,9 @@
 #  code from sources and by authors listed in
 #  comments on top of the respective files.
@@ -42,7 +110,7 @@ DESCRIPTION = "AWS-LC is a general-purpose cryptographic library maintained by t
 HOMEPAGE = "https://github.com/awslabs/aws-lc"
 
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=4d2ce8260a297b70a89c38c25266076e"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=4ae91dadf6b1388279f17467b5bf4fe6"
 
 PROVIDES += "aws/lc"
 
@@ -52,7 +120,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "a614f97527d16461d5c904ef90d3bb647e35265f"
+SRCREV = "40ac425f8eab7233079d667dacaf63db802d1eb6"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
