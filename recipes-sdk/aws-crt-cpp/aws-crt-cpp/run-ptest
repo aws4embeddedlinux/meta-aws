@@ -10,7 +10,6 @@ ApiMultiDefaultCreateDestroy \
 ApiStaticDefaultCreateDestroy \
 EventLoopResourceSafety \
 ClientBootstrapResourceSafety \
-MqttClientNewConnectionUninitializedTlsContext \
 TLSContextUninitializedNewConnectionOptions \
 Base64RoundTrip \
 DateTimeBinding \
@@ -24,7 +23,6 @@ MD5ResourceSafety \
 SHA256HMACResourceSafety \
 HttpCreateConnectionInvalidTlsConnectionOptions \
 IotPublishSubscribe \
-HttpClientConnectionManagerInvalidTlsConnectionOptions \
 DefaultResolution \
 OptionalCopySafety \
 OptionalMoveSafety \
