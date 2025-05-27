@@ -1,0 +1,32 @@
+This disable the shared libs build for aws-crt-cpp and aws-c-iot,
+cause they will conflict with already exising versions on a system.
+Therefor they are static linked into the cpp libs to not conflict.
+
+Upstream-Status: Inappropriate [oe specific]
+
+
+Index: git/crt/aws-crt-cpp/CMakeLists.txt
+===================================================================
+--- git.orig/crt/aws-crt-cpp/CMakeLists.txt
++++ git/crt/aws-crt-cpp/CMakeLists.txt
+@@ -1,5 +1,7 @@
+ cmake_minimum_required(VERSION 3.9...3.31)
+
++set(BUILD_SHARED_LIBS OFF)
++
+ option(BUILD_DEPS "Builds aws common runtime dependencies as part of build. Turn off if you want to control your dependency chain." ON)
+ option(BYO_CRYPTO "Don't build a tls implementation or link against a crypto interface. This feature is only for unix builds currently" OFF)
+ option(USE_OPENSSL "Set this if you want to use your system's OpenSSL 1.0.2/1.1.1 compatible libcrypto" OFF)
+Index: git/crt/aws-c-iot/CMakeLists.txt
+===================================================================
+--- git.orig/crt/aws-c-iot/CMakeLists.txt
++++ git/crt/aws-c-iot/CMakeLists.txt
+@@ -1,6 +1,8 @@
+ cmake_minimum_required(VERSION 3.9...3.31)
+ project(aws-c-iot C)
+
++set(BUILD_SHARED_LIBS OFF)
++
+ option(USE_EXTERNAL_DEPS_SOURCES "Use dependencies provided by add_subdirectory command" OFF)
+
+ if (USE_EXTERNAL_DEPS_SOURCES)
