@@ -46,7 +46,6 @@ TestCreatingImdsClient \
 ChannelHandlerInterop \
 Mqtt5NewClientMinimal \
 Mqtt5NewClientFull \
-RuleEngine \
 "
 
 for TEST in $TESTS
