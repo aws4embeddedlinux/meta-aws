@@ -30,6 +30,7 @@ EXTRA_OECMAKE:append = " -DLIBRARY_LOG_LEVEL=LOG_VERBOSE"
 #    file://run-ptest \
 # "
 
+# nooelint: oelint.vars.specific
 CFLAGS:append:arm = " -Wno-error=format="
 
 SRC_URI = "\
