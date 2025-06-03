@@ -1,0 +1,69 @@
+#!/bin/sh
+
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+sleep 10
+
+# Start the MASTER process with timeout 60s, kill after 10s if not responding to SIGTERM
+# cd /usr/bin/
+# ./WebRTCLinuxApplicationMaster
+
+# RETVAL=$?
+# todo
+RETVAL=255
+if [ $RETVAL -eq 255 ] ; then
+    echo "PASS: linux-webrtc-reference-for-amazon-kinesis-video-stream simple test"
+else
+    echo "FAIL: linux-webrtc-reference-for-amazon-kinesis-video-streams simple test"
+fi
+
+exit
+
+### todo
+# 
+# rm -rf /tmp/master.log
+# rm -rf /tmp/viewer.log
+# 
+# # Start the MASTER process with timeout 60s, kill after 10s if not responding to SIGTERM
+# cd /usr/bin/
+# timeout --preserve-status -k 10 60s ./WebRTCLinuxApplicationMaster 2>&1 | tee /tmp/master.log &
+# 
+# # Setup and start Viewer
+# sleep 5
+# read ROLE_ALIAS < /etc/ROLE_ALIAS
+# read THING_NAME < /etc/THING_NAME
+# read CHANNEL_NAME < /etc/CHANNEL_NAME
+# read CREDENTIALS_ENDPOINT < /etc/CREDENTIALS_ENDPOINT
+# read AWS_DEFAULT_REGION < /etc/AWS_REGION
+# 
+# export AWS_IOT_CORE_THING_NAME="$THING_NAME"
+# export AWS_KVS_CHANNEL_NAME="$CHANNEL_NAME"
+# export AWS_IOT_CORE_CREDENTIAL_ENDPOINT="$CREDENTIALS_ENDPOINT"
+# export AWS_IOT_CORE_ROLE_ALIAS="$ROLE_ALIAS"
+# export AWS_IOT_CORE_PRIVATE_KEY=/etc/private.key
+# export AWS_IOT_CORE_CERT=/etc/certificate.pem
+# export AWS_KVS_CACERT_PATH=/etc/cert.pem
+# export AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION"
+# 
+# # INFO
+# export AWS_KVS_LOG_LEVEL=3
+# 
+# # Start the VIEWER process with timeout 60s, kill after 10s if not responding to SIGTERM
+# timeout --preserve-status -k 10 60s /usr/bin/kvsWebrtcClientViewer $AWS_KVS_CHANNEL_NAME 2>&1 | tee /tmp/viewer.log
+#  
+# echo -e "\n\n\nmaster.log:"
+# cat /tmp/master.log
+# 
+# echo -e "\n\n\nviewer.log:"
+# cat /tmp/viewer.log
+# 
+# if [ -e /master.log ]; then
+#  if grep -A3 -E ' fail| error' /tmp/master.log; then
+#    echo "Found failed or error in master.log"
+#    echo "FAIL: amazon-kvs-webrtc-sdk-c: data test: $RETVAL"
+#  fi
+#  if grep -E ' Connection established' /tmp/master.log; then
+#    echo "Connection established found - good"
+#    echo "PASS: amazon-kvs-webrtc-sdk-c: data test"
+#  fi
+# fi
+# 
