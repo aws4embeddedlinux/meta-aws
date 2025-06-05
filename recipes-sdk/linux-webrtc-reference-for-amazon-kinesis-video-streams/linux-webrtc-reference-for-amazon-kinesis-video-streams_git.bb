@@ -40,6 +40,8 @@ SRC_URI = "\
 
 SRCREV = "74a81e023d07bc2b6b3064121c134818e946d215"
 
+UPSTREAM_CHECK_COMMITS = "1"
+
 S = "${WORKDIR}/git"
 
 PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
