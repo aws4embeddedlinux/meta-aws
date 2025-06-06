@@ -38,7 +38,7 @@ SRC_URI = "\
      file://run-ptest \
 "
 
-SRCREV = "74a81e023d07bc2b6b3064121c134818e946d215"
+SRCREV = "9c2f2fd2a4e73b9bbe1027ac28d647cfd125da9c"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
