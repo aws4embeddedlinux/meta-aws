@@ -112,7 +112,8 @@ jobs:
              source poky/oe-init-build-env build
              echo QEMU_USE_KVM = \"\" >> conf/local.conf
              # set to max for arm32
-             echo QB_MEM = \"-m 3G\" >> conf/local.conf
+             echo QB_MEM:arm = \"-m 3G\" >> conf/local.conf
+             echo QB_MEM = \"-m 8G\" >> conf/local.conf
              # use slirp networking instead of TAP interface (require root rights)
              echo QEMU_USE_SLIRP = \"1\" >> conf/local.conf
              echo TEST_RUNQEMUPARAMS += \"slirp\" >> conf/local.conf
