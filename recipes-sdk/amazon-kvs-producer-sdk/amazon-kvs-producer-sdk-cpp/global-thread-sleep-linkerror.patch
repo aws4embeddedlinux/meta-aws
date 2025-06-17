@@ -1,0 +1,23 @@
+From 8623532eb98a093785661366b151cf98e472f0d3 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Fri, 26 Jul 2024 06:19:24 +0000
+Subject: [PATCH] amazon-kvs-producer-sdk-cpp: fix globalThreadSleep link error
+
+Upstream-Status: Submitted [https://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp/issues/1197]
+---
+ CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b302086..9529fed 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -225,7 +225,7 @@ if(BUILD_GSTREAMER_PLUGIN)
+   target_link_libraries(gstkvssink PRIVATE ${GST_APP_LIBRARIES} KinesisVideoProducer)
+ 
+   add_executable(kvssink_gstreamer_sample samples/kvssink_gstreamer_sample.cpp)
+-  target_link_libraries(kvssink_gstreamer_sample ${GST_APP_LIBRARIES} KinesisVideoProducer)
++  target_link_libraries(kvssink_gstreamer_sample ${GST_APP_LIBRARIES} KinesisVideoProducer kvspic)
+ 
+   add_executable(kvs_gstreamer_sample samples/kvs_gstreamer_sample.cpp)
+   target_link_libraries(kvs_gstreamer_sample ${GST_APP_LIBRARIES} KinesisVideoProducer kvspic)
