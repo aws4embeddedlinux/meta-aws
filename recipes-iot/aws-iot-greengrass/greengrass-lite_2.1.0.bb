@@ -55,8 +55,6 @@ EXTRA_OECMAKE:append = " \
 
 SRCREV_FORMAT .= "_ggl_core_mqtt_backoff_aws_sigv4"
 
-S = "${UNPACKDIR}/git"
-
 FILES:${PN}:append = " \
     ${systemd_unitdir}/system/greengrass-lite.service \
     /usr/components/* \

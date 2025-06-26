@@ -11,7 +11,6 @@ inherit setuptools3
 
 PIP_INSTALL_PACKAGE = "urllib3"
 
-S = "${WORKDIR}/git"
 SRC_URI = "git://github.com/urllib3/urllib3.git;protocol=https;branch=1.26.x"
 SRCREV = "6f2ad7ca0cdde53751bab29cbc10bcc965bb4387"
 

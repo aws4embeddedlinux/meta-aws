@@ -27,8 +27,6 @@ SRC_URI = "\
 
 SRCREV = "7f9547bca3e1a199f2824f4376e1782b082b226f"
 
-S = "${WORKDIR}/git"
-
 inherit cmake systemd ptest
 
 do_install() {
