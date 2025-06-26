@@ -25,8 +25,6 @@ SRC_URI = "\
 
 SRCREV = "10961a708a4148c57db139232277573da2f6e99c"
 
-S = "${WORKDIR}/git"
-
 inherit cmake ptest pkgconfig
 
 PACKAGECONFIG ??= "\

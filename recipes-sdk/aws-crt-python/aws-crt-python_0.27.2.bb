@@ -30,8 +30,6 @@ SRC_URI = "\
 SRCREV = "0157faf2fdb7bcb7eb2f84bcdbc7c67faff18c6a"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
-S = "${WORKDIR}/git"
-
 inherit setuptools3_legacy ptest
 
 AWS_C_INSTALL = "${D}/usr/lib;${S}/source"
