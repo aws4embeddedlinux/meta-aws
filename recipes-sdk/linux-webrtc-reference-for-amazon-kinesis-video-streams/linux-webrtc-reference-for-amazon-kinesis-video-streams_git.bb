@@ -38,8 +38,6 @@ SRCREV = "9c2f2fd2a4e73b9bbe1027ac28d647cfd125da9c"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
-S = "${WORKDIR}/git"
-
 PACKAGECONFIG:append:x86-64 = " ${@bb.utils.contains('PTEST_ENABLED', '1', 'sanitize', '', d)}"
 
 PACKAGECONFIG[sanitize] = ",, gcc-sanitizers"

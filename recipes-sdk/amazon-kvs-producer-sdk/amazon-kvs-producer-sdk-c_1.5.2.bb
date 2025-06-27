@@ -25,8 +25,6 @@ UPSTREAM_VERSION_UNKNOWN = "1"
 UPSTREAM_CHECK_GITTAGREGEX = "git_invalid_tag_regex"
 SRCREV = "3e519b7670e39031375d227f983ad2cde888078e"
 
-S = "${WORKDIR}/git"
-
 inherit cmake pkgconfig
 
 # ptest are disabled, cause running tests require a certificate

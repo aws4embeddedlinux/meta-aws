@@ -27,7 +27,7 @@ SRC_URI:append = " \
     file://run-ptest \
 "
 
-S = "${WORKDIR}/release-v${PV}-${TARGET_ARCH}"
+S = "${UNPACKDIR}/release-v${PV}-${TARGET_ARCH}"
 
 inherit bin_package ptest
 

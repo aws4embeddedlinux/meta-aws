@@ -15,8 +15,6 @@ SRC_URI = "\
 
 SRCREV = "05335a411c6fd4097b8135fa3e999d6e0eb4fa8e"
 
-S = "${WORKDIR}/git"
-
 GO_IMPORT = ""
 
 inherit go systemd ptest
@@ -38,7 +36,7 @@ python go_do_unpack() {
                 s_dirname = os.path.basename(d.getVar('S'))
 #                fetcher.ud[url].parm['destsuffix'] = os.path.join(s_dirname, 'src', d.getVar('GO_IMPORT')) + '/'
                 fetcher.ud[url].parm['destsuffix'] = os.path.join(s_dirname, '', d.getVar('GO_IMPORT')) + '/'
-    fetcher.unpack(d.getVar('WORKDIR'))
+    fetcher.unpack(d.getVar('UNPACKDIR'))
 }
 
 # src folder will break devtool upgrade

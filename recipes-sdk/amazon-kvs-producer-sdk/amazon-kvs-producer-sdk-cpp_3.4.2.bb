@@ -21,8 +21,6 @@ SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cp
 
 SRCREV = "7acf272672ced72bbbad85fe39d366deca57280e"
 
-S = "${WORKDIR}/git"
-
 inherit cmake pkgconfig
 
 PACKAGECONFIG ??= "gstreamer"
