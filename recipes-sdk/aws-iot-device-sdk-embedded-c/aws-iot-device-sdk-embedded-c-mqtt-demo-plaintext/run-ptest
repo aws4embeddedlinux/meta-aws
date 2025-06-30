@@ -1,0 +1,11 @@
+#!/bin/sh
+
+rm -rf tests.log
+timeout 30s mqtt_demo_plaintext | tee -a tests.log
+grep "Demo completed successfully" tests.log
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: aws-iot-device-sdk-embedded-c: mqtt_demo_plaintext"
+else
+    echo "FAIL: aws-iot-device-sdk-embedded-c: mqtt_demo_plaintext"
+fi
