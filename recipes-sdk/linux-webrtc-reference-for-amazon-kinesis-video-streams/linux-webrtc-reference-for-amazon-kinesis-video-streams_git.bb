@@ -12,7 +12,7 @@ DEPENDS += "\
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
 
 # set log level
-EXTRA_OECMAKE:append = " -DLIBRARY_LOG_LEVEL=LOG_INFO"
+EXTRA_OECMAKE:append = " -DCMAKE_C_FLAGS=-DLIBRARY_LOG_LEVEL=LOG_INFO"
 
 ###
 # Use this for development to specify a local folder as source dir (cloned repo)
@@ -88,8 +88,8 @@ do_configure:append() {
   sed -i '/#define AWS_KVS_CHANNEL_NAME ""/d' ${S}/examples/demo_config/demo_config.h
   sed -i '/#define AWS_CA_CERT_PATH "cert\/cert.pem"/d' ${S}/examples/demo_config/demo_config.h
   sed -i '/^#if defined( AWS_ACCESS_KEY_ID ) && defined( AWS_IOT_THING_ROLE_ALIAS )/i\
-#define AWS_KVS_CHANNEL_NAME "${AWS_KVS_CHANNEL_NAME}"\
 #define AWS_REGION "${AWS_REGION}"\
+#define AWS_KVS_CHANNEL_NAME "${AWS_KVS_CHANNEL_NAME}"\
 #define AWS_ACCESS_KEY_ID "${AWS_ACCESS_KEY_ID}"\
 #define AWS_SECRET_ACCESS_KEY "${AWS_SECRET_ACCESS_KEY}"\
 #define AWS_SESSION_TOKEN "${AWS_SESSION_TOKEN}"\
