@@ -34,7 +34,7 @@ SRC_URI += "\
      file://run-ptest \
 "
 
-SRCREV = "9c2f2fd2a4e73b9bbe1027ac28d647cfd125da9c"
+SRCREV = "bf916b16ce0fef99e3023a1162cc8ce6bb722ea4"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
@@ -88,7 +88,6 @@ do_configure:append() {
   sed -i '/#define AWS_KVS_CHANNEL_NAME ""/d' ${S}/examples/demo_config/demo_config.h
   sed -i '/#define AWS_CA_CERT_PATH "cert\/cert.pem"/d' ${S}/examples/demo_config/demo_config.h
   sed -i '/^#if defined( AWS_ACCESS_KEY_ID ) && defined( AWS_IOT_THING_ROLE_ALIAS )/i\
-#define AWS_REGION "${AWS_REGION}"\
 #define AWS_KVS_CHANNEL_NAME "${AWS_KVS_CHANNEL_NAME}"\
 #define AWS_REGION "${AWS_REGION}"\
 #define AWS_ACCESS_KEY_ID "${AWS_ACCESS_KEY_ID}"\
