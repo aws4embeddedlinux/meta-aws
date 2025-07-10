@@ -1,0 +1,14 @@
+Upstream-Status: Inappropriate [oe-specific]
+
+Index: jobs-for-aws-iot-embedded-sdk-1.0+git/source/jobs.c
+===================================================================
+--- jobs-for-aws-iot-embedded-sdk-1.0+git.orig/source/jobs.c
++++ jobs-for-aws-iot-embedded-sdk-1.0+git/source/jobs.c
+@@ -34,7 +34,7 @@
+ /* Internal Includes */
+ #include "jobs.h"
+ /* External Dependencies */
+-#include "core_json.h"
++#include <core_json/core_json.h>
+
+ /** @cond DO_NOT_DOCUMENT */

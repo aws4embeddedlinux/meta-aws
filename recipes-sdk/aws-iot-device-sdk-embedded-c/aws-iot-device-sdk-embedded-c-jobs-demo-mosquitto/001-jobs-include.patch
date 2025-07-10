@@ -1,0 +1,16 @@
+Upstream-Status: Inappropriate [oe-specific]
+
+Index: aws-iot-device-sdk-embedded-c-jobs-demo-mosquitto-git/demos/jobs/jobs_demo_mosquitto/jobs_demo_mosquitto.c
+===================================================================
+--- aws-iot-device-sdk-embedded-c-jobs-demo-mosquitto-git.orig/demos/jobs/jobs_demo_mosquitto/jobs_demo_mosquitto.c
++++ aws-iot-device-sdk-embedded-c-jobs-demo-mosquitto-git/demos/jobs/jobs_demo_mosquitto/jobs_demo_mosquitto.c
+@@ -55,8 +55,8 @@
+ #endif
+
+ #include "demo_config.h"
+-#include "jobs.h"
+-#include "core_json.h"
++#include <libjobs/jobs.h>
++#include <core_json/core_json.h>
+
+ /*-----------------------------------------------------------*/

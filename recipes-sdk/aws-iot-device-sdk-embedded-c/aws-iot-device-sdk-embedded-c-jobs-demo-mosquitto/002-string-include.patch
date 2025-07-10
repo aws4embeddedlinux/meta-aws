@@ -1,0 +1,14 @@
+Upstream-Status: Inappropriate [oe-specific]
+
+Index: aws-iot-device-sdk-embedded-c-jobs-demo-mosquitto-git/demos/http/common/src/http_demo_utils.c
+===================================================================
+--- aws-iot-device-sdk-embedded-c-jobs-demo-mosquitto-git.orig/demos/http/common/src/http_demo_utils.c
++++ aws-iot-device-sdk-embedded-c-jobs-demo-mosquitto-git/demos/http/common/src/http_demo_utils.c
+@@ -24,6 +24,7 @@
+ #include <assert.h>
+ #include <time.h>
+ #include <stdlib.h>
++#include <string.h>
+
+ /* POSIX includes. */
+ #include <unistd.h>

@@ -7,16 +7,9 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/mqttFilePaths.cmake)
 # Option to build shared libraries
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 
-# Create MQTT core library
 add_library(core_mqtt
     ${MQTT_SOURCES}
     ${MQTT_SERIALIZER_SOURCES}
-)
-
-# Add define to use default config
-target_compile_definitions(core_mqtt
-    PUBLIC
-        MQTT_DO_NOT_USE_CUSTOM_CONFIG
 )
 
 # Set library properties

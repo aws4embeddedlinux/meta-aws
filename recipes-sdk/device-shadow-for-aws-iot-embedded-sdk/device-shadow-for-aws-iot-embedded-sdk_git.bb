@@ -1,32 +1,36 @@
-# Recipe created by recipetool
-# This is the basis of a recipe and may need further editing in order to be fully functional.
-# (Feel free to remove these comments when editing.)
-
-# WARNING: the following LICENSE and LIC_FILES_CHKSUM values are best guesses - it is
-# your responsibility to verify that the values are complete and correct.
+SUMMARY = "Client library for using AWS IoT Shadow service on embedded devices"
+HOMEPAGE = "https://github.com/aws/device-shadow-for-aws-iot-embedded-sdk"
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=c8c19afab7f99fb196c9287cbd60a258"
 
-SRC_URI = "gitsm://github.com/aws/Device-Shadow-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main"
+SRC_URI = "\
+	gitsm://github.com/aws/Device-Shadow-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main \
+    file://CMakeLists.txt \
+    file://Findshadow.cmake \
+"
 
-# Modify these as desired
-PV = "1.0+git"
 SRCREV = "28ca8cb66b185c5ee9e2458d2ae0259ccac86a8d"
 
-# NOTE: no Makefile found, unable to determine what needs to be done
+inherit cmake
 
-do_configure () {
-	# Specify any needed configure commands here
-	:
+EXTRA_OECMAKE:append = " -DCMAKE_C_FLAGS=-DSHADOW_DO_NOT_USE_CUSTOM_CONFIG=ON"
+
+do_configure:prepend() {
+    cp ${UNPACKDIR}/CMakeLists.txt ${S}/
 }
 
-do_compile () {
-	# Specify compilation commands here
-	:
+do_install:append() {
+    install -d ${D}${datadir}/cmake/Modules
+    install -m 0644 ${UNPACKDIR}/Findshadow.cmake ${D}${datadir}/cmake/Modules/
 }
 
-do_install () {
-	# Specify install commands here
-	:
-}
+FILES:${PN} += "${libdir}/libcore_http.so.*"
 
+FILES:${PN}-dev += "\
+    ${libdir}/libshadow.so \
+    ${includedir}/shadow/* \
+    ${datadir}/cmake/Modules/Findshadow.cmake \
+"
+
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN} += "buildpaths"

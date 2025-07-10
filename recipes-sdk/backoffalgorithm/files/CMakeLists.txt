@@ -7,7 +7,6 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/backoffAlgorithmFilePaths.cmake)
 # Option to build shared libraries
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 
-# Create backoffalgorithm library
 add_library(backoffalgorithm
     ${BACKOFF_ALGORITHM_SOURCES}
 )

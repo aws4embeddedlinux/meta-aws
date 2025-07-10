@@ -1,4 +1,3 @@
-# Findbackoffalgorithm.cmake
 find_path(BACKOFFALGORITHM_INCLUDE_DIR backoff_algorithm.h
           PATHS ${CMAKE_INSTALL_PREFIX}/include
           PATH_SUFFIXES backoffalgorithm)

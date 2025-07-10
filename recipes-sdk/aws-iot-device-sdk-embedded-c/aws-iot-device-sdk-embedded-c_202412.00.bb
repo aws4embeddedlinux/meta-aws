@@ -1,5 +1,5 @@
 SUMMARY = "AWS IoT Device SDK for Embedded C"
-DESCRIPTION = "SDK for connecting to AWS IoT from a device using embedded C"
+DESCRIPTION = "SDK for connecting to AWS IoT from a device using embedded C - a reference implentation, using standalone versions of contained libs is the preferred way to consoume it"
 HOMEPAGE = "https://github.com/aws/aws-iot-device-sdk-embedded-C"
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=c8c19afab7f99fb196c9287cbd60a258 "
@@ -20,8 +20,8 @@ DEPENDS = "\
 inherit cmake ptest pkgconfig
 
 PACKAGECONFIG ??= "\
+    with-demos \
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests','', d)} \
-    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-demos','', d)} \
     "
 
 EXTRA_OECMAKE += "\
@@ -32,6 +32,9 @@ EXTRA_OECMAKE += "\
     -DINSTALL_TO_SYSTEM=1 \
     -DROOT_CA_CERT_PATH=${ROOT_CA_CERT_PATH} \
     -DTHING_NAME=${THING_NAME} \
+    -DTHING_NAME=${THING_NAME} \
+    -DSERVER_HOST="google.com" \
+    -DROOT_CA_CERT_PATH="/etc/ssl/certs/ca-certificates.crt" \
     "
 
 do_install () {

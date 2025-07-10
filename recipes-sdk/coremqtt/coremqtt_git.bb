@@ -10,6 +10,8 @@ SRCREV = "d7b04a13002496994d737eebaf56dbe1e56aaefb"
 
 inherit cmake
 
+EXTRA_OECMAKE:append = " -DCMAKE_C_FLAGS=-DMQTT_DO_NOT_USE_CUSTOM_CONFIG=ON"
+
 do_configure:prepend() {
     cp ${UNPACKDIR}/CMakeLists.txt ${S}/
 }
@@ -27,3 +29,5 @@ FILES:${PN}-dev += "\
     ${includedir}/core_mqtt/* \
     ${datadir}/cmake/Modules/Findcore_mqtt.cmake \
 "
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN} += "buildpaths"
