@@ -1,0 +1,15 @@
+Upstream-Status: Inappropriate [oe-specific]
+
+Index: aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git/platform/posix/transport/include/sockets_posix.h
+===================================================================
+--- aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git.orig/platform/posix/transport/include/sockets_posix.h
++++ aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git/platform/posix/transport/include/sockets_posix.h
+@@ -55,7 +55,7 @@
+ /* *INDENT-ON* */
+
+ /* Transport interface include. */
+-#include "transport_interface.h"
++#include <core_mqtt/transport_interface.h>
+
+ /**
+  * @brief TCP Connect / Disconnect return status.
