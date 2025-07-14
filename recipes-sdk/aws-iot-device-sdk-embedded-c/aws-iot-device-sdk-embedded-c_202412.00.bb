@@ -37,9 +37,9 @@ EXTRA_OECMAKE += "\
 
 do_install () {
     install -d ${D}${libdir}
-    install -r ${B}/lib/* ${D}${libdir}
+    cp -r ${B}/lib/* ${D}${libdir}
     ${@bb.utils.contains('PACKAGECONFIG', 'with-demos', 'install -d ${D}${bindir}', '', d)}
-    ${@bb.utils.contains('PACKAGECONFIG', 'with-demos', 'install -r ${B}/bin/* ${D}${bindir}', '', d)}
+    ${@bb.utils.contains('PACKAGECONFIG', 'with-demos', 'cp -r ${B}/bin/* ${D}${bindir}', '', d)}
 }
 
 do_install_ptest:append () {
