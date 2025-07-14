@@ -1,0 +1,113 @@
+Upstream-Status: Inappropriate [oe-specific]
+
+Index: aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-202412.00/libraries/3rdparty/mbedtls/programs/util/pem2der.c
+===================================================================
+--- aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-202412.00.orig/libraries/3rdparty/mbedtls/programs/util/pem2der.c
++++ aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-202412.00/libraries/3rdparty/mbedtls/programs/util/pem2der.c
+@@ -160,106 +160,4 @@ static int write_file(const char *path,
+     return 0;
+ }
+
+-int main(int argc, char *argv[])
+-{
+-    int ret = 1;
+-    int exit_code = MBEDTLS_EXIT_FAILURE;
+-    unsigned char *pem_buffer = NULL;
+-    unsigned char der_buffer[4096];
+-    char buf[1024];
+-    size_t pem_size, der_size = sizeof(der_buffer);
+-    int i;
+-    char *p, *q;
+-
+-    /*
+-     * Set to sane values
+-     */
+-    memset(buf, 0, sizeof(buf));
+-    memset(der_buffer, 0, sizeof(der_buffer));
+-
+-    if (argc < 2) {
+-usage:
+-        mbedtls_printf(USAGE);
+-        goto exit;
+-    }
+-
+-    opt.filename            = DFL_FILENAME;
+-    opt.output_file         = DFL_OUTPUT_FILENAME;
+-
+-    for (i = 1; i < argc; i++) {
+-
+-        p = argv[i];
+-        if ((q = strchr(p, '=')) == NULL) {
+-            goto usage;
+-        }
+-        *q++ = '\0';
+-
+-        if (strcmp(p, "filename") == 0) {
+-            opt.filename = q;
+-        } else if (strcmp(p, "output_file") == 0) {
+-            opt.output_file = q;
+-        } else {
+-            goto usage;
+-        }
+-    }
+-
+-    /*
+-     * 1.1. Load the PEM file
+-     */
+-    mbedtls_printf("\n  . Loading the PEM file ...");
+-    fflush(stdout);
+-
+-    ret = load_file(opt.filename, &pem_buffer, &pem_size);
+-
+-    if (ret != 0) {
+-#ifdef MBEDTLS_ERROR_C
+-        mbedtls_strerror(ret, buf, 1024);
+-#endif
+-        mbedtls_printf(" failed\n  !  load_file returned %d - %s\n\n", ret, buf);
+-        goto exit;
+-    }
+-
+-    mbedtls_printf(" ok\n");
+-
+-    /*
+-     * 1.2. Convert from PEM to DER
+-     */
+-    mbedtls_printf("  . Converting from PEM to DER ...");
+-    fflush(stdout);
+-
+-    if ((ret = convert_pem_to_der(pem_buffer, pem_size, der_buffer, &der_size)) != 0) {
+-#ifdef MBEDTLS_ERROR_C
+-        mbedtls_strerror(ret, buf, 1024);
+-#endif
+-        mbedtls_printf(" failed\n  !  convert_pem_to_der %d - %s\n\n", ret, buf);
+-        goto exit;
+-    }
+-
+-    mbedtls_printf(" ok\n");
+-
+-    /*
+-     * 1.3. Write the DER file
+-     */
+-    mbedtls_printf("  . Writing the DER file ...");
+-    fflush(stdout);
+-
+-    ret = write_file(opt.output_file, der_buffer, der_size);
+-
+-    if (ret != 0) {
+-#ifdef MBEDTLS_ERROR_C
+-        mbedtls_strerror(ret, buf, 1024);
+-#endif
+-        mbedtls_printf(" failed\n  !  write_file returned %d - %s\n\n", ret, buf);
+-        goto exit;
+-    }
+-
+-    mbedtls_printf(" ok\n");
+-
+-    exit_code = MBEDTLS_EXIT_SUCCESS;
+-
+-exit:
+-    free(pem_buffer);
+-
+-    mbedtls_exit(exit_code);
+-}
+ #endif /* MBEDTLS_BASE64_C && MBEDTLS_FS_IO */
