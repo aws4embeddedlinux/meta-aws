@@ -1,8 +1,14 @@
-SUMMARY = "AWS IoT Device SDK for Embedded C"
-DESCRIPTION = "SDK for connecting to AWS IoT from a device using embedded C"
+SUMMARY = "AWS IoT Device SDK for Embedded C - reference implentation"
+DESCRIPTION = "SDK for connecting to AWS IoT from a device using embedded C - a reference implentation, using standalone versions of contained libs is the preferred way to consoume it"
 HOMEPAGE = "https://github.com/aws/aws-iot-device-sdk-embedded-C"
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=c8c19afab7f99fb196c9287cbd60a258 "
+
+DEPENDS = "\
+    ${@bb.utils.contains('PACKAGECONFIG', 'with-demos', 'mosquitto', '', d)} \
+    ${@bb.utils.contains('PACKAGECONFIG', 'with-demos', 'openssl', '', d)} \
+    ${@bb.utils.contains('PACKAGECONFIG', 'with-tests', 'ruby-native', '', d)} \
+    "
 
 SRC_URI = "\
     gitsm://github.com/aws/aws-iot-device-sdk-embedded-C.git;protocol=https;branch=main \
@@ -11,19 +17,13 @@ SRC_URI = "\
 
 SRCREV = "da99638ec373c791a45557b0cd91fc20968d492d"
 
-DEPENDS = "\
-    ${@bb.utils.contains('PACKAGECONFIG', 'with-demos', 'mosquitto', '', d)} \
-    ${@bb.utils.contains('PACKAGECONFIG', 'with-demos', 'openssl', '', d)} \
-    ${@bb.utils.contains('PACKAGECONFIG', 'with-tests', 'ruby-native', '', d)} \
-    "
-
 S = "${WORKDIR}/git"
 
 inherit cmake ptest pkgconfig
 
 PACKAGECONFIG ??= "\
+    with-demos \
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests','', d)} \
-    ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-demos','', d)} \
     "
 
 EXTRA_OECMAKE += "\
@@ -33,6 +33,7 @@ EXTRA_OECMAKE += "\
     -DCLIENT_PRIVATE_KEY_PATH=${CLIENT_PRIVATE_KEY_PATH} \
     -DINSTALL_TO_SYSTEM=1 \
     -DROOT_CA_CERT_PATH=${ROOT_CA_CERT_PATH} \
+    -DSERVER_HOST=${SERVER_HOST} \
     -DTHING_NAME=${THING_NAME} \
     "
 
@@ -70,5 +71,6 @@ AWS_IOT_ENDPOINT ?= "your-iot-endpoint"
 BROKER_ENDPOINT ?= "localhost"
 CLIENT_CERT_PATH ?= "${sysconfdir}"
 CLIENT_PRIVATE_KEY_PATH ?= "${sysconfdir}"
-ROOT_CA_CERT_PATH ?= "${sysconfdir}"
+ROOT_CA_CERT_PATH ?= "${sysconfdir}/ssl/certs/ca-certificates.crt"
+SERVER_HOST ?= "google.com"
 THING_NAME ?= "your-registered-thing-name"
