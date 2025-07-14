@@ -1,0 +1,149 @@
+Upstream-Status: Inappropriate [oe-specific]
+
+Index: aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git/demos/fleet_provisioning/fleet_provisioning_keys_cert/fleet_provisioning_keys_cert_demo.c
+===================================================================
+--- aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git.orig/demos/fleet_provisioning/fleet_provisioning_keys_cert/fleet_provisioning_keys_cert_demo.c
++++ aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git/demos/fleet_provisioning/fleet_provisioning_keys_cert/fleet_provisioning_keys_cert_demo.c
+@@ -66,11 +66,11 @@
+ #include "demo_config.h"
+
+ /* corePKCS11 includes. */
+-#include "core_pkcs11.h"
+-#include "core_pkcs11_config.h"
++#include <core_pkcs/core_pkcs11.h>
++#include <core_pkcs/core_pkcs11_config.h>
+
+ /* AWS IoT Fleet Provisioning Library. */
+-#include "fleet_provisioning.h"
++#include <fleetprovisioning/fleet_provisioning.h>
+
+ /* Demo includes. */
+ #include "mqtt_operations.h"
+Index: aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git/platform/posix/transport/include/openssl_posix.h
+===================================================================
+--- aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git.orig/platform/posix/transport/include/openssl_posix.h
++++ aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git/platform/posix/transport/include/openssl_posix.h
+@@ -59,7 +59,7 @@
+ #include <openssl/ssl.h>
+
+ /* Transport includes. */
+-#include "transport_interface.h"
++#include <core_mqtt/transport_interface.h>
+
+ /* Socket include. */
+ #include "sockets_posix.h"
+Index: aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git/demos/fleet_provisioning/fleet_provisioning_keys_cert/mqtt_operations.h
+===================================================================
+--- aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git.orig/demos/fleet_provisioning/fleet_provisioning_keys_cert/mqtt_operations.h
++++ aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git/demos/fleet_provisioning/fleet_provisioning_keys_cert/mqtt_operations.h
+@@ -24,10 +24,10 @@
+ #define MQTT_OPERATIONS_H_
+
+ /* MQTT API header. */
+-#include "core_mqtt.h"
++#include <core_mqtt/core_mqtt.h>
+
+ /* corePKCS11 include. */
+-#include "core_pkcs11.h"
++#include <core_pkcs/core_pkcs11.h>
+
+ /**
+  * @brief Application callback type to handle the incoming publishes.
+Index: aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git/platform/posix/transport/include/plaintext_posix.h
+===================================================================
+--- aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git.orig/platform/posix/transport/include/plaintext_posix.h
++++ aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git/platform/posix/transport/include/plaintext_posix.h
+@@ -56,7 +56,7 @@
+ /* *INDENT-ON* */
+
+ /* Transport includes. */
+-#include "transport_interface.h"
++#include <core_mqtt/transport_interface.h>
+ #include "sockets_posix.h"
+
+ /**
+Index: aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git/demos/fleet_provisioning/fleet_provisioning_keys_cert/pkcs11_operations.h
+===================================================================
+--- aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git.orig/demos/fleet_provisioning/fleet_provisioning_keys_cert/pkcs11_operations.h
++++ aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-git/demos/fleet_provisioning/fleet_provisioning_keys_cert/pkcs11_operations.h
+@@ -33,7 +33,7 @@
+ #define MBEDTLS_ALLOW_PRIVATE_ACCESS
+
+ /* corePKCS11 include. */
+-#include "core_pkcs11.h"
++#include <core_pkcs/core_pkcs11.h>
+
+ /**
+  * @brief Loads the claim credentials into the PKCS #11 module. Claim
+
+Index: aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-202412.00/platform/posix/transport/include/mbedtls_pkcs11_posix.h
+===================================================================
+--- aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-202412.00.orig/platform/posix/transport/include/mbedtls_pkcs11_posix.h
++++ aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-202412.00/platform/posix/transport/include/mbedtls_pkcs11_posix.h
+@@ -72,16 +72,16 @@
+ #define MBEDTLS_ALLOW_PRIVATE_ACCESS
+
+ /* MbedTLS includes. */
+-#include "mbedtls/net_sockets.h"
+-#include "mbedtls/ssl.h"
+-#include "mbedtls/pk.h"
+-#include "pk_wrap.h"
++#include <mbedtls/net_sockets.h>
++#include <mbedtls/ssl.h>
++#include <mbedtls/pk.h>
++#include <pk_wrap.h>
+
+ /* Transport interface include. */
+-#include "transport_interface.h"
++#include <transport_interface.h>
+
+ /* PKCS #11 includes. */
+-#include "core_pkcs11.h"
++#include <core_pkcs/core_pkcs11.h>
+
+ /**
+  * @brief Debug logging level to use for MbedTLS.
+Index: aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-202412.00/demos/fleet_provisioning/fleet_provisioning_keys_cert/pkcs11_operations.c
+===================================================================
+--- aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-202412.00.orig/demos/fleet_provisioning/fleet_provisioning_keys_cert/pkcs11_operations.c
++++ aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-202412.00/demos/fleet_provisioning/fleet_provisioning_keys_cert/pkcs11_operations.c
+@@ -34,12 +34,12 @@
+ #include "demo_config.h"
+
+ /* Interface include. */
+-#include "pkcs11_operations.h"
++#include <pkcs11_operations.h>
+
+ /* PKCS #11 include. */
+-#include "core_pkcs11_config.h"
+-#include "core_pki_utils.h"
+-#include "mbedtls_utils.h"
++#include <core_pkcs/core_pkcs11_config.h>
++#include <core_pkcs/core_pki_utils.h>
++#include <core_pkcs/mbedtls_utils.h>
+
+ /* MbedTLS include. */
+ #include "mbedtls/ctr_drbg.h"
+Index: aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-202412.00/platform/posix/transport/src/mbedtls_pkcs11_posix.c
+===================================================================
+--- aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-202412.00.orig/platform/posix/transport/src/mbedtls_pkcs11_posix.c
++++ aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert-202412.00/platform/posix/transport/src/mbedtls_pkcs11_posix.c
+@@ -22,8 +22,10 @@
+
+ /* Standard includes. */
+ #include <string.h>
++#include <stdlib.h>
+ #include <assert.h>
+
++
+ /* TLS transport header. */
+ #include "mbedtls_pkcs11_posix.h"
+
+@@ -32,7 +34,7 @@
+ #include "mbedtls/error.h"
+
+ /* PKCS #11 includes. */
+-#include "core_pki_utils.h"
++#include <core_pkcs/core_pki_utils.h>
+
+ /*-----------------------------------------------------------*/
