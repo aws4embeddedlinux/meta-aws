@@ -8,13 +8,14 @@ SRC_URI = "\
     gitsm://github.com/aws/Fleet-Provisioning-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main \
     file://CMakeLists.txt \
     file://Findfleetprovisioning.cmake \
+    file://run-ptest \
 "
 
 SRCREV = "203803d8b506b51dad37b326292f7d153e9f8c2c"
 
 S = "${WORKDIR}/git"
 
-inherit cmake
+inherit cmake ptest
 
 EXTRA_OECMAKE:append = " \
     -DCMAKE_C_FLAGS=-DFLEET_PROVISIONING_DO_NOT_USE_CUSTOM_CONFIG=ON \
@@ -38,6 +39,8 @@ FILES:${PN}-dev += "\
     ${includedir}/fleetprovisioning/* \
     ${datadir}/cmake/Modules/Findfleetprovisioning.cmake \
 "
+
+RDEPENDS:${PN}-ptest += "aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert"
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN} += "buildpaths"

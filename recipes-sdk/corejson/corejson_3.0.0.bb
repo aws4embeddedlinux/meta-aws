@@ -8,13 +8,14 @@ SRC_URI = "\
     gitsm://github.com/FreeRTOS/coreJSON.git;protocol=https;branch=main \
     file://CMakeLists.txt \
     file://Findcore_json.cmake \
+    file://run-ptest \
 "
 
 SRCREV = "03a463f23ead5240974c663477baf03fe82fc530"
 
 S = "${WORKDIR}/git"
 
-inherit cmake
+inherit cmake ptest
 
 EXTRA_OECMAKE:append = " \
     -DLIB_VERSION=${PV} \
@@ -36,3 +37,5 @@ FILES:${PN}-dev += "\
     ${includedir}/libcore_json/* \
     ${datadir}/cmake/Modules/Findcore_json.cmake \
 "
+
+RDEPENDS:${PN}-ptest += "aws-iot-device-sdk-embedded-c-jobs-demo-mosquitto"

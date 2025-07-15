@@ -1,0 +1,10 @@
+#!/bin/sh
+
+ fleet_provisioning_keys_cert
+
+RETVAL=$?
+if [ $RETVAL -eq 1 ] ; then
+    echo "PASS: fleet-provisioning-for-aws-iot-embedded-sdk: aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert: simple test"
+else
+    echo "FAIL: fleet-provisioning-for-aws-iot-embedded-sdk: aws-iot-device-sdk-embedded-c-fleet-provisioning-keys-cert: simple test"
+fi

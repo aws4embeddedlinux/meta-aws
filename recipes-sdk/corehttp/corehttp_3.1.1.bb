@@ -9,13 +9,14 @@ SRC_URI = "\
     gitsm://github.com/FreeRTOS/coreHTTP.git;protocol=https;branch=main \
     file://CMakeLists.txt \
     file://Findcore_http.cmake \
+    file://run-ptest \
 "
 
 SRCREV = "169c2879589dee06fce4a4f9803924f76131f483"
 
 S = "${WORKDIR}/git"
 
-inherit cmake
+inherit cmake ptest
 
 EXTRA_OECMAKE:append = " \
     -DCMAKE_C_FLAGS=-DHTTP_DO_NOT_USE_CUSTOM_CONFIG=ON \
@@ -39,6 +40,11 @@ FILES:${PN}-dev += "\
     ${libdir}/libcore_http.so \
     ${includedir}/core_http/* \
     ${datadir}/cmake/Modules/Findcore_http.cmake \
+"
+
+RDEPENDS:${PN}-ptest = "\
+    aws-iot-device-sdk-embedded-c-http-demo-basic-tls \
+    coreutils \
 "
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP

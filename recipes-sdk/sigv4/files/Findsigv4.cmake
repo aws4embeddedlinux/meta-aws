@@ -1,4 +1,3 @@
-# Findsigv4.cmake
 find_path(SIGV4_INCLUDE_PUBLIC_DIRS sigv4.h
           PATHS ${CMAKE_INSTALL_PREFIX}/include
           PATH_SUFFIXES sigv4)

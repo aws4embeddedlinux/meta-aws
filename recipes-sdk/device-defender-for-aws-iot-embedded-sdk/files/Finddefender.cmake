@@ -12,7 +12,7 @@ find_package_handle_standard_args(defender DEFAULT_MSG
 
 mark_as_advanced(DEFENDER_INCLUDE_PUBLIC_DIRS DEFENDER_LIBRARY)
 
-if(json_FOUND AND NOT TARGET defender::defender)
+if(defender_FOUND AND NOT TARGET defender::defender)
   add_library(defender::defender UNKNOWN IMPORTED)
   set_target_properties(defender::defender PROPERTIES
     IMPORTED_LOCATION "${DEFENDER_LIBRARY}"
