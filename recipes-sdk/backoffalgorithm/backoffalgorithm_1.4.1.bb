@@ -7,11 +7,12 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=7ae2be7fb1637141840314b51970a9f7"
 SRC_URI = "gitsm://github.com/FreeRTOS/backoffAlgorithm.git;protocol=https;branch=main \
     file://CMakeLists.txt \
     file://Findbackoffalgorithm.cmake \
+    file://run-ptest \
 "
 
 SRCREV = "50e30d7d0aa0aa74e85134088a86f91978267d41"
 
-inherit cmake
+inherit cmake ptest
 
 EXTRA_OECMAKE:append = " \
     -DLIB_VERSION=${PV} \
@@ -32,4 +33,8 @@ FILES:${PN}-dev += "\
     ${libdir}/libbackoffalgorithm.so \
     ${includedir}/backoffalgorithm/* \
     ${datadir}/cmake/Modules/Findbackoffalgorithm.cmake \
+"
+
+RDEPENDS:${PN}-ptest = "\
+    aws-iot-device-sdk-embedded-c-jobs-demo-mosquitto \
 "

@@ -11,11 +11,12 @@ SRC_URI = "\
     file://CMakeLists.txt \
     file://Findjobs.cmake \
     file://001-fix-json-include.patch \
+    file://run-ptest \
 "
 
 SRCREV = "d250e33446d39845470c8abd3212ac91d928a653"
 
-inherit cmake
+inherit cmake ptest
 
 EXTRA_OECMAKE:append = " \
     -DLIB_VERSION=${PV} \
@@ -32,8 +33,11 @@ do_install:append() {
 }
 
 FILES:${PN} += "${libdir}/libjobs.so.*"
+
 FILES:${PN}-dev += "\
     ${libdir}/libjobs.so \
     ${includedir}/libjobs/* \
     ${datadir}/cmake/Modules/Findjobs.cmake \
 "
+
+RDEPENDS:${PN} += "aws-iot-device-sdk-embedded-c-jobs-demo-mosquitto"

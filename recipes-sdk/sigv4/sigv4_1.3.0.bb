@@ -7,11 +7,12 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=000b2cc208c380dab61c7176d8ad5cfc"
 SRC_URI = "\
     gitsm://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main \
     file://CMakeLists.txt \
-    file://Findcore_sigv4.cmake \
+    file://Findsigv4.cmake \
+    file://run-ptest \
 "
 SRCREV = "892bcbb2d4b95daf2b7306ba3210e74b25bfae16"
 
-inherit cmake
+inherit cmake ptest
 
 EXTRA_OECMAKE:append = " \
     -DCMAKE_C_FLAGS=-DSIGV4_DO_NOT_USE_CUSTOM_CONFIG=ON \
@@ -25,15 +26,17 @@ do_configure:prepend() {
 
 do_install:append() {
     install -d ${D}${datadir}/cmake/Modules
-    install -m 0644 ${UNPACKDIR}/Findcore_sigv4.cmake ${D}${datadir}/cmake/Modules/
+    install -m 0644 ${UNPACKDIR}/Findsigv4.cmake ${D}${datadir}/cmake/Modules/
 }
 
-FILES:${PN} += "${libdir}/libcore_sigv4.so.*"
+FILES:${PN} += "${libdir}/libsigv4.so.*"
 FILES:${PN}-dev += "\
-    ${libdir}/libcore_sigv4.so \
-    ${includedir}/libcore_sigv4/* \
-    ${datadir}/cmake/Modules/Findcore_sigv4.cmake \
+    ${libdir}/libsigv4.so \
+    ${includedir}/libsigv4/* \
+    ${datadir}/cmake/Modules/Findsigv4.cmake \
 "
+
+RDEPENDS:${PN}-ptest += "aws-iot-device-sdk-embedded-c-http-demo-s3-download"
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN} += "buildpaths"

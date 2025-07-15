@@ -10,7 +10,7 @@ Index: aws-iot-device-sdk-embedded-c-jobs-demo-mosquitto-git/demos/jobs/jobs_dem
  #include "demo_config.h"
 -#include "jobs.h"
 -#include "core_json.h"
-+#include <libjobs/jobs.h>
++#include <jobs/jobs.h>
 +#include <core_json/core_json.h>
 
  /*-----------------------------------------------------------*/
