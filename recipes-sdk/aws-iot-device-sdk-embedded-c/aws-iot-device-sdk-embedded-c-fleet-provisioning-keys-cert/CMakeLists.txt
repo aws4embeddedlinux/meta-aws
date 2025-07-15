@@ -74,7 +74,7 @@ target_link_libraries(${DEMO_NAME}
        mbedtls
        backoffalgorithm::backoffalgorithm
        core_mqtt::core_mqtt
-       core_pkcs
+       core_pkcs::core_pkcs
        fleetprovisioning::fleetprovisioning
 )
 

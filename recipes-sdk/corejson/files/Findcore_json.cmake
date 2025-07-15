@@ -12,9 +12,9 @@ find_package_handle_standard_args(core_json DEFAULT_MSG
 
 mark_as_advanced(JSON_INCLUDE_PUBLIC_DIRS JSON_LIBRARY)
 
-if(json_FOUND AND NOT TARGET json::json)
-  add_library(json::json UNKNOWN IMPORTED)
-  set_target_properties(json::json PROPERTIES
+if(core_json_FOUND AND NOT TARGET core_json::core_json)
+  add_library(core_json::core_json UNKNOWN IMPORTED)
+  set_target_properties(core_json::core_json PROPERTIES
     IMPORTED_LOCATION "${JSON_LIBRARY}"
     INTERFACE_INCLUDE_DIRECTORIES "${JSON_INCLUDE_PUBLIC_DIRS}")
 endif()

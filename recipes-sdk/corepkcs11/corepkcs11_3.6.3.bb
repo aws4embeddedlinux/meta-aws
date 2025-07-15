@@ -36,7 +36,7 @@ EXTRA_OECMAKE:append = " \
 
 LDFLAGS += "-Wl,--copy-dt-needed-entries"
 
-inherit cmake
+inherit cmake ptest
 
 do_configure:prepend() {
     # verify that all dependencies have correct version
