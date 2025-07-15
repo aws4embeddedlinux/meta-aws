@@ -1,4 +1,4 @@
-set( LIB_NAME "libjobs" )
+set( LIB_NAME "jobs" )
 cmake_minimum_required(VERSION 3.0)
 project(${LIB_NAME} VERSION 1.0.0 LANGUAGES C)
 

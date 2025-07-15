@@ -8,13 +8,14 @@ SRC_URI = "\
     gitsm://github.com/aws/Device-Defender-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main \
     file://CMakeLists.txt \
     file://Finddefender.cmake \
+    file://run-ptest \
 "
 
 SRCREV = "33f9087d4b6db3c5c024c3254426bbba30a0f10a"
 
 S = "${WORKDIR}/git"
 
-inherit cmake
+inherit cmake ptest
 
 EXTRA_OECMAKE:append = " \
     -DCMAKE_C_FLAGS=-DDEFENDER_DO_NOT_USE_CUSTOM_CONFIG=ON \
@@ -31,12 +32,16 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/Finddefender.cmake ${D}${datadir}/cmake/Modules/
 }
 
-FILES:${PN} += "${libdir}/libcore_http.so.*"
+FILES:${PN} += "${libdir}/libdefender.so.*"
 
 FILES:${PN}-dev += "\
     ${libdir}/libdefender.so \
     ${includedir}/defender/* \
     ${datadir}/cmake/Modules/Finddefender.cmake \
+"
+
+RDEPENDS:${PN}-ptest = "\
+    aws-iot-device-sdk-embedded-c-defender-demo-json \
 "
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP

@@ -1,13 +1,13 @@
-find_path(JOBS_INCLUDE_DIR_jobs.h
+find_path(JOBS_INCLUDE_DIR jobs.h
           PATHS ${CMAKE_INSTALL_PREFIX}/include
-          PATH_SUFFIXES libjobs)
+          PATH_SUFFIXES jobs)
 
 find_library(JOBS_LIBRARY
-             NAMES libjobs
+             NAMES jobs
              PATHS ${CMAKE_INSTALL_PREFIX}/lib)
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(libjobs DEFAULT_MSG
+find_package_handle_standard_args(jobs DEFAULT_MSG
                                   JOBS_LIBRARY JOBS_INCLUDE_DIR)
 
 mark_as_advanced(JOBS_INCLUDE_DIR JOBS_LIBRARY)

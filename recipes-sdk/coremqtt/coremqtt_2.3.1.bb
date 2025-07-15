@@ -7,13 +7,14 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=7ae2be7fb1637141840314b51970a9f7"
 SRC_URI = "gitsm://github.com/FreeRTOS/coreMQTT.git;protocol=https;branch=main \
     file://CMakeLists.txt \
     file://Findcore_mqtt.cmake \
+    file://run-ptest \
 "
 
 SRCREV = "d7b04a13002496994d737eebaf56dbe1e56aaefb"
 
 S = "${WORKDIR}/git"
 
-inherit cmake
+inherit cmake ptest
 
 EXTRA_OECMAKE:append = " \
     -DCMAKE_C_FLAGS=-DMQTT_DO_NOT_USE_CUSTOM_CONFIG=ON \
@@ -38,5 +39,8 @@ FILES:${PN}-dev += "\
     ${includedir}/core_mqtt/* \
     ${datadir}/cmake/Modules/Findcore_mqtt.cmake \
 "
+
+RDEPENDS:${PN}-ptest += "aws-iot-device-sdk-embedded-c-jobs-demo-mosquitto"
+
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN} += "buildpaths"

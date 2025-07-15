@@ -1,0 +1,36 @@
+Upstream-Status: Inappropriate [oe-specific]
+
+Index: aws-iot-device-sdk-embedded-c-http-demo-s3-download-202412.00/demos/http/common/include/http_demo_s3_utils.h
+===================================================================
+--- aws-iot-device-sdk-embedded-c-http-demo-s3-download-202412.00.orig/demos/http/common/include/http_demo_s3_utils.h
++++ aws-iot-device-sdk-embedded-c-http-demo-s3-download-202412.00/demos/http/common/include/http_demo_s3_utils.h
+@@ -37,10 +37,10 @@
+ #include "http_demo_utils.h"
+ 
+ /* JSON API header. */
+-#include "core_json.h"
++#include <core_json/core_json.h>
+ 
+ /* SIGV4 API header. */
+-#include "sigv4.h"
++#include <sigv4/sigv4.h>
+ 
+ /**
+  * @brief Length in bytes of hex encoded hash digest.
+Index: aws-iot-device-sdk-embedded-c-http-demo-s3-download-202412.00/demos/http/http_demo_s3_download/http_demo_s3_download.c
+===================================================================
+--- aws-iot-device-sdk-embedded-c-http-demo-s3-download-202412.00.orig/demos/http/http_demo_s3_download/http_demo_s3_download.c
++++ aws-iot-device-sdk-embedded-c-http-demo-s3-download-202412.00/demos/http/http_demo_s3_download/http_demo_s3_download.c
+@@ -39,10 +39,10 @@
+ #include "core_http_client.h"
+ 
+ /* JSON API header. */
+-#include "core_json.h"
++#include <core_json/core_json.h>
+ 
+ /* SIGV4 API header. */
+-#include "sigv4.h"
++#include <sigv4/sigv4.h>
+ 
+ /* MBEDTLS API header. */
+ #include "mbedtls/sha256.h"
