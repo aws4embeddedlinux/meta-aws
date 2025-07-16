@@ -1,0 +1,13 @@
+#!/bin/sh
+
+echo "SKIP:  sigv4: aws-iot-device-sdk-embedded-c-http-demo-s3-download basic test - requires a valid AWS account and S3 bucket to run"
+
+#
+#http_demo_s3_download
+#RETVAL=$?
+#if [ $RETVAL -eq 139 ] ; then
+#    echo "PASS: sigv4: aws-iot-device-sdk-embedded-c-http-demo-s3-download basic test"
+#else
+#    echo "FAIL: sigv4: aws-iot-device-sdk-embedded-c-http-demo-s3-download basic test"
+#fi
+#

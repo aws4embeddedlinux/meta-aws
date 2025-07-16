@@ -1,0 +1,9 @@
+#!/bin/sh
+
+shadow_demo_main
+RETVAL=$?
+if [ $RETVAL -eq 1 ] ; then
+    echo "PASS: device-shadow-for-aws-iot-embedded-sdk: aws-iot-device-sdk-embedded-c-shadow-demo-main simple test"
+else
+    echo "FAIL: device-shadow-for-aws-iot-embedded-sdk: aws-iot-device-sdk-embedded-c-shadow-demo-main simple test"
+fi
