@@ -1,0 +1,9 @@
+#!/bin/sh
+
+defender_demo
+RETVAL=$?
+if [ $RETVAL -eq 1 ] ; then
+    echo "PASS: device-defender-for-aws-iot-embedded-sdk: aws-iot-device-sdk-embedded-c-defender-demo-json simple test"
+else
+    echo "FAIL: device-defender-for-aws-iot-embedded-sdk: aws-iot-device-sdk-embedded-c-defender-demo-json simple test"
+fi
