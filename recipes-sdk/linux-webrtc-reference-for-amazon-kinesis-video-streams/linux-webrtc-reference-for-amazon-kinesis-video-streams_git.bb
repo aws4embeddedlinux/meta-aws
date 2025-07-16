@@ -67,8 +67,10 @@ PACKAGECONFIG[gstreamer] = ",,\
 
 RDEPENDS:${PN} += "ca-certificates"
 
+# TODO: fix ptest
+# amazon-kvs-webrtc-sdk
+
 RDEPENDS:${PN}-ptest += "\
-    amazon-kvs-webrtc-sdk \
     coreutils \
     util-linux \
 "
