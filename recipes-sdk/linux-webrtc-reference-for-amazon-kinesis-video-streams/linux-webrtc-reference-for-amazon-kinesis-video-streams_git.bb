@@ -158,3 +158,7 @@ do_install_ptest:append() {
 # }
 
 OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"
+
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN} += "buildpaths"
+INSANE_SKIP:${PN}-dbg += "buildpaths"
