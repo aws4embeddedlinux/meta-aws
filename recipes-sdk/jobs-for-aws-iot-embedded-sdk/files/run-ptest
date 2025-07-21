@@ -1,0 +1,9 @@
+#!/bin/sh
+
+jobs_demo_mosquitto 
+RETVAL=$?
+if [ $RETVAL -eq 1 ] ; then
+    echo "PASS: jobs-for-aws-iot-embedded-sdk - aws-iot-device-sdk-embedded-c-jobs_demo_mosquitto simple-test"
+else
+    echo "FAIL: jobs-for-aws-iot-embedded-sdk - aws-iot-device-sdk-embedded-c-jobs_demo_mosquitto simple-test"
+fi

@@ -1,0 +1,23 @@
+file(GLOB MBEDTLS_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/library/*.c")
+
+# Option to build static libraries
+option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+
+add_library(mbedtls
+    ${MBEDTLS_FILES}
+)
+
+set_target_properties(mbedtls PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+    POSITION_INDEPENDENT_CODE ON
+)
+
+# Use C99 for mbedtls as v2.26.0 is incompatible with C90
+if(CMAKE_C_STANDARD LESS 99)
+    set_target_properties(mbedtls PROPERTIES C_STANDARD 99)
+endif()
+
+target_include_directories(mbedtls
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)

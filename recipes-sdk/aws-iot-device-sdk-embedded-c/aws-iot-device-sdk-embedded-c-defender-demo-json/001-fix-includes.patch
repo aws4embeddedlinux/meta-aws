@@ -1,0 +1,75 @@
+Upstream-Status: Inappropriate [oe-specific]
+
+Index: aws-iot-device-sdk-embedded-c-defender-demo-json-202412.00/demos/defender/defender_demo_json/demo_config.h
+===================================================================
+--- aws-iot-device-sdk-embedded-c-defender-demo-json-202412.00.orig/demos/defender/defender_demo_json/demo_config.h
++++ aws-iot-device-sdk-embedded-c-defender-demo-json-202412.00/demos/defender/defender_demo_json/demo_config.h
+@@ -146,14 +146,14 @@
+  * The current value is given as an example. Please update for your specific
+  * operating system.
+  */
+-#define OS_NAME                   "Ubuntu"
++// #define OS_NAME                   "Ubuntu"
+
+ /**
+  * @brief The version of the operating system that the application is running
+  * on. The current value is given as an example. Please update for your specific
+  * operating system version.
+  */
+-#define OS_VERSION                "18.04 LTS"
++// #define OS_VERSION                "18.04 LTS"
+
+ /**
+  * @brief The name of the hardware platform the application is running on. The
+@@ -166,7 +166,7 @@
+  * @brief The name of the MQTT library used and its version, following an "@"
+  * symbol.
+  */
+-#include "core_mqtt.h"
++#include <core_mqtt/core_mqtt.h>
+ #define MQTT_LIB                               "core-mqtt@" MQTT_LIBRARY_VERSION
+
+ /**
+Index: aws-iot-device-sdk-embedded-c-defender-demo-json-202412.00/demos/defender/defender_demo_json/mqtt_operations.h
+===================================================================
+--- aws-iot-device-sdk-embedded-c-defender-demo-json-202412.00.orig/demos/defender/defender_demo_json/mqtt_operations.h
++++ aws-iot-device-sdk-embedded-c-defender-demo-json-202412.00/demos/defender/defender_demo_json/mqtt_operations.h
+@@ -24,7 +24,7 @@
+ #define MQTT_OPERATIONS_H_
+
+ /* MQTT API header. */
+-#include "core_mqtt.h"
++#include <core_mqtt/core_mqtt.h>
+
+ /**
+  * @brief Application callback type to handle the incoming publishes.
+Index: aws-iot-device-sdk-embedded-c-defender-demo-json-202412.00/demos/defender/defender_demo_json/defender_demo.c
+===================================================================
+--- aws-iot-device-sdk-embedded-c-defender-demo-json-202412.00.orig/demos/defender/defender_demo_json/defender_demo.c
++++ aws-iot-device-sdk-embedded-c-defender-demo-json-202412.00/demos/defender/defender_demo_json/defender_demo.c
+@@ -59,10 +59,10 @@
+ #include "mqtt_operations.h"
+
+ /* JSON Library. */
+-#include "core_json.h"
++#include <core_json/core_json.h>
+
+ /* Device Defender Client Library. */
+-#include "defender.h"
++#include <defender/defender.h>
+
+ /**
+  * THING_NAME is required. Throw compilation error if it is not defined.
+Index: aws-iot-device-sdk-embedded-c-defender-demo-json-202412.00/demos/defender/defender_demo_json/report_builder.c
+===================================================================
+--- aws-iot-device-sdk-embedded-c-defender-demo-json-202412.00.orig/demos/defender/defender_demo_json/report_builder.c
++++ aws-iot-device-sdk-embedded-c-defender-demo-json-202412.00/demos/defender/defender_demo_json/report_builder.c
+@@ -32,7 +32,7 @@
+ #include "report_builder.h"
+
+ /* Device Defender Library include. */
+-#include "defender.h"
++#include <defender/defender.h>
+
+ /* Various JSON characters. */
+ #define JSON_ARRAY_OPEN_MARKER      '['

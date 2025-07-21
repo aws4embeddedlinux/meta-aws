@@ -1,0 +1,11 @@
+#!/bin/sh
+
+rm -rf tests.log
+timeout 30s http_demo_basic_tls | tee -a tests.log
+grep "Demo completed successfully" tests.log
+RETVAL=$?
+if [ $RETVAL -eq 1 ] ; then
+    echo "PASS: corehttp: aws-iot-device-sdk-embedded-c http_demo_basic_tls"
+else
+    echo "FAIL: corehttp: aws-iot-device-sdk-embedded-c http_demo_basic_tls"
+fi

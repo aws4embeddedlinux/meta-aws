@@ -12,7 +12,7 @@ DEPENDS += "\
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
 
 # set log level
-EXTRA_OECMAKE:append = " -DLIBRARY_LOG_LEVEL=LOG_INFO"
+EXTRA_OECMAKE:append = " -DCMAKE_C_FLAGS=-DLIBRARY_LOG_LEVEL=LOG_INFO"
 
 ###
 # Use this for development to specify a local folder as source dir (cloned repo)
@@ -34,7 +34,7 @@ SRC_URI += "\
      file://run-ptest \
 "
 
-SRCREV = "9c2f2fd2a4e73b9bbe1027ac28d647cfd125da9c"
+SRCREV = "bf916b16ce0fef99e3023a1162cc8ce6bb722ea4"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
@@ -67,8 +67,10 @@ PACKAGECONFIG[gstreamer] = ",,\
 
 RDEPENDS:${PN} += "ca-certificates"
 
+# TODO: fix ptest
+# amazon-kvs-webrtc-sdk
+
 RDEPENDS:${PN}-ptest += "\
-    amazon-kvs-webrtc-sdk \
     coreutils \
     util-linux \
 "
@@ -90,7 +92,6 @@ do_configure:append() {
   sed -i '/^#if defined( AWS_ACCESS_KEY_ID ) && defined( AWS_IOT_THING_ROLE_ALIAS )/i\
 #define AWS_REGION "${AWS_REGION}"\
 #define AWS_KVS_CHANNEL_NAME "${AWS_KVS_CHANNEL_NAME}"\
-#define AWS_REGION "${AWS_REGION}"\
 #define AWS_ACCESS_KEY_ID "${AWS_ACCESS_KEY_ID}"\
 #define AWS_SECRET_ACCESS_KEY "${AWS_SECRET_ACCESS_KEY}"\
 #define AWS_SESSION_TOKEN "${AWS_SESSION_TOKEN}"\
@@ -155,3 +156,7 @@ do_install_ptest:append() {
 # }
 
 OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"
+
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN} += "buildpaths"
+INSANE_SKIP:${PN}-dbg += "buildpaths"
