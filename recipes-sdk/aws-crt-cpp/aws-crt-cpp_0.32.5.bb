@@ -85,3 +85,6 @@ INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', 
 
 PACKAGECONFIG[sanitize] = ",, gcc-sanitizers"
 OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"
+
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP += "32bit-time"
