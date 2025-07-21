@@ -15,6 +15,8 @@ SRCREV = "28ca8cb66b185c5ee9e2458d2ae0259ccac86a8d"
 
 inherit cmake ptest
 
+EXTRA_OECMAKE += "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+
 EXTRA_OECMAKE:append = " -DCMAKE_C_FLAGS=-DSHADOW_DO_NOT_USE_CUSTOM_CONFIG=ON"
 
 do_configure:prepend() {

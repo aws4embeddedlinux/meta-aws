@@ -24,6 +24,8 @@ PACKAGECONFIG ??= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests','', d)} \
     "
 
+EXTRA_OECMAKE += "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+
 EXTRA_OECMAKE += "\
     -DAWS_IOT_ENDPOINT=${AWS_IOT_ENDPOINT} \
     -DBROKER_ENDPOINT=${BROKER_ENDPOINT} \

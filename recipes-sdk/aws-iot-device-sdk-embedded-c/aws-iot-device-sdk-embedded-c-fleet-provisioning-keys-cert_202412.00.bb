@@ -26,6 +26,8 @@ DEPENDS = "\
 
 inherit cmake ptest
 
+EXTRA_OECMAKE += "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+
 do_configure:prepend () {
     install ${UNPACKDIR}/CMakeLists.txt ${S}/
     install ${UNPACKDIR}/CMakeLists.txt_mbedtls ${S}/libraries/3rdparty/mbedtls/CMakeLists.txt

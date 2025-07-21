@@ -15,6 +15,8 @@ SRCREV = "03a463f23ead5240974c663477baf03fe82fc530"
 
 inherit cmake ptest
 
+EXTRA_OECMAKE += "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+
 EXTRA_OECMAKE:append = " \
     -DLIB_VERSION=${PV} \
     -DLIB_SOVERSION=${@d.getVar('PV').split('.')[0]} \
