@@ -1,7 +1,7 @@
 # nooelint: oelint.file.underscores
 require aws-iot-device-sdk-cpp-v2-samples.inc
 
-S = "${UNPACKDIR}/${PN}-${PV}/samples/fleet_provisioning/fleet_provisioning"
+S = "${UNPACKDIR}/${BP}/samples/fleet_provisioning/fleet_provisioning"
 
 SRC_URI:append = " \
     file://run-ptest \

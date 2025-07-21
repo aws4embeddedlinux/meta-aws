@@ -3,7 +3,7 @@ DESCRIPTION = "The AWS IoT Device SDK for C++ v2 provides MQTT APIs for C++ appl
 HOMEPAGE = "https://github.com/aws/aws-iot-device-sdk-cpp-v2"
 LICENSE = "Apache-2.0"
 
-LIC_FILES_CHKSUM = "file://${UNPACKDIR}/${PN}-${PV}/documents/LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
+LIC_FILES_CHKSUM = "file://${UNPACKDIR}/${BP}/documents/LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
 
 DEPENDS += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'openssl', 'aws-c-iot', d)}"
 
