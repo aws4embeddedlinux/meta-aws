@@ -18,6 +18,7 @@ SRC_URI = "\
     file://CMakeLists.txt \
     file://run-ptest \
     file://001-fix-includes.patch \
+    file://002-mbedtls-compat.patch \
     "
 
 SRCREV = "da99638ec373c791a45557b0cd91fc20968d492d"
