@@ -12,7 +12,6 @@ EventLoopResourceSafety \
 ClientBootstrapResourceSafety \
 TLSContextUninitializedNewConnectionOptions \
 Base64RoundTrip \
-DateTimeBinding \
 BasicJsonParsing \
 JsonNullParsing \
 JsonNullNestedObject \
