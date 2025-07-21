@@ -1,0 +1,12 @@
+Index: git/demos/http/common/src/http_demo_s3_utils.c
+===================================================================
+--- git.orig/demos/http/common/src/http_demo_s3_utils.c
++++ git/demos/http/common/src/http_demo_s3_utils.c
+@@ -36,7 +36,6 @@
+ 
+ /* MBEDTLS API header. */
+ #include "mbedtls/sha256.h"
+-#include "mbedtls/compat-2.x.h"
+ 
+ /* OpenSSL transport header. */
+ #include "openssl_posix.h"
