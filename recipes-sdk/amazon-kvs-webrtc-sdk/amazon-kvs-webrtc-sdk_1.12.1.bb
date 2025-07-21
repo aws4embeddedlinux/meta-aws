@@ -49,6 +49,10 @@ FILES:${PN} += "\
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
+# arm32 - gives this warning
+# nooelint: oelint.vars.specific
+CFLAGS:append:arm = " -Wno-incompatible-pointer-types"
+
 EXTRA_OECMAKE += "\
     -DBUILD_DEPENDENCIES=OFF \
     -DCODE_COVERAGE=OFF \
