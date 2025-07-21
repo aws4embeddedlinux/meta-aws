@@ -38,6 +38,8 @@ LDFLAGS += "-Wl,--copy-dt-needed-entries"
 
 inherit cmake ptest
 
+EXTRA_OECMAKE += "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+
 do_configure:prepend() {
     # verify that all dependencies have correct version
     grep -q ${MBEDTLS_2_VERSION} ${S}/tools/mbedtls.cmake || bbfatal "ERROR: dependency version mismatch, please update 'SRCREV_mbedtls + MBEDTLS_2_VERSION'!"
