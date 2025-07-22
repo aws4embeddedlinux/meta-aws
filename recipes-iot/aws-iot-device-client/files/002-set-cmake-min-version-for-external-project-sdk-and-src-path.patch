@@ -1,0 +1,71 @@
+Upstream-Status: Inappropriate [oe-specific]
+
+Index: aws-iot-device-client-1.10.1/CMakeLists.txt.awssdk
+===================================================================
+--- aws-iot-device-client-1.10.1.orig/CMakeLists.txt.awssdk
++++ aws-iot-device-client-1.10.1/CMakeLists.txt.awssdk
+@@ -4,12 +4,7 @@ project(aws-iot-device-sdk-cpp-v2-downlo
+
+ include(ExternalProject)
+ ExternalProject_Add(aws-iot-device-sdk-cpp-v2
+-        GIT_REPOSITORY          https://github.com/aws/aws-iot-device-sdk-cpp-v2.git
+-        GIT_TAG                 74c8b683ebe5b1cbf484f6acaa281f56aaa63948
+-        SOURCE_DIR              "${CMAKE_BINARY_DIR}/aws-iot-device-sdk-cpp-v2-src"
++        SOURCE_DIR              "${CMAKE_SOURCE_DIR}/../aws-iot-device-sdk-cpp-v2-src"
+         BINARY_DIR              "${CMAKE_BINARY_DIR}/aws-iot-device-sdk-cpp-v2-build"
+-        CONFIGURE_COMMAND       ""
+-        BUILD_COMMAND           ""
+-        INSTALL_COMMAND         ""
+-        TEST_COMMAND            ""
++        CMAKE_ARGS             -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+         )
+Index: aws-iot-device-client-1.10.1/CMakeLists.txt.gtest
+===================================================================
+--- aws-iot-device-client-1.10.1.orig/CMakeLists.txt.gtest
++++ aws-iot-device-client-1.10.1/CMakeLists.txt.gtest
+@@ -4,12 +4,10 @@ project(googletest-download NONE)
+
+ include(ExternalProject)
+ ExternalProject_Add(googletest
+-        GIT_REPOSITORY    https://github.com/google/googletest.git
+-        GIT_TAG           release-1.12.0
+-        SOURCE_DIR        "${CMAKE_BINARY_DIR}/googletest-src"
++        SOURCE_DIR        "${CMAKE_SOURCE_DIR}/../googletest-src"
+         BINARY_DIR        "${CMAKE_BINARY_DIR}/googletest-build"
+         CONFIGURE_COMMAND ""
+         BUILD_COMMAND     ""
+         INSTALL_COMMAND   ""
+         TEST_COMMAND      ""
+-        )
+\ No newline at end of file
++        )
+Index: aws-iot-device-client-1.10.1/CMakeLists.txt
+===================================================================
+--- aws-iot-device-client-1.10.1.orig/CMakeLists.txt
++++ aws-iot-device-client-1.10.1/CMakeLists.txt
+@@ -176,7 +176,7 @@ if (BUILD_SDK)
+             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/aws-iot-device-sdk-cpp-v2-download)
+
+     # Add aws-iot-device-sdk-cpp-v2 directly to the build
+-    add_subdirectory(${CMAKE_BINARY_DIR}/aws-iot-device-sdk-cpp-v2-src
++    add_subdirectory(${CMAKE_SOURCE_DIR}/../aws-iot-device-sdk-cpp-v2-src
+             ${CMAKE_BINARY_DIR}/aws-iot-device-sdk-cpp-v2-build)
+ else ()
+     include_directories(/include)
+@@ -249,7 +249,7 @@ endif ()
+ if (BUILD_TEST_DEPS)
+     # Download and unpack googletest at configure time
+     configure_file(CMakeLists.txt.gtest
+-            ${CMAKE_BINARY_DIR}/googletest-download/CMakeLists.txt)
++	    ${CMAKE_SOURCE_DIR}/../googletest-download/CMakeLists.txt)
+     execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
+             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/googletest-download)
+     execute_process(COMMAND ${CMAKE_COMMAND} --build .
+@@ -262,7 +262,7 @@ if (BUILD_TEST_DEPS)
+     # Add googletest directly to our build. This adds
+     # the following targets: gtest, gtest_main, gmock
+     # and gmock_main
+-    add_subdirectory(${CMAKE_BINARY_DIR}/googletest-src
++    add_subdirectory(${CMAKE_SOURCE_DIR}/../googletest-src
+             ${CMAKE_BINARY_DIR}/googletest-build)
+ endif ()
