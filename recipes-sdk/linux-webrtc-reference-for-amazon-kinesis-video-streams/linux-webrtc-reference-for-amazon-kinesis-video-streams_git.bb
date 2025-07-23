@@ -29,9 +29,11 @@ EXTRA_OECMAKE:append = " -DCMAKE_C_FLAGS=-DLIBRARY_LOG_LEVEL=LOG_INFO"
 # nooelint: oelint.vars.specific
 CFLAGS:append:arm = " -Wno-error=format="
 
-SRC_URI += "\
+SRC_URI = "\
      gitsm://github.com/awslabs/linux-webrtc-reference-for-amazon-kinesis-video-streams.git;protocol=https;branch=main \
      file://run-ptest \
+     file://001-libwebsockets-cmake-3-5.patch \
+     file://002-usrsctp-cmake-3-5.patch \
 "
 
 SRCREV = "bf916b16ce0fef99e3023a1162cc8ce6bb722ea4"
@@ -159,4 +161,6 @@ OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanit
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN} += "buildpaths"
+
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN}-dbg += "buildpaths"
