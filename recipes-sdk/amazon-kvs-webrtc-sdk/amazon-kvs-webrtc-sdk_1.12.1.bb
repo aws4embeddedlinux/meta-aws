@@ -21,6 +21,7 @@ PROVIDES += "aws/amazon-kvs-webrtc-sdk"
 BRANCH = "main"
 SRC_URI = "\
     git://github.com/awslabs/amazon-kinesis-video-streams-webrtc-sdk-c.git;protocol=https;branch=${BRANCH} \
+    file://001-disable-download-of-kvs-common-lws.patch \
     file://run-ptest \
     file://ptest_result.py \
 "
@@ -41,8 +42,6 @@ PACKAGECONFIG[with-samples] = "-DBUILD_SAMPLE=ON ,-DBUILD_SAMPLE=OFF,"
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,"
-
-do_configure[network] = "1"
 
 FILES:${PN} += "\
     ${@bb.utils.contains('PACKAGECONFIG', 'with-samples', '/samples/*', '', d)} \
