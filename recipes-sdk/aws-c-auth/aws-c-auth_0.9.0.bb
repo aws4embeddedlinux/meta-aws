@@ -23,8 +23,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-c-auth.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-
-SRCREV = "b513db4bf82429a1134fecbd6d12e5fda45255a6"
+SRCREV = "cd9d6afcd42035d49bb2d0d3bef24b9faed57773"
 
 S = "${WORKDIR}/git"
 
@@ -34,8 +33,7 @@ CFLAGS:append = " -Wl,-Bsymbolic"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH=$D/usr \
-    -DCMAKE_INSTALL_PREFIX=$D/usr \
+    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
     -DCMAKE_BUILD_TYPE=Release \
 "
 
