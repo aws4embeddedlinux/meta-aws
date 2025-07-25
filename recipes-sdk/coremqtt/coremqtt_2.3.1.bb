@@ -17,10 +17,11 @@ S = "${WORKDIR}/git"
 inherit cmake ptest
 
 EXTRA_OECMAKE:append = " \
-    -DCMAKE_C_FLAGS=-DMQTT_DO_NOT_USE_CUSTOM_CONFIG=ON \
     -DLIB_VERSION=${PV} \
     -DLIB_SOVERSION=${@d.getVar('PV').split('.')[0]} \
 "
+
+OECMAKE_C_FLAGS:append = " -DMQTT_DO_NOT_USE_CUSTOM_CONFIG=ON"
 
 do_configure:prepend() {
     cp ${WORKDIR}/CMakeLists.txt ${S}/
