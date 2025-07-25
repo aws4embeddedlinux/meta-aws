@@ -2,7 +2,7 @@ SUMMARY = "Universal Command Line Interface for Amazon Web Services v2"
 DESCRIPTION = "Universal Command Line Interface for Amazon Web Services and ptest scripts v2"
 HOMEPAGE = "https://github.com/aws/aws-cli/tree/v2"
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=7970352423db76abb33cbe303884afbf"
+LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=8ad764cee43b1595056063799f3f79a5"
 
 DEPENDS += "\
     aws-crt-python-native \
@@ -32,10 +32,10 @@ SRC_URI = "\
     file://run-ptest \
 "
 
-SRCREV = "5b26720bf0d798106fd138e1a67f7808eadf21d1"
+SRCREV = "c368c2e9bc7f06b01e058c4a68882d74cec41294"
 
 # version 2.x
-UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>2\.\d+(\.\d+)+)"
+UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>2\.\\d+(\.\\d+)+)"
 
 inherit python_pep517 python3native python3-dir setuptools3-base ptest
 
