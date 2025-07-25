@@ -52,7 +52,16 @@ do_configure:prepend(){
 # Create CMake toolchain file for cross-compilation as setuptools is using cmake internally
 # and we can not inherit cmake class as this conflicts with setuptools3_legacy
 do_compile:prepend(){
+    # aws-crt-python to use the libcrypto included on your system
+    export AWS_CRT_BUILD_USE_SYSTEM_LIBCRYPTO="1"
 
+    # Set up cross-compilation environment for CMake
+    export OECORE_TARGET_SYSROOT="${STAGING_DIR_TARGET}"
+    export CROSS_COMPILE="${TARGET_PREFIX}"
+}
+
+# Set up cross-compilation toolchain for target builds only
+do_compile:prepend:class-target(){
     cat > ${WORKDIR}/toolchain.cmake << 'EOF'
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR ${TARGET_ARCH})
@@ -72,13 +81,7 @@ set(CMAKE_CXX_FLAGS "${CXXFLAGS}" CACHE STRING "CXX flags")
 set(CMAKE_EXE_LINKER_FLAGS "${LDFLAGS}" CACHE STRING "Linker flags")
 EOF
 
-    # aws-crt-python to use the libcrypto included on your system
-    export AWS_CRT_BUILD_USE_SYSTEM_LIBCRYPTO="1"
-
-    # Set up cross-compilation environment for CMake
     export CMAKE_TOOLCHAIN_FILE="${WORKDIR}/toolchain.cmake"
-    export OECORE_TARGET_SYSROOT="${STAGING_DIR_TARGET}"
-    export CROSS_COMPILE="${TARGET_PREFIX}"
 }
 
 RDEPENDS:${PN} += "\
