@@ -19,10 +19,11 @@ inherit cmake ptest
 EXTRA_OECMAKE += "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
 EXTRA_OECMAKE:append = " \
-    -DCMAKE_C_FLAGS=-DHTTP_DO_NOT_USE_CUSTOM_CONFIG=ON \
     -DLIB_VERSION=${PV} \
     -DLIB_SOVERSION=${@d.getVar('PV').split('.')[0]} \
 "
+
+OECMAKE_C_FLAGS:append = " -DHTTP_DO_NOT_USE_CUSTOM_CONFIG=ON"
 
 do_configure:prepend() {
     cp ${UNPACKDIR}/CMakeLists.txt ${S}/

@@ -29,10 +29,11 @@ SRCREV_FORMAT .= "_corepkscs11_mbedtls"
 
 EXTRA_OECMAKE:append = " \
     -DFETCHCONTENT_SOURCE_DIR_MBEDTLS=${S}/source/dependency/3rdparty/mbedtls \
-    -DCMAKE_C_FLAGS=-DPKCS_DO_NOT_USE_CUSTOM_CONFIG=ON \
     -DLIB_VERSION=${PV} \
     -DLIB_SOVERSION=${@d.getVar('PV').split('.')[0]} \
 "
+
+OECMAKE_C_FLAGS:append = " -DPKCS_DO_NOT_USE_CUSTOM_CONFIG=ON"
 
 LDFLAGS += "-Wl,--copy-dt-needed-entries"
 
