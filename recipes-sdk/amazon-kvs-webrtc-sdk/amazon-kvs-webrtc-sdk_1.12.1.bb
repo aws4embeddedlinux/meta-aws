@@ -28,6 +28,8 @@ SRC_URI = "\
 
 SRCREV = "cf817bc5d18f3e4bd499c6b0f9a68c6f4d7e01de"
 
+S = "${WORKDIR}/git"
+
 inherit cmake pkgconfig ptest
 
 PACKAGECONFIG ??= "\
@@ -91,7 +93,7 @@ do_install:append () {
 
 do_install_ptest () {
     cp -r ${B}/tst/webrtc_client_test ${D}${PTEST_PATH}/
-    install -m 0755 ${UNPACKDIR}/ptest_result.py ${D}${PTEST_PATH}/
+    install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
 }
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP

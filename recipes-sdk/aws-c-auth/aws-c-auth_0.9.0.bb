@@ -25,6 +25,8 @@ SRC_URI = "\
     "
 SRCREV = "cd9d6afcd42035d49bb2d0d3bef24b9faed57773"
 
+S = "${WORKDIR}/git"
+
 inherit cmake ptest pkgconfig
 
 CFLAGS:append = " -Wl,-Bsymbolic"

@@ -24,6 +24,8 @@ SRC_URI = "\
 
 SRCREV = "cefc4c32614c6bb4ea955a5ed0e962001320d19f"
 
+S = "${WORKDIR}/git"
+
 inherit cmake systemd ptest pkgconfig
 
 FILES:${PN} += "${systemd_system_unitdir}"
@@ -68,7 +70,7 @@ do_configure:append() {
     # Execute the script with arguments to generate the file
     ${S}/tools/configure-fwe.sh \
         --input-config-file ${S}/configuration/static-config.json \
-        --output-config-file ${UNPACKDIR}/config-0.json \
+        --output-config-file ${WORKDIR}/config-0.json \
         --connection-type ${CONNECTION_TYPE} \
         --vehicle-name ${VEHICLE_NAME} \
         --endpoint-url ${ENDPOINT_URL} \
@@ -90,7 +92,7 @@ do_install() {
     install -d ${D}${systemd_system_unitdir}
     install -m 0755 ${S}/tools/deploy/fwe@.service ${D}${systemd_system_unitdir}
     install -d ${D}${sysconfdir}/aws-iot-fleetwise
-    install -m 0755 ${UNPACKDIR}/config-0.json ${D}${sysconfdir}/aws-iot-fleetwise
+    install -m 0755 ${WORKDIR}/config-0.json ${D}${sysconfdir}/aws-iot-fleetwise
     install -d ${D}${localstatedir}/aws-iot-fleetwise
 }
 
