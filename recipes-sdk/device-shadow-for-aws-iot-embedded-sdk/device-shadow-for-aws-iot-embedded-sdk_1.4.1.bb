@@ -17,7 +17,7 @@ S = "${WORKDIR}/git"
 
 inherit cmake ptest
 
-EXTRA_OECMAKE:append = " -DCMAKE_C_FLAGS=-DSHADOW_DO_NOT_USE_CUSTOM_CONFIG=ON"
+OECMAKE_C_FLAGS:append = " -DSHADOW_DO_NOT_USE_CUSTOM_CONFIG=ON"
 
 do_configure:prepend() {
     install ${WORKDIR}/CMakeLists.txt ${S}/
