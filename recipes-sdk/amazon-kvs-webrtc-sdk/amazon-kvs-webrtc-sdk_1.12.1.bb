@@ -18,17 +18,15 @@ DEPENDS += "\
 
 PROVIDES += "aws/amazon-kvs-webrtc-sdk"
 
-BRANCH = "master"
+BRANCH = "main"
 SRC_URI = "\
     git://github.com/awslabs/amazon-kinesis-video-streams-webrtc-sdk-c.git;protocol=https;branch=${BRANCH} \
-    file://sanitizer_suppressions.txt \
+    file://001-disable-download-of-kvs-common-lws.patch \
     file://run-ptest \
     file://ptest_result.py \
 "
 
-SRCREV = "bfa6667e2f2eeb800a0edd6e6e4745b4faf34536"
-
-S = "${WORKDIR}/git"
+SRCREV = "cf817bc5d18f3e4bd499c6b0f9a68c6f4d7e01de"
 
 inherit cmake pkgconfig ptest
 
@@ -43,11 +41,16 @@ PACKAGECONFIG[with-samples] = "-DBUILD_SAMPLE=ON ,-DBUILD_SAMPLE=OFF,"
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,"
 
-do_configure[network] = "1"
-
-FILES:${PN} += "${libdir}"
+FILES:${PN} += "\
+    ${@bb.utils.contains('PACKAGECONFIG', 'with-samples', '/samples/*', '', d)} \
+    ${libdir} \
+    "
 
 CFLAGS:append = " -Wl,-Bsymbolic"
+
+# arm32 - gives this warning
+# nooelint: oelint.vars.specific
+CFLAGS:append:arm = " -Wno-incompatible-pointer-types"
 
 EXTRA_OECMAKE += "\
     -DBUILD_DEPENDENCIES=OFF \
@@ -77,11 +80,18 @@ LDFLAGS += "-Wl,--copy-dt-needed-entries"
 # fix package neo-ai-tvm contains bad RPATH
 EXTRA_OECMAKE += "-DCMAKE_SKIP_RPATH=1"
 
+do_install:append () {
+    if [ -n "${@bb.utils.contains('PACKAGECONFIG', 'with-samples', '1', '', d)}" ]; then
+        install -d ${D}/samples/
+        cp -r ${S}/samples/h264SampleFrames ${D}/samples/
+        cp -r ${S}/samples/h265SampleFrames ${D}/samples/
+        cp -r ${S}/samples/opusSampleFrames ${D}/samples/
+    fi
+}
+
 do_install_ptest () {
     cp -r ${B}/tst/webrtc_client_test ${D}${PTEST_PATH}/
-    install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
-
-    install ${WORKDIR}/sanitizer_suppressions.txt ${D}${PTEST_PATH}/
+    install -m 0755 ${UNPACKDIR}/ptest_result.py ${D}${PTEST_PATH}/
 }
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
