@@ -12,7 +12,7 @@ DEPENDS += "\
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
 
 # set log level
-EXTRA_OECMAKE:append = " -DCMAKE_C_FLAGS=-DLIBRARY_LOG_LEVEL=LOG_INFO"
+OECMAKE_C_FLAGS:append = " -DLIBRARY_LOG_LEVEL=LOG_INFO"
 
 ###
 # Use this for development to specify a local folder as source dir (cloned repo)
