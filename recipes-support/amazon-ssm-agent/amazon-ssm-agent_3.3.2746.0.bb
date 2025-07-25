@@ -1,6 +1,7 @@
 SUMMARY = "Amazon SSM Agent"
 DESCRIPTION = "An agent to enable remote management of your EC2 instances, on-premises servers, or virtual machines (VMs)."
 HOMEPAGE = "https://github.com/aws/amazon-ssm-agent"
+CVE_PRODUCT = "amazon_ssm_agent"
 
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "\
@@ -12,7 +13,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "dff1ac44e0eb5a3c5138c754b6c423098ed7bd0c"
+SRCREV = "4531eba95125b353f288948dc41fdf020927c245"
 
 S = "${WORKDIR}/git"
 

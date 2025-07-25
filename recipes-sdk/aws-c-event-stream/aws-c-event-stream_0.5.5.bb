@@ -9,8 +9,8 @@ DEPENDS += "\
     aws-c-common \
     aws-c-io \
     aws-checksums \
-    openssl \
     s2n \
+    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
     "
 
 PROVIDES += "aws/crt-c-event-stream"
@@ -20,8 +20,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-c-event-stream.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-
-SRCREV = "9422ef78aac566414d1bebb1a5431a4c53a7547c"
+SRCREV = "8f8f599e78864188fe8547dafaa695a1d4855d6a"
 
 S = "${WORKDIR}/git"
 
@@ -38,8 +37,7 @@ CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "\
     -DBUILD_TEST_DEPS=OFF \
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH=$D/usr \
-    -DCMAKE_INSTALL_PREFIX=$D/usr \
+    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
 "
 
 PACKAGECONFIG ??= "\
@@ -50,7 +48,7 @@ PACKAGECONFIG ??= "\
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
 
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
-PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON,"
+PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 

@@ -9,12 +9,12 @@ SRC_URI = "\
     file://run-ptest \
 "
 
-SRCREV = "c0ecb289aeb48f68aa299572fd39ec7e3d86661d"
-
-# version 2.x has got library link issues - so stick to version 1.x for now
-UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>1\.\d+(\.\d+)+)"
+SRCREV = "f5d3f3efe53c7893d8ee60ba5360621194d20baf"
 
 S = "${WORKDIR}/git"
+
+# version 2.x has got library link issues - so stick to version 1.x for now
+UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>1\.\\d+(\\.\\d+)+)"
 
 inherit setuptools3 ptest
 
