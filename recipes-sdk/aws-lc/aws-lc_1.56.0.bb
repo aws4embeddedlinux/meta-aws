@@ -4,7 +4,7 @@ DESCRIPTION = "AWS-LC is a general-purpose cryptographic library maintained by t
 HOMEPAGE = "https://github.com/awslabs/aws-lc"
 
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=d7bea8c886a6934b7d38eb42bee9019c"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=4ae91dadf6b1388279f17467b5bf4fe6"
 
 PROVIDES += "aws/lc"
 
@@ -14,7 +14,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "36e0307917fbc0e001811def88bee384bc51d7ad"
+SRCREV = "bce1d2cbfd702f3bb6dcbc5ffd2da45bce08adcb"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
