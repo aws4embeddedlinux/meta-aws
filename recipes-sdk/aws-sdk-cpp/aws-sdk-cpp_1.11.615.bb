@@ -19,7 +19,7 @@ SRC_URI = "\
     file://ptest_result.py \
     "
 
-SRCREV = "63430321fc134173cb4b78e55b26cb4d2044f374"
+SRCREV = "597645ccd10f67e420236cf165fb714f0b84c88e"
 
 S = "${WORKDIR}/git"
 
@@ -91,7 +91,7 @@ do_install_ptest () {
 # this is related to this issue
 # https://github.com/aws/aws-sdk-cpp/issues/2242
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP:${PN}-src:append:class-target:arm = " buildpaths"
+INSANE_SKIP:${PN}-src:append:class-target = " buildpaths"
 
 # -fsanitize=address does cause this
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
