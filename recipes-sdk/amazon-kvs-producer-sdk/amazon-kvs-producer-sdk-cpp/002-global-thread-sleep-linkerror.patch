@@ -1,0 +1,33 @@
+From e0662fd695f904d48563295232d91809e765d66e Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Fri, 26 Jul 2024 06:19:24 +0000
+Subject: [PATCH] amazon-kvs-producer-sdk-cpp: fix globalThreadSleep link error
+
+Upstream-Status: Submitted [https://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp/issues/1197]
+
+Index: amazon-kvs-producer-sdk-cpp-3.5.0/CMakeLists.txt
+===================================================================
+--- amazon-kvs-producer-sdk-cpp-3.5.0.orig/CMakeLists.txt
++++ amazon-kvs-producer-sdk-cpp-3.5.0/CMakeLists.txt
+@@ -212,7 +212,7 @@ if(BUILD_GSTREAMER_PLUGIN)
+   target_link_libraries(gstkvssink PRIVATE ${GST_APP_LIBRARIES} KinesisVideoProducer)
+ 
+   add_executable(kvssink_gstreamer_sample samples/kvssink_gstreamer_sample.cpp)
+-  target_link_libraries(kvssink_gstreamer_sample ${GST_APP_LIBRARIES} KinesisVideoProducer)
++  target_link_libraries(kvssink_gstreamer_sample ${GST_APP_LIBRARIES} KinesisVideoProducer kvspic)
+ 
+   add_executable(kvssink_intermittent_sample samples/kvssink_intermittent_sample.cpp )
+   target_link_libraries(kvssink_intermittent_sample ${GST_APP_LIBRARIES} KinesisVideoProducer)
+@@ -221,10 +221,10 @@ if(BUILD_GSTREAMER_PLUGIN)
+   target_link_libraries(kvs_gstreamer_sample ${GST_APP_LIBRARIES} KinesisVideoProducer kvspic)
+ 
+   add_executable(kvs_gstreamer_multistream_sample samples/kvs_gstreamer_multistream_sample.cpp)
+-  target_link_libraries(kvs_gstreamer_multistream_sample ${GST_APP_LIBRARIES} KinesisVideoProducer)
++  target_link_libraries(kvs_gstreamer_multistream_sample ${GST_APP_LIBRARIES} KinesisVideoProducer kvspic)
+ 
+   add_executable(kvs_gstreamer_audio_video_sample samples/kvs_gstreamer_audio_video_sample.cpp)
+-  target_link_libraries(kvs_gstreamer_audio_video_sample ${GST_APP_LIBRARIES} KinesisVideoProducer)
++  target_link_libraries(kvs_gstreamer_audio_video_sample ${GST_APP_LIBRARIES} KinesisVideoProducer kvspic)
+ 
+   add_executable(kvs_gstreamer_file_uploader_sample samples/kvs_gstreamer_file_uploader_sample.cpp)
+   target_link_libraries(kvs_gstreamer_file_uploader_sample ${GST_APP_LIBRARIES})
