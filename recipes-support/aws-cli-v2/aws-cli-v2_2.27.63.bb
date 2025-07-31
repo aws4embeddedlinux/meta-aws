@@ -32,7 +32,11 @@ SRC_URI = "\
     file://run-ptest \
 "
 
+<<<<<<<< HEAD:recipes-support/aws-cli-v2/aws-cli-v2_2.24.8.bb
 SRCREV = "5b26720bf0d798106fd138e1a67f7808eadf21d1"
+========
+SRCREV = "bf26fb5a5709189466501a3a7073bcc3e62860b3"
+>>>>>>>> 7a2e8e21 (aws-cli-v2: upgrade 2.27.59 -> 2.27.63):recipes-support/aws-cli-v2/aws-cli-v2_2.27.63.bb
 
 # version 2.x
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>2\.\d+(\.\d+)+)"
