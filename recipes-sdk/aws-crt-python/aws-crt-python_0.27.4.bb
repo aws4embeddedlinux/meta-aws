@@ -43,6 +43,12 @@ inherit setuptools3_legacy ptest
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
+# use the libcrypto included on your system
+export AWS_CRT_BUILD_USE_SYSTEM_LIBCRYPTO = "1"
+
+# create static libs always, to not conflict with might installed system ones
+export AWS_CRT_BUILD_FORCE_STATIC_LIBS = "1"
+
 do_configure:prepend(){
     sed -i "s/__version__ = '1.0.0.dev0'/__version__ = '${PV}'/" ${S}/awscrt/__init__.py
 }
@@ -51,7 +57,8 @@ do_configure:prepend(){
 # and we can not inherit cmake class as this conflicts with setuptools3_legacy
 do_compile:prepend(){
 
-    cat > ${WORKDIR}/toolchain.cmake << 'EOF'
+    if [ "${PN}" != "${BPN}-native" ]; then
+        cat > ${WORKDIR}/toolchain.cmake << 'EOF'
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR ${TARGET_ARCH})
 set(CMAKE_SYSROOT ${STAGING_DIR_TARGET})
@@ -70,13 +77,17 @@ set(CMAKE_CXX_FLAGS "${CXXFLAGS}" CACHE STRING "CXX flags")
 set(CMAKE_EXE_LINKER_FLAGS "${LDFLAGS}" CACHE STRING "Linker flags")
 EOF
 
-    # aws-crt-python to use the libcrypto included on your system
-    export AWS_CRT_BUILD_USE_SYSTEM_LIBCRYPTO="1"
-
-    # Set up cross-compilation environment for CMake
-    export CMAKE_TOOLCHAIN_FILE="${WORKDIR}/toolchain.cmake"
-    export OECORE_TARGET_SYSROOT="${STAGING_DIR_TARGET}"
-    export CROSS_COMPILE="${TARGET_PREFIX}"
+        # Set up cross-compilation environment for CMake
+        export CMAKE_TOOLCHAIN_FILE="${WORKDIR}/toolchain.cmake"
+        export OECORE_TARGET_SYSROOT="${STAGING_DIR_TARGET}"
+        export CROSS_COMPILE="${TARGET_PREFIX}"
+    else
+        # For native builds, set OpenSSL paths explicitly
+        export OPENSSL_ROOT_DIR="${STAGING_DIR_NATIVE}/usr"
+        export OPENSSL_INCLUDE_DIR="${STAGING_DIR_NATIVE}/usr/include"
+        export OPENSSL_CRYPTO_LIBRARY="${STAGING_DIR_NATIVE}/usr/lib/libcrypto.so"
+        export OPENSSL_SSL_LIBRARY="${STAGING_DIR_NATIVE}/usr/lib/libssl.so"
+    fi
 }
 
 RDEPENDS:${PN} += "\
