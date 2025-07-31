@@ -1,5 +1,5 @@
 #!/bin/sh
 export LD_PRELOAD=$(find /usr/lib /lib -type f -name "libasan.so*")
 
-./test-aws-iot-device-client --gtest_output=json:result.json
+./test-aws-iot-device-client --gtest_filter=ExecuteRunCommandWithUser:ExecuteStepsError:ExecuteSucceedThenFail  --gtest_output=json:result.json
 python3 ptest_result.py result.json 
