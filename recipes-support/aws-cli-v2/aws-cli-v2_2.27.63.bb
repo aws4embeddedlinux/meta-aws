@@ -1,8 +1,27 @@
+# FIXME: the LIC_FILES_CHKSUM values have been updated by 'devtool upgrade'.
+# The following is the difference between the old and the new license text.
+# Please update the LICENSE value if needed, and summarize the changes in
+# the commit message via 'License-Update:' tag.
+# (example: 'License-Update: copyright years updated.')
+#
+# The changes:
+#
+# --- LICENSE.txt
+# +++ LICENSE.txt
+# @@ -1,4 +1,4 @@
+# -Copyright 2012-2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# +Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License"). You
+#  may not use this file except in compliance with the License. A copy of
+#
+#
+
 SUMMARY = "Universal Command Line Interface for Amazon Web Services v2"
 DESCRIPTION = "Universal Command Line Interface for Amazon Web Services and ptest scripts v2"
 HOMEPAGE = "https://github.com/aws/aws-cli/tree/v2"
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=7970352423db76abb33cbe303884afbf"
+LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=8ad764cee43b1595056063799f3f79a5"
 
 DEPENDS += "\
     aws-crt-python-native \
@@ -32,11 +51,9 @@ SRC_URI = "\
     file://run-ptest \
 "
 
-<<<<<<<< HEAD:recipes-support/aws-cli-v2/aws-cli-v2_2.24.8.bb
-SRCREV = "5b26720bf0d798106fd138e1a67f7808eadf21d1"
-========
 SRCREV = "bf26fb5a5709189466501a3a7073bcc3e62860b3"
->>>>>>>> 7a2e8e21 (aws-cli-v2: upgrade 2.27.59 -> 2.27.63):recipes-support/aws-cli-v2/aws-cli-v2_2.27.63.bb
+
+S = "${WORKDIR}/git"
 
 # version 2.x
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>2\.\d+(\.\d+)+)"
@@ -44,8 +61,6 @@ UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>2\.\d+(\.\d+)+)"
 inherit python_pep517 python3native python3-dir setuptools3-base ptest
 
 export CRYPTOGRAPHY_OPENSSL_NO_LEGACY = "true"
-
-S = "${WORKDIR}/git"
 
 # this package also contains aws help
 PACKAGES += "${PN}-examples"
