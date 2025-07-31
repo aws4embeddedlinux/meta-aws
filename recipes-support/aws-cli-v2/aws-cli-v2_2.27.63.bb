@@ -1,22 +1,3 @@
-# FIXME: the LIC_FILES_CHKSUM values have been updated by 'devtool upgrade'.
-# The following is the difference between the old and the new license text.
-# Please update the LICENSE value if needed, and summarize the changes in
-# the commit message via 'License-Update:' tag.
-# (example: 'License-Update: copyright years updated.')
-#
-# The changes:
-#
-# --- LICENSE.txt
-# +++ LICENSE.txt
-# @@ -1,4 +1,4 @@
-# -Copyright 2012-2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# +Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-#
-#  Licensed under the Apache License, Version 2.0 (the "License"). You
-#  may not use this file except in compliance with the License. A copy of
-#
-#
-
 SUMMARY = "Universal Command Line Interface for Amazon Web Services v2"
 DESCRIPTION = "Universal Command Line Interface for Amazon Web Services and ptest scripts v2"
 HOMEPAGE = "https://github.com/aws/aws-cli/tree/v2"
