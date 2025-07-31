@@ -9,11 +9,6 @@ DEPENDS = "\
     openssl \
     "
 
-# disabled googletest because of: https://github.com/awslabs/aws-iot-device-client/issues/404
-# use a older and build by this package version, will be downloaded in the do_configure step
-# nooelint: oelint.task.network
-do_configure[network] = "1"
-
 PROVIDES = "aws/aws-iot-device-client"
 
 BRANCH ?= "main"
@@ -22,10 +17,10 @@ BRANCH ?= "main"
 SRC_URI = "\
     git://github.com/awslabs/aws-iot-device-client.git;protocol=https;branch=${BRANCH} \
     ${@bb.utils.contains('PACKAGECONFIG', 'no-buildin-sdk', '', 'gitsm://github.com/aws/aws-iot-device-sdk-cpp-v2.git;protocol=https;branch=main;name=aws-iot-device-sdk-cpp-v2;destsuffix=aws-iot-device-sdk-cpp-v2-src', d)} \
-    ${@bb.utils.contains('PACKAGECONFIG', 'no-buildin-sdk', '', 'git://github.com/google/googletest.git;protocol=https;branch=main;name=googletest;destsuffix=googletest-src', d)} \
+    git://github.com/google/googletest.git;protocol=https;branch=main;name=googletest;destsuffix=googletest-src \
     file://run-ptest \
-    file://001-disable-tests.patch \
-    file://002-set-cmake-min-version-for-external-project-sdk-and-src-path.patch \
+    file://ptest_result.py \
+    file://001-set-cmake-min-version-for-external-project-sdk-and-src-path.patch \
     "
 
 SRCREV = "7f9547bca3e1a199f2824f4376e1782b082b226f"
@@ -35,6 +30,7 @@ SRCREV = "7f9547bca3e1a199f2824f4376e1782b082b226f"
 SRCREV_aws-iot-device-sdk-cpp-v2 = "74c8b683ebe5b1cbf484f6acaa281f56aaa63948"
 
 # must match CMakeLists.txt.googletest (check is done through failing patch)
+# this is always used as tests are not compatible with a recent version of googletest (https://github.com/awslabs/aws-iot-device-client/issues/404)
 # nooelint: oelint.vars.specific
 SRCREV_googletest = "15460959cbbfa20e66ef0b5ab497367e47fc0a04"
 
@@ -99,11 +95,22 @@ RDEPENDS:${PN} = "\
 SYSTEMD_AUTO_ENABLE = "enable"
 SYSTEMD_SERVICE:${PN} = "aws-iot-device-client.service"
 
+
+RDEPENDS:${PN}-ptest += "bash python3"
+
+do_install_ptest() {
+    install -d ${D}${PTEST_PATH}/tests
+
+    cp -r ${B}/test/test-aws-iot-device-client ${D}${PTEST_PATH}/
+
+    install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
+}
+
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN} += "buildpaths"
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN}-dbg += "buildpaths"
 
-# nooelint: oelint.vars.insaneskip
-INSANE_SKIP:${PN} += "already-stripped"
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN}-ptest += "buildpaths"
