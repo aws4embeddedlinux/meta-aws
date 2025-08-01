@@ -1,0 +1,21 @@
+---
+RecipeFormatVersion: "2020-01-25"
+ComponentName: "com.example.HelloWorld"
+ComponentVersion: "1.0.0"
+ComponentDescription: "Example Hello World component using AWS Greengrass SDK Lite"
+ComponentPublisher: "Example Author"
+ComponentConfiguration:
+  DefaultConfiguration:
+    message_interval: 30
+    max_messages: 10
+Manifests:
+  - Platform:
+      os: linux
+    Lifecycle:
+      Run: |
+        /usr/bin/hello-world-component
+    Artifacts:
+      - URI: "file:///usr/bin/hello-world-component"
+        Permission:
+          Read: OWNER
+          Execute: OWNER

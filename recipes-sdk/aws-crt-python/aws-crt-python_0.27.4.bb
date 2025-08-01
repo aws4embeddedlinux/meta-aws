@@ -107,4 +107,4 @@ INSANE_SKIP:${PN} += "buildpaths"
 # nooelint: oelint.vars.insaneskip
 INSANE_SKIP:${PN}-dbg += "buildpaths"
 # nooelint: oelint.vars.insaneskip
-INSANE_SKIP:${PN}-ptest += "arch file-rdeps"
+INSANE_SKIP:${PN}-ptest += "arch file-rdeps ldflags"

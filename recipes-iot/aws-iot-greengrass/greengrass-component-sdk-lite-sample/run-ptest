@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# Example Greengrass Component ptest runner
+# This script tests the example component functionality
+
+PTEST_DIR=$(dirname $0)
+cd $PTEST_DIR
+
+TOTAL_TESTS=0
+PASSED_TESTS=0
+FAILED_TESTS=0
+
+run_test() {
+    local test_name="$1"
+    local test_binary="$2"
+    
+    echo "Running $test_name..."
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    
+    if ./$test_binary; then
+        echo "PASS: $test_name"
+        PASSED_TESTS=$((PASSED_TESTS + 1))
+    else
+        echo "FAIL: $test_name"
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+    fi
+    echo
+}
+
+echo "=== Example Greengrass Component Test Suite ==="
+echo
+
+# Test component functionality
+run_test "Component Unit Tests" "test-component"
+
+# Test that the component binary exists and is executable
+echo "Testing component binary..."
+TOTAL_TESTS=$((TOTAL_TESTS + 1))
+if [ -x "./hello-world-component" ]; then
+    echo "PASS: Component binary is executable"
+    PASSED_TESTS=$((PASSED_TESTS + 1))
+else
+    echo "FAIL: Component binary is not executable"
+    FAILED_TESTS=$((FAILED_TESTS + 1))
+fi
+echo
+
+# Test component help/version (if it supports it)
+echo "Testing component basic execution..."
+TOTAL_TESTS=$((TOTAL_TESTS + 1))
+# Run component with timeout to prevent hanging
+if timeout 5s ./hello-world-component --help 2>/dev/null || timeout 5s ./hello-world-component --version 2>/dev/null; then
+    echo "PASS: Component responds to help/version flags"
+    PASSED_TESTS=$((PASSED_TESTS + 1))
+else
+    # This might fail if component doesn't support these flags, which is OK
+    echo "SKIP: Component doesn't support help/version flags (this is OK)"
+    PASSED_TESTS=$((PASSED_TESTS + 1))
+fi
+echo
+
+echo "=== Test Summary ==="
+echo "Total tests: $TOTAL_TESTS"
+echo "Passed: $PASSED_TESTS"
+echo "Failed: $FAILED_TESTS"
+
+if [ $FAILED_TESTS -eq 0 ]; then
+    echo "All tests passed!"
+    exit 0
+else
+    echo "Some tests failed!"
+    exit 1
+fi

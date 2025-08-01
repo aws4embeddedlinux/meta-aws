@@ -3,7 +3,7 @@ DESCRIPTION = "The Greengrass nucleus component provides functionality for devic
 HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-nucleus"
 LICENSE = "Apache-2.0"
 
-require classes/greengrass-common.inc
+require classes/greengrass-base.inc
 
 LIC_FILES_CHKSUM = "file://${UNPACKDIR}/greengrass-bin/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
@@ -35,7 +35,6 @@ UPSTREAM_CHECK_URI = "https://github.com/aws-greengrass/aws-greengrass-nucleus/t
 GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no', d)}"
 
 inherit systemd useradd ptest pkgconfig
-DEPENDS:append = " yq-native"
 
 S = "${UNPACKDIR}/greengrass-bin"
 
@@ -81,23 +80,12 @@ do_install() {
     sed -i -e "s,REPLACE_WITH_GG_LOADER_FILE,/${GG_BASENAME}/alts/current/distro/bin/loader,g" ${D}${systemd_unitdir}/system/greengrass.service
     sed -i -e "s,REPLACE_WITH_GG_LOADER_PID_FILE,/var/run/greengrass.pid,g" ${D}${systemd_unitdir}/system/greengrass.service
 
-    # Install base config.yml
+    # Install base Greengrass config
     AWS_DEFAULT_REGION=${GGV2_REGION} \
     PROXY_USER=ggc_user:ggc_group \
     envsubst < ${UNPACKDIR}/config.yaml.template > ${GG_ROOT}/config/config.yaml
-}
-
-do_merge_config() {
-    # Merge config fragments
-    yq eval-all '. as $item ireduce ({}; . * $item)' \
-                "${GG_ROOT}/config/config.yaml" \
-                "${DEPLOY_DIR_IMAGE}/greengrass-plugin-fragments/"*.yaml \
-                > "${GG_ROOT}/config/config.yaml.tmp"
-
-    mv "${GG_ROOT}/config/config.yaml.tmp" "${GG_ROOT}/config/config.yaml"
 
 }
-addtask merge_config after do_install before do_package
 
 SYSTEMD_AUTO_ENABLE = "enable"
 SYSTEMD_SERVICE:${PN} = "greengrass.service"

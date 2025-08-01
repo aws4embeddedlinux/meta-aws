@@ -13,13 +13,12 @@ do_install() {
     # Install plugin jar
     install -d ${GG_ROOT}/plugins
     install -d ${GG_ROOT}/plugins/trusted
-    install --m 0755 ${UNPACKDIR}/${PLUGIN_SRC_NAME} \
+    install -m 0755 ${UNPACKDIR}/${PLUGIN_SRC_NAME} \
             ${GG_ROOT}/plugins/trusted/${PLUGIN_NAME}
 }
 
 do_deploy() {
-    # Configurations will be merged in greengrass-bin:do_install later,
-    # so make them shared.
+    # Deploy fragment for greengrass-bin to merge later
     if [ -e ${UNPACKDIR}/config.yaml.template ]; then
         install -d ${DEPLOYDIR}/greengrass-plugin-fragments
         cp "${UNPACKDIR}/config.yaml.template" "${DEPLOYDIR}/greengrass-plugin-fragments/${PLUGIN_NAME}.yaml"

@@ -1,0 +1,12 @@
+---
+main:
+  dependencies:
+    - "com.example.HelloWorldBash"
+  lifecycle: {}
+com.example.HelloWorldBash:
+  ComponentType: 'aws.greengrass.generic'
+  ComponentVersion: '1.0.0'
+  Lifecycle:
+     Run:
+        Script: |
+          while true; do echo $(date) >> /tmp/hello.log; sleep 1; done

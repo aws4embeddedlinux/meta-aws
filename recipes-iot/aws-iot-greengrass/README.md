@@ -51,8 +51,6 @@ These images are provided for AWS IoT Greengrass V2:
 * `greengrass-bin`: This installs Greengrass v2 without a configuration file. This can be used if you plan to add logic to configure Greengrass when the device runs for the first time
 * `greengrass-bin-demo`: This installs Greengrass v2 and configures it to run using the provided certificates and configs. Use this if you want the image to be specific to a device, or to get started quickly.
 
-If you want to use a version of greengrass that is not the latest, you can provide `PREFERRED_VERSION_greengrass-bin` and `PREFERRED_VERSION_greengrass-bin-demo` (if used) to use latest.
-
 ### Add systemd
 
 Greengrass v2 runs more elegantly using systemd.  Add this to your
@@ -104,12 +102,12 @@ In order to get the information above you can follow the instructions provided h
 ## Using Greengrass Fleet Provisioning
 
 When enabling Fleet provisioning `PACKAGECONFIG:pn-greengrass-bin = "fleetprovisioning"`
-it is important to provide claim certificates and place them in the `files` dir:
+it is important to provide claim certificates and place them in the `greengrass-plugin-fleetprovisioning` dir:
 ```
 meta-aws
 └── recipes-iot
     └── aws-iot-greengrass
-        └── files
+        └── greengrass-plugin-fleetprovisioning
             └── claim.cert.pem
             └── claim.pkey.pem
             └── claim.root.pem

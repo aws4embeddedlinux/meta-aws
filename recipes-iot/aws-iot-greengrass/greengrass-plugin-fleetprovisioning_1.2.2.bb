@@ -11,6 +11,8 @@ PLUGIN_NAME = "aws.greengrass.FleetProvisioningByClaim.jar"
 
 DEPENDS += "gettext-native"
 
+RRECOMMENDS:${PN} += "net-tools"
+
 inherit greengrass-plugin
 
 SRC_URI:append = " \
