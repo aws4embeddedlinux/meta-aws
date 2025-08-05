@@ -101,20 +101,40 @@ In order to get the information above you can follow the instructions provided h
 
 ## Using Greengrass Fleet Provisioning
 
-When enabling Fleet provisioning `PACKAGECONFIG:pn-greengrass-bin = "fleetprovisioning"`
-it is important to provide claim certificates and place them in the `greengrass-plugin-fleetprovisioning` dir:
-```
-meta-aws
-└── recipes-iot
-    └── aws-iot-greengrass
-        └── greengrass-plugin-fleetprovisioning
-            └── claim.cert.pem
-            └── claim.pkey.pem
-            └── claim.root.pem
-```
-Additionally make sure to provide the configuration through the variables from the local.conf similar to the ones in `greengrass-bin-demo`
+When enabling Fleet provisioning `PACKAGECONFIG:pn-greengrass-bin = "fleetprovisioning"`, you need to provide claim certificates and configuration. You can do this in two ways:
 
+### Option 1: Using External Certificate Paths (Recommended)
+
+Set the certificate paths and configuration in your local.conf, similar to how greengrass-lite works:
+
+```bash
+# Fleet provisioning configuration
+IOT_DATA_ENDPOINT:pn-greengrass-plugin-fleetprovisioning = "your-iot-data-endpoint.iot.region.amazonaws.com"
+IOT_CRED_ENDPOINT:pn-greengrass-plugin-fleetprovisioning = "your-credentials-endpoint.credentials.iot.region.amazonaws.com"
+FLEET_PROVISIONING_TEMPLATE:pn-greengrass-plugin-fleetprovisioning = "YourFleetProvisioningTemplate"
+IOT_ROLE_ALIAS:pn-greengrass-plugin-fleetprovisioning = "YourTokenExchangeRoleAlias"
+AWS_REGION:pn-greengrass-plugin-fleetprovisioning = "us-west-2"
+
+# Fleet provisioning certificate paths
+CLAIM_CERT_PATH:pn-greengrass-plugin-fleetprovisioning = "/path/to/your/claim.cert.pem"
+CLAIM_KEY_PATH:pn-greengrass-plugin-fleetprovisioning = "/path/to/your/claim.key.pem"
+ROOT_CA_PATH:pn-greengrass-plugin-fleetprovisioning = "/path/to/your/AmazonRootCA1.pem"
 ```
+
+### Option 2: Manual Installation
+
+If you don't set the certificate paths, the recipe will create the certificate directory structure and warn you to manually provide the certificates at runtime in the target device at:
+```
+/greengrass/v2/claim-certs/claim.cert.pem
+/greengrass/v2/claim-certs/claim.pkey.pem
+/greengrass/v2/claim-certs/claim.root.pem
+```
+
+### Additional Configuration
+
+Make sure to provide the configuration through the variables in local.conf similar to the ones in `greengrass-bin-demo`:
+
+```bash
 GGV2_DATA_EP     = ""
 GGV2_CRED_EP     = ""
 GGV2_REGION      = ""
@@ -125,9 +145,8 @@ GGV2_THING_NAME  = ""
 GGV2_TES_RALIAS  = ""
 ```
 with the addition of:
-```
+```bash
 GGV2_THING_GROUP = ""
-in which the devices will be part of after automatic provisioning and
+# in which the devices will be part of after automatic provisioning and
 GGV2_FLEET_PROVISIONING_TEMPLATE_NAME = ""
-
 ```

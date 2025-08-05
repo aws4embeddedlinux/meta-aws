@@ -9,11 +9,14 @@ LIC_FILES_CHKSUM = "file://${UNPACKDIR}/greengrass-bin/LICENSE;md5=34400b68072d7
 
 DEPENDS += "gettext-native"
 
+# for the component fragment merge
+DEPENDS += "python3-pyyaml-native"
+
 # enable fleetprovisioning for testing by default to get test coverage
 PACKAGECONFIG ??= "${@bb.utils.contains('PTEST_ENABLED', '1', 'fleetprovisioning', '', d)}"
 
-PACKAGECONFIG[fleetprovisioning] = ",,greengrass-plugin-fleetprovisioning,greengrass-plugin-fleetprovisioning"
-PACKAGECONFIG[pkcs11] = ",,greengrass-plugin-pkcs11,greengrass-plugin-pkcs11"
+PACKAGECONFIG[fleetprovisioning] = ",,,greengrass-plugin-fleetprovisioning"
+PACKAGECONFIG[pkcs11] = ",,,greengrass-plugin-pkcs11"
 
 SRC_URI = "\
     https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-${PV}.zip;subdir=greengrass-bin \
@@ -24,7 +27,6 @@ SRC_URI = "\
 
 SRC_URI:append = " ${@bb.utils.contains('PACKAGECONFIG', 'fleetprovisioning', '\
     file://loader.patch \
-    file://greengrass.service.patch \
     ', '', d)}"
 
 SRC_URI[sha256sum] = "a7cbc3cee5d245bfac9c49a036a482884898edbeb2f1e6fb27d17e9321007ce8"
@@ -104,6 +106,119 @@ GROUP_MEMS_PARAM:${PN} = ""
 # nooelint: oelint.vars.insaneskip
 INSANE_SKIP:${PN} += "already-stripped ldflags file-rdeps"
 
-RDEPENDS:${PN}-ptest += "\
-    greengrass-bin \
-    "
+do_merge_config() {
+    # Merge configuration fragments from installed components
+    python3 -c "
+import os
+import yaml
+import glob
+
+def deep_merge(base_dict, update_dict):
+    '''Recursively merge two dictionaries, with special handling for arrays'''
+    for key, value in update_dict.items():
+        if key in base_dict:
+            if isinstance(base_dict[key], dict) and isinstance(value, dict):
+                # Recursively merge dictionaries
+                deep_merge(base_dict[key], value)
+            elif isinstance(base_dict[key], list) and isinstance(value, list):
+                # Merge arrays, avoiding duplicates
+                for item in value:
+                    if item not in base_dict[key]:
+                        base_dict[key].append(item)
+            else:
+                # Overwrite with new value
+                base_dict[key] = value
+        else:
+            base_dict[key] = value
+    return base_dict
+
+def load_yaml_file(file_path):
+    '''Load YAML file, handling both single and multiple documents'''
+    with open(file_path, 'r') as f:
+        content = f.read()
+
+    # Check if file has multiple documents (contains ---)
+    if '---' in content and content.count('---') > 1:
+        # Multiple documents - load all and merge them
+        docs = list(yaml.safe_load_all(content))
+        merged = {}
+        for doc in docs:
+            if doc:  # Skip empty documents
+                merged = deep_merge(merged, doc)
+        return merged
+    else:
+        # Single document
+        return yaml.safe_load(content)
+
+# Get all recipes that should be installed
+image_install = '${IMAGE_INSTALL}'.split()
+rdepends = '${@d.getVar("RDEPENDS:" + d.getVar("PN")) or ""}'.split()
+all_installed_recipes = set(image_install + rdepends)
+
+print(f'IMAGE_INSTALL recipes: {image_install}')
+print(f'RDEPENDS recipes: {rdepends}')
+print(f'All installed recipes: {list(all_installed_recipes)}')
+
+# Find fragments only from installed recipes
+fragments_to_merge = []
+
+print('Searching for Greengrass config fragments from installed components...')
+
+# Look for fragments in recipe work directories
+work_dir = '${TMPDIR}/work'
+for recipe in all_installed_recipes:
+    # Search for this recipe's work directory and fragments
+    recipe_pattern = os.path.join(work_dir, '*', recipe, '*', f'deploy-{recipe}', 'greengrass-plugin-fragments')
+    matching_dirs = glob.glob(recipe_pattern)
+
+    for fragment_dir in matching_dirs:
+        if os.path.exists(fragment_dir):
+            print(f'Found fragment directory: {fragment_dir}')
+            # Find all .yaml files in this recipe's fragment directory
+            for fragment_file in os.listdir(fragment_dir):
+                if fragment_file.endswith('.yaml'):
+                    fragment_path = os.path.join(fragment_dir, fragment_file)
+                    print(f'Found config fragment: {recipe} -> {fragment_path}')
+                    fragments_to_merge.append(fragment_path)
+
+if fragments_to_merge:
+    print(f'Merging {len(fragments_to_merge)} Greengrass configuration fragments')
+
+    base_config_path = '${GG_ROOT}/config/config.yaml'
+
+    try:
+        # Load base configuration
+        merged_config = load_yaml_file(base_config_path)
+
+        # Merge each fragment
+        for fragment_path in fragments_to_merge:
+            fragment_config = load_yaml_file(fragment_path)
+            if fragment_config:
+                merged_config = deep_merge(merged_config, fragment_config)
+                print(f'Merged fragment: {os.path.basename(fragment_path)}')
+
+        # Write merged configuration back
+        with open(base_config_path, 'w') as f:
+            yaml.dump(merged_config, f, default_flow_style=False, sort_keys=False)
+
+        print('Configuration merge completed successfully')
+
+        # Show what components were merged for verification
+        if 'services' in merged_config:
+            components = [key for key in merged_config.get('services', {}).keys() if key.startswith('com.')]
+            if components:
+                print('Components in merged configuration: ' + ', '.join(components))
+
+    except Exception as e:
+        print(f'Error during configuration merge: {e}')
+        raise
+else:
+    print('No Greengrass configuration fragments found from installed components')
+"
+}
+
+addtask merge_config after do_install before do_package
+do_merge_config[depends] += "${@' '.join([recipe + ':do_deploy' for recipe in d.getVar('IMAGE_INSTALL').split() + (d.getVar('RDEPENDS:' + d.getVar('PN')) or '').split() if recipe.startswith('greengrass-') and recipe != d.getVar('PN')])}"
+
+# Ensure images rebuild when configuration changes
+do_merge_config[vardepsexclude] += "BB_TASKHASH"

@@ -3,7 +3,7 @@
 #   PLUGIN_SRC_NAME  - JAR filename in ${UNPACKDIR}
 #   PLUGIN_NAME       - target filename under plugins/trusted
 
-require greengrass-common.inc
+require greengrass-component-plugin-common.inc
 
 inherit deploy
 
@@ -25,6 +25,11 @@ do_deploy() {
     fi
 }
 addtask deploy after do_install before do_populate_sysroot
+
+do_deploy[cleandirs] += "${DEPLOYDIR}/greengrass-plugin-fragments"
+
+# Track template file changes automatically
+do_install[file-checksums] += "${@'${UNPACKDIR}/config.yaml.template:True' if os.path.exists('${UNPACKDIR}/config.yaml.template') else ''}"
 
 FILES:${PN} += "/${GG_BASENAME}/plugins/ \
                "

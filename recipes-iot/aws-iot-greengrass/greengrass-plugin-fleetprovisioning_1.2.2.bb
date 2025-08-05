@@ -13,17 +13,24 @@ DEPENDS += "gettext-native"
 
 RRECOMMENDS:${PN} += "net-tools"
 
-inherit greengrass-plugin
+inherit greengrass-plugin systemd
 
 SRC_URI:append = " \
     https://d2s8p88vqu9w66.cloudfront.net/releases/aws-greengrass-FleetProvisioningByClaim/fleetprovisioningbyclaim-${PV}.jar;name=fleetprovisioning;unpack=0 \
     https://raw.githubusercontent.com/aws-greengrass/aws-greengrass-fleet-provisioning-by-claim/v${PV}/LICENSE;name=license; \
     file://config.yaml.template \
-    file://replace_board_id.sh \
-    file://claim.pkey.pem \
-    file://claim.cert.pem \
-    file://claim.root.pem \
+    file://greengrass-plugin-fleetprovisioning.service \
     "
+
+# Fleet provisioning configuration - overwrite in your local config, e.g. IOT_DATA_ENDPOINT:pn-greengrass-plugin-fleetprovisioning = "xxx"
+IOT_DATA_ENDPOINT ?= ""
+IOT_CRED_ENDPOINT ?= ""
+FLEET_PROVISIONING_TEMPLATE ?= ""
+CLAIM_CERT_PATH  ?= ""
+CLAIM_KEY_PATH ?= ""
+ROOT_CA_PATH ?= ""
+IOT_ROLE_ALIAS ?= ""
+AWS_REGION ?= ""
 
 SRC_URI[fleetprovisioning.sha256sum] = "1e7fdc625d4e1e7795d63f0e97981feecad526277bf211154505de145009e8c1"
 SRC_URI[license.sha256sum] = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
@@ -33,27 +40,49 @@ do_install:prepend() {
     install -d ${GG_ROOT}/claim-certs
     install -d ${GG_ROOT}/config/
 
-    install -m 0440 ${UNPACKDIR}/claim.pkey.pem ${GG_ROOT}/claim-certs
-    install -m 0440 ${UNPACKDIR}/claim.cert.pem ${GG_ROOT}/claim-certs
-    install -m 0440 ${UNPACKDIR}/claim.root.pem ${GG_ROOT}/claim-certs
-    install -m 0755 ${UNPACKDIR}/replace_board_id.sh ${GG_ROOT}/config/
+    # Install certificates from specified paths if provided, otherwise warn user
+    if [ "${CLAIM_CERT_PATH}" != "" ] && [ "${CLAIM_KEY_PATH}" != "" ] && [ "${ROOT_CA_PATH}" != "" ]; then
+        # Install claim certificates from specified external paths
+        install -m 0440 ${CLAIM_CERT_PATH} ${GG_ROOT}/claim-certs/claim.cert.pem
+        install -m 0440 ${CLAIM_KEY_PATH} ${GG_ROOT}/claim-certs/claim.pkey.pem
+        install -m 0440 ${ROOT_CA_PATH} ${GG_ROOT}/claim-certs/claim.root.pem
+    else
+        bbwarn "CLAIM_CERT_PATH, CLAIM_KEY_PATH, or ROOT_CA_PATH is not set."
+        bbwarn "Fleet provisioning certificates will not be installed."
+        bbwarn "You will need to provide the certificates manually at /${GG_BASENAME}/claim-certs/"
+        bbwarn "Required files: claim.cert.pem, claim.pkey.pem, claim.root.pem"
 
-    AWS_DEFAULT_REGION=${GGV2_REGION} \
-    IOT_DATA_ENDPOINT=${GGV2_DATA_EP} \
-    IOT_CRED_ENDPOINT=${GGV2_CRED_EP} \
-    TE_ROLE_ALIAS=${GGV2_TES_RALIAS} \
-    FLEET_PROVISIONING_TEMPLATE_NAME=${GGV2_FLEET_PROVISIONING_TEMPLATE_NAME} \
-    CLAIM_CERT_PATH=/${GG_BASENAME}/claim-certs/claim.cert.pem \
-    CLAIM_KEY_PATH=/${GG_BASENAME}/claim-certs/claim.pkey.pem \
-    ROOT_CA_PATH=/${GG_BASENAME}/claim-certs/claim.root.pem \
-    THING_NAME=${GGV2_THING_NAME} \
-    THING_GROUP_NAME=${GGV2_THING_GROUP} \
+        # Create empty certificate directory structure for manual installation
+        install -d ${GG_ROOT}/claim-certs
+    fi
+
+    # Export variables for envsubst
+    export AWS_REGION="${AWS_REGION}"
+    export IOT_DATA_ENDPOINT="${IOT_DATA_ENDPOINT}"
+    export IOT_CRED_ENDPOINT="${IOT_CRED_ENDPOINT}"
+    export IOT_ROLE_ALIAS="${IOT_ROLE_ALIAS}"
+    export FLEET_PROVISIONING_TEMPLATE="${FLEET_PROVISIONING_TEMPLATE}"
+
     envsubst < ${UNPACKDIR}/config.yaml.template > ${UNPACKDIR}/config.yaml.tmp
 
     mv ${UNPACKDIR}/config.yaml.tmp ${UNPACKDIR}/config.yaml.template
+
+    # Install systemd service file
+    if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+        install -d ${D}${systemd_unitdir}/system/
+        install -m 0644 ${UNPACKDIR}/greengrass-plugin-fleetprovisioning.service ${D}${systemd_unitdir}/system/
+    fi
 
 }
 
 FILES:${PN} += "/${GG_BASENAME}/config/ \
                 /${GG_BASENAME}/claim-certs/ \
+                ${systemd_unitdir}/system/greengrass-plugin-fleetprovisioning.service \
                "
+
+# Systemd service configuration
+SYSTEMD_SERVICE:${PN} = "greengrass-plugin-fleetprovisioning.service"
+SYSTEMD_AUTO_ENABLE = "enable"
+
+# Watch for changed certificate files to rebuild if they are changed
+SSTATE_SCAN_FILES:append = " ${@' ${CLAIM_CERT_PATH} ${CLAIM_KEY_PATH} ${ROOT_CA_PATH}' if (d.getVar('CLAIM_CERT_PATH') and d.getVar('CLAIM_KEY_PATH') and d.getVar('ROOT_CA_PATH')) else ''}"

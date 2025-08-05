@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(hello-world-component)
+project(hello-world-sdk-lite)
 
 # Set C standard
 set(CMAKE_C_STANDARD 11)
@@ -14,14 +14,14 @@ if(NOT GGL_INCLUDE_DIR OR NOT GGL_LIBRARY)
 endif()
 
 # Create the executable
-add_executable(hello-world-component main.c)
+add_executable(hello-world-sdk-lite main.c)
 
 # Link with the Greengrass SDK Lite
-target_include_directories(hello-world-component PRIVATE ${GGL_INCLUDE_DIR})
-target_link_libraries(hello-world-component ${GGL_LIBRARY})
+target_include_directories(hello-world-sdk-lite PRIVATE ${GGL_INCLUDE_DIR})
+target_link_libraries(hello-world-sdk-lite ${GGL_LIBRARY})
 
 # Set compiler flags for embedded/optimized builds
-target_compile_options(hello-world-component PRIVATE
+target_compile_options(hello-world-sdk-lite PRIVATE
     -Wall
     -Wextra
     -Werror
@@ -29,6 +29,6 @@ target_compile_options(hello-world-component PRIVATE
 )
 
 # Install the executable
-install(TARGETS hello-world-component
+install(TARGETS hello-world-sdk-lite
     RUNTIME DESTINATION bin
 )

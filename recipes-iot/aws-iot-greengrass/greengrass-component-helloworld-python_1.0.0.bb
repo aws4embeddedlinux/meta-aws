@@ -8,14 +8,11 @@ COMPONENT_NAME = "com.example.HelloWorldPython"
 COMPONENT_VERSION = "1.0.0"
 COMPONENT_ARTIFACTS = "hello_world.py"
 
-# Add dependencies for basic Python functionality
-RDEPENDS:${PN} += "python3-core python3-json python3-threading python3-asyncio"
-
 RDEPENDS:${PN} += "aws-iot-device-sdk-python-v2"
 
 inherit greengrass-component
 
 SRC_URI = " \
     file://hello_world.py \
-    file://config.yaml.template \
+    file://component-recipe.yaml \
     "

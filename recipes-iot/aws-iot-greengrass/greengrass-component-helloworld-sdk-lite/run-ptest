@@ -1,0 +1,195 @@
+#!/bin/bash
+# Ptest script for greengrass-component-helloworld-sdk-lite
+# Tests library dependencies and basic functionality
+
+set -e
+
+COMPONENT_NAME="hello-world-sdk-lite"
+COMPONENT_PATH="/greengrass/v2/components/com.example.HelloWorldSDKLite/1.0.0"
+BINARY_PATH="${COMPONENT_PATH}/${COMPONENT_NAME}"
+
+echo "========================================="
+echo "Starting ptest for HelloWorldSDKLite"
+echo "========================================="
+
+# Test 1: Check if binary exists
+echo "TEST 1: Checking if binary exists..."
+if [ -f "${BINARY_PATH}" ]; then
+    echo "PASS: Binary found at ${BINARY_PATH}"
+else
+    echo "FAIL: Binary not found at ${BINARY_PATH}"
+    exit 1
+fi
+
+# Test 2: Check if binary is executable
+echo ""
+echo "TEST 2: Checking if binary is executable..."
+if [ -x "${BINARY_PATH}" ]; then
+    echo "PASS: Binary is executable"
+else
+    echo "FAIL: Binary is not executable"
+    exit 1
+fi
+
+# Test 3: Check library dependencies with ldd
+echo ""
+echo "TEST 3: Checking library dependencies with ldd..."
+echo "Running: ldd ${BINARY_PATH}"
+echo "----------------------------------------"
+
+LDD_OUTPUT=$(ldd "${BINARY_PATH}" 2>&1)
+LDD_EXIT_CODE=$?
+
+if [ $LDD_EXIT_CODE -ne 0 ]; then
+    echo "FAIL: ldd command failed with exit code $LDD_EXIT_CODE"
+    echo "Output: $LDD_OUTPUT"
+    exit 1
+fi
+
+echo "$LDD_OUTPUT"
+echo "----------------------------------------"
+
+# Test 4: Check for missing libraries (look for "not found")
+echo ""
+echo "TEST 4: Checking for missing libraries..."
+MISSING_LIBS=$(echo "$LDD_OUTPUT" | grep "not found" || true)
+
+if [ -n "$MISSING_LIBS" ]; then
+    echo "FAIL: Missing libraries detected:"
+    echo "$MISSING_LIBS"
+    exit 1
+else
+    echo "PASS: All libraries are present"
+fi
+
+# Test 5: Check for specific required libraries
+echo ""
+echo "TEST 5: Checking for required libraries..."
+
+REQUIRED_LIBS=(
+    "libggl-sdk"
+    "libc.so"
+    "libpthread"
+)
+
+ALL_LIBS_FOUND=true
+
+for lib in "${REQUIRED_LIBS[@]}"; do
+    if echo "$LDD_OUTPUT" | grep -q "$lib"; then
+        echo "PASS: Found required library: $lib"
+    else
+        echo "FAIL: Missing required library: $lib"
+        ALL_LIBS_FOUND=false
+    fi
+done
+
+if [ "$ALL_LIBS_FOUND" = false ]; then
+    echo "FAIL: Some required libraries are missing"
+    exit 1
+fi
+
+# Test 6: Check library paths are valid
+echo ""
+echo "TEST 6: Checking if all library paths are valid..."
+INVALID_PATHS=false
+
+# Extract library paths from ldd output (skip virtual libraries like linux-vdso)
+echo "$LDD_OUTPUT" | grep "=>" | while read -r line; do
+    # Extract the path after "=>"
+    LIB_PATH=$(echo "$line" | sed 's/.*=> \([^ ]*\).*/\1/')
+    
+    # Skip if it's not a real path (e.g., contains "not found" or is empty)
+    if [[ "$LIB_PATH" == *"not found"* ]] || [ -z "$LIB_PATH" ] || [ "$LIB_PATH" = "not" ]; then
+        continue
+    fi
+    
+    # Check if the library file exists
+    if [ ! -f "$LIB_PATH" ]; then
+        echo "FAIL: Library path does not exist: $LIB_PATH"
+        INVALID_PATHS=true
+    else
+        echo "PASS: Valid library path: $LIB_PATH"
+    fi
+done
+
+# Test 7: Check binary file type
+echo ""
+echo "TEST 7: Checking binary file type..."
+FILE_OUTPUT=$(file "${BINARY_PATH}")
+echo "File type: $FILE_OUTPUT"
+
+if echo "$FILE_OUTPUT" | grep -q "ELF.*executable"; then
+    echo "PASS: Binary is a valid ELF executable"
+else
+    echo "FAIL: Binary is not a valid ELF executable"
+    exit 1
+fi
+
+# Test 8: Check binary architecture matches system
+echo ""
+echo "TEST 8: Checking binary architecture..."
+BINARY_ARCH=$(file "${BINARY_PATH}" | grep -o "ARM aarch64\|x86-64\|i386" || echo "unknown")
+SYSTEM_ARCH=$(uname -m)
+
+echo "Binary architecture: $BINARY_ARCH"
+echo "System architecture: $SYSTEM_ARCH"
+
+# Simple architecture compatibility check
+case "$SYSTEM_ARCH" in
+    "aarch64")
+        if echo "$FILE_OUTPUT" | grep -q "ARM aarch64"; then
+            echo "PASS: Binary architecture matches system (aarch64)"
+        else
+            echo "FAIL: Binary architecture mismatch"
+            exit 1
+        fi
+        ;;
+    "x86_64")
+        if echo "$FILE_OUTPUT" | grep -q "x86-64"; then
+            echo "PASS: Binary architecture matches system (x86_64)"
+        else
+            echo "FAIL: Binary architecture mismatch"
+            exit 1
+        fi
+        ;;
+    *)
+        echo "WARN: Unknown system architecture, skipping architecture check"
+        ;;
+esac
+
+# Test 9: Check for dynamic linker
+echo ""
+echo "TEST 9: Checking for dynamic linker..."
+if echo "$LDD_OUTPUT" | grep -q "ld-linux"; then
+    LINKER=$(echo "$LDD_OUTPUT" | grep "ld-linux" | awk '{print $1}')
+    echo "PASS: Dynamic linker found: $LINKER"
+else
+    echo "FAIL: No dynamic linker found"
+    exit 1
+fi
+
+# Test 10: Basic symbol check (optional)
+echo ""
+echo "TEST 10: Checking for basic symbols..."
+if command -v nm >/dev/null 2>&1; then
+    SYMBOLS=$(nm -D "${BINARY_PATH}" 2>/dev/null | head -5 || echo "No dynamic symbols found")
+    echo "Sample dynamic symbols:"
+    echo "$SYMBOLS"
+    echo "PASS: Symbol check completed"
+else
+    echo "SKIP: nm command not available, skipping symbol check"
+fi
+
+echo ""
+echo "========================================="
+echo "All library dependency tests PASSED!"
+echo "========================================="
+echo ""
+echo "Summary:"
+echo "- Binary exists and is executable"
+echo "- All required libraries are present"
+echo "- No missing library dependencies"
+echo "- Binary architecture matches system"
+echo "- Dynamic linker is available"
+echo ""
+echo "The HelloWorldSDKLite component is ready for deployment!"
