@@ -21,9 +21,10 @@ ComponentConfiguration:
 Manifests:
   - Platform:
       os: linux
+      runtime: "*"
     Lifecycle:
-      Run: |
-        python3 /greengrass/v2/components/com.example.HelloWorldPython/1.0.0/hello_world.py
+      run: |
+        python3 {artifacts:path}/hello_world.py
     Artifacts:
       - URI: "hello_world.py"
         Unarchive: "NONE"

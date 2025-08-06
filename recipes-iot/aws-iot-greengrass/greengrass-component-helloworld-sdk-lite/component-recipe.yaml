@@ -21,8 +21,9 @@ ComponentConfiguration:
 Manifests:
   - Platform:
       os: linux
+      runtime: "*"
     Lifecycle:
-      Run: |
+      run: |
         /greengrass/v2/components/com.example.HelloWorldSDKLite/1.0.0/hello-world-sdk-lite
     Artifacts:
       - URI: "hello-world-sdk-lite"

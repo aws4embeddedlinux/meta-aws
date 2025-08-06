@@ -219,7 +219,7 @@ class HelloWorldComponent:
                 "platform": my_platform,
                 "timestamp": datetime.now().isoformat(),
                 "counter": counter,
-                "component": "com.example.HelloWorld",
+                "component": "com.example.HelloWorldPython",
                 "version": "1.0.0",
                 "device_id": self.thing_name,
                 "thing_name": self.thing_name,

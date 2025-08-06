@@ -1,0 +1,214 @@
+#!/bin/bash
+#
+# Greengrass Lite Image-Provided Component Deployment Script
+# This script deploys components that were built into the image during the build process
+# Supports both zero-copy (direct placement) and traditional (copy-based) deployment modes
+# Runs before fleet provisioning to ensure image-provided components are available immediately
+#
+
+set -e
+
+# Configuration
+GREENGRASS_SOCKET="/run/greengrass/gg_deployment"
+PACKAGES_DIR="/var/lib/greengrass/packages"
+IMAGE_COMPONENTS_ROOT="/usr/share/greengrass-image-components"
+SERVICE_NAME="ggl.local-deployment.service"
+DAEMON_WAIT_TIMEOUT=60
+INITIAL_DELAY=30
+
+# Detect deployment mode based on directory structure
+if [ -d "${PACKAGES_DIR}/recipes" ] && [ "$(ls -A "${PACKAGES_DIR}/recipes" 2>/dev/null)" ]; then
+    # Zero-copy mode: components are directly in packages directory
+    DEPLOYMENT_MODE="zero-copy"
+    RECIPES_DIR="${PACKAGES_DIR}/recipes"
+    ARTIFACTS_DIR="${PACKAGES_DIR}/artifacts"
+elif [ -d "${IMAGE_COMPONENTS_ROOT}/recipes" ] && [ "$(ls -A "${IMAGE_COMPONENTS_ROOT}/recipes" 2>/dev/null)" ]; then
+    # Traditional mode: components need to be copied from image-components
+    DEPLOYMENT_MODE="traditional"
+    RECIPES_DIR="${IMAGE_COMPONENTS_ROOT}/recipes"
+    ARTIFACTS_DIR="${IMAGE_COMPONENTS_ROOT}/artifacts"
+else
+    # No components found
+    DEPLOYMENT_MODE="none"
+    RECIPES_DIR=""
+    ARTIFACTS_DIR=""
+fi
+
+# Logging functions
+log_info() {
+    echo "INFO: $1"
+}
+
+log_warn() {
+    echo "WARN: $1"
+}
+
+log_error() {
+    echo "ERROR: $1" >&2
+}
+
+# Wait for Greengrass Lite daemon to be ready
+wait_for_daemon() {
+    log_info "Waiting for Greengrass Lite daemon to be ready..."
+    sleep ${INITIAL_DELAY}
+    
+    log_info "Checking for Greengrass daemon socket..."
+    local timeout=${DAEMON_WAIT_TIMEOUT}
+    
+    while [ $timeout -gt 0 ] && [ ! -S "${GREENGRASS_SOCKET}" ]; do
+        log_info "Waiting for socket ${GREENGRASS_SOCKET}... (${timeout} seconds remaining)"
+        sleep 2
+        timeout=$((timeout-2))
+    done
+    
+    if [ ! -S "${GREENGRASS_SOCKET}" ]; then
+        log_error "Greengrass daemon socket not available after waiting ${DAEMON_WAIT_TIMEOUT} seconds"
+        return 1
+    fi
+    
+    log_info "Greengrass daemon socket is ready"
+    return 0
+}
+
+# Parse component name and version from recipe filename
+parse_component_info() {
+    local recipe_file="$1"
+    local component_file=$(basename "$recipe_file" .yaml)
+    
+    # Extract component name (everything except the last dash-separated part)
+    local component_name=$(echo "$component_file" | sed 's/-[^-]*$//')
+    # Extract version (the last dash-separated part)
+    local component_version=$(echo "$component_file" | sed 's/.*-//')
+    
+    echo "${component_name}:${component_version}"
+}
+
+# Deploy a single component
+deploy_component() {
+    local recipe_file="$1"
+    local component_info=$(parse_component_info "$recipe_file")
+    local component_name=$(echo "$component_info" | cut -d: -f1)
+    local component_version=$(echo "$component_info" | cut -d: -f2)
+    
+    log_info "Auto-deploying image-provided component: ${component_name}=${component_version}"
+    
+    # Choose ggl-cli command based on deployment mode
+    if [ "$DEPLOYMENT_MODE" = "zero-copy" ]; then
+        # Zero-copy mode: no directory parameters needed (components already in place)
+        if ggl-cli deploy --add-component "${component_name}=${component_version}"; then
+            log_info "Successfully deployed ${component_name} (zero-copy mode - no copying needed)"
+            return 0
+        else
+            log_error "Failed to deploy ${component_name}"
+            return 1
+        fi
+    else
+        # Traditional mode: specify directories for copying
+        if ggl-cli deploy \
+            --recipe-dir "${RECIPES_DIR}" \
+            --artifacts-dir "${ARTIFACTS_DIR}" \
+            --add-component "${component_name}=${component_version}"; then
+            log_info "Successfully deployed ${component_name} (traditional mode - copied from image)"
+            return 0
+        else
+            log_error "Failed to deploy ${component_name}"
+            return 1
+        fi
+    fi
+}
+
+# Deploy all image-provided components
+deploy_image_components() {
+    if [ "$DEPLOYMENT_MODE" = "none" ]; then
+        log_info "No image-provided components found for auto-deployment"
+        return 0
+    fi
+    
+    log_info "Deploying image-provided components (${DEPLOYMENT_MODE} mode - before fleet provisioning)..."
+    local success=true
+    local deployed_count=0
+    local failed_count=0
+    
+    for recipe in "${RECIPES_DIR}"/*.yaml; do
+        [ -f "$recipe" ] || continue
+        
+        if deploy_component "$recipe"; then
+            deployed_count=$((deployed_count + 1))
+        else
+            failed_count=$((failed_count + 1))
+            success=false
+        fi
+    done
+    
+    if [ "$success" = "true" ]; then
+        if [ "$DEPLOYMENT_MODE" = "zero-copy" ]; then
+            log_info "Image-provided component deployment completed successfully (${deployed_count} components, zero-copy deployment)"
+        else
+            log_info "Image-provided component deployment completed successfully (${deployed_count} components, traditional deployment)"
+        fi
+        log_info "Components are now ready before fleet provisioning begins"
+        return 0
+    else
+        log_error "Image-provided component deployment completed with errors (${deployed_count} succeeded, ${failed_count} failed)"
+        return 1
+    fi
+}
+
+# Disable service only on complete success
+finalize_deployment() {
+    local success="$1"
+    
+    if [ "$success" = "true" ]; then
+        # Only disable the service if ALL components deployed successfully
+        if systemctl disable "${SERVICE_NAME}"; then
+            log_info "All components deployed successfully - disabled ${SERVICE_NAME} to prevent future runs"
+        else
+            log_warn "Failed to disable ${SERVICE_NAME}"
+        fi
+        log_info "Deployment process completed successfully - fleet provisioning can now proceed"
+        exit 0
+    else
+        # Keep service enabled so it can retry on next boot
+        log_warn "Some components failed to deploy - keeping ${SERVICE_NAME} enabled for retry on next boot"
+        log_error "Deployment process completed with errors"
+        exit 1
+    fi
+}
+
+# Handle the case where no components are found
+handle_no_components() {
+    log_info "No image-provided components found for auto-deployment (localdeployment PACKAGECONFIG not enabled or no components built)"
+    # Disable service since there's nothing to deploy
+    if systemctl disable "${SERVICE_NAME}"; then
+        log_info "No components to deploy - disabled ${SERVICE_NAME}"
+    else
+        log_warn "Failed to disable ${SERVICE_NAME}"
+    fi
+    log_info "Fleet provisioning can proceed (no image-provided components)"
+    exit 0
+}
+
+# Main execution
+main() {
+    log_info "Starting Greengrass Lite image-provided component deployment (${DEPLOYMENT_MODE} mode, pre-fleet-provisioning)"
+    
+    # Wait for daemon to be ready
+    if ! wait_for_daemon; then
+        finalize_deployment "false"
+    fi
+    
+    # Deploy components
+    if deploy_image_components; then
+        finalize_deployment "true"
+    else
+        finalize_deployment "false"
+    fi
+}
+
+# Check if there are any components to deploy
+if [ "$DEPLOYMENT_MODE" = "none" ]; then
+    handle_no_components
+fi
+
+# Run main deployment process
+main

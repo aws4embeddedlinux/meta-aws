@@ -1,0 +1,17 @@
+[Unit]
+Description=Greengrass Lite Image-Provided Component Auto-Deployment
+After=systemd-time-wait-sync.service ggl.core.ggdeploymentd.service
+Requires=ggl.core.ggdeploymentd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/bin/sh -c 'sleep 10'
+ExecStart=/usr/bin/ggl-deploy-image-components
+User=root
+Group=ggcore
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=greengrass-lite.target

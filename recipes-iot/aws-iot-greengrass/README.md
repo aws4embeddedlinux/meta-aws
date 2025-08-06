@@ -11,6 +11,87 @@ AWS IoT Greengrass Lite is an optimized runtime option designed for constrained 
 > feature parity in subsequent releases.
 > See more details [here](https://github.com/aws-greengrass/aws-greengrass-lite).
 
+### Image-Provided Component Deployment
+
+AWS IoT Greengrass Lite now supports **automatic deployment of components built into the device image**, enabling embedded systems to have components ready immediately upon boot without requiring cloud connectivity.
+
+#### Key Features
+
+* **Zero-Copy Deployment**: Components are placed directly in the Greengrass packages directory during image build, eliminating file copying overhead during deployment
+* **Automatic Service Management**: Components are automatically deployed after fleet provisioning completes and the service disables itself to prevent re-runs
+* **Dual-Mode Support**: Configurable between zero-copy (performance optimized) and traditional (compatibility) deployment modes
+* **PACKAGECONFIG Integration**: Optional feature that can be enabled/disabled via `localdeployment` PACKAGECONFIG option
+
+#### How It Works
+
+1. **Build Time**: Components using `greengrass_lite_component.bbclass` are installed directly into `/var/lib/greengrass/packages/`
+2. **Boot Time**: The `ggl.local-deployment.service` automatically deploys image-provided components after fleet provisioning
+3. **Runtime**: Components start immediately and are managed by Greengrass Lite like any other component
+
+#### Usage
+
+To enable image-provided component deployment:
+
+```bitbake
+# In local.conf - enable the feature
+PACKAGECONFIG:append:pn-greengrass-lite = " localdeployment"
+```
+
+To create an image-provided component:
+
+```bitbake
+# In your component recipe
+inherit greengrass_lite_component
+
+COMPONENT_NAME = "com.example.MyComponent"
+COMPONENT_VERSION = "1.0.0"
+COMPONENT_ARTIFACTS = "my_script.py"
+GREENGRASS_VARIANT = "lite"
+
+# Optional: Use traditional mode instead of zero-copy
+# GREENGRASS_LITE_ZERO_COPY = "0"
+```
+
+To use traditional deployment mode (for updates/separate partitions):
+
+```bitbake
+# In local.conf or component recipe
+GREENGRASS_LITE_ZERO_COPY:pn-your-component = "0"
+```
+
+#### Benefits for Embedded Systems
+
+* **Faster Boot**: Components available immediately without cloud dependency
+* **Offline Operation**: Components work even without internet connectivity
+* **Reduced Storage**: Zero-copy mode eliminates duplicate file storage
+* **Better Performance**: No file copying overhead during deployment
+* **Predictable Behavior**: Components always deploy regardless of network conditions
+
+#### Component Recipe Requirements
+
+Image-provided components must follow Greengrass Lite recipe format with case-sensitive lifecycle phases:
+
+```yaml
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: 'com.example.MyComponent'
+ComponentVersion: '1.0.0'
+ComponentType: 'aws.greengrass.generic'
+Manifests:
+  - Platform:
+      os: 'linux'
+      runtime: "*"
+    Lifecycle:
+      run: |  # Note: lowercase 'run'
+        python3 {artifacts:path}/my_script.py
+    Artifacts:
+      - URI: "my_script.py"
+        Unarchive: "NONE"
+```
+
+> [!IMPORTANT]
+> Lifecycle phases in Greengrass Lite are case-sensitive. Use lowercase (`run:`, `startup:`, `bootstrap:`) not uppercase (`Run:`, `Startup:`, `Bootstrap:`).
+
 ## Greengrass Lite on prplOS
 
 ### Integration Features

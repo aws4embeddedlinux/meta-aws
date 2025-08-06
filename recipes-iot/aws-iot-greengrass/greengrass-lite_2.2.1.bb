@@ -39,6 +39,8 @@ SRC_URI = "\
     file://001-disable_strip.patch \
     file://greengrass-lite.yaml \
     file://run-ptest \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://ggl.local-deployment.service','',d)} \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://ggl-deploy-image-components','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.gg_pre-fleetprovisioning.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.gg_fleetprovisioning.service','',d)} \
 "
@@ -80,14 +82,20 @@ AWS_REGION ?= ""
 
 FILES:${PN}:append = " \
     ${systemd_unitdir}/system/greengrass-lite.service \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','${systemd_unitdir}/system/ggl.local-deployment.service','',d)} \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','${bindir}/ggl-deploy-image-components','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','${systemd_unitdir}/system/ggl.gg_fleetprovisioning.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','${systemd_unitdir}/system/ggl.gg_pre-fleetprovisioning.service','',d)} \
     /usr/components/* \
+    /usr/share/greengrass-image-components/* \
     ${sysconfdir}/sudoers.d/${BPN} \
     /usr/lib/* \
     ${gg_workingdir} \
     ${sysconfdir}/greengrass/certs/* \
     "
+
+# Runtime dependencies
+RDEPENDS:${PN} += "bash"
 
 REQUIRED_DISTRO_FEATURES = "systemd"
 
@@ -99,6 +107,7 @@ PACKAGECONFIG ?= "\
 
 # this is to make the PACKAGECONFIG QA check happy
 PACKAGECONFIG[fleetprovisioning] = ""
+PACKAGECONFIG[localdeployment] = ""
 
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DBUILD_EXAMPLES=ON,-DBUILD_TESTING=OFF,"
 
@@ -132,6 +141,7 @@ SYSTEMD_SERVICE:${PN} = "\
     ggl.gg_pubsub.socket \
     ggl.gg-ipc.socket.socket \
     ggl.ipc_component.socket \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','ggl.local-deployment.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','ggl.gg_fleetprovisioning.service ','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','ggl.gg_pre-fleetprovisioning.service ','',d)} \
     greengrass-lite.target \
@@ -168,6 +178,12 @@ do_install:append() {
 
     install -d ${D}/${gg_workingdir}
     chown ${gg_user}:${gg_group} ${D}/${gg_workingdir}
+
+    # Local deployment service and script are installed conditionally via PACKAGECONFIG
+    if ${@bb.utils.contains('PACKAGECONFIG','localdeployment','true','false',d)}; then
+        install -m 0644 ${UNPACKDIR}/ggl.local-deployment.service ${D}${systemd_unitdir}/system/
+        install -m 0755 ${UNPACKDIR}/ggl-deploy-image-components ${D}${bindir}/
+    fi
 
     if ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','true','false',d)}; then
         # Create ggcredentials directory for fleet provisioning

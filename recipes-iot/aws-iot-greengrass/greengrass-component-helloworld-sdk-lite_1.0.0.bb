@@ -14,7 +14,10 @@ SRC_URI = " \
     file://run-ptest \
 "
 
-inherit cmake greengrass-component ptest
+inherit cmake greengrass_lite_component ptest
+
+# Configure for Greengrass Lite with image-provided components
+GREENGRASS_VARIANT = "lite"
 
 # Component configuration
 GREENGRASS_COMPONENT_NAME = "com.example.HelloWorldSDKLite"

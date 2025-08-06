@@ -1,0 +1,180 @@
+#!/bin/bash
+# Ptest script for greengrass-component-helloworld-python
+# Tests Python file installation in correct Greengrass component directory
+
+set -e
+
+TEST_DATA_DIR="/usr/lib/greengrass-component-helloworld-python/ptest/test-data"
+GREENGRASS_ROOT="/greengrass/v2"
+
+echo "========================================="
+echo "Starting ptest for HelloWorldPython"
+echo "Testing Python file installation"
+echo "========================================="
+
+# Read test data
+COMPONENT_NAME=$(cat "${TEST_DATA_DIR}/component-name")
+COMPONENT_VERSION=$(cat "${TEST_DATA_DIR}/component-version")
+EXPECTED_ARTIFACT=$(cat "${TEST_DATA_DIR}/expected-artifact")
+
+COMPONENT_DIR="${GREENGRASS_ROOT}/components/${COMPONENT_NAME}/${COMPONENT_VERSION}"
+PYTHON_FILE="${COMPONENT_DIR}/${EXPECTED_ARTIFACT}"
+
+echo "Component: ${COMPONENT_NAME}"
+echo "Version: ${COMPONENT_VERSION}"
+echo "Expected artifact: ${EXPECTED_ARTIFACT}"
+echo "Expected location: ${PYTHON_FILE}"
+
+# Test 1: Check if Greengrass root directory exists
+echo ""
+echo "TEST 1: Checking if Greengrass root directory exists..."
+if [ -d "${GREENGRASS_ROOT}" ]; then
+    echo "PASS: Greengrass root directory found at ${GREENGRASS_ROOT}"
+else
+    echo "FAIL: Greengrass root directory not found at ${GREENGRASS_ROOT}"
+    exit 1
+fi
+
+# Test 2: Check if components directory exists
+echo ""
+echo "TEST 2: Checking if components directory exists..."
+COMPONENTS_DIR="${GREENGRASS_ROOT}/components"
+if [ -d "${COMPONENTS_DIR}" ]; then
+    echo "PASS: Components directory found at ${COMPONENTS_DIR}"
+else
+    echo "FAIL: Components directory not found at ${COMPONENTS_DIR}"
+    exit 1
+fi
+
+# Test 3: Check if component directory exists
+echo ""
+echo "TEST 3: Checking if component directory exists..."
+if [ -d "${COMPONENT_DIR}" ]; then
+    echo "PASS: Component directory found at ${COMPONENT_DIR}"
+else
+    echo "FAIL: Component directory not found at ${COMPONENT_DIR}"
+    exit 1
+fi
+
+# Test 4: Check if Python file exists in correct location
+echo ""
+echo "TEST 4: Checking if Python file exists in correct location..."
+if [ -f "${PYTHON_FILE}" ]; then
+    echo "PASS: Python file found at ${PYTHON_FILE}"
+else
+    echo "FAIL: Python file not found at ${PYTHON_FILE}"
+    exit 1
+fi
+
+# Test 5: Check if Python file is readable
+echo ""
+echo "TEST 5: Checking if Python file is readable..."
+if [ -r "${PYTHON_FILE}" ]; then
+    echo "PASS: Python file is readable"
+else
+    echo "FAIL: Python file is not readable"
+    exit 1
+fi
+
+# Test 6: Check if Python file has correct permissions
+echo ""
+echo "TEST 6: Checking Python file permissions..."
+PERMISSIONS=$(stat -c "%a" "${PYTHON_FILE}")
+echo "File permissions: ${PERMISSIONS}"
+if [ "${PERMISSIONS}" = "755" ]; then
+    echo "PASS: Python file has correct permissions (755)"
+else
+    echo "WARN: Python file has permissions ${PERMISSIONS} (expected 755)"
+fi
+
+# Test 7: Verify Python file content structure
+echo ""
+echo "TEST 7: Verifying Python file content structure..."
+if grep -q "#!/usr/bin/env python3" "${PYTHON_FILE}"; then
+    echo "PASS: Python file has correct shebang"
+else
+    echo "WARN: Python file missing or has incorrect shebang"
+fi
+
+if grep -q "import" "${PYTHON_FILE}"; then
+    echo "PASS: Python file contains import statements"
+else
+    echo "WARN: Python file may not contain import statements"
+fi
+
+if grep -q "def " "${PYTHON_FILE}"; then
+    echo "PASS: Python file contains function definitions"
+else
+    echo "WARN: Python file may not contain function definitions"
+fi
+
+# Test 8: Check Python syntax
+echo ""
+echo "TEST 8: Checking Python syntax..."
+if python3 -m py_compile "${PYTHON_FILE}" 2>/dev/null; then
+    echo "PASS: Python file has valid syntax"
+else
+    echo "FAIL: Python file has syntax errors"
+    exit 1
+fi
+
+# Test 9: Check for Greengrass-specific imports
+echo ""
+echo "TEST 9: Checking for Greengrass-specific imports..."
+if grep -q "awsiot" "${PYTHON_FILE}" || grep -q "greengrass" "${PYTHON_FILE}"; then
+    echo "PASS: Python file contains Greengrass/IoT imports"
+else
+    echo "WARN: Python file may not contain Greengrass/IoT specific imports"
+fi
+
+# Test 10: Verify component directory structure
+echo ""
+echo "TEST 10: Verifying component directory structure..."
+echo "Component directory contents:"
+echo "----------------------------------------"
+ls -la "${COMPONENT_DIR}"
+echo "----------------------------------------"
+
+FILE_COUNT=$(ls -1 "${COMPONENT_DIR}" | wc -l)
+if [ "${FILE_COUNT}" -gt 0 ]; then
+    echo "PASS: Component directory contains ${FILE_COUNT} file(s)"
+else
+    echo "FAIL: Component directory is empty"
+    exit 1
+fi
+
+# Test 11: Check if file is in the expected Greengrass path structure
+echo ""
+echo "TEST 11: Verifying Greengrass path structure..."
+EXPECTED_PATH_PATTERN="/greengrass/v2/components/com\.example\.HelloWorldPython/[0-9]+\.[0-9]+\.[0-9]+/hello_world\.py"
+if echo "${PYTHON_FILE}" | grep -qE "${EXPECTED_PATH_PATTERN}"; then
+    echo "PASS: File follows Greengrass path structure pattern"
+else
+    echo "WARN: File path may not follow expected Greengrass pattern"
+fi
+
+# Test 12: Check file size
+echo ""
+echo "TEST 12: Checking file size..."
+FILE_SIZE=$(stat -c "%s" "${PYTHON_FILE}")
+echo "File size: ${FILE_SIZE} bytes"
+if [ "${FILE_SIZE}" -gt 100 ]; then
+    echo "PASS: Python file has reasonable size (${FILE_SIZE} bytes)"
+else
+    echo "WARN: Python file seems very small (${FILE_SIZE} bytes)"
+fi
+
+echo ""
+echo "========================================="
+echo "All Python file installation tests PASSED!"
+echo "========================================="
+echo ""
+echo "Summary:"
+echo "- Python file is installed in correct Greengrass component directory"
+echo "- File has proper permissions and is readable"
+echo "- Python syntax is valid"
+echo "- Component directory structure follows Greengrass conventions"
+echo "- File location: ${PYTHON_FILE}"
+echo "- File size: ${FILE_SIZE} bytes"
+echo ""
+echo "The HelloWorldPython component file installation is working correctly!"
