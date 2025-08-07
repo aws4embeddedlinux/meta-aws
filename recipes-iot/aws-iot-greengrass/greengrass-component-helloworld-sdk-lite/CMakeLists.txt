@@ -5,9 +5,31 @@ project(hello-world-sdk-lite)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# Option to control library linking type (default: shared)
+option(USE_STATIC_LIBS "Link against static libraries instead of shared" OFF)
+
 # Find the AWS Greengrass SDK Lite
 find_path(GGL_INCLUDE_DIR ggl/sdk.h)
-find_library(GGL_LIBRARY NAMES libggl-sdk.a ggl-sdk PATHS /usr/lib)
+
+if(USE_STATIC_LIBS)
+    # Prefer static library
+    find_library(GGL_LIBRARY NAMES libggl-sdk.a PATHS /usr/lib)
+    if(NOT GGL_LIBRARY)
+        message(STATUS "Static library not found, falling back to shared")
+        find_library(GGL_LIBRARY NAMES ggl-sdk libggl-sdk.so PATHS /usr/lib)
+    else()
+        message(STATUS "Using static Greengrass SDK Lite library: ${GGL_LIBRARY}")
+    endif()
+else()
+    # Prefer shared library (default)
+    find_library(GGL_LIBRARY NAMES ggl-sdk libggl-sdk.so PATHS /usr/lib)
+    if(NOT GGL_LIBRARY)
+        message(STATUS "Shared library not found, falling back to static")
+        find_library(GGL_LIBRARY NAMES libggl-sdk.a PATHS /usr/lib)
+    else()
+        message(STATUS "Using shared Greengrass SDK Lite library: ${GGL_LIBRARY}")
+    endif()
+endif()
 
 if(NOT GGL_INCLUDE_DIR OR NOT GGL_LIBRARY)
     message(FATAL_ERROR "AWS Greengrass SDK Lite not found")

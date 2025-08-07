@@ -103,7 +103,7 @@ python __anonymous() {
 }
 
 # Installation function for Greengrass Lite components
-greengrass_lite_component_do_install() {
+do_install() {
     # Create component directories
     install -d ${D}${GGL_RECIPES_DIR}
     install -d ${D}${GGL_ARTIFACTS_DIR}
@@ -174,12 +174,8 @@ do_deploy() {
 }
 
 # Add to install task
-EXPORT_FUNCTIONS do_install do_deploy
 addtask do_install after do_compile before do_package
 addtask do_deploy after do_install before do_package
-
-# Default do_install implementation
-greengrass_lite_component_do_install[dirs] = "${D}"
 
 # Package the appropriate directories based on mode
 FILES:${PN} += "${@'${GGL_PACKAGES_DIR}/*' if d.getVar('GREENGRASS_LITE_ZERO_COPY') == '1' else '${GGL_IMAGE_COMPONENTS_ROOT}/*'}"

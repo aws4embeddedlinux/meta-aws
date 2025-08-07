@@ -20,6 +20,12 @@ DEPENDS = "aws-greengrass-sdk-lite"
 # Skip QA check for buildpaths in debug symbols
 INSANE_SKIP:${PN}-dbg += "buildpaths"
 
+# Package configuration options
+# Default: shared library linking
+# Add 'static' to PACKAGECONFIG to use static linking instead
+PACKAGECONFIG ??= ""
+PACKAGECONFIG[static] = "-DUSE_STATIC_LIBS=ON,-DUSE_STATIC_LIBS=OFF"
+
 # Conditionally inherit the appropriate class based on variant
 # greengrass-component.bbclass = Classic Greengrass only
 # greengrass-lite-component.bbclass = Greengrass Lite only
@@ -92,4 +98,9 @@ do_install_ptest() {
 # Conditional runtime dependencies based on variant
 # Lite depends on greengrass-lite, Classic depends on greengrass-bin
 RDEPENDS:${PN} += "${@'greengrass-lite' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-bin'}"
+
+# Add runtime dependency on shared library package when using shared linking (default)
+# Only skip this dependency when explicitly using static linking
+RDEPENDS:${PN} += "${@'' if bb.utils.contains('PACKAGECONFIG', 'static', True, False, d) else 'aws-greengrass-sdk-lite'}"
+
 RDEPENDS:${PN}-ptest = "${PN} bash grep"
