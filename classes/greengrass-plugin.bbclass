@@ -1,9 +1,9 @@
-# Common installation logic for AWS Greengrass plugins
+# Common installation logic for AWS Greengrass (V2 Java / bin) plugins
 # Requires:
 #   PLUGIN_SRC_NAME  - JAR filename in ${UNPACKDIR}
 #   PLUGIN_NAME       - target filename under plugins/trusted
 
-require greengrass-component-plugin-common.inc
+require greengrass-common.inc
 
 inherit deploy
 
@@ -33,3 +33,11 @@ do_install[file-checksums] += "${@'${UNPACKDIR}/config.yaml.template:True' if os
 
 FILES:${PN} += "/${GG_BASENAME}/plugins/ \
                "
+
+# Ensure all Greengrass plugins/components wait for greengrass-bin to install base structure
+python __anonymous() {
+    pn = d.getVar('PN')
+    if pn and pn != 'greengrass-bin*':
+        # Add dependency on greengrass-bin's do_install task
+        d.appendVarFlag('do_install', 'depends', ' greengrass-bin:do_install')
+}

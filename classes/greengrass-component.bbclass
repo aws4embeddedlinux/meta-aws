@@ -1,4 +1,4 @@
-# AWS Greengrass Classic Component Class
+# AWS Greengrass Classic Component Class (V2 Java / bin)
 #
 # This bbclass supports Greengrass Classic (greengrass-bin) components.
 # For Greengrass Lite components, use greengrass-lite-component.bbclass instead.
@@ -32,7 +32,69 @@
 #   COMPONENT_ARTIFACTS = "hello_world.py"
 #   inherit greengrass-component
 
-require greengrass-component-plugin-common.inc
+require greengrass-common.inc
+
+# Extract component information from YAML file, allow recipe override
+python __anonymous() {
+    import yaml
+    import os
+    
+    # First, check if COMPONENT_NAME and COMPONENT_VERSION are already set in recipe
+    component_name = d.getVar('COMPONENT_NAME')
+    component_version = d.getVar('COMPONENT_VERSION')
+    
+    # Check if component-recipe.yaml exists in SRC_URI
+    src_uri = d.getVar('SRC_URI') or ''
+    has_component_recipe = 'component-recipe.yaml' in src_uri
+    
+    if has_component_recipe and (not component_name or not component_version):
+        # Try to find the YAML file in the recipe directory
+        file_dirname = d.getVar('FILE_DIRNAME')
+        pn = d.getVar('PN')
+        
+        # Look for component-recipe.yaml in the recipe's files directory
+        possible_paths = [
+            os.path.join(file_dirname, pn, 'component-recipe.yaml'),
+            os.path.join(file_dirname, 'files', 'component-recipe.yaml'),
+            os.path.join(file_dirname, pn.replace('greengrass-component-', ''), 'component-recipe.yaml')
+        ]
+        
+        yaml_file = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                yaml_file = path
+                break
+        
+        if yaml_file:
+            try:
+                with open(yaml_file, 'r') as f:
+                    recipe = yaml.safe_load(f)
+                
+                # Set COMPONENT_NAME from YAML if not already set in recipe
+                if not component_name:
+                    yaml_component_name = recipe.get('ComponentName')
+                    if yaml_component_name:
+                        d.setVar('COMPONENT_NAME', yaml_component_name)
+                        bb.note(f"Set COMPONENT_NAME from YAML: {yaml_component_name}")
+                        component_name = yaml_component_name
+                
+                # Set COMPONENT_VERSION from YAML if not already set in recipe
+                if not component_version:
+                    yaml_component_version = recipe.get('ComponentVersion', '1.0.0')
+                    d.setVar('COMPONENT_VERSION', yaml_component_version)
+                    bb.note(f"Set COMPONENT_VERSION from YAML: {yaml_component_version}")
+                    component_version = yaml_component_version
+                    
+            except Exception as e:
+                bb.warn(f"Could not read component info from YAML {yaml_file}: {e}")
+    
+    # Ensure defaults are set if still not defined
+    if not component_name:
+        bb.error("COMPONENT_NAME must be set either in recipe or component-recipe.yaml")
+    
+    if not component_version:
+        d.setVar('COMPONENT_VERSION', '1.0.0')
+}
 
 inherit deploy
 
@@ -47,11 +109,11 @@ GREENGRASS_VARIANT ?= "classic"
 # Validate variant and warn about Lite
 python __anonymous() {
     variant = d.getVar('GREENGRASS_VARIANT')
-    
+
     # Validate variant value
     if variant not in ['classic', 'lite']:
         bb.fatal(f"Invalid GREENGRASS_VARIANT '{variant}'. Must be 'classic' or 'lite'")
-    
+
     if variant == 'lite':
         bb.warn("GREENGRASS_VARIANT='lite' detected. Consider using 'greengrass-lite-component' class for better Lite support and clearer image-provided component paths.")
         # Set basic Lite paths for backward compatibility
@@ -62,7 +124,7 @@ python __anonymous() {
         d.setVar('GG_COMPONENT_ROOT', '/${GG_BASENAME}/components')
         d.setVar('GG_CONFIG_DIR', '/${GG_BASENAME}/config')
         d.setVar('GG_CONFIG_FRAGMENT_DIR', 'greengrass-plugin-fragments')
-    
+
     bb.note(f"Greengrass variant configured: {variant}")
 }
 
@@ -70,21 +132,21 @@ python __anonymous() {
 python convert_recipe_to_fragment() {
     import yaml
     import os
-    
+
     recipe_file = d.getVar('recipe_file')
     output_file = d.getVar('output_file')
     variant = d.getVar('GREENGRASS_VARIANT')
-    
+
     if not recipe_file or not os.path.exists(recipe_file):
         bb.error(f"Recipe file not found: {recipe_file}")
         d.setVar('CONVERSION_SUCCESS', '0')
         return
-    
+
     if not output_file:
         bb.error("Output file not specified")
         d.setVar('CONVERSION_SUCCESS', '0')
         return
-    
+
     try:
         with open(recipe_file, 'r') as f:
             recipe = yaml.safe_load(f)
@@ -92,17 +154,17 @@ python convert_recipe_to_fragment() {
         bb.error(f"Error reading recipe file {recipe_file}: {e}")
         d.setVar('CONVERSION_SUCCESS', '0')
         return
-    
+
     # Extract key information from the recipe
     component_name = recipe.get('ComponentName')
     component_version = recipe.get('ComponentVersion', '1.0.0')
     component_type = recipe.get('ComponentType', 'aws.greengrass.generic')
-    
+
     if not component_name:
         bb.error("ComponentName not found in recipe")
         d.setVar('CONVERSION_SUCCESS', '0')
         return
-    
+
     # Build the config fragment based on variant
     if variant == 'lite':
         # Greengrass Lite uses simpler YAML structure
@@ -114,12 +176,12 @@ python convert_recipe_to_fragment() {
                 }
             }
         }
-        
+
         # Add configuration if present
         config = recipe.get('ComponentConfiguration', {}).get('DefaultConfiguration', {})
         if config:
             fragment['services'][component_name]['configuration'] = config
-        
+
         # Process manifests for lifecycle (simplified for lite)
         manifests = recipe.get('Manifests', [])
         if manifests:
@@ -137,34 +199,42 @@ python convert_recipe_to_fragment() {
                 }
             }
         }
-        
+
         # Add configuration if present
         config = recipe.get('ComponentConfiguration', {}).get('DefaultConfiguration', {})
         if config:
             fragment['services'][component_name]['configuration'] = config
-        
+
         # Process manifests to extract lifecycle and artifacts
         manifests = recipe.get('Manifests', [])
         if manifests:
             # Use the first manifest (typically Linux)
             manifest = manifests[0]
-            
+
             # Add lifecycle information
             lifecycle = manifest.get('Lifecycle', {})
             if lifecycle:
-                fragment['services'][component_name]['Lifecycle'] = lifecycle
-            
+                # Replace {artifacts:path} placeholder with actual component path
+                component_path = f"/greengrass/v2/components/{component_name}/{component_version}"
+                processed_lifecycle = {}
+                for key, value in lifecycle.items():
+                    if isinstance(value, str):
+                        processed_lifecycle[key] = value.replace('{artifacts:path}', component_path)
+                    else:
+                        processed_lifecycle[key] = value
+                fragment['services'][component_name]['Lifecycle'] = processed_lifecycle
+
             # Add artifacts information
             artifacts = manifest.get('Artifacts', [])
             if artifacts:
                 fragment['services'][component_name]['Artifacts'] = artifacts
-        
+
         # Add dependencies structure for bin variant
         fragment['services']['main'] = {
             'dependencies': [component_name],
             'lifecycle': {}
         }
-    
+
     # Write the fragment
     try:
         with open(output_file, 'w') as f:
@@ -221,14 +291,14 @@ python do_deploy() {
     import shutil
     import tempfile
     import subprocess
-    
+
     variant = d.getVar('GREENGRASS_VARIANT')
     deploydir = d.getVar('DEPLOYDIR')
     component_name = d.getVar('COMPONENT_NAME')
-    
+
     # Ensure DEPLOYDIR exists for all variants to satisfy sstate requirements
     os.makedirs(deploydir, exist_ok=True)
-    
+
     # Skip actual deploy logic for lite components - everything is handled in do_install
     if variant == 'lite':
         bb.note("Skipping deploy for greengrass-lite component - config handled in do_install")
@@ -237,22 +307,22 @@ python do_deploy() {
         with open(marker_file, 'w') as f:
             f.write("Greengrass Lite component deployed via do_install\n")
         return
-    
+
     # Only handle greengrass-bin components in deploy
     unpackdir = d.getVar('S')  # Use S instead of UNPACKDIR for source files
-    
+
     # For Greengrass Bin, use deployment directory for fragment merging
     fragment_dir = os.path.join(deploydir, d.getVar('GG_CONFIG_FRAGMENT_DIR'))
     os.makedirs(fragment_dir, exist_ok=True)
     fragment_file = os.path.join(fragment_dir, f"{component_name}.yaml")
-    
+
     # Priority order for configuration files
     config_files = [
         'config.yaml.template',           # Direct fragment (highest priority)
         'component-recipe.yaml',          # Standard recipe (convert)
         'component-config.yaml.template'  # Legacy format (convert)
     ]
-    
+
     for config_file in config_files:
         config_path = os.path.join(unpackdir, config_file)
         if os.path.exists(config_path):
@@ -264,11 +334,11 @@ python do_deploy() {
                 # Convert recipe to fragment using inline function
                 d.setVar('recipe_file', config_path)
                 d.setVar('output_file', fragment_file)
-                
+
                 # Call conversion function and check success flag
                 bb.build.exec_func('convert_recipe_to_fragment', d)
                 success = d.getVar('CONVERSION_SUCCESS')
-                
+
                 if success == '1':
                     bb.note(f"Converted {config_file} to config fragment for greengrass-bin")
                 else:
@@ -297,7 +367,7 @@ addtask deploy after do_install before do_populate_sysroot
 python __anonymous() {
     variant = d.getVar('GREENGRASS_VARIANT')
     pn = d.getVar('PN')
-    
+
     if variant == 'lite':
         # Greengrass Lite files
         files = d.getVar('FILES:' + pn) or ''
@@ -308,4 +378,12 @@ python __anonymous() {
         files = d.getVar('FILES:' + pn) or ''
         files += ' /${GG_BASENAME}/components/'
         d.setVar('FILES:' + pn, files)
+}
+
+# Ensure all Greengrass plugins/components wait for greengrass-bin to install base structure
+python __anonymous() {
+    pn = d.getVar('PN')
+    if pn and pn != 'greengrass-bin*':
+        # Add dependency on greengrass-bin's do_install task
+        d.appendVarFlag('do_install', 'depends', ' greengrass-bin:do_install')
 }

@@ -1,4 +1,4 @@
-# Base Greengrass directory definitions and structure
+# Base Greengrass directory definitions
 
 GG_BASENAME = "greengrass/v2"
 GG_ROOT = "${D}/${GG_BASENAME}"
