@@ -37,14 +37,16 @@ SRC_URI = "\
     git://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main;name=sigv4;destsuffix=${S}/thirdparty/aws_sigv4 \
     git://github.com/aws-greengrass/aws-greengrass-sdk-lite.git;protocol=https;branch=main;name=sdk;destsuffix=${S}/thirdparty/ggl_sdk \
     file://001-disable_strip.patch \
-    file://002-fix-deployment-copy-path.patch \
-    file://ggl-cli-multi-component.patch \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://002-fix-deployment-copy-path.patch','',d)} \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://003-ggl-cli-multi-component.patch','',d)} \
+    ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://fix-fleet-provisioning-circular-dependency.patch','',d)} \
     file://greengrass-lite.yaml \
     file://run-ptest \
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://ggl.local-deployment.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://ggl-deploy-image-components','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.gg_pre-fleetprovisioning.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.gg_fleetprovisioning.service','',d)} \
+    ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.gg_post-fleetprovisioning.service','',d)} \
 "
 
 # Both patches enabled: fix-deployment-copy-path.patch and fix-deployment-queue-processing.patch
@@ -92,6 +94,7 @@ FILES:${PN}:append = " \
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','${bindir}/ggl-deploy-image-components','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','${systemd_unitdir}/system/ggl.gg_fleetprovisioning.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','${systemd_unitdir}/system/ggl.gg_pre-fleetprovisioning.service','',d)} \
+    ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','${systemd_unitdir}/system/ggl.gg_post-fleetprovisioning.service','',d)} \
     /usr/components/* \
     /usr/share/greengrass-image-components/* \
     ${sysconfdir}/sudoers.d/${BPN} \
@@ -150,6 +153,7 @@ SYSTEMD_SERVICE:${PN} = "\
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','ggl.local-deployment.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','ggl.gg_fleetprovisioning.service ','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','ggl.gg_pre-fleetprovisioning.service ','',d)} \
+    ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','ggl.gg_post-fleetprovisioning.service ','',d)} \
     greengrass-lite.target \
 "
 
@@ -193,8 +197,9 @@ do_install:append() {
 
     if ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','true','false',d)}; then
         # Create ggcredentials directory for fleet provisioning
-        install ${UNPACKDIR}/ggl.gg_pre-fleetprovisioning.service ${D}${systemd_unitdir}/system/
-        install ${UNPACKDIR}/ggl.gg_fleetprovisioning.service ${D}${systemd_unitdir}/system/
+        install -m 0644 ${UNPACKDIR}/ggl.gg_pre-fleetprovisioning.service ${D}${systemd_unitdir}/system/
+        install -m 0644 ${UNPACKDIR}/ggl.gg_post-fleetprovisioning.service ${D}${systemd_unitdir}/system/
+        install -m 0644 ${UNPACKDIR}/ggl.gg_fleetprovisioning.service ${D}${systemd_unitdir}/system/
 
         # Replace variables in the config file using a temporary file to ensure proper expansion
         cat > ${D}/${sysconfdir}/greengrass/config.d/fleetprovisioning.yaml << EOF

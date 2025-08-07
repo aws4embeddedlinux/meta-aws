@@ -1,0 +1,28 @@
+[Unit]
+Description=Greengrass Lite Post-Fleet Provisioning Orchestration
+After=ggl.gg_fleetprovisioning.service
+# Only run after fleet provisioning has completed successfully
+ConditionPathExists=/var/lib/greengrass/provisioned-cert/certificate.pem.crt
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c '\
+    echo "Post-fleet provisioning orchestration starting"; \
+    echo "Restarting Greengrass services to apply new certificates"; \
+    systemctl stop greengrass-lite.target; \
+    systemctl reset-failed; \
+    systemctl start greengrass-lite.target;'
+# Disable both services after successful completion
+ExecStopPost=/bin/sh -c '\
+    if [ "$SERVICE_RESULT" = "success" ]; then \
+        echo "Disabling fleet provisioning services to prevent future runs"; \
+        systemctl disable ggl.gg_fleetprovisioning.service ggl.gg_post-fleetprovisioning.service 2>/dev/null || true; \
+        echo "Fleet provisioning orchestration completed successfully"; \
+    fi'
+TimeoutSec=120
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
