@@ -6,6 +6,7 @@ LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/Apache-2.0;md5=89aea4e17d99a7cacdbeed46a0096b10"
 
 DEPENDS = "aws-greengrass-sdk-lite"
+RDEPENDS:${PN} += "aws-greengrass-sdk-lite-staticdev"
 
 SRC_URI = " \
     file://main.c \
@@ -35,6 +36,12 @@ EXTRA_OECMAKE = " \
     -DCMAKE_BUILD_TYPE=Release \
 "
 
+FILES:${PN} += "${@bb.utils.contains('GREENGRASS_VARIANT', 'lite', '${GGL_PACKAGES_DIR}/*', '', d)}"
+
+FILES:${PN}-ptest = " \
+    ${PTEST_PATH}/* \
+"
+
 do_compile:append() {
     # Copy the built binary to UNPACKDIR so greengrass-component class can find it
     cp ${B}/hello-world-sdk-lite ${UNPACKDIR}/
@@ -45,15 +52,7 @@ do_install_ptest() {
     install -m 0755 ${S}/run-ptest ${D}${PTEST_PATH}/
 }
 
-FILES:${PN} = " \
-    /${GG_BASENAME}/components/${COMPONENT_NAME}/* \
-"
 
-FILES:${PN}-ptest = " \
-    ${PTEST_PATH}/* \
-"
-
-RDEPENDS:${PN} = "greengrass-bin"
 RDEPENDS:${PN}-ptest = "${PN} ldd file bash"
 
 # Disable buildpaths QA check for debug symbols

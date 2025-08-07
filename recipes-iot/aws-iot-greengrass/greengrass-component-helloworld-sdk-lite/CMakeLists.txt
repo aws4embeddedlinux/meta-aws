@@ -7,7 +7,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # Find the AWS Greengrass SDK Lite
 find_path(GGL_INCLUDE_DIR ggl/sdk.h)
-find_library(GGL_LIBRARY ggl-sdk)
+find_library(GGL_LIBRARY NAMES libggl-sdk.a ggl-sdk PATHS /usr/lib)
 
 if(NOT GGL_INCLUDE_DIR OR NOT GGL_LIBRARY)
     message(FATAL_ERROR "AWS Greengrass SDK Lite not found")

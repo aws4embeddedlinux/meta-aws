@@ -36,7 +36,7 @@ class HelloWorldComponent:
     def __init__(self):
         # Default configuration
         self.message = "Hello world! Sent from Greengrass Core."
-        self.publish_topic = "hello/world/builtin"
+        self.publish_topic = "hello"
         self.publish_interval = 5
         self.thing_name = "unknown"
         self.thing_name_retry_count = 0

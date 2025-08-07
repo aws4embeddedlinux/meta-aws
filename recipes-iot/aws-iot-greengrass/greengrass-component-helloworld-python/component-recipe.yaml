@@ -8,16 +8,16 @@ ComponentPublisher: "Example Publisher"
 ComponentConfiguration:
   DefaultConfiguration:
     message: "Hello world! Sent from Greengrass Core."
-    publish_topic: "hello/world/builtin"
+    publish_topic: "hello"
     publish_interval: 5
     accessControl:
       aws.greengrass.ipc.mqttproxy:
         "com.example.HelloWorldPython:mqttproxy:1":
-          policyDescription: "Allows access to publish to IoT Core on hello/world/builtin topic."
+          policyDescription: "Allows access to publish to IoT Core on hello topic."
           operations:
             - "aws.greengrass#PublishToIoTCore"
           resources:
-            - "hello/world/builtin"
+            - "hello"
 Manifests:
   - Platform:
       os: linux

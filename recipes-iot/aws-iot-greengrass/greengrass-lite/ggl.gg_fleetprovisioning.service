@@ -2,7 +2,7 @@
 Description=Greengrass Lite Fleet Provisioning Service
 After=ggl.core.ggconfigd.service
 After=systemd-time-wait-sync.service
-ConditionPathExists=!/var/lib/greengrass/provisioned-cert/certificate.pem.crt
+# ConditionPathExists=!/var/lib/greengrass/provisioned-cert/certificate.pem.crt
 
 [Service]
 Type=oneshot

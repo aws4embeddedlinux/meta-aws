@@ -9,13 +9,15 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 SRCREV = "0835c6ad20948ab55d86fbd5864fd38e62559ed2"
 SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-sdk-lite.git;protocol=https;branch=main \
            file://fix-crc32-syntax.patch \
+           file://build-both-static-and-shared.patch \
 "
 
 inherit cmake ptest
 
-# Build configuration
+# Build configuration for both static and shared libraries
 EXTRA_OECMAKE = " \
     -DCMAKE_BUILD_TYPE=MinSizeRel \
+    -DBUILD_SHARED_LIBS=ON \
     -DBUILD_SAMPLES=${@bb.utils.contains('PACKAGECONFIG', 'samples', 'ON', 'OFF', d)} \
     -DENABLE_WERROR=OFF \
 "
@@ -42,18 +44,13 @@ DEPENDS = ""
 # Currently supports only Linux targets using Glibc or Musl
 
 do_install() {
-    # Install the main library
-    install -d ${D}${libdir}
-    install -m 0644 ${B}/libggl-sdk.a ${D}${libdir}/
-
-    # Install headers
-    install -d ${D}${includedir}/ggl
-    cp -r ${S}/include/ggl/* ${D}${includedir}/ggl/
+    # Use cmake install to handle both libraries
+    cmake --install ${B} --prefix ${D}${prefix}
 
     # Install samples if enabled
     if ${@bb.utils.contains('PACKAGECONFIG', 'samples', 'true', 'false', d)}; then
         install -d ${D}${bindir}
-        
+
         # Install sample binaries if they exist
         if [ -d "${B}/bin" ]; then
             for sample in ${B}/bin/*; do
@@ -64,43 +61,63 @@ do_install() {
         fi
     fi
 
+    # Install headers (if not already installed by cmake)
+    if [ ! -d "${D}${includedir}/ggl" ]; then
+        install -d ${D}${includedir}/ggl
+        cp -r ${S}/include/ggl/* ${D}${includedir}/ggl/
+    fi
+
     # Install documentation
     install -d ${D}${docdir}/${PN}
     install -m 0644 ${S}/README.md ${D}${docdir}/${PN}/
     install -m 0644 ${S}/docs/BUILD.md ${D}${docdir}/${PN}/
+
+    # Remove any debug files that might be created automatically
+    find ${D} -name ".debug" -type d -exec rm -rf {} + 2>/dev/null || true
 }
 
 do_compile_ptest() {
-    # Compile test programs
+    # Compile test programs using shared library
     ${CC} ${CFLAGS} ${LDFLAGS} -I${S}/include -I${S}/priv_include \
-        -o ${B}/test-basic-api ${WORKDIR}/sources/test-basic-api.c ${B}/libggl-sdk.a -lpthread
-    
+        -o ${B}/test-basic-api ${WORKDIR}/sources/test-basic-api.c -L${B} -lggl-sdk -lpthread
+
     ${CC} ${CFLAGS} ${LDFLAGS} -I${S}/include -I${S}/priv_include \
-        -o ${B}/test-buffer-ops ${WORKDIR}/sources/test-buffer-ops.c ${B}/libggl-sdk.a -lpthread
-    
+        -o ${B}/test-buffer-ops ${WORKDIR}/sources/test-buffer-ops.c -L${B} -lggl-sdk -lpthread
+
     ${CC} ${CFLAGS} ${LDFLAGS} -I${S}/include -I${S}/priv_include \
-        -o ${B}/test-json-ops ${WORKDIR}/sources/test-json-ops.c ${B}/libggl-sdk.a -lpthread
+        -o ${B}/test-json-ops ${WORKDIR}/sources/test-json-ops.c -L${B} -lggl-sdk -lpthread
 }
 
 do_install_ptest() {
     # Install test runner script
     install -m 0755 ${WORKDIR}/sources/run-ptest ${D}${PTEST_PATH}/
-    
+
     # Install test binaries
     install -m 0755 ${B}/test-basic-api ${D}${PTEST_PATH}/
     install -m 0755 ${B}/test-buffer-ops ${D}${PTEST_PATH}/
     install -m 0755 ${B}/test-json-ops ${D}${PTEST_PATH}/
+
+    # Remove debug files to avoid packaging issues
+    rm -rf ${D}${PTEST_PATH}/.debug
 }
 
-# Package the library and development files
-PACKAGES = "${PN} ${PN}-dev ${PN}-doc ${PN}-ptest"
+# Package the library and development files properly
+PACKAGES = "${PN} ${PN}-dev ${PN}-staticdev ${PN}-doc ${PN}-ptest ${PN}-ptest-dbg"
 
-# Main package contains sample binaries if enabled
-FILES:${PN} = "${@bb.utils.contains('PACKAGECONFIG', 'samples', '${bindir}/*', '', d)}"
+# Main package contains shared library and sample binaries if enabled
+FILES:${PN} = " \
+    ${libdir}/libggl-sdk.so.* \
+    ${@bb.utils.contains('PACKAGECONFIG', 'samples', '${bindir}/*', '', d)} \
+"
 
-# Development package contains headers and static library
+# Development package contains headers and shared library symlinks
 FILES:${PN}-dev = " \
     ${includedir}/ggl/* \
+    ${libdir}/libggl-sdk.so \
+"
+
+# Static development package contains static library
+FILES:${PN}-staticdev = " \
     ${libdir}/libggl-sdk.a \
 "
 
@@ -109,18 +126,26 @@ FILES:${PN}-doc = " \
     ${docdir}/${PN}/* \
 "
 
-# Allow empty main package if samples are disabled
-ALLOW_EMPTY:${PN} = "1"
-
-# Static library, so no shared library versioning needed
-SOLIBS = ""
-FILES_SOLIBSDEV = ""
-
-# Skip QA checks for already-stripped sample binaries and build paths in static library
+# Ptest package
+FILES:${PN}-ptest = " \
+    ${PTEST_PATH}/* \
+"
+FILES:${PN}-ptest-dbg = " \
+    /usr/lib/aws-greengrass-sdk-lite/ptest/.debug/test-json-ops \
+    /usr/lib/aws-greengrass-sdk-lite/ptest/.debug/test-buffer-ops \
+    /usr/lib/aws-greengrass-sdk-lite/ptest/.debug/test-basic-api \
+"
+# Skip QA checks for already-stripped sample binaries
 INSANE_SKIP:${PN} += "already-stripped"
-INSANE_SKIP:${PN}-dev += "buildpaths staticdev"
+
+# Skip buildpaths QA check for ptest debug symbols
+INSANE_SKIP:${PN}-ptest += "buildpaths"
+INSANE_SKIP:${PN}-ptest-dbg += "buildpaths"
+
+# Skip buildpaths QA check for static library
+INSANE_SKIP:${PN}-staticdev += "buildpaths"
 
 # Runtime dependencies for ptest
-RDEPENDS:${PN}-ptest += "bash"
+RDEPENDS:${PN}-ptest += "bash ${PN}"
 
 BBCLASSEXTEND = "native nativesdk"

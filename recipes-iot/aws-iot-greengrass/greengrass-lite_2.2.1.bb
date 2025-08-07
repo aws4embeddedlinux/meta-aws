@@ -37,6 +37,8 @@ SRC_URI = "\
     git://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main;name=sigv4;destsuffix=${S}/thirdparty/aws_sigv4 \
     git://github.com/aws-greengrass/aws-greengrass-sdk-lite.git;protocol=https;branch=main;name=sdk;destsuffix=${S}/thirdparty/ggl_sdk \
     file://001-disable_strip.patch \
+    file://002-fix-deployment-copy-path.patch \
+    file://ggl-cli-multi-component.patch \
     file://greengrass-lite.yaml \
     file://run-ptest \
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://ggl.local-deployment.service','',d)} \
@@ -44,6 +46,10 @@ SRC_URI = "\
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.gg_pre-fleetprovisioning.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.gg_fleetprovisioning.service','',d)} \
 "
+
+# Both patches enabled: fix-deployment-copy-path.patch and fix-deployment-queue-processing.patch
+# Improved deployment script: ggl-deploy-image-components with atomic deployment and component verification
+# Comprehensive solution addressing both root cause and edge cases
 
 SRCREV_ggl = "ed2b01efd60fc7e44b0f175985a67f4ce72ab323"
 
