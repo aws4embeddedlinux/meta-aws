@@ -218,7 +218,6 @@ else:
 }
 
 addtask merge_config after do_install before do_package
-do_merge_config[depends] += "${@' '.join([recipe + ':do_deploy' for recipe in d.getVar('IMAGE_INSTALL').split() + (d.getVar('RDEPENDS:' + d.getVar('PN')) or '').split() if (recipe.startswith('greengrass-component-') or recipe.startswith('greengrass-plugin-')) and recipe != d.getVar('PN')])}"
 
 # Ensure images rebuild when configuration changes
 do_merge_config[vardepsexclude] += "BB_TASKHASH"

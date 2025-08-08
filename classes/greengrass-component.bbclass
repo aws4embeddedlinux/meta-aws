@@ -106,26 +106,20 @@ COMPONENT_VERSION ??= "1.0.0"
 # Greengrass variant configuration - Classic only
 GREENGRASS_VARIANT ?= "classic"
 
-# Validate variant and warn about Lite
+# Validate variant - only classic supported
 python __anonymous() {
     variant = d.getVar('GREENGRASS_VARIANT')
 
-    # Validate variant value
-    if variant not in ['classic', 'lite']:
-        bb.fatal(f"Invalid GREENGRASS_VARIANT '{variant}'. Must be 'classic' or 'lite'")
+    # Only classic variant supported
+    if variant != 'classic':
+        bb.fatal(f"greengrass-component class only supports GREENGRASS_VARIANT='classic'. Use greengrass-lite-component class for lite variant.")
 
-    if variant == 'lite':
-        bb.warn("GREENGRASS_VARIANT='lite' detected. Consider using 'greengrass-lite-component' class for better Lite support and clearer image-provided component paths.")
-        # Set basic Lite paths for backward compatibility
-        d.setVar('GG_COMPONENT_ROOT', '/usr/components')
-        d.setVar('GG_CONFIG_DIR', '${sysconfdir}/greengrass/config.d')
-        d.setVar('GG_CONFIG_FRAGMENT_DIR', '${sysconfdir}/greengrass/config.d')
-    else:  # classic variant
-        d.setVar('GG_COMPONENT_ROOT', '/${GG_BASENAME}/components')
-        d.setVar('GG_CONFIG_DIR', '/${GG_BASENAME}/config')
-        d.setVar('GG_CONFIG_FRAGMENT_DIR', 'greengrass-plugin-fragments')
+    # Set classic variant paths
+    d.setVar('GG_COMPONENT_ROOT', '/${GG_BASENAME}/components')
+    d.setVar('GG_CONFIG_DIR', '/${GG_BASENAME}/config')
+    d.setVar('GG_CONFIG_FRAGMENT_DIR', 'greengrass-plugin-fragments')
 
-    bb.note(f"Greengrass variant configured: {variant}")
+    bb.note("Greengrass classic variant configured")
 }
 
 # Python function to convert component recipe to config fragment
@@ -135,7 +129,6 @@ python convert_recipe_to_fragment() {
 
     recipe_file = d.getVar('recipe_file')
     output_file = d.getVar('output_file')
-    variant = d.getVar('GREENGRASS_VARIANT')
 
     if not recipe_file or not os.path.exists(recipe_file):
         bb.error(f"Recipe file not found: {recipe_file}")
@@ -165,45 +158,20 @@ python convert_recipe_to_fragment() {
         d.setVar('CONVERSION_SUCCESS', '0')
         return
 
-    # Build the config fragment based on variant
-    if variant == 'lite':
-        # Greengrass Lite uses simpler YAML structure
-        fragment = {
-            'services': {
-                component_name: {
-                    'componentType': component_type,
-                    'componentVersion': component_version
-                }
+    # Build the config fragment for classic variant
+    fragment = {
+        'services': {
+            component_name: {
+                'ComponentType': component_type,
+                'ComponentVersion': component_version
             }
         }
+    }
 
-        # Add configuration if present
-        config = recipe.get('ComponentConfiguration', {}).get('DefaultConfiguration', {})
-        if config:
-            fragment['services'][component_name]['configuration'] = config
-
-        # Process manifests for lifecycle (simplified for lite)
-        manifests = recipe.get('Manifests', [])
-        if manifests:
-            manifest = manifests[0]
-            lifecycle = manifest.get('Lifecycle', {})
-            if lifecycle:
-                fragment['services'][component_name]['lifecycle'] = lifecycle
-    else:
-        # Greengrass Bin uses full structure
-        fragment = {
-            'services': {
-                component_name: {
-                    'ComponentType': component_type,
-                    'ComponentVersion': component_version
-                }
-            }
-        }
-
-        # Add configuration if present
-        config = recipe.get('ComponentConfiguration', {}).get('DefaultConfiguration', {})
-        if config:
-            fragment['services'][component_name]['configuration'] = config
+    # Add configuration if present
+    config = recipe.get('ComponentConfiguration', {}).get('DefaultConfiguration', {})
+    if config:
+        fragment['services'][component_name]['configuration'] = config
 
         # Process manifests to extract lifecycle and artifacts
         manifests = recipe.get('Manifests', [])
@@ -248,16 +216,8 @@ python convert_recipe_to_fragment() {
 
 do_install:append() {
     # Create component directory structure for Greengrass Classic
-    if [ "${GREENGRASS_VARIANT}" = "lite" ]; then
-        bbwarn "Greengrass Lite variant detected. Consider using 'greengrass_lite_component' class for better support."
-        # Basic Lite support for backward compatibility
-        install -d ${D}/usr/components/${COMPONENT_NAME}/${COMPONENT_VERSION}
-        COMPONENT_INSTALL_DIR="${D}/usr/components/${COMPONENT_NAME}/${COMPONENT_VERSION}"
-    else
-        # Greengrass Classic uses /greengrass/v2/components/
-        install -d ${D}${GG_COMPONENT_ROOT}/${COMPONENT_NAME}/${COMPONENT_VERSION}
-        COMPONENT_INSTALL_DIR="${D}${GG_COMPONENT_ROOT}/${COMPONENT_NAME}/${COMPONENT_VERSION}"
-    fi
+    install -d ${D}${GG_COMPONENT_ROOT}/${COMPONENT_NAME}/${COMPONENT_VERSION}
+    COMPONENT_INSTALL_DIR="${D}${GG_COMPONENT_ROOT}/${COMPONENT_NAME}/${COMPONENT_VERSION}"
 
     # Install component artifacts
     if [ -n "${COMPONENT_ARTIFACTS}" ]; then
@@ -298,41 +258,22 @@ do_install:append() {
     fi
 }
 
-# Deploy task for compatibility with greengrass-bin
-do_deploy() {
-    # For Greengrass Classic components, deployment happens at runtime
-    # This task exists for compatibility with greengrass-bin's dependency expectations
-    :
-}
-
-addtask do_deploy after do_install before do_package
-
 python do_deploy() {
     import os
     import shutil
     import tempfile
     import subprocess
 
-    variant = d.getVar('GREENGRASS_VARIANT')
     deploydir = d.getVar('DEPLOYDIR')
     component_name = d.getVar('COMPONENT_NAME')
 
-    # Ensure DEPLOYDIR exists for all variants to satisfy sstate requirements
+    # Ensure DEPLOYDIR exists to satisfy sstate requirements
     os.makedirs(deploydir, exist_ok=True)
 
-    # Skip actual deploy logic for lite components - everything is handled in do_install
-    if variant == 'lite':
-        bb.note("Skipping deploy for greengrass-lite component - config handled in do_install")
-        # Create a minimal marker file to satisfy deploy class expectations
-        marker_file = os.path.join(deploydir, f"{component_name}-lite.deployed")
-        with open(marker_file, 'w') as f:
-            f.write("Greengrass Lite component deployed via do_install\n")
-        return
-
-    # Only handle greengrass-bin components in deploy
+    # Handle greengrass-bin components deployment
     unpackdir = d.getVar('S')  # Use S instead of UNPACKDIR for source files
 
-    # For Greengrass Bin, use deployment directory for fragment merging
+    # Use deployment directory for fragment merging
     fragment_dir = os.path.join(deploydir, d.getVar('GG_CONFIG_FRAGMENT_DIR'))
     os.makedirs(fragment_dir, exist_ok=True)
     fragment_file = os.path.join(fragment_dir, f"{component_name}.yaml")
@@ -370,17 +311,14 @@ python do_deploy() {
         bb.warn(f"No configuration file found for component {component_name}")
 }
 
-# Task dependencies based on variant
+# Task dependencies for classic variant
 python __anonymous() {
-    variant = d.getVar('GREENGRASS_VARIANT')
-    if variant == 'classic':
-        # For greengrass-classic, deploy creates fragments for later merging
-        d.setVarFlag('do_deploy', 'cleandirs', '${DEPLOYDIR}/greengrass-plugin-fragments')
+    # For greengrass-classic, deploy creates fragments for later merging
+    d.setVarFlag('do_deploy', 'cleandirs', '${DEPLOYDIR}/greengrass-plugin-fragments')
 }
 
-# Set FILES based on variant
+# Set FILES for classic variant
 python __anonymous() {
-    variant = d.getVar('GREENGRASS_VARIANT')
     pn = d.getVar('PN')
 
     # Greengrass Bin files (existing behavior)
@@ -389,8 +327,8 @@ python __anonymous() {
     d.setVar('FILES:' + pn, files)
 }
 
-# Runtime dependency based on variant
-RDEPENDS:${PN} += "${@'greengrass-lite' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-bin'}"
+# Runtime dependency on greengrass-bin for classic variant
+RDEPENDS:${PN} += "greengrass-bin"
 
 # Ensure all Greengrass plugins/components wait for greengrass-bin to install base structure
 python __anonymous() {

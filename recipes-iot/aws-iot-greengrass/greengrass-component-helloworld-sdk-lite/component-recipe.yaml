@@ -24,6 +24,3 @@ Manifests:
       runtime: "*"
     Lifecycle:
       run: "{artifacts:path}/hello-world-sdk-lite"
-    Artifacts:
-      - URI: "hello-world-sdk-lite"
-        Unarchive: "NONE"

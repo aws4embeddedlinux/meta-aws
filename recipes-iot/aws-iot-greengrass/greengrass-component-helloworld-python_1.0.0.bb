@@ -26,9 +26,13 @@ inherit ptest
 
 # Always need Python SDK for this component
 RDEPENDS:${PN} += "aws-iot-device-sdk-python-v2"
+RDEPENDS:${PN} += "${@'bash' if d.getVar('GREENGRASS_VARIANT') == 'classic' else ''}"
+RDEPENDS:${PN}-ptest += "bash"
 
-do_install() {
-    install -m 0755 ${UNPACKDIR}/hello_world.py ${D}${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/
+do_install:append() {
+    if [ "${GREENGRASS_VARIANT}" = "lite" ]; then
+        install -m 0755 ${UNPACKDIR}/hello_world.py ${D}${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/
+    fi
 }
 
 do_install_ptest() {
