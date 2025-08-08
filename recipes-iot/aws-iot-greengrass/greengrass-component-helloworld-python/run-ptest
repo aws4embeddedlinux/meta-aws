@@ -1,0 +1,31 @@
+#!/bin/bash
+
+set -e
+
+echo "========================================="
+echo "Testing greengrass-component-helloworld-python"
+echo "========================================="
+
+# Auto-detect variant and check file location
+if [ -d "/var/lib/greengrass/packages/artifacts" ]; then
+    VARIANT="lite"
+    EXPECTED_PATH="/var/lib/greengrass/packages/artifacts/com.example.HelloWorldPython/1.0.0/hello_world.py"
+elif [ -d "/greengrass/v2/components" ]; then
+    VARIANT="classic"
+    EXPECTED_PATH="/greengrass/v2/components/com.example.HelloWorldPython/1.0.0/hello_world.py"
+else
+    echo "FAIL: No Greengrass directory found"
+    exit 1
+fi
+
+echo "Detected variant: ${VARIANT}"
+echo "Checking for file at: ${EXPECTED_PATH}"
+
+if [ -f "${EXPECTED_PATH}" ]; then
+    echo "PASS: Component file found at correct location"
+else
+    echo "FAIL: Component file not found at ${EXPECTED_PATH}"
+    exit 1
+fi
+
+echo "All tests passed!"

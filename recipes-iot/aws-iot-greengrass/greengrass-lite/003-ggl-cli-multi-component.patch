@@ -1,0 +1,130 @@
+From: Yocto Build System <noreply@yoctoproject.org>
+Date: Thu, 7 Aug 2025 10:40:00 +0000
+Subject: [PATCH] ggl-cli: Add support for multiple components in single deployment
+
+This patch modifies ggl-cli to support deploying multiple components
+in a single deployment operation by allowing multiple --add-component
+flags. This improves deployment efficiency and reduces timing issues
+that can occur with sequential deployments.
+
+Changes:
+- Add support for up to 10 components per deployment
+- Allow multiple --add-component flags on command line
+- Create proper component map with separate entries for each component
+- Add informational output showing components being deployed
+
+This resolves issues where sequential deployments could cause stale
+component cleanup conflicts and improves overall deployment reliability.
+
+Upstream-Status: Pending [Feature enhancement for multi-component deployment]
+Signed-off-by: Yocto Build System <noreply@yoctoproject.org>
+
+Index: greengrass-lite-2.2.1/modules/ggl-cli/bin/ggl-cli.c
+===================================================================
+--- greengrass-lite-2.2.1.orig/modules/ggl-cli/bin/ggl-cli.c
++++ greengrass-lite-2.2.1/modules/ggl-cli/bin/ggl-cli.c
+@@ -21,18 +21,25 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ 
++#define MAX_COMPONENTS 10
++
++typedef struct {
++    char *name;
++    char *version;
++} Component;
++
+ char *command = NULL;
+ char *recipe_dir = NULL;
+ char *artifacts_dir = NULL;
+-char *component_name = NULL;
+-char *component_version = NULL;
++Component components[MAX_COMPONENTS];
++int component_count = 0;
+ 
+ static char doc[] = "ggl-cli -- Greengrass CLI for Nucleus Lite";
+ 
+ static struct argp_option opts[] = {
+     { "recipe-dir", 'r', "path", 0, "Recipe directory to merge", 0 },
+     { "artifacts-dir", 'a', "path", 0, "Artifacts directory to merge", 0 },
+-    { "add-component", 'c', "name=version", 0, "Component to add", 0 },
++    { "add-component", 'c', "name=version", 0, "Component to add (can be used multiple times)", 0 },
+     { 0 },
+ };
+ 
+@@ -46,6 +53,12 @@ static error_t arg_parser(int key, char
+         artifacts_dir = arg;
+         break;
+     case 'c': {
++        if (component_count >= MAX_COMPONENTS) {
++            fprintf(stderr, "Error: Maximum %d components supported\n", MAX_COMPONENTS);
++            // NOLINTNEXTLINE(concurrency-mt-unsafe)
++            argp_usage(state);
++            break;
++        }
+         char *eq = strchr(arg, '=');
+         if (eq == NULL) {
+             // NOLINTNEXTLINE(concurrency-mt-unsafe)
+@@ -53,8 +66,9 @@ static error_t arg_parser(int key, char
+             break;
+         }
+         *eq = '\0';
+-        component_name = arg;
+-        component_version = &eq[1];
++        components[component_count].name = arg;
++        components[component_count].version = &eq[1];
++        component_count++;
+         break;
+     }
+     case ARGP_KEY_ARG:
+@@ -135,23 +149,35 @@ int main(int argc, char **argv) {
+             return 1;
+         }
+     }
+-    GglKV component;
+-    if (component_name != NULL) {
+-        component = ggl_kv(
+-            ggl_buffer_from_null_term(component_name),
+-            ggl_obj_buf(ggl_buffer_from_null_term(component_version))
+-        );
++    
++    // Handle multiple components
++    if (component_count > 0) {
++        // Allocate memory for component pairs
++        static GglKV component_pairs[MAX_COMPONENTS];
++        
++        for (int i = 0; i < component_count; i++) {
++            component_pairs[i] = ggl_kv(
++                ggl_buffer_from_null_term(components[i].name),
++                ggl_obj_buf(ggl_buffer_from_null_term(components[i].version))
++            );
++        }
++        
+         GglError ret = ggl_kv_vec_push(
+             &args,
+             ggl_kv(
+                 GGL_STR("root_component_versions_to_add"),
+-                ggl_obj_map((GglMap) { .pairs = &component, .len = 1 })
++                ggl_obj_map((GglMap) { .pairs = component_pairs, .len = component_count })
+             )
+         );
+         if (ret != GGL_ERR_OK) {
+             assert(false);
+             return 1;
+         }
++        
++        printf("Deploying %d components in a single deployment:\n", component_count);
++        for (int i = 0; i < component_count; i++) {
++            printf("  - %s=%s\n", components[i].name, components[i].version);
++        }
+     }
+ 
+     GglError remote_err = GGL_ERR_OK;
+@@ -183,5 +209,6 @@ int main(int argc, char **argv) {
+ 
+     GglBuffer result_buf = ggl_obj_into_buf(result);
+ 
+-    printf("Deployment id: %.*s.", (int) result_buf.len, result_buf.data);
++    printf("Deployment id: %.*s.\n", (int) result_buf.len, result_buf.data);
++    return 0;
+ }

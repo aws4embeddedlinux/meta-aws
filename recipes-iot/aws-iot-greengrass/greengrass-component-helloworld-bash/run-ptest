@@ -1,0 +1,20 @@
+#!/bin/bash
+
+set -e
+
+echo "========================================="
+echo "Testing greengrass-component-helloworld-bash"
+echo "========================================="
+
+LOG_FILE="/tmp/hello-bash.log"
+
+echo "Checking for generated log file at: ${LOG_FILE}"
+
+if [ -f "${LOG_FILE}" ]; then
+    echo "PASS: Log file found at ${LOG_FILE}"
+else
+    echo "FAIL: Log file not found at ${LOG_FILE}"
+    exit 1
+fi
+
+echo "All tests passed!"

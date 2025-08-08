@@ -1,4 +1,4 @@
-# Common installation logic for AWS Greengrass plugins
+# Common installation logic for AWS Greengrass (V2 Java / bin) plugins
 # Requires:
 #   PLUGIN_SRC_NAME  - JAR filename in ${UNPACKDIR}
 #   PLUGIN_NAME       - target filename under plugins/trusted
@@ -13,13 +13,12 @@ do_install() {
     # Install plugin jar
     install -d ${GG_ROOT}/plugins
     install -d ${GG_ROOT}/plugins/trusted
-    install --m 0755 ${UNPACKDIR}/${PLUGIN_SRC_NAME} \
+    install -m 0755 ${UNPACKDIR}/${PLUGIN_SRC_NAME} \
             ${GG_ROOT}/plugins/trusted/${PLUGIN_NAME}
 }
 
 do_deploy() {
-    # Configurations will be merged in greengrass-bin:do_install later,
-    # so make them shared.
+    # Deploy fragment for greengrass-bin to merge later
     if [ -e ${UNPACKDIR}/config.yaml.template ]; then
         install -d ${DEPLOYDIR}/greengrass-plugin-fragments
         cp "${UNPACKDIR}/config.yaml.template" "${DEPLOYDIR}/greengrass-plugin-fragments/${PLUGIN_NAME}.yaml"
@@ -27,5 +26,18 @@ do_deploy() {
 }
 addtask deploy after do_install before do_populate_sysroot
 
+do_deploy[cleandirs] += "${DEPLOYDIR}/greengrass-plugin-fragments"
+
+# Track template file changes automatically
+do_install[file-checksums] += "${@'${UNPACKDIR}/config.yaml.template:True' if os.path.exists('${UNPACKDIR}/config.yaml.template') else ''}"
+
 FILES:${PN} += "/${GG_BASENAME}/plugins/ \
                "
+
+# Ensure all Greengrass plugins/components wait for greengrass-bin to install base structure
+python __anonymous() {
+    pn = d.getVar('PN')
+    if pn and pn != 'greengrass-bin*':
+        # Add dependency on greengrass-bin's do_install task
+        d.appendVarFlag('do_install', 'depends', ' greengrass-bin:do_install')
+}

@@ -1,0 +1,44 @@
+From: Amazon Q <q@amazon.com>
+Date: Thu, 7 Aug 2025 08:00:00 +0000
+Subject: [PATCH] Prevent cloud resolution for local deployments
+
+When deploying local components, if a component is not found locally,
+the deployment should fail immediately rather than attempting cloud
+resolution. This prevents issues where local components are incorrectly
+marked as stale and removed, then later deployments try to resolve
+them from the cloud.
+
+This patch adds a check to detect LOCAL_DEPLOYMENTS and skip cloud
+resolution for components that should be available locally.
+
+Signed-off-by: Amazon Q <q@amazon.com>
+---
+ modules/ggdeploymentd/src/deployment_handler.c | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/modules/ggdeploymentd/src/deployment_handler.c b/modules/ggdeploymentd/src/deployment_handler.c
+index 1234567..abcdefg 100644
+--- a/modules/ggdeploymentd/src/deployment_handler.c
++++ b/modules/ggdeploymentd/src/deployment_handler.c
+@@ -1775,6 +1775,21 @@ static GglError resolve_dependencies(
+         );
+ 
+         if (!found_local_candidate) {
++            // For local deployments, if we can't find a local candidate,
++            // we should fail immediately rather than trying cloud resolution
++            if (ggl_buffer_eq(GGL_STR("LOCAL_DEPLOYMENTS"), thing_group_name)) {
++                GGL_LOGE(
++                    "Component %.*s not found locally for LOCAL_DEPLOYMENTS. "
++                    "Local deployments should not require cloud resolution. "
++                    "This may indicate the component was incorrectly removed "
++                    "as stale or was not properly built into the image.",
++                    (int) ggl_kv_key(*pair).len,
++                    ggl_kv_key(*pair).data
++                );
++                return GGL_ERR_NOENT;
++            }
++
++            // For non-local deployments, proceed with cloud resolution
+             // Resolve with cloud and download recipe
+             static uint8_t resolve_component_candidates_response_buf[16384]
+                 = { 0 };

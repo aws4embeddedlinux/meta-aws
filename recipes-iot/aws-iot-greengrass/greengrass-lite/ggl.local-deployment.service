@@ -1,0 +1,29 @@
+[Unit]
+Description=Greengrass Lite Image-Provided Component Auto-Deployment
+After=greengrass-lite.target ggl.gg_post-fleetprovisioning.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/bin/sh -c 'sleep 10'
+ExecStart=/usr/bin/ggl-deploy-image-components
+# Disable service after successful deployment to prevent future runs
+ExecStopPost=/bin/sh -c '\
+    if [ "$SERVICE_RESULT" = "success" ]; then \
+        echo "Local deployment completed successfully"; \
+        echo "Disabling ggl.local-deployment.service to prevent future runs"; \
+        if systemctl disable ggl.local-deployment.service 2>/dev/null; then \
+            echo "Service ggl.local-deployment.service disabled successfully"; \
+        else \
+            echo "Warning: Failed to disable service ggl.local-deployment.service, but deployment was successful"; \
+        fi; \
+    else \
+        echo "Local deployment failed, service remains enabled for retry"; \
+    fi'
+User=root
+Group=ggcore
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
