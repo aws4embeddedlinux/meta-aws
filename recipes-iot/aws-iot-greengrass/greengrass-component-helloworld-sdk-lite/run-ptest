@@ -1,25 +1,36 @@
 #!/bin/bash
-# Ptest script for greengrass-component-helloworld-sdk-lite
-# Tests library dependencies and basic functionality
 
 set -e
 
 COMPONENT_NAME="hello-world-sdk-lite"
-COMPONENT_PATH="/greengrass/v2/components/com.example.HelloWorldSDKLite/1.0.0"
-BINARY_PATH="${COMPONENT_PATH}/${COMPONENT_NAME}"
 
 echo "========================================="
-echo "Starting ptest for HelloWorldSDKLite"
+echo "Testing greengrass-component-helloworld-sdk-lite"
 echo "========================================="
 
-# Test 1: Check if binary exists
-echo "TEST 1: Checking if binary exists..."
-if [ -f "${BINARY_PATH}" ]; then
-    echo "PASS: Binary found at ${BINARY_PATH}"
+# Auto-detect variant and check binary location
+if [ -d "/var/lib/greengrass/packages/artifacts" ]; then
+    VARIANT="lite"
+    EXPECTED_PATH="/var/lib/greengrass/packages/artifacts/com.example.HelloWorldSDKLite/1.0.0/${COMPONENT_NAME}"
+elif [ -d "/greengrass/v2/components" ]; then
+    VARIANT="classic"
+    EXPECTED_PATH="/greengrass/v2/components/com.example.HelloWorldSDKLite/1.0.0/${COMPONENT_NAME}"
 else
-    echo "FAIL: Binary not found at ${BINARY_PATH}"
+    echo "FAIL: No Greengrass directory found"
     exit 1
 fi
+
+echo "Detected variant: ${VARIANT}"
+echo "Checking for binary at: ${EXPECTED_PATH}"
+
+if [ -f "${EXPECTED_PATH}" ] && [ -x "${EXPECTED_PATH}" ]; then
+    echo "PASS: Binary found and executable at correct location"
+else
+    echo "FAIL: Binary not found or not executable at ${EXPECTED_PATH}"
+    exit 1
+fi
+
+echo "All tests passed!"
 
 # Test 2: Check if binary is executable
 echo ""

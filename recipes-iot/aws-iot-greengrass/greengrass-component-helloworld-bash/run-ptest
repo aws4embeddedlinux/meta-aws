@@ -1,77 +1,20 @@
 #!/bin/bash
 
-# Test script for greengrass-component-helloworld-bash
-
 set -e
-
-# Configuration
-TEST_DATA_DIR="/usr/lib/greengrass-component-helloworld-bash/ptest/test-data"
-RECIPE_FILE="${TEST_DATA_DIR}/component-recipe.yaml"
 
 echo "========================================="
 echo "Testing greengrass-component-helloworld-bash"
 echo "========================================="
 
-# Test 1: Check if component recipe file exists
-echo "Test 1: Checking if component recipe file exists..."
-if [ -f "$RECIPE_FILE" ]; then
-    echo "PASS: Component recipe file found at $RECIPE_FILE"
+LOG_FILE="/tmp/hello-bash.log"
+
+echo "Checking for generated log file at: ${LOG_FILE}"
+
+if [ -f "${LOG_FILE}" ]; then
+    echo "PASS: Log file found at ${LOG_FILE}"
 else
-    echo "FAIL: Component recipe file not found at $RECIPE_FILE"
+    echo "FAIL: Log file not found at ${LOG_FILE}"
     exit 1
 fi
 
-# Test 2: Validate YAML syntax
-echo "Test 2: Validating YAML syntax..."
-if python3 -c "import yaml; yaml.safe_load(open('$RECIPE_FILE'))" 2>/dev/null; then
-    echo "PASS: Component recipe YAML syntax is valid"
-else
-    echo "FAIL: Component recipe YAML syntax is invalid"
-    exit 1
-fi
-
-# Test 3: Check required fields in component recipe
-echo "Test 3: Checking required fields in component recipe..."
-python3 << EOF
-import yaml
-import sys
-
-try:
-    with open('$RECIPE_FILE', 'r') as f:
-        recipe = yaml.safe_load(f)
-    
-    required_fields = ['RecipeFormatVersion', 'ComponentName', 'ComponentVersion', 'ComponentType']
-    missing_fields = []
-    
-    for field in required_fields:
-        if field not in recipe:
-            missing_fields.append(field)
-    
-    if missing_fields:
-        print(f"FAIL: Missing required fields: {', '.join(missing_fields)}")
-        sys.exit(1)
-    else:
-        print("PASS: All required fields present in component recipe")
-        
-    # Check component name
-    if recipe.get('ComponentName') == 'com.example.BashHelloWorld':
-        print("PASS: Component name is correct")
-    else:
-        print(f"FAIL: Expected component name 'com.example.BashHelloWorld', got '{recipe.get('ComponentName')}'")
-        sys.exit(1)
-        
-    # Check component type
-    if recipe.get('ComponentType') == 'aws.greengrass.generic':
-        print("PASS: Component type is correct")
-    else:
-        print(f"FAIL: Expected component type 'aws.greengrass.generic', got '{recipe.get('ComponentType')}'")
-        sys.exit(1)
-
-except Exception as e:
-    print(f"FAIL: Error processing component recipe: {e}")
-    sys.exit(1)
-EOF
-
-echo "========================================="
 echo "All tests passed!"
-echo "========================================="

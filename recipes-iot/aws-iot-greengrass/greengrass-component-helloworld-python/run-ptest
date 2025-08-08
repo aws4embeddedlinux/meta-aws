@@ -1,33 +1,40 @@
 #!/bin/bash
-# Ptest script for greengrass-component-helloworld-python
-# Tests Python file installation in correct Greengrass component directory
 
 set -e
 
-TEST_DATA_DIR="/usr/lib/greengrass-component-helloworld-python/ptest/test-data"
-GREENGRASS_ROOT="/greengrass/v2"
-
-echo "========================================="
-echo "Starting ptest for HelloWorldPython"
-echo "Testing Python file installation"
-echo "========================================="
-
 # Read test data
+TEST_DATA_DIR="/usr/lib/greengrass-component-helloworld-python/ptest/test-data"
 COMPONENT_NAME=$(cat "${TEST_DATA_DIR}/component-name")
 COMPONENT_VERSION=$(cat "${TEST_DATA_DIR}/component-version")
 EXPECTED_ARTIFACT=$(cat "${TEST_DATA_DIR}/expected-artifact")
 
-COMPONENT_DIR="${GREENGRASS_ROOT}/components/${COMPONENT_NAME}/${COMPONENT_VERSION}"
-PYTHON_FILE="${COMPONENT_DIR}/${EXPECTED_ARTIFACT}"
+echo "========================================="
+echo "Testing greengrass-component-helloworld-python"
+echo "========================================="
 
-echo "Component: ${COMPONENT_NAME}"
-echo "Version: ${COMPONENT_VERSION}"
-echo "Expected artifact: ${EXPECTED_ARTIFACT}"
-echo "Expected location: ${PYTHON_FILE}"
+# Auto-detect variant and check file location
+if [ -d "/var/lib/greengrass/packages/artifacts" ]; then
+    VARIANT="lite"
+    EXPECTED_PATH="/var/lib/greengrass/packages/artifacts/${COMPONENT_NAME}/${COMPONENT_VERSION}/${EXPECTED_ARTIFACT}"
+elif [ -d "/greengrass/v2/components" ]; then
+    VARIANT="classic"
+    EXPECTED_PATH="/greengrass/v2/components/${COMPONENT_NAME}/${COMPONENT_VERSION}/${EXPECTED_ARTIFACT}"
+else
+    echo "FAIL: No Greengrass directory found"
+    exit 1
+fi
 
-# Test 1: Check if Greengrass root directory exists
-echo ""
-echo "TEST 1: Checking if Greengrass root directory exists..."
+echo "Detected variant: ${VARIANT}"
+echo "Checking for file at: ${EXPECTED_PATH}"
+
+if [ -f "${EXPECTED_PATH}" ]; then
+    echo "PASS: Component file found at correct location"
+else
+    echo "FAIL: Component file not found at ${EXPECTED_PATH}"
+    exit 1
+fi
+
+echo "All tests passed!"
 if [ -d "${GREENGRASS_ROOT}" ]; then
     echo "PASS: Greengrass root directory found at ${GREENGRASS_ROOT}"
 else

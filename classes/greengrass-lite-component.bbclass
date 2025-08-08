@@ -23,38 +23,38 @@ COMPONENT_ARTIFACTS ??= ""
 python __anonymous() {
     import yaml
     import os
-    
+
     # First, check if COMPONENT_NAME and COMPONENT_VERSION are already set in recipe
     component_name = d.getVar('COMPONENT_NAME')
     component_version = d.getVar('COMPONENT_VERSION')
-    
+
     # Check if component-recipe.yaml exists in SRC_URI
     src_uri = d.getVar('SRC_URI') or ''
     has_component_recipe = 'component-recipe.yaml' in src_uri
-    
+
     if has_component_recipe and (not component_name or not component_version):
         # Try to find the YAML file in the recipe directory
         file_dirname = d.getVar('FILE_DIRNAME')
         pn = d.getVar('PN')
-        
+
         # Look for component-recipe.yaml in the recipe's files directory
         possible_paths = [
             os.path.join(file_dirname, pn, 'component-recipe.yaml'),
             os.path.join(file_dirname, 'files', 'component-recipe.yaml'),
             os.path.join(file_dirname, pn.replace('greengrass-component-', ''), 'component-recipe.yaml')
         ]
-        
+
         yaml_file = None
         for path in possible_paths:
             if os.path.exists(path):
                 yaml_file = path
                 break
-        
+
         if yaml_file:
             try:
                 with open(yaml_file, 'r') as f:
                     recipe = yaml.safe_load(f)
-                
+
                 # Set COMPONENT_NAME from YAML if not already set in recipe
                 if not component_name:
                     yaml_component_name = recipe.get('ComponentName')
@@ -62,72 +62,66 @@ python __anonymous() {
                         d.setVar('COMPONENT_NAME', yaml_component_name)
                         bb.note(f"Set COMPONENT_NAME from YAML: {yaml_component_name}")
                         component_name = yaml_component_name
-                
+
                 # Set COMPONENT_VERSION from YAML if not already set in recipe
                 if not component_version:
                     yaml_component_version = recipe.get('ComponentVersion', '1.0.0')
                     d.setVar('COMPONENT_VERSION', yaml_component_version)
                     bb.note(f"Set COMPONENT_VERSION from YAML: {yaml_component_version}")
                     component_version = yaml_component_version
-                    
+
             except Exception as e:
                 bb.warn(f"Could not read component info from YAML {yaml_file}: {e}")
-    
+
     # Ensure defaults are set if still not defined
     if not component_name:
         bb.error("COMPONENT_NAME must be set either in recipe or component-recipe.yaml")
-    
+
     if not component_version:
         d.setVar('COMPONENT_VERSION', '1.0.0')
 }
-
-# Inherit base functionality
-inherit systemd
-
-# Default source directory
-S = "${UNPACKDIR}"
 
 # Validate that this is for Greengrass Lite
 python __anonymous() {
     variant = d.getVar('GREENGRASS_VARIANT')
     if variant != 'lite':
         bb.fatal("greengrass_lite_component class can only be used with GREENGRASS_VARIANT = 'lite'")
-    
+
     component_name = d.getVar('COMPONENT_NAME')
     if not component_name:
         bb.fatal("COMPONENT_NAME must be set when using greengrass_lite_component class")
-    
+
     zero_copy = d.getVar('GREENGRASS_LITE_ZERO_COPY')
     deployment_mode = "zero-copy (direct placement)" if zero_copy == '1' else "traditional (copy-based)"
     bb.note(f"Greengrass Lite component: {component_name} - {deployment_mode}")
 }
 
 # Installation function for Greengrass Lite components
-do_install() {
+do_install:append() {
     # Create component directories
     install -d ${D}${GGL_RECIPES_DIR}
     install -d ${D}${GGL_ARTIFACTS_DIR}
-    
+
     # Install component recipe
-    if [ -f "${S}/component-recipe.yaml" ]; then
-        install -m 0644 ${S}/component-recipe.yaml ${D}${GGL_RECIPES_DIR}/${COMPONENT_NAME}-${COMPONENT_VERSION}.yaml
+    if [ -f "${UNPACKDIR}/component-recipe.yaml" ]; then
+        install -m 0644 ${UNPACKDIR}/component-recipe.yaml ${D}${GGL_RECIPES_DIR}/${COMPONENT_NAME}-${COMPONENT_VERSION}.yaml
         if [ "${GREENGRASS_LITE_ZERO_COPY}" = "1" ]; then
             bbnote "Installed component recipe directly: ${GGL_RECIPES_DIR}/${COMPONENT_NAME}-${COMPONENT_VERSION}.yaml (zero-copy mode)"
         else
             bbnote "Installed component recipe: ${GGL_RECIPES_DIR}/${COMPONENT_NAME}-${COMPONENT_VERSION}.yaml (traditional mode)"
         fi
     else
-        bbfatal "component-recipe.yaml not found in ${S}"
+        bbfatal "component-recipe.yaml not found in ${UNPACKDIR}"
     fi
-    
+
     # Create component artifact directory
     install -d ${D}${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}
-    
+
     # Install component artifacts
     if [ -n "${COMPONENT_ARTIFACTS}" ]; then
         for artifact in ${COMPONENT_ARTIFACTS}; do
-            if [ -f "${S}/$artifact" ]; then
-                install -m 0755 ${S}/$artifact ${D}${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/
+            if [ -f "${UNPACKDIR}/$artifact" ]; then
+                install -m 0755 ${UNPACKDIR}/$artifact ${D}${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/
                 if [ "${GREENGRASS_LITE_ZERO_COPY}" = "1" ]; then
                     bbnote "Installed artifact directly: ${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/$artifact (zero-copy mode)"
                 else
@@ -138,9 +132,26 @@ do_install() {
             fi
         done
     else
-        bbnote "No artifacts specified for ${COMPONENT_NAME}"
+        # Auto-detect and install CMake binaries for cmake-based recipes
+        if [ -d "${B}" ] && [ -f "${B}/CMakeCache.txt" ]; then
+            # Look for executable files in build directory (CMake pattern)
+            for binary in $(find ${B} -maxdepth 1 -type f -executable -not -path "*/CMakeFiles/*" 2>/dev/null || true); do
+                if [ -f "$binary" ]; then
+                    binary_name=$(basename "$binary")
+                    bbdebug 1 "Installing CMake binary: $binary_name"
+                    install -m 0755 "$binary" ${D}${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/
+                    if [ "${GREENGRASS_LITE_ZERO_COPY}" = "1" ]; then
+                        bbnote "Installed CMake binary directly: ${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/$binary_name (zero-copy mode)"
+                    else
+                        bbnote "Installed CMake binary: ${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/$binary_name (traditional mode)"
+                    fi
+                fi
+            done
+        else
+            bbnote "No artifacts specified for ${COMPONENT_NAME}"
+        fi
     fi
-    
+
     # Set proper ownership for Greengrass directories (only for zero-copy mode)
     if [ "${GREENGRASS_LITE_ZERO_COPY}" = "1" ]; then
         # Note: This will be handled by pkg_postinst to ensure ggcore user exists
@@ -165,6 +176,12 @@ pkg_postinst:${PN}() {
     fi
 }
 
+# Package the appropriate directories based on mode
+FILES:${PN} += "${@'${GGL_PACKAGES_DIR}/*' if d.getVar('GREENGRASS_LITE_ZERO_COPY') == '1' else '${GGL_IMAGE_COMPONENTS_ROOT}/*'}"
+
+# Runtime dependency on greengrass-lite
+RDEPENDS:${PN} += "greengrass-lite"
+
 # Deploy task for compatibility with greengrass-bin
 do_deploy() {
     # For Greengrass Lite components, deployment happens at runtime via ggl-deploy-image-components
@@ -173,12 +190,4 @@ do_deploy() {
     :
 }
 
-# Add to install task
-addtask do_install after do_compile before do_package
 addtask do_deploy after do_install before do_package
-
-# Package the appropriate directories based on mode
-FILES:${PN} += "${@'${GGL_PACKAGES_DIR}/*' if d.getVar('GREENGRASS_LITE_ZERO_COPY') == '1' else '${GGL_IMAGE_COMPONENTS_ROOT}/*'}"
-
-# Ensure proper file permissions
-INSANE_SKIP:${PN} += "already-stripped"

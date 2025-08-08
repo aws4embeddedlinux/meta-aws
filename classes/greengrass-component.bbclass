@@ -38,38 +38,38 @@ require greengrass-common.inc
 python __anonymous() {
     import yaml
     import os
-    
+
     # First, check if COMPONENT_NAME and COMPONENT_VERSION are already set in recipe
     component_name = d.getVar('COMPONENT_NAME')
     component_version = d.getVar('COMPONENT_VERSION')
-    
+
     # Check if component-recipe.yaml exists in SRC_URI
     src_uri = d.getVar('SRC_URI') or ''
     has_component_recipe = 'component-recipe.yaml' in src_uri
-    
+
     if has_component_recipe and (not component_name or not component_version):
         # Try to find the YAML file in the recipe directory
         file_dirname = d.getVar('FILE_DIRNAME')
         pn = d.getVar('PN')
-        
+
         # Look for component-recipe.yaml in the recipe's files directory
         possible_paths = [
             os.path.join(file_dirname, pn, 'component-recipe.yaml'),
             os.path.join(file_dirname, 'files', 'component-recipe.yaml'),
             os.path.join(file_dirname, pn.replace('greengrass-component-', ''), 'component-recipe.yaml')
         ]
-        
+
         yaml_file = None
         for path in possible_paths:
             if os.path.exists(path):
                 yaml_file = path
                 break
-        
+
         if yaml_file:
             try:
                 with open(yaml_file, 'r') as f:
                     recipe = yaml.safe_load(f)
-                
+
                 # Set COMPONENT_NAME from YAML if not already set in recipe
                 if not component_name:
                     yaml_component_name = recipe.get('ComponentName')
@@ -77,21 +77,21 @@ python __anonymous() {
                         d.setVar('COMPONENT_NAME', yaml_component_name)
                         bb.note(f"Set COMPONENT_NAME from YAML: {yaml_component_name}")
                         component_name = yaml_component_name
-                
+
                 # Set COMPONENT_VERSION from YAML if not already set in recipe
                 if not component_version:
                     yaml_component_version = recipe.get('ComponentVersion', '1.0.0')
                     d.setVar('COMPONENT_VERSION', yaml_component_version)
                     bb.note(f"Set COMPONENT_VERSION from YAML: {yaml_component_version}")
                     component_version = yaml_component_version
-                    
+
             except Exception as e:
                 bb.warn(f"Could not read component info from YAML {yaml_file}: {e}")
-    
+
     # Ensure defaults are set if still not defined
     if not component_name:
         bb.error("COMPONENT_NAME must be set either in recipe or component-recipe.yaml")
-    
+
     if not component_version:
         d.setVar('COMPONENT_VERSION', '1.0.0')
 }
@@ -246,7 +246,7 @@ python convert_recipe_to_fragment() {
         d.setVar('CONVERSION_SUCCESS', '0')
 }
 
-do_install() {
+do_install:append() {
     # Create component directory structure for Greengrass Classic
     if [ "${GREENGRASS_VARIANT}" = "lite" ]; then
         bbwarn "Greengrass Lite variant detected. Consider using 'greengrass_lite_component' class for better support."
@@ -270,7 +270,19 @@ do_install() {
             fi
         done
     else
-        # Install all files except recipe files
+        # Auto-detect and install CMake binaries for cmake-based recipes
+        if [ -d "${B}" ] && [ -f "${B}/CMakeCache.txt" ]; then
+            # Look for executable files in build directory (CMake pattern)
+            for binary in $(find ${B} -maxdepth 1 -type f -executable -not -path "*/CMakeFiles/*" 2>/dev/null || true); do
+                if [ -f "$binary" ]; then
+                    binary_name=$(basename "$binary")
+                    bbdebug 1 "Installing CMake binary: $binary_name"
+                    install -m 0755 "$binary" ${COMPONENT_INSTALL_DIR}/
+                fi
+            done
+        fi
+
+        # Install all files except recipe files from UNPACKDIR
         for file in ${UNPACKDIR}/*; do
             if [ -f "$file" ]; then
                 case "$(basename "$file")" in
@@ -285,6 +297,15 @@ do_install() {
         done
     fi
 }
+
+# Deploy task for compatibility with greengrass-bin
+do_deploy() {
+    # For Greengrass Classic components, deployment happens at runtime
+    # This task exists for compatibility with greengrass-bin's dependency expectations
+    :
+}
+
+addtask do_deploy after do_install before do_package
 
 python do_deploy() {
     import os
@@ -361,8 +382,6 @@ python __anonymous() {
         d.setVarFlag('do_deploy', 'cleandirs', '${DEPLOYDIR}/greengrass-plugin-fragments')
 }
 
-addtask deploy after do_install before do_populate_sysroot
-
 # Set FILES based on variant
 python __anonymous() {
     variant = d.getVar('GREENGRASS_VARIANT')
@@ -379,6 +398,9 @@ python __anonymous() {
         files += ' /${GG_BASENAME}/components/'
         d.setVar('FILES:' + pn, files)
 }
+
+# Runtime dependency based on variant
+RDEPENDS:${PN} += "${@'greengrass-lite' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-bin'}"
 
 # Ensure all Greengrass plugins/components wait for greengrass-bin to install base structure
 python __anonymous() {
