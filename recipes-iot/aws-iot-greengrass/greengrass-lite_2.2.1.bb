@@ -39,7 +39,7 @@ SRC_URI = "\
     file://001-disable_strip.patch \
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://002-fix-deployment-copy-path.patch','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://003-ggl-cli-multi-component.patch','',d)} \
-    ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://fix-fleet-provisioning-circular-dependency.patch','',d)} \
+    ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://004-fix-fleet-provisioning-circular-dependency.patch','',d)} \
     file://greengrass-lite.yaml \
     file://run-ptest \
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://ggl.local-deployment.service','',d)} \
