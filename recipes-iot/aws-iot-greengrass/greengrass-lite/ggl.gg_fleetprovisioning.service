@@ -1,6 +1,7 @@
 [Unit]
 Description=Greengrass Lite Fleet Provisioning Service
 After=ggl.core.ggconfigd.service
+Before=ggl.core.iotcored.service
 After=systemd-time-wait-sync.service
 # Only run if device is not already provisioned
 ConditionPathExists=!/var/lib/greengrass/provisioned-cert/certificate.pem.crt

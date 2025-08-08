@@ -5,8 +5,6 @@ LICENSE = "Apache-2.0"
 # nooelint: oelint.var.licenseremotefile
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/Apache-2.0;md5=89aea4e17d99a7cacdbeed46a0096b10"
 
-COMPONENT_ARTIFACTS = "hello_world.py"
-
 # Default to classic variant, can be overwritten
 GREENGRASS_VARIANT ?= "classic"
 
@@ -15,6 +13,8 @@ SRC_URI = " \
     file://component-recipe.yaml \
     file://run-ptest \
     "
+
+S = "${UNPACKDIR}"
 
 FILES:${PN}-ptest += "${PTEST_PATH}/*"
 
@@ -26,6 +26,10 @@ inherit ptest
 
 # Always need Python SDK for this component
 RDEPENDS:${PN} += "aws-iot-device-sdk-python-v2"
+
+do_install() {
+    install -m 0755 ${UNPACKDIR}/hello_world.py ${D}${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/
+}
 
 do_install_ptest() {
     # Install test runner script

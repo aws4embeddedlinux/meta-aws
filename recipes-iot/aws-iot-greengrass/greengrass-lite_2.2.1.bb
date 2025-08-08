@@ -46,7 +46,6 @@ SRC_URI = "\
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://ggl-deploy-image-components','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.gg_pre-fleetprovisioning.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.gg_fleetprovisioning.service','',d)} \
-    ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.gg_post-fleetprovisioning.service','',d)} \
 "
 
 # Both patches enabled: fix-deployment-copy-path.patch and fix-deployment-queue-processing.patch
@@ -94,7 +93,6 @@ FILES:${PN}:append = " \
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','${bindir}/ggl-deploy-image-components','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','${systemd_unitdir}/system/ggl.gg_fleetprovisioning.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','${systemd_unitdir}/system/ggl.gg_pre-fleetprovisioning.service','',d)} \
-    ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','${systemd_unitdir}/system/ggl.gg_post-fleetprovisioning.service','',d)} \
     /usr/components/* \
     /usr/share/greengrass-image-components/* \
     ${sysconfdir}/sudoers.d/${BPN} \
@@ -153,7 +151,6 @@ SYSTEMD_SERVICE:${PN} = "\
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','ggl.local-deployment.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','ggl.gg_fleetprovisioning.service ','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','ggl.gg_pre-fleetprovisioning.service ','',d)} \
-    ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','ggl.gg_post-fleetprovisioning.service ','',d)} \
     greengrass-lite.target \
 "
 
@@ -198,7 +195,6 @@ do_install:append() {
     if ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','true','false',d)}; then
         # Create ggcredentials directory for fleet provisioning
         install -m 0644 ${UNPACKDIR}/ggl.gg_pre-fleetprovisioning.service ${D}${systemd_unitdir}/system/
-        install -m 0644 ${UNPACKDIR}/ggl.gg_post-fleetprovisioning.service ${D}${systemd_unitdir}/system/
         install -m 0644 ${UNPACKDIR}/ggl.gg_fleetprovisioning.service ${D}${systemd_unitdir}/system/
 
         # Replace variables in the config file using a temporary file to ensure proper expansion

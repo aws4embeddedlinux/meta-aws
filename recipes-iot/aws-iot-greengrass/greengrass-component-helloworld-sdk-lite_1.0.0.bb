@@ -42,6 +42,10 @@ inherit_defer ${@'greengrass-lite-component' if d.getVar('GREENGRASS_VARIANT') =
 
 FILES:${PN}-ptest += "${PTEST_PATH}/*"
 
+do_install() {
+    install -m 0755 ${B}/hello-world-sdk-lite ${D}${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/
+}
+
 do_install_ptest() {
     # Install test runner script
     install -m 0755 ${S}/run-ptest ${D}${PTEST_PATH}/

@@ -373,11 +373,7 @@ python do_deploy() {
 # Task dependencies based on variant
 python __anonymous() {
     variant = d.getVar('GREENGRASS_VARIANT')
-    if variant == 'lite':
-        # For greengrass-lite, deploy runs after install and before populate_sysroot
-        # This installs config fragments directly to the target
-        d.setVarFlag('do_deploy', 'cleandirs', '')  # No cleandirs needed for lite
-    else:
+    if variant == 'classic':
         # For greengrass-classic, deploy creates fragments for later merging
         d.setVarFlag('do_deploy', 'cleandirs', '${DEPLOYDIR}/greengrass-plugin-fragments')
 }
@@ -387,16 +383,10 @@ python __anonymous() {
     variant = d.getVar('GREENGRASS_VARIANT')
     pn = d.getVar('PN')
 
-    if variant == 'lite':
-        # Greengrass Lite files
-        files = d.getVar('FILES:' + pn) or ''
-        files += ' /usr/components/ ${sysconfdir}/greengrass/config.d/'
-        d.setVar('FILES:' + pn, files)
-    else:
-        # Greengrass Bin files (existing behavior)
-        files = d.getVar('FILES:' + pn) or ''
-        files += ' /${GG_BASENAME}/components/'
-        d.setVar('FILES:' + pn, files)
+    # Greengrass Bin files (existing behavior)
+    files = d.getVar('FILES:' + pn) or ''
+    files += ' /${GG_BASENAME}/components/'
+    d.setVar('FILES:' + pn, files)
 }
 
 # Runtime dependency based on variant

@@ -17,7 +17,18 @@ GGL_ARTIFACTS_DIR = "${@'${GGL_PACKAGES_DIR}/artifacts' if d.getVar('GREENGRASS_
 # Component metadata
 COMPONENT_NAME ??= ""
 COMPONENT_VERSION ??= "1.0.0"
-COMPONENT_ARTIFACTS ??= ""
+
+# Validate that this is for Greengrass Lite
+python __anonymous() {
+    variant = d.getVar('GREENGRASS_VARIANT')
+    if variant != 'lite':
+        bb.fatal("greengrass_lite_component class can only be used with GREENGRASS_VARIANT = 'lite'")
+
+    zero_copy = d.getVar('GREENGRASS_LITE_ZERO_COPY')
+    component_name = d.getVar('COMPONENT_NAME') or "unknown"
+    deployment_mode = "zero-copy (direct placement)" if zero_copy == '1' else "traditional (copy-based)"
+    bb.note(f"Greengrass Lite component: {component_name} - {deployment_mode}")
+}
 
 # Extract component information from YAML file, allow recipe override
 python __anonymous() {
@@ -81,99 +92,17 @@ python __anonymous() {
         d.setVar('COMPONENT_VERSION', '1.0.0')
 }
 
-# Validate that this is for Greengrass Lite
-python __anonymous() {
-    variant = d.getVar('GREENGRASS_VARIANT')
-    if variant != 'lite':
-        bb.fatal("greengrass_lite_component class can only be used with GREENGRASS_VARIANT = 'lite'")
-
-    component_name = d.getVar('COMPONENT_NAME')
-    if not component_name:
-        bb.fatal("COMPONENT_NAME must be set when using greengrass_lite_component class")
-
-    zero_copy = d.getVar('GREENGRASS_LITE_ZERO_COPY')
-    deployment_mode = "zero-copy (direct placement)" if zero_copy == '1' else "traditional (copy-based)"
-    bb.note(f"Greengrass Lite component: {component_name} - {deployment_mode}")
-}
-
 # Installation function for Greengrass Lite components
-do_install:append() {
+do_install:prepend() {
     # Create component directories
     install -d ${D}${GGL_RECIPES_DIR}
     install -d ${D}${GGL_ARTIFACTS_DIR}
 
     # Install component recipe
-    if [ -f "${UNPACKDIR}/component-recipe.yaml" ]; then
-        install -m 0644 ${UNPACKDIR}/component-recipe.yaml ${D}${GGL_RECIPES_DIR}/${COMPONENT_NAME}-${COMPONENT_VERSION}.yaml
-        if [ "${GREENGRASS_LITE_ZERO_COPY}" = "1" ]; then
-            bbnote "Installed component recipe directly: ${GGL_RECIPES_DIR}/${COMPONENT_NAME}-${COMPONENT_VERSION}.yaml (zero-copy mode)"
-        else
-            bbnote "Installed component recipe: ${GGL_RECIPES_DIR}/${COMPONENT_NAME}-${COMPONENT_VERSION}.yaml (traditional mode)"
-        fi
-    else
-        bbfatal "component-recipe.yaml not found in ${UNPACKDIR}"
-    fi
+    install -m 0644 ${UNPACKDIR}/component-recipe.yaml ${D}${GGL_RECIPES_DIR}/${COMPONENT_NAME}-${COMPONENT_VERSION}.yaml
 
     # Create component artifact directory
     install -d ${D}${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}
-
-    # Install component artifacts
-    if [ -n "${COMPONENT_ARTIFACTS}" ]; then
-        for artifact in ${COMPONENT_ARTIFACTS}; do
-            if [ -f "${UNPACKDIR}/$artifact" ]; then
-                install -m 0755 ${UNPACKDIR}/$artifact ${D}${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/
-                if [ "${GREENGRASS_LITE_ZERO_COPY}" = "1" ]; then
-                    bbnote "Installed artifact directly: ${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/$artifact (zero-copy mode)"
-                else
-                    bbnote "Installed artifact: ${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/$artifact (traditional mode)"
-                fi
-            else
-                bbwarn "Artifact not found: $artifact"
-            fi
-        done
-    else
-        # Auto-detect and install CMake binaries for cmake-based recipes
-        if [ -d "${B}" ] && [ -f "${B}/CMakeCache.txt" ]; then
-            # Look for executable files in build directory (CMake pattern)
-            for binary in $(find ${B} -maxdepth 1 -type f -executable -not -path "*/CMakeFiles/*" 2>/dev/null || true); do
-                if [ -f "$binary" ]; then
-                    binary_name=$(basename "$binary")
-                    bbdebug 1 "Installing CMake binary: $binary_name"
-                    install -m 0755 "$binary" ${D}${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/
-                    if [ "${GREENGRASS_LITE_ZERO_COPY}" = "1" ]; then
-                        bbnote "Installed CMake binary directly: ${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/$binary_name (zero-copy mode)"
-                    else
-                        bbnote "Installed CMake binary: ${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/$binary_name (traditional mode)"
-                    fi
-                fi
-            done
-        else
-            bbnote "No artifacts specified for ${COMPONENT_NAME}"
-        fi
-    fi
-
-    # Set proper ownership for Greengrass directories (only for zero-copy mode)
-    if [ "${GREENGRASS_LITE_ZERO_COPY}" = "1" ]; then
-        # Note: This will be handled by pkg_postinst to ensure ggcore user exists
-        bbnote "Zero-copy mode: Will set ownership to ggcore:ggcore in pkg_postinst"
-    fi
-}
-
-# Set proper ownership after installation (only for zero-copy mode)
-pkg_postinst:${PN}() {
-    if [ "${GREENGRASS_LITE_ZERO_COPY}" = "1" ]; then
-        if [ -n "$D" ]; then
-            # During image creation - set ownership in rootfs
-            if [ -d "$D${GGL_PACKAGES_DIR}" ]; then
-                chown -R ggcore:ggcore "$D${GGL_PACKAGES_DIR}" 2>/dev/null || true
-            fi
-        else
-            # During runtime installation - set ownership on live system
-            if [ -d "${GGL_PACKAGES_DIR}" ]; then
-                chown -R ggcore:ggcore "${GGL_PACKAGES_DIR}" 2>/dev/null || true
-            fi
-        fi
-    fi
 }
 
 # Package the appropriate directories based on mode
@@ -181,13 +110,3 @@ FILES:${PN} += "${@'${GGL_PACKAGES_DIR}/*' if d.getVar('GREENGRASS_LITE_ZERO_COP
 
 # Runtime dependency on greengrass-lite
 RDEPENDS:${PN} += "greengrass-lite"
-
-# Deploy task for compatibility with greengrass-bin
-do_deploy() {
-    # For Greengrass Lite components, deployment happens at runtime via ggl-deploy-image-components
-    # This task exists for compatibility with greengrass-bin's dependency expectations
-    # The actual component files are already installed in do_install
-    :
-}
-
-addtask do_deploy after do_install before do_package
