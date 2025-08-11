@@ -1,0 +1,27 @@
+---
+RecipeFormatVersion: "2020-01-25"
+ComponentName: "com.example.HelloWorldPython"
+ComponentVersion: "1.0.0"
+ComponentType: "aws.greengrass.generic"
+ComponentDescription: "A simple Hello World component written in Python that demonstrates publishing to IoT Core"
+ComponentPublisher: "Example Publisher"
+ComponentConfiguration:
+  DefaultConfiguration:
+    message: "Hello world! Sent from Greengrass Core."
+    publish_topic: "hello"
+    publish_interval: 5
+    accessControl:
+      aws.greengrass.ipc.mqttproxy:
+        "com.example.HelloWorldPython:mqttproxy:1":
+          policyDescription: "Allows access to publish to IoT Core on hello topic."
+          operations:
+            - "aws.greengrass#PublishToIoTCore"
+          resources:
+            - "hello"
+Manifests:
+  - Platform:
+      os: linux
+      runtime: "*"
+    Lifecycle:
+      run: |
+        python3 {artifacts:path}/hello_world.py

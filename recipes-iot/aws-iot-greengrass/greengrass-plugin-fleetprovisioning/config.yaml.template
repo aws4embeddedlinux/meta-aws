@@ -2,14 +2,13 @@ services:
   aws.greengrass.FleetProvisioningByClaim:
     configuration:
       rootPath: "/greengrass/v2"
-      awsRegion: "${AWS_DEFAULT_REGION}"
+      awsRegion: "${AWS_REGION}"
       iotDataEndpoint: "${IOT_DATA_ENDPOINT}"
       iotCredentialEndpoint: "${IOT_CRED_ENDPOINT}"
-      iotRoleAlias: "${TE_ROLE_ALIAS}"
-      provisioningTemplate: "${FLEET_PROVISIONING_TEMPLATE_NAME}"
-      claimCertificatePath: "${CLAIM_CERT_PATH}"
-      claimCertificatePrivateKeyPath: "${CLAIM_KEY_PATH}"
-      rootCaPath: "${ROOT_CA_PATH}"
+      iotRoleAlias: "${IOT_ROLE_ALIAS}"
+      provisioningTemplate: "${FLEET_PROVISIONING_TEMPLATE}"
+      claimCertificatePath: "/greengrass/v2/claim-certs/claim.cert.pem"
+      claimCertificatePrivateKeyPath: "/greengrass/v2/claim-certs/claim.pkey.pem"
+      rootCaPath: "/greengrass/v2/claim-certs/claim.root.pem"
       templateParameters:
-        ThingName: "${THING_NAME}_<unique>"
-        ThingGroupName: "${THING_GROUP_NAME}"
+        SerialNumber: "<unique>"
