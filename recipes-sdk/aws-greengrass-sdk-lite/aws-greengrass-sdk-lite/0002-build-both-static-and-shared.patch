@@ -1,22 +1,23 @@
 From: meta-aws <meta-aws@example.com>
 Date: Tue, 6 Aug 2025 15:25:00 +0000
-Subject: [PATCH] Build both static and shared libraries
+Subject: [PATCH 2/2] Build both static and shared libraries
 
 This patch modifies the CMakeLists.txt to build both static and shared
 versions of libggl-sdk, allowing packages to choose the appropriate
 library type for their needs.
 
 The shared library is built with proper versioning and both libraries
-are installed with appropriate targets.
+are installed with appropriate targets. The shared library uses default
+symbol visibility to ensure public API symbols are exported.
 
-Upstream-Status: Pending
+Upstream-Status: Submitted [https://github.com/aws-greengrass/aws-greengrass-sdk-lite/pull/xyz]
 Signed-off-by: meta-aws <meta-aws@example.com>
 
-Index: git/CMakeLists.txt
+Index: aws-greengrass-sdk-lite-0.2.0/CMakeLists.txt
 ===================================================================
---- git.orig/CMakeLists.txt
-+++ git/CMakeLists.txt
-@@ -168,6 +168,23 @@ foreach(src ${SRCS})
+--- aws-greengrass-sdk-lite-0.2.0.orig/CMakeLists.txt
++++ aws-greengrass-sdk-lite-0.2.0/CMakeLists.txt
+@@ -168,6 +168,27 @@ foreach(src ${SRCS})
  endforeach()
  
  add_library(ggl-sdk STATIC ${SRCS})
@@ -30,7 +31,11 @@ Index: git/CMakeLists.txt
 +)
 +
 +# Apply same settings to shared library
++# Note: Override -fvisibility=hidden for shared library to export symbols
 +target_compile_options(ggl-sdk-shared PRIVATE -pthread -fno-strict-aliasing -std=gnu11
++                                       -fno-semantic-interposition -fno-common
++                                       -fno-unwind-tables -fno-asynchronous-unwind-tables
++                                       -fvisibility=default
 +                                       -Wno-missing-braces)
 +target_compile_definitions(ggl-sdk-shared PRIVATE _GNU_SOURCE)
 +target_include_directories(ggl-sdk-shared PRIVATE include priv_include)
@@ -40,7 +45,7 @@ Index: git/CMakeLists.txt
  target_compile_options(ggl-sdk PRIVATE -pthread -fno-strict-aliasing -std=gnu11
                                         -Wno-missing-braces)
  target_compile_definitions(ggl-sdk PRIVATE _GNU_SOURCE)
-@@ -179,8 +196,12 @@ string(TOUPPER "${GGL_LOG_LEVEL}" log_le
+@@ -179,8 +200,12 @@ string(TOUPPER "${GGL_LOG_LEVEL}" log_le
  set(choose_level "$<IF:$<BOOL:${log_level}>,${log_level},DEBUG>")
  target_compile_definitions(ggl-sdk PUBLIC GGL_LOG_LEVEL=GGL_LOG_${choose_level})
  

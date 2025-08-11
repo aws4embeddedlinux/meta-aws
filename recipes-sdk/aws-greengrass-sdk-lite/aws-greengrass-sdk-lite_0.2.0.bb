@@ -8,8 +8,8 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 SRCREV = "0835c6ad20948ab55d86fbd5864fd38e62559ed2"
 SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-sdk-lite.git;protocol=https;branch=main \
-           file://fix-crc32-syntax.patch \
-           file://build-both-static-and-shared.patch \
+           file://0001-fix-crc32-syntax.patch \
+           file://0002-build-both-static-and-shared.patch \
 "
 
 inherit cmake ptest
@@ -27,7 +27,7 @@ PACKAGECONFIG ??= "samples"
 PACKAGECONFIG[samples] = ",,,"
 
 # Add ptest source files
-SRC_URI += " \
+SRC_URI:append = " \
     file://run-ptest \
     file://test-basic-api.c \
     file://test-buffer-ops.c \
@@ -38,7 +38,7 @@ SRC_URI += " \
 RDEPENDS:${PN} = ""
 
 # Build dependencies
-DEPENDS = ""
+DEPENDS += ""
 
 # The SDK has no third-party library dependencies
 # Currently supports only Linux targets using Glibc or Musl
@@ -135,14 +135,15 @@ FILES:${PN}-ptest-dbg = " \
     /usr/lib/aws-greengrass-sdk-lite/ptest/.debug/test-buffer-ops \
     /usr/lib/aws-greengrass-sdk-lite/ptest/.debug/test-basic-api \
 "
-# Skip QA checks for already-stripped sample binaries
+# nooelint: oelint.vars.insaneskip
 INSANE_SKIP:${PN} += "already-stripped"
 
-# Skip buildpaths QA check for ptest debug symbols
+# nooelint: oelint.vars.insaneskip
 INSANE_SKIP:${PN}-ptest += "buildpaths"
+# nooelint: oelint.vars.insaneskip
 INSANE_SKIP:${PN}-ptest-dbg += "buildpaths"
 
-# Skip buildpaths QA check for static library
+# nooelint: oelint.vars.insaneskip
 INSANE_SKIP:${PN}-staticdev += "buildpaths"
 
 # Runtime dependencies for ptest
