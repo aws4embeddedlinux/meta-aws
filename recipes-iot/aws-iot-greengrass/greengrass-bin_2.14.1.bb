@@ -150,23 +150,19 @@ def load_yaml_file(file_path):
         # Single document
         return yaml.safe_load(content)
 
-# Get all recipes that should be installed
-image_install = '${IMAGE_INSTALL}'.split()
-rdepends = '${@d.getVar("RDEPENDS:" + d.getVar("PN")) or ""}'.split()
-all_installed_recipes = set(image_install + rdepends)
+# Get recipes that have fragments (from dependency list)
+fragment_recipes = '${GREENGRASS_FRAGMENT_RECIPES}'.split()
 
-print(f'IMAGE_INSTALL recipes: {image_install}')
-print(f'RDEPENDS recipes: {rdepends}')
-print(f'All installed recipes: {list(all_installed_recipes)}')
+print(f'Greengrass components/plugins with fragments: {fragment_recipes}')
 
-# Find fragments only from installed recipes
+# Find fragments only from recipes with fragments
 fragments_to_merge = []
 
-print('Searching for Greengrass config fragments from installed components...')
+print('Searching for Greengrass config fragments from components/plugins...')
 
 # Look for fragments in recipe work directories
 work_dir = '${TMPDIR}/work'
-for recipe in all_installed_recipes:
+for recipe in fragment_recipes:
     # Search for this recipe's work directory and fragments
     recipe_pattern = os.path.join(work_dir, '*', recipe, '*', f'deploy-{recipe}', 'greengrass-plugin-fragments')
     matching_dirs = glob.glob(recipe_pattern)
@@ -218,6 +214,12 @@ else:
 }
 
 addtask merge_config after do_install before do_package
+
+# Ensure merge_config runs after all component deploy tasks (exclude ptest packages to avoid circular deps)
+do_merge_config[depends] += "${@' '.join([f'{recipe}:do_deploy' for recipe in d.getVar('IMAGE_INSTALL').split() + (d.getVar('RDEPENDS:' + d.getVar('PN')) or '').split() if (recipe.startswith('greengrass-component-') or recipe.startswith('greengrass-plugin-')) and not recipe.endswith('-ptest')])}"
+
+# Store list of components/plugins with fragments for merge script
+GREENGRASS_FRAGMENT_RECIPES = "${@' '.join([recipe for recipe in d.getVar('IMAGE_INSTALL').split() + (d.getVar('RDEPENDS:' + d.getVar('PN')) or '').split() if (recipe.startswith('greengrass-component-') or recipe.startswith('greengrass-plugin-')) and not recipe.endswith('-ptest')])}"
 
 # Ensure images rebuild when configuration changes
 do_merge_config[vardepsexclude] += "BB_TASKHASH"
