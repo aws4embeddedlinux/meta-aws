@@ -1,0 +1,23 @@
+#!/bin/bash
+
+set -e
+
+echo "========================================="
+echo "Testing amazon-kinesis-video-streams-dcep"
+echo "========================================="
+
+# Run simple endianness test
+if [ -f "./endianness_test" ]; then
+    echo "Running endianness detection test..."
+    if ./endianness_test; then
+        echo "PASS: Endianness test completed successfully"
+    else
+        echo "FAIL: Endianness test failed"
+        exit 1
+    fi
+else
+    echo "FAIL: Endianness test binary not found"
+    exit 1
+fi
+
+echo "All tests passed!"
