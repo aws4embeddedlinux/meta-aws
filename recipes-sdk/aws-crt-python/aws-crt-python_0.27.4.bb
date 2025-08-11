@@ -77,6 +77,14 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 set(CMAKE_C_FLAGS "${CFLAGS}" CACHE STRING "C flags")
 set(CMAKE_CXX_FLAGS "${CXXFLAGS}" CACHE STRING "CXX flags")
 set(CMAKE_EXE_LINKER_FLAGS "${LDFLAGS}" CACHE STRING "Linker flags")
+
+# OpenSSL/Crypto paths for nativesdk builds (use native sysroot)
+set(crypto_INCLUDE_DIR "${STAGING_DIR_NATIVE}/usr/include")
+set(crypto_LIBRARY "${STAGING_DIR_NATIVE}/usr/lib/libcrypto.so")
+set(OPENSSL_ROOT_DIR "${STAGING_DIR_NATIVE}/usr")
+set(OPENSSL_INCLUDE_DIR "${STAGING_DIR_NATIVE}/usr/include")
+set(OPENSSL_CRYPTO_LIBRARY "${STAGING_DIR_NATIVE}/usr/lib/libcrypto.so")
+set(OPENSSL_SSL_LIBRARY "${STAGING_DIR_NATIVE}/usr/lib/libssl.so")
 EOF
 
         # Set up cross-compilation environment for CMake
