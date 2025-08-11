@@ -207,7 +207,7 @@ python convert_recipe_to_fragment() {
     try:
         with open(output_file, 'w') as f:
             yaml.dump(fragment, f, default_flow_style=False, sort_keys=False)
-        bb.note(f"Converted recipe to config fragment for {variant} variant: {output_file}")
+        bb.note(f"Converted recipe to config fragment: {output_file}")
         d.setVar('CONVERSION_SUCCESS', '1')
     except Exception as e:
         bb.error(f"Error writing config fragment {output_file}: {e}")
@@ -310,6 +310,10 @@ python do_deploy() {
     else:
         bb.warn(f"No configuration file found for component {component_name}")
 }
+
+# Add deploy task to BitBake task list - required for fragment generation
+# Without this, the do_deploy() Python function above won't be executed
+addtask deploy after do_install before do_build
 
 # Task dependencies for classic variant
 python __anonymous() {
