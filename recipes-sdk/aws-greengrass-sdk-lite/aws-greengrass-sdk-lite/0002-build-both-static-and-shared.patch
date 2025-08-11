@@ -1,0 +1,115 @@
+From: meta-aws <meta-aws@example.com>
+Date: Tue, 6 Aug 2025 15:25:00 +0000
+Subject: [PATCH 2/2] Build both static and shared libraries
+
+This patch modifies the CMakeLists.txt to build both static and shared
+versions of libggl-sdk, allowing packages to choose the appropriate
+library type for their needs.
+
+The shared library is built with proper versioning and both libraries
+are installed with appropriate targets. The shared library uses default
+symbol visibility to ensure public API symbols are exported.
+
+Adds BUILD_SHARED_LIBS option (default ON) to conditionally build shared
+libraries, maintaining compatibility with static-only builds.
+
+Disables LTO for shared library to avoid Clang issues with alloc_size
+attribute.
+
+Upstream-Status: Submitted [https://github.com/aws-greengrass/aws-greengrass-sdk-lite/pull/26]
+Signed-off-by: meta-aws <meta-aws@example.com>
+
+From: meta-aws <meta-aws@example.com>
+Date: Tue, 6 Aug 2025 15:25:00 +0000
+Subject: [PATCH 2/2] Build both static and shared libraries
+
+This patch modifies the CMakeLists.txt to build both static and shared
+versions of libggl-sdk, allowing packages to choose the appropriate
+library type for their needs.
+
+The shared library is built with proper versioning and both libraries
+are installed with appropriate targets. The shared library uses default
+symbol visibility to ensure public API symbols are exported.
+
+Adds BUILD_SHARED_LIBS option (default ON) to conditionally build shared
+libraries, maintaining compatibility with static-only builds.
+
+Disables LTO for shared library to avoid Clang issues with alloc_size
+attribute.
+
+Upstream-Status: Submitted [https://github.com/aws-greengrass/aws-greengrass-sdk-lite/pull/26]
+Signed-off-by: meta-aws <meta-aws@example.com>
+
+Index: aws-greengrass-sdk-lite-0.2.0/CMakeLists.txt
+===================================================================
+--- aws-greengrass-sdk-lite-0.2.0.orig/CMakeLists.txt
++++ aws-greengrass-sdk-lite-0.2.0/CMakeLists.txt
+@@ -13,6 +13,8 @@ if(PROJECT_IS_TOP_LEVEL)
+ 
+   option(BUILD_SAMPLES "Build sample components" ON)
+ 
++  option(BUILD_SHARED_LIBS "Build shared libraries" ON)
++
+   set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+ 
+   include(GNUInstallDirs)
+@@ -168,6 +170,38 @@ foreach(src ${SRCS})
+ endforeach()
+ 
+ add_library(ggl-sdk STATIC ${SRCS})
++
++# Also build a shared version if requested
++if(BUILD_SHARED_LIBS)
++  add_library(ggl-sdk-shared SHARED ${SRCS})
++  set_target_properties(
++    ggl-sdk-shared
++    PROPERTIES OUTPUT_NAME ggl-sdk
++               VERSION 0.2.0
++               SOVERSION 0)
++
++  # Apply same settings to shared library Note: Override -fvisibility=hidden for
++  # shared library to export symbols. Disable LTO to avoid Clang issues with
++  # alloc_size attribute.
++  target_compile_options(
++    ggl-sdk-shared
++    PRIVATE -pthread
++            -fno-strict-aliasing
++            -std=gnu11
++            -fno-semantic-interposition
++            -fno-common
++            -fno-unwind-tables
++            -fno-asynchronous-unwind-tables
++            -fvisibility=default
++            -fno-lto
++            -Wno-missing-braces)
++  target_link_options(ggl-sdk-shared PRIVATE -fno-lto)
++  target_compile_definitions(ggl-sdk-shared PRIVATE _GNU_SOURCE)
++  target_include_directories(ggl-sdk-shared PRIVATE include priv_include)
++  target_include_directories(ggl-sdk-shared SYSTEM INTERFACE include)
++  target_compile_definitions(ggl-sdk-shared PRIVATE "GGL_MODULE=(\"ggl-sdk\")")
++endif()
++
+ target_compile_options(ggl-sdk PRIVATE -pthread -fno-strict-aliasing -std=gnu11
+                                        -Wno-missing-braces)
+ target_compile_definitions(ggl-sdk PRIVATE _GNU_SOURCE)
+@@ -179,8 +213,19 @@ string(TOUPPER "${GGL_LOG_LEVEL}" log_le
+ set(choose_level "$<IF:$<BOOL:${log_level}>,${log_level},DEBUG>")
+ target_compile_definitions(ggl-sdk PUBLIC GGL_LOG_LEVEL=GGL_LOG_${choose_level})
+ 
++# Apply log level to shared library too
++if(BUILD_SHARED_LIBS)
++  target_compile_definitions(ggl-sdk-shared
++                             PUBLIC GGL_LOG_LEVEL=GGL_LOG_${choose_level})
++endif()
++
+ if(PROJECT_IS_TOP_LEVEL)
+-  install(TARGETS ggl-sdk)
++  # Install both static and shared libraries
++  if(BUILD_SHARED_LIBS)
++    install(TARGETS ggl-sdk ggl-sdk-shared)
++  else()
++    install(TARGETS ggl-sdk)
++  endif()
+ 
+   if(BUILD_SAMPLES)
+     file(GLOB SAMPLE_DIRS CONFIGURE_DEPENDS "samples/*")
