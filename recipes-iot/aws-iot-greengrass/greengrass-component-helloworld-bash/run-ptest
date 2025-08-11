@@ -1,0 +1,36 @@
+#!/bin/bash
+
+set -e
+
+echo "========================================="
+echo "Testing greengrass-component-helloworld-bash"
+echo "========================================="
+
+COMPONENT_RECIPE="/usr/lib/greengrass-component-helloworld-bash/ptest/test-data/component-recipe.yaml"
+
+echo "Checking for component recipe at: ${COMPONENT_RECIPE}"
+
+if [ -f "${COMPONENT_RECIPE}" ]; then
+    echo "PASS: Component recipe found"
+else
+    echo "FAIL: Component recipe not found at ${COMPONENT_RECIPE}"
+    exit 1
+fi
+
+echo "Validating component recipe content..."
+
+if grep -q "com.example.BashHelloWorld" "${COMPONENT_RECIPE}"; then
+    echo "PASS: Component name found in recipe"
+else
+    echo "FAIL: Component name not found in recipe"
+    exit 1
+fi
+
+if grep -q "Hello from Greengrass" "${COMPONENT_RECIPE}"; then
+    echo "PASS: Hello World script found in recipe"
+else
+    echo "FAIL: Hello World script not found in recipe"
+    exit 1
+fi
+
+echo "All tests passed!"

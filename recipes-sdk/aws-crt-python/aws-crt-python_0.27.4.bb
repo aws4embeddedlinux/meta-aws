@@ -105,7 +105,7 @@ RDEPENDS:${PN} += "\
 
 do_install_ptest() {
     install -d ${D}${PTEST_PATH}/tests
-    cp -rf ${S}/* ${D}${PTEST_PATH}/tests/
+    cp -rf ${S}/test ${D}${PTEST_PATH}/tests/
 }
 
 BBCLASSEXTEND = "native nativesdk"
@@ -114,5 +114,3 @@ BBCLASSEXTEND = "native nativesdk"
 INSANE_SKIP:${PN} += "buildpaths"
 # nooelint: oelint.vars.insaneskip
 INSANE_SKIP:${PN}-dbg += "buildpaths"
-# nooelint: oelint.vars.insaneskip
-INSANE_SKIP:${PN}-ptest += "arch file-rdeps"

@@ -1,3 +1,4 @@
+# oelint-disable: oelint.bbclass.underscores
 # Common Greengrass definitions
 
 GG_BASENAME = "greengrass/v2"

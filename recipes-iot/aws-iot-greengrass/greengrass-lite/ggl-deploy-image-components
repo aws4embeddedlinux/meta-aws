@@ -1,0 +1,361 @@
+#!/bin/bash
+#
+# Greengrass Lite Image-Provided Component Deployment Script
+# This script deploys components that were built into the image during the build process
+# Supports both zero-copy (direct placement) and traditional (copy-based) deployment modes
+# Runs after fleet provisioning to ensure the device is fully configured before component deployment
+#
+
+set -e
+
+# Configuration
+PACKAGES_DIR="/var/lib/greengrass/packages"
+IMAGE_COMPONENTS_ROOT="/usr/share/greengrass-image-components"
+SERVICE_NAME="ggl.local-deployment.service"
+
+# Detect deployment mode based on directory structure
+if [ -d "${PACKAGES_DIR}/recipes" ] && [ "$(ls -A "${PACKAGES_DIR}/recipes" 2>/dev/null)" ]; then
+    # Zero-copy mode: components are directly in packages directory
+    DEPLOYMENT_MODE="zero-copy"
+    RECIPES_DIR="${PACKAGES_DIR}/recipes"
+    ARTIFACTS_DIR="${PACKAGES_DIR}/artifacts"
+elif [ -d "${IMAGE_COMPONENTS_ROOT}/recipes" ] && [ "$(ls -A "${IMAGE_COMPONENTS_ROOT}/recipes" 2>/dev/null)" ]; then
+    # Traditional mode: components need to be copied from image-components
+    DEPLOYMENT_MODE="traditional"
+    RECIPES_DIR="${IMAGE_COMPONENTS_ROOT}/recipes"
+    ARTIFACTS_DIR="${IMAGE_COMPONENTS_ROOT}/artifacts"
+else
+    # No components found
+    DEPLOYMENT_MODE="none"
+    RECIPES_DIR=""
+    ARTIFACTS_DIR=""
+fi
+
+# Logging functions
+log_info() {
+    echo "INFO: $1"
+}
+
+log_warn() {
+    echo "WARN: $1"
+}
+
+log_error() {
+    echo "ERROR: $1" >&2
+}
+
+# Wait for Greengrass Lite daemon to be ready
+wait_for_daemon() {
+    log_info "Waiting for Greengrass Lite daemon to be ready..."
+    sleep ${INITIAL_DELAY}
+    
+    log_info "Checking for Greengrass daemon socket..."
+    local timeout=${DAEMON_WAIT_TIMEOUT}
+    
+    while [ $timeout -gt 0 ] && [ ! -S "${GREENGRASS_SOCKET}" ]; do
+        log_info "Waiting for socket ${GREENGRASS_SOCKET}... (${timeout} seconds remaining)"
+        sleep 2
+        timeout=$((timeout-2))
+    done
+    
+    if [ ! -S "${GREENGRASS_SOCKET}" ]; then
+        log_error "Greengrass daemon socket not available after waiting ${DAEMON_WAIT_TIMEOUT} seconds"
+        return 1
+    fi
+    
+    log_info "Greengrass daemon socket is ready"
+    return 0
+}
+
+# Parse component name and version from recipe filename
+parse_component_info() {
+    local recipe_file="$1"
+    local component_file=$(basename "$recipe_file" .yaml)
+    
+    # Extract component name (everything except the last dash-separated part)
+    local component_name=$(echo "$component_file" | sed 's/-[^-]*$//')
+    # Extract version (the last dash-separated part)
+    local component_version=$(echo "$component_file" | sed 's/.*-//')
+    
+    echo "${component_name}:${component_version}"
+}
+
+# Verify that a component actually exists (has both recipe and artifacts)
+verify_component_exists() {
+    local component_name="$1"
+    local component_version="$2"
+    local recipe_file="$3"
+    
+    # Check if recipe file exists and is readable
+    if [ ! -f "$recipe_file" ] || [ ! -r "$recipe_file" ]; then
+        log_warn "Recipe file $recipe_file does not exist or is not readable"
+        return 1
+    fi
+    
+    # For zero-copy mode, check if artifacts directory exists
+    if [ "$DEPLOYMENT_MODE" = "zero-copy" ]; then
+        local artifacts_path="${ARTIFACTS_DIR}/${component_name}/${component_version}"
+        if [ ! -d "$artifacts_path" ]; then
+            log_warn "Artifacts directory $artifacts_path does not exist for component ${component_name}"
+            return 1
+        fi
+    fi
+    
+    # Additional validation: check if recipe file is valid YAML
+    # This is a basic check - we just ensure it's not empty and has some YAML-like content
+    if ! grep -q "^RecipeFormatVersion:" "$recipe_file" 2>/dev/null; then
+        log_warn "Recipe file $recipe_file does not appear to be a valid Greengrass recipe"
+        return 1
+    fi
+    
+    return 0
+}
+
+# Get the expected systemd service name for a component
+get_component_service_name() {
+    local component_name="$1"
+    echo "ggl.${component_name}.service"
+}
+
+# Deploy all image components in a single multi-component deployment
+deploy_image_components() {
+    if [ "$DEPLOYMENT_MODE" = "none" ]; then
+        log_info "No image-provided components found for auto-deployment"
+        return 0
+    fi
+    
+    log_info "Scanning for valid image-provided components (${DEPLOYMENT_MODE} mode)..."
+    
+    local valid_count=0
+    local invalid_count=0
+    local -a valid_components=()
+    
+    # First pass: verify all components and collect valid ones
+    for recipe in "${RECIPES_DIR}"/*.yaml; do
+        [ -f "$recipe" ] || continue
+        
+        local component_info=$(parse_component_info "$recipe")
+        local component_name=$(echo "$component_info" | cut -d: -f1)
+        local component_version=$(echo "$component_info" | cut -d: -f2)
+        
+        log_info "Checking component: ${component_name}=${component_version}"
+        
+        if verify_component_exists "$component_name" "$component_version" "$recipe"; then
+            log_info "✓ Component ${component_name} verified successfully"
+            valid_components+=("${component_name}=${component_version}")
+            valid_count=$((valid_count + 1))
+        else
+            log_warn "✗ Component ${component_name} verification failed, skipping"
+            invalid_count=$((invalid_count + 1))
+        fi
+    done
+    
+    # Check if we have any valid components to deploy
+    if [ $valid_count -eq 0 ]; then
+        if [ $invalid_count -gt 0 ]; then
+            log_error "No valid components found for deployment ($invalid_count invalid components)"
+            return 1
+        else
+            log_info "No components found for deployment"
+            return 0
+        fi
+    fi
+    
+    log_info "Found $valid_count valid components to deploy in a single multi-component deployment..."
+    
+    # Build command arguments for multi-component deployment
+    local -a deploy_cmd_args=()
+    deploy_cmd_args+=("ggl-cli" "deploy")
+    
+    # Add directory parameters for traditional mode
+    if [ "$DEPLOYMENT_MODE" = "traditional" ]; then
+        deploy_cmd_args+=("--recipe-dir" "${RECIPES_DIR}")
+        deploy_cmd_args+=("--artifacts-dir" "${ARTIFACTS_DIR}")
+    fi
+    
+    # Add all components to the single deployment using multiple --add-component flags
+    for component_spec in "${valid_components[@]}"; do
+        deploy_cmd_args+=("--add-component" "$component_spec")
+    done
+    
+    log_info "Deploying all $valid_count components in a single multi-component deployment..."
+    log_info "Command: ${deploy_cmd_args[*]}"
+    
+    # Execute the multi-component deployment command
+    local deployment_output
+    if deployment_output=$("${deploy_cmd_args[@]}" 2>&1); then
+        # Extract deployment ID from output
+        local deployment_id=$(echo "$deployment_output" | grep -o "Deployment id: [^.]*" | cut -d' ' -f3 || echo "unknown")
+        log_info "✓ Multi-component deployment queued successfully (ID: $deployment_id)"
+        log_info "Components in deployment: ${valid_components[*]}"
+        
+        if [ $invalid_count -gt 0 ]; then
+            log_warn "Deployment queued but $invalid_count components were skipped due to validation failures"
+        fi
+        
+        log_info "All $valid_count components deployed in single efficient deployment"
+        return 0
+    else
+        log_error "✗ Failed to queue multi-component deployment"
+        log_error "Output: $deployment_output"
+        return 1
+    fi
+}
+
+# Deploy a single component and wait for completion
+deploy_single_component() {
+    local component_name="$1"
+    local component_version="$2"
+    
+    # Build command arguments for single component deployment
+    local -a deploy_cmd_args=()
+    deploy_cmd_args+=("ggl-cli" "deploy")
+    
+    # Add directory parameters for traditional mode
+    if [ "$DEPLOYMENT_MODE" = "traditional" ]; then
+        deploy_cmd_args+=("--recipe-dir" "${RECIPES_DIR}")
+        deploy_cmd_args+=("--artifacts-dir" "${ARTIFACTS_DIR}")
+    fi
+    
+    # Add the single component
+    deploy_cmd_args+=("--add-component" "${component_name}=${component_version}")
+    
+    log_info "Deploying component ${component_name}=${component_version}..."
+    log_info "Command: ${deploy_cmd_args[*]}"
+    
+    # Execute the deployment command for this component
+    local deployment_output
+    if deployment_output=$("${deploy_cmd_args[@]}" 2>&1); then
+        # Extract deployment ID from output
+        local deployment_id=$(echo "$deployment_output" | grep -o "Deployment id: [^.]*" | cut -d' ' -f3 || echo "unknown")
+        log_info "✓ Component ${component_name}=${component_version} deployment queued (ID: $deployment_id)"
+        
+        # Wait for the deployment to complete
+        if wait_for_deployment_completion "$component_name" "$deployment_id"; then
+            log_info "✓ Component ${component_name}=${component_version} deployed and service is active"
+            return 0
+        else
+            log_error "✗ Component ${component_name}=${component_version} deployment failed or timed out"
+            return 1
+        fi
+    else
+        log_error "✗ Failed to queue deployment for component ${component_name}=${component_version}"
+        log_error "Output: $deployment_output"
+        return 1
+    fi
+}
+
+# Deploy all image components in a single multi-component deployment
+deploy_image_components() {
+    if [ "$DEPLOYMENT_MODE" = "none" ]; then
+        log_info "No image-provided components found for auto-deployment"
+        return 0
+    fi
+    
+    log_info "Scanning for valid image-provided components (${DEPLOYMENT_MODE} mode)..."
+    
+    local valid_count=0
+    local invalid_count=0
+    local -a valid_components=()
+    
+    # First pass: verify all components and collect valid ones
+    for recipe in "${RECIPES_DIR}"/*.yaml; do
+        [ -f "$recipe" ] || continue
+        
+        local component_info=$(parse_component_info "$recipe")
+        local component_name=$(echo "$component_info" | cut -d: -f1)
+        local component_version=$(echo "$component_info" | cut -d: -f2)
+        
+        log_info "Checking component: ${component_name}=${component_version}"
+        
+        if verify_component_exists "$component_name" "$component_version" "$recipe"; then
+            log_info "✓ Component ${component_name} verified successfully"
+            valid_components+=("${component_name}=${component_version}")
+            valid_count=$((valid_count + 1))
+        else
+            log_warn "✗ Component ${component_name} verification failed, skipping"
+            invalid_count=$((invalid_count + 1))
+        fi
+    done
+    
+    # Check if we have any valid components to deploy
+    if [ $valid_count -eq 0 ]; then
+        if [ $invalid_count -gt 0 ]; then
+            log_error "No valid components found for deployment ($invalid_count invalid components)"
+            return 1
+        else
+            log_info "No components found for deployment"
+            return 0
+        fi
+    fi
+    
+    log_info "Found $valid_count valid components to deploy in a single multi-component deployment..."
+    
+    # Build command arguments for multi-component deployment
+    local -a deploy_cmd_args=()
+    deploy_cmd_args+=("ggl-cli" "deploy")
+    
+    # Add directory parameters for traditional mode
+    if [ "$DEPLOYMENT_MODE" = "traditional" ]; then
+        deploy_cmd_args+=("--recipe-dir" "${RECIPES_DIR}")
+        deploy_cmd_args+=("--artifacts-dir" "${ARTIFACTS_DIR}")
+    fi
+    
+    # Add all components to the single deployment using multiple --add-component flags
+    for component_spec in "${valid_components[@]}"; do
+        deploy_cmd_args+=("--add-component" "$component_spec")
+    done
+    
+    log_info "Deploying all $valid_count components in a single multi-component deployment..."
+    log_info "Command: ${deploy_cmd_args[*]}"
+    
+    # Execute the multi-component deployment command
+    local deployment_output
+    if deployment_output=$("${deploy_cmd_args[@]}" 2>&1); then
+        # Extract deployment ID from output
+        local deployment_id=$(echo "$deployment_output" | grep -o "Deployment id: [^.]*" | cut -d' ' -f3 || echo "unknown")
+        log_info "✓ Multi-component deployment queued successfully (ID: $deployment_id)"
+        log_info "Components in deployment: ${valid_components[*]}"
+        
+        if [ $invalid_count -gt 0 ]; then
+            log_warn "Deployment queued but $invalid_count components were skipped due to validation failures"
+        fi
+        
+        log_info "All $valid_count components deployed in single efficient deployment"
+        return 0
+    else
+        log_error "✗ Failed to queue multi-component deployment"
+        log_error "Output: $deployment_output"
+        return 1
+    fi
+}
+
+# Main execution
+main() {
+    log_info "Starting Greengrass Lite image-provided component deployment (${DEPLOYMENT_MODE} mode, post-fleet-provisioning)"
+    log_info "Using efficient multi-component deployment for optimal performance"
+    
+    # Deploy all image-provided components
+    if deploy_image_components; then
+        log_info "All components deployed successfully"
+        log_info "Deployment process completed successfully after fleet provisioning"
+        
+        # Disable the service to prevent future runs
+        log_info "Disabling ${SERVICE_NAME} to prevent future runs"
+        if systemctl disable "${SERVICE_NAME}" 2>/dev/null; then
+            log_info "Service ${SERVICE_NAME} disabled successfully"
+        else
+            log_warn "Failed to disable service ${SERVICE_NAME}, but deployment was successful"
+        fi
+        
+        return 0
+    else
+        log_error "Component deployment failed"
+        log_warn "Service remains enabled for retry on next boot"
+        log_error "Deployment process completed with errors"
+        return 1
+    fi
+}
+
+# Run main deployment process
+main

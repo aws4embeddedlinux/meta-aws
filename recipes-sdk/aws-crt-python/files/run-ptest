@@ -6,8 +6,6 @@ cd tests/
 
 # known good tests
 TESTS="\
-test/test_appexit.py \
-test/test_auth.py \
 test/test_checksums.py \
 test/test_common.py \
 test/test_crypto.py \

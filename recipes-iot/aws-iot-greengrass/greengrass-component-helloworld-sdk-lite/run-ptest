@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -e
+
+# Auto-detect variant and check binary location
+if [ -d "/var/lib/greengrass/packages/artifacts" ]; then
+    VARIANT="lite"
+    EXPECTED_PATH="/var/lib/greengrass/packages/artifacts/com.example.HelloWorldSDKLite/1.0.0/hello-world-sdk-lite"
+elif [ -d "/greengrass/v2/components" ]; then
+    VARIANT="classic"
+    EXPECTED_PATH="/greengrass/v2/components/com.example.HelloWorldSDKLite/1.0.0/hello-world-sdk-lite"
+else
+    echo "FAIL: No Greengrass directory found"
+    exit 1
+fi
+
+echo "Detected variant: ${VARIANT}"
+echo "Checking for binary at: ${EXPECTED_PATH}"
+
+if [ -f "${EXPECTED_PATH}" ] && [ -x "${EXPECTED_PATH}" ]; then
+    echo "PASS: Binary found and executable at correct location"
+else
+    echo "FAIL: Binary not found or not executable at ${EXPECTED_PATH}"
+    exit 1
+fi

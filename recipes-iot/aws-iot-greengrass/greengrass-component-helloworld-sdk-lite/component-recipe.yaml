@@ -1,0 +1,26 @@
+---
+RecipeFormatVersion: "2020-01-25"
+ComponentName: "com.example.HelloWorldSDKLite"
+ComponentVersion: "1.0.0"
+ComponentType: "aws.greengrass.generic"
+ComponentDescription: "Example Hello World component using AWS Greengrass SDK Lite"
+ComponentPublisher: "Example Publisher"
+ComponentConfiguration:
+  DefaultConfiguration:
+    message_interval: 15
+    max_messages: 100
+    accessControl:
+      aws.greengrass.ipc.mqttproxy:
+        "com.example.HelloWorldSDKLite:mqttproxy:1":
+          policyDescription: "Allows pub/sub to IoT Core topic hello"
+          operations:
+            - "aws.greengrass#PublishToIoTCore"
+            - "aws.greengrass#SubscribeToIoTCore"
+          resources:
+            - "hello"
+Manifests:
+  - Platform:
+      os: linux
+      runtime: "*"
+    Lifecycle:
+      run: "{artifacts:path}/hello-world-sdk-lite"
