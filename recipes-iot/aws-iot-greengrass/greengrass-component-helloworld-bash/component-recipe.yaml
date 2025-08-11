@@ -1,0 +1,21 @@
+---
+RecipeFormatVersion: "2020-01-25"
+ComponentName: "com.example.BashHelloWorld"
+ComponentVersion: "1.0.0"
+ComponentType: "aws.greengrass.generic"
+ComponentDescription: "A simple Hello World component written in Bash"
+ComponentPublisher: "Example Publisher"
+ComponentConfiguration:
+  DefaultConfiguration:
+    message: "Hello from Greengrass Lite Bash Component!"
+    interval: 5
+Manifests:
+  - Platform:
+      os: linux
+      runtime: "*"
+    Lifecycle:
+      run: |
+        while true; do
+          echo "$(date): Hello from Greengrass Lite Bash Component!" | tee -a /tmp/hello-bash.log
+          sleep 5
+        done
