@@ -9,6 +9,9 @@ inherit deploy
 
 S = "${UNPACKDIR}"
 
+# Use same fragment directory variable as greengrass-component.bbclass for consistency
+GG_CONFIG_FRAGMENT_DIR = "greengrass-plugin-fragments"
+
 do_install() {
     # Install plugin jar
     install -d ${GG_ROOT}/plugins
@@ -20,13 +23,13 @@ do_install() {
 do_deploy() {
     # Deploy fragment for greengrass-bin to merge later
     if [ -e ${UNPACKDIR}/config.yaml.template ]; then
-        install -d ${DEPLOYDIR}/greengrass-plugin-fragments
-        cp "${UNPACKDIR}/config.yaml.template" "${DEPLOYDIR}/greengrass-plugin-fragments/${PLUGIN_NAME}.yaml"
+        install -d ${DEPLOYDIR}/${GG_CONFIG_FRAGMENT_DIR}
+        cp "${UNPACKDIR}/config.yaml.template" "${DEPLOYDIR}/${GG_CONFIG_FRAGMENT_DIR}/${PLUGIN_NAME}.yaml"
     fi
 }
 addtask deploy after do_install before do_populate_sysroot
 
-do_deploy[cleandirs] += "${DEPLOYDIR}/greengrass-plugin-fragments"
+do_deploy[cleandirs] += "${DEPLOYDIR}/${GG_CONFIG_FRAGMENT_DIR}"
 
 # Track template file changes automatically
 do_install[file-checksums] += "${@'${UNPACKDIR}/config.yaml.template:True' if os.path.exists('${UNPACKDIR}/config.yaml.template') else ''}"

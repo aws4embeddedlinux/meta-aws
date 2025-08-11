@@ -315,6 +315,10 @@ python do_deploy() {
 # Without this, the do_deploy() Python function above won't be executed
 addtask deploy after do_install before do_build
 
+# Clean deploy directory before creating fragments to ensure stale fragments are removed
+# This prevents old fragments from being merged when components are removed from builds
+do_deploy[cleandirs] = "${DEPLOYDIR}"
+
 # Task dependencies for classic variant
 python __anonymous() {
     # For greengrass-classic, deploy creates fragments for later merging
