@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# AWS Greengrass SDK Lite ptest runner
+# This script runs unit tests for the SDK components
+
+PTEST_DIR=$(dirname $0)
+cd $PTEST_DIR
+
+TOTAL_TESTS=0
+PASSED_TESTS=0
+FAILED_TESTS=0
+
+run_test() {
+    local test_name="$1"
+    local test_binary="$2"
+    
+    echo "Running $test_name..."
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    
+    if ./$test_binary; then
+        echo "PASS: $test_name"
+        PASSED_TESTS=$((PASSED_TESTS + 1))
+    else
+        echo "FAIL: $test_name"
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+    fi
+    echo
+}
+
+echo "=== AWS Greengrass SDK Lite Test Suite ==="
+echo
+
+# Run basic API tests
+run_test "Basic API Tests" "test-basic-api"
+
+# Run JSON operation tests
+run_test "JSON Operations Tests" "test-json-ops"
+
+echo "=== Test Summary ==="
+echo "Total tests: $TOTAL_TESTS"
+echo "Passed: $PASSED_TESTS"
+echo "Failed: $FAILED_TESTS"
+
+if [ $FAILED_TESTS -eq 0 ]; then
+    echo "All tests passed!"
+    exit 0
+else
+    echo "Some tests failed!"
+    exit 1
+fi
