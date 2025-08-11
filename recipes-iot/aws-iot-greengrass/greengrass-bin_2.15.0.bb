@@ -29,7 +29,7 @@ SRC_URI:append = " ${@bb.utils.contains('PACKAGECONFIG', 'fleetprovisioning', '\
     file://loader.patch \
     ', '', d)}"
 
-SRC_URI[sha256sum] = "a7cbc3cee5d245bfac9c49a036a482884898edbeb2f1e6fb27d17e9321007ce8"
+SRC_URI[sha256sum] = "650b4bbee368d5bdb8c5a89ef6b76c08c508050ead594360681d760a299f33ef"
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 
 UPSTREAM_CHECK_URI = "https://github.com/aws-greengrass/aws-greengrass-nucleus/tags"
