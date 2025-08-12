@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: AWS Meta Layer <meta-aws@amazon.com>
+Date: Thu, 24 Jul 2025 12:00:00 +0000
+Subject: [PATCH] Fix cross-compilation support
+
+This patch fixes cross-compilation issues by properly handling
+the target architecture and toolchain settings, and adds OpenSSL
+compatibility flags to suppress deprecated warnings.
+
+Upstream-Status: Inappropriate [oe-specific]
+
+Signed-off-by: AWS Meta Layer <meta-aws@amazon.com>
+
+--- a/setup.py
++++ b/setup.py
+@@ -283,12 +283,24 @@ class awscrt_build_ext(setuptools.command.build_ext.build_ext):
+             f'-DCMAKE_BUILD_TYPE={build_type}',
+         ])
+
++        # Handle cross-compilation
++        if os.environ.get('CMAKE_TOOLCHAIN_FILE'):
++            cmake_args.append('-DCMAKE_TOOLCHAIN_FILE=' + os.environ['CMAKE_TOOLCHAIN_FILE'])
++
++        # TODO: allow user to opt-in to this, it makes the build much slower
++        # cmake_args.append('-DENABLE_SANITIZERS=ON')
++
+         if using_libcrypto():
+             if using_system_libcrypto():
+                 cmake_args.append('-DUSE_OPENSSL=ON')
+
+             cmake_args.append('-DAWS_USE_LIBCRYPTO_TO_SUPPORT_ED25519_EVERYWHERE=ON')
+
++        # Add OpenSSL compatibility flags to suppress deprecated warnings
++        cmake_args.extend([
++            '-DCMAKE_C_FLAGS=-DOPENSSL_SUPPRESS_DEPRECATED'
++        ])
++
+         if sys.platform == 'darwin':
+             # get Python's MACOSX_DEPLOYMENT_TARGET version
+             macosx_target_ver = sysconfig.get_config_var('MACOSX_DEPLOYMENT_TARGET')
