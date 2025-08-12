@@ -33,13 +33,13 @@ jobs:
           LATEST_COMMIT_IN_PR=${{ github.event.pull_request.head.sha }}
 
           # Get the diff
-          DIFF=$(git diff --name-only --diff-filter=D $FORK_POINT $LATEST_COMMIT_IN_PR)
+          DIFF=$(git diff --name-only --diff-filter=d $FORK_POINT $LATEST_COMMIT_IN_PR)
           echo "Diff between $FORK_POINT and $LATEST_COMMIT_IN_PR"
         else
           # Push to a branch
           BEFORE_SHA=${{ github.event.before }}
           AFTER_SHA=${{ github.event.after }}
-          DIFF=$(git diff --name-only --diff-filter=D $BEFORE_SHA $AFTER_SHA)
+          DIFF=$(git diff --name-only --diff-filter=d $BEFORE_SHA $AFTER_SHA)
           echo "Diff between $BEFORE_SHA and $AFTER_SHA"
         fi
 
