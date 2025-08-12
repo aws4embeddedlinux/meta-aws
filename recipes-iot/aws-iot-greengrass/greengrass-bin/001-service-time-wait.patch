@@ -1,0 +1,19 @@
+This will allow if systemd-time-wait-sync.service is enabled to wait for a synced clock.
+If this is not enabled it will not wait. Especially in systems without a RTC (like RPi) it
+will take some time after boot till NTP will sync clock and if Greengrass is
+already started this time jump will cause issues.
+
+Upstream-Status: Submitted [https://github.com/aws-greengrass/aws-greengrass-nucleus/pull/1677]
+
+Index: greengrass-bin/bin/greengrass.service.template
+===================================================================
+--- greengrass-bin.orig/bin/greengrass.service.template
++++ greengrass-bin/bin/greengrass.service.template
+@@ -1,6 +1,7 @@
+ [Unit]
+ Description=Greengrass Core
+ After=network.target
++After=systemd-time-wait-sync.service
+
+ [Service]
+ Type=simple
