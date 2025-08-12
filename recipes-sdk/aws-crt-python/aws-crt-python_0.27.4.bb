@@ -109,6 +109,7 @@ RDEPENDS:${PN} += "\
 do_install_ptest() {
     install -d ${D}${PTEST_PATH}/tests
     cp -rf ${S}/test ${D}${PTEST_PATH}/tests/
+    find ${D}${PTEST_PATH}/tests -type f -exec sed -i '1s|^#! */usr/bin/python$|#!/usr/bin/python3|' {} +
 }
 
 BBCLASSEXTEND = "native nativesdk"
