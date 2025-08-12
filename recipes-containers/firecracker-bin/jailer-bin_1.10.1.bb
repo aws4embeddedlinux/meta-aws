@@ -47,6 +47,3 @@ do_install() {
 
     install -m 0755 ${S}/jailer-v${PV}-${TARGET_ARCH} ${D}${bindir}/jailer
 }
-
-# https://bugzilla.yoctoproject.org/show_bug.cgi?id=15227
-PACKAGE_DEPENDS:append:class-target = " virtual/cross-binutils"
