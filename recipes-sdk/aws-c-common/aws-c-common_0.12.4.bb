@@ -12,6 +12,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-c-common.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     file://ptest_result.py \
+    file://0001-skip-iso8601-tests-on-32bit.patch \
 "
 SRCREV = "2b67a658e461520f1de20d64342b91ddcedc7ebb"
 
