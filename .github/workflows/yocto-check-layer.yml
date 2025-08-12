@@ -15,8 +15,7 @@ jobs:
         id: get-yocto-release-name
         run: |
             release_name=$(echo ${{github.event.pull_request.base.ref}} | cut -d- -f1)
-            # this is deprecated, but replacement does not seem to work now?
-            echo "::set-output name=release_name::$release_name"
+            echo "release_name=$release_name" >> $GITHUB_OUTPUT
       - name: install required packages to run yocto-check-layer
         run: |
           sudo apt-get -y install gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio python3 xz-utils zstd liblz4-tool locales
@@ -41,6 +40,7 @@ jobs:
         run: |
           cd yocto_checklayer/
           source poky/oe-init-build-env build
+          echo DISTRO = \"poky-altcfg\" >> conf/local.conf
           yocto-check-layer ../meta-aws/ --dependency ../meta-openembedded/meta-oe/ ../meta-openembedded/meta-python/ ../meta-openembedded/meta-multimedia ../meta-openembedded/meta-networking --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency
       - name: save test result
         uses: actions/upload-artifact@v4

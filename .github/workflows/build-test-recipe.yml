@@ -33,13 +33,13 @@ jobs:
           LATEST_COMMIT_IN_PR=${{ github.event.pull_request.head.sha }}
 
           # Get the diff
-          DIFF=$(git diff --name-only $FORK_POINT $LATEST_COMMIT_IN_PR)
+          DIFF=$(git diff --name-only --diff-filter=D $FORK_POINT $LATEST_COMMIT_IN_PR)
           echo "Diff between $FORK_POINT and $LATEST_COMMIT_IN_PR"
         else
           # Push to a branch
           BEFORE_SHA=${{ github.event.before }}
           AFTER_SHA=${{ github.event.after }}
-          DIFF=$(git diff --name-only $BEFORE_SHA $AFTER_SHA)
+          DIFF=$(git diff --name-only --diff-filter=D $BEFORE_SHA $AFTER_SHA)
           echo "Diff between $BEFORE_SHA and $AFTER_SHA"
         fi
 
@@ -86,7 +86,7 @@ jobs:
         run: |
           echo diff:
           echo ${{ needs.changed.outputs.diff }}
-          export RECIPES=$( echo "${{ needs.changed.outputs.diff }}" | tr ' ' '\n' | grep '\.bb.*$' | grep -v '\.bbclass$' | while read file; do [ -f "$file" ] && echo "$file"; done | sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
+          export RECIPES=$( echo "${{ needs.changed.outputs.diff }}" | tr ' ' '\n' | grep '\.bb.*$' | sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
           if [ "" == "$RECIPES" ]; then
             echo "No changed recipes, adding everything with a ptest to test, build"
             THINGS_TO_EXCLUDE="! -name aws-lc* ! -name neo-ai-tv* ! -name corretto-17-bin* ! -name corretto-21-bin* ! -name corretto-8-bin* ! -name firecracker-bin* ! -name jailer-bin* ! -name amazon-kvs-producer-sdk-c* ! -name  aws-cli-v2* ! -name  aws-iot-device-sdk-embedded-c* "
