@@ -1,6 +1,8 @@
 [Unit]
 Description=Greengrass Lite pre Fleet Provisioning Service
 After=systemd-time-wait-sync.service
+After=network-online.target
+Wants=network-online.target
 Before=ggl.core.ggconfigd.service
 Before=ggl.gg_fleetprovisioning.service
 ConditionPathExists=!/var/lib/greengrass/provisioned-cert
