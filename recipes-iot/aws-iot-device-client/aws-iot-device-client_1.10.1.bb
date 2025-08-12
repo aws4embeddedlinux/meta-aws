@@ -19,7 +19,6 @@ SRC_URI = "\
     ${@bb.utils.contains('PACKAGECONFIG', 'no-buildin-sdk', '', 'gitsm://github.com/aws/aws-iot-device-sdk-cpp-v2.git;protocol=https;branch=main;name=aws-iot-device-sdk-cpp-v2;destsuffix=aws-iot-device-sdk-cpp-v2-src', d)} \
     git://github.com/google/googletest.git;protocol=https;branch=main;name=googletest;destsuffix=googletest-src \
     file://run-ptest \
-    file://ptest_result.py \
     file://001-set-cmake-min-version-for-external-project-sdk-and-src-path.patch \
     "
 
@@ -93,22 +92,8 @@ RDEPENDS:${PN} = "\
 SYSTEMD_AUTO_ENABLE = "enable"
 SYSTEMD_SERVICE:${PN} = "aws-iot-device-client.service"
 
-
-RDEPENDS:${PN}-ptest += "bash python3"
-
-do_install_ptest() {
-    install -d ${D}${PTEST_PATH}/tests
-
-    cp -r ${B}/test/test-aws-iot-device-client ${D}${PTEST_PATH}/
-
-    install -m 0755 ${UNPACKDIR}/ptest_result.py ${D}${PTEST_PATH}/
-}
-
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN} += "buildpaths"
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN}-dbg += "buildpaths"
-
-# nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP:${PN}-ptest += "buildpaths"
