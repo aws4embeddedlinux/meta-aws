@@ -20,14 +20,11 @@ PACKAGECONFIG[pkcs11] = ",,greengrass-plugin-pkcs11,greengrass-plugin-pkcs11"
 
 SRC_URI = "\
     https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-${PV}.zip;subdir=greengrass-bin \
+    file://001-service-time-wait.patch \
     file://greengrassv2-init.yaml \
     file://run-ptest \
     file://config.yaml.template \
     "
-
-SRC_URI:append = " ${@bb.utils.contains('PACKAGECONFIG', 'fleetprovisioning', '\
-    file://loader.patch \
-    ', '', d)}"
 
 SRC_URI[sha256sum] = "650b4bbee368d5bdb8c5a89ef6b76c08c508050ead594360681d760a299f33ef"
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
