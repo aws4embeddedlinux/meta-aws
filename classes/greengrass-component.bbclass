@@ -35,6 +35,8 @@
 
 require greengrass-common.inc
 
+DEPENDS:prepend = "python3-pyyaml-native "
+
 # Extract component information from YAML file, allow recipe override
 python __anonymous() {
     import yaml
