@@ -3,6 +3,8 @@
 # This class handles local component deployment for AWS IoT Greengrass Lite
 # Supports both zero-copy (direct placement) and traditional (copy-based) deployment
 
+DEPENDS:prepend = "python3-pyyaml-native "
+
 # Configuration: Zero-copy deployment (default: enabled)
 # Set GREENGRASS_LITE_ZERO_COPY = "0" to use traditional copy-based deployment
 GREENGRASS_LITE_ZERO_COPY ??= "1"
