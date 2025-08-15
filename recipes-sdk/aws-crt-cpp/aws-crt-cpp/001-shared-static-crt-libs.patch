@@ -1,22 +1,30 @@
+From f023fcdde0dd96697cfb1a4840fc09f0244463ce Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Tue, 20 May 2025 08:45:29 +0000
+Subject: [PATCH] aws-crt-cpp: change to build-deps as default
+
 This disable the shared libs build for aws-crt-cpp and aws-c-iot,
 cause they will conflict with already exising versions on a system.
 Therefor they are static linked into the cpp libs to not conflict.
 
 Upstream-Status: Inappropriate [oe specific]
+---
+ CMakeLists.txt | 2 ++
+ 1 file changed, 2 insertions(+)
 
-Index: 0.32.5/CMakeLists.txt
-===================================================================
---- 0.32.5.orig/CMakeLists.txt
-+++ 0.32.5/CMakeLists.txt
-@@ -45,6 +45,7 @@ set(GENERATED_CONFIG_HEADER "${GENERATED
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index e9a3827..83bc66b 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -48,6 +48,7 @@ set(GENERATED_CONFIG_HEADER "${GENERATED_INCLUDE_DIR}/aws/crt/Config.h")
  configure_file(include/aws/crt/Config.h.in ${GENERATED_CONFIG_HEADER} @ONLY)
-
+ 
  if(BUILD_DEPS)
 +    set(BUILD_SHARED_LIBS OFF)
      list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/crt/aws-c-common/cmake")
-
+ 
      include(AwsFindPackage)
-@@ -103,6 +104,7 @@ if(BUILD_DEPS)
+@@ -129,6 +130,7 @@ if(BUILD_DEPS)
      add_subdirectory(crt/aws-c-event-stream)
      add_subdirectory(crt/aws-c-s3)
      set(BUILD_TESTING ${BUILD_TESTING_PREV})
