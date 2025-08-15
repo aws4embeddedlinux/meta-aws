@@ -1,9 +1,17 @@
-Upstream-Status: Inappropriate [oe-specific]
+From 3b7dd545c7b7a766bf0f7757e6d095bd002b1f84 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Wed, 23 Jul 2025 20:33:00 +0000
+Subject: [PATCH] linux-webrtc-reference-for-amazon-kinesis-video-streams:
 
-Index: linux-webrtc-reference-for-amazon-kinesis-video-streams-git/CMake/libusrsctp.cmake
-===================================================================
---- linux-webrtc-reference-for-amazon-kinesis-video-streams-git.orig/CMake/libusrsctp.cmake
-+++ linux-webrtc-reference-for-amazon-kinesis-video-streams-git/CMake/libusrsctp.cmake
+Upstream-Status: Inappropriate [oe-specific]
+---
+ CMake/libusrsctp.cmake | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/CMake/libusrsctp.cmake b/CMake/libusrsctp.cmake
+index 81ff607..ed8cbec 100644
+--- a/CMake/libusrsctp.cmake
++++ b/CMake/libusrsctp.cmake
 @@ -18,6 +18,7 @@ add_custom_target(usrsctp-build ALL
              "-DCMAKE_C_FLAGS=${CMAKE_C_FLAGS} -fPIC"
              -Dsctp_werror=0
