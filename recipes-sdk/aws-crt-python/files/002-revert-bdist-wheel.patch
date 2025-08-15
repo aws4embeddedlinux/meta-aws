@@ -1,0 +1,28 @@
+This reverts https://github.com/awslabs/aws-crt-python/pull/671/commits/dd9073ddc8cc9c1b6995b4d5684005386e3eed01
+Upstream-Status: Inappropriate [oe-specific]
+
+Index: git/pyproject.toml
+===================================================================
+--- git.orig/pyproject.toml
++++ git/pyproject.toml
+@@ -1,6 +1,7 @@
+ [build-system]
+ requires = [
+   "setuptools>=75.3.1",
++  "wheel>=0.45.1",      # used by our setup.py
+ ]
+ build-backend = "setuptools.build_meta"
+
+Index: git/setup.py
+===================================================================
+--- git.orig/setup.py
++++ git/setup.py
+@@ -11,7 +11,7 @@ import shutil
+ import subprocess
+ import sys
+ import sysconfig
+-from setuptools.command.bdist_wheel import bdist_wheel
++from wheel.bdist_wheel import bdist_wheel
+
+ if sys.platform == 'win32':
+     # distutils is deprecated in Python 3.10 and removed in 3.12. However, it still works because Python defines a compatibility interface as long as setuptools is installed.
