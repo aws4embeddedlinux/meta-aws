@@ -9,7 +9,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "2d3b8f931ebb8ac73ed0ef65f768a9100e815edb"
+SRCREV = "b1b06fe978804bce59d8e4d0b25aa67217458bcf"
 
 inherit setuptools3 ptest
 
