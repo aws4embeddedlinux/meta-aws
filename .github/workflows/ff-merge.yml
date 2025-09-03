@@ -14,20 +14,24 @@ jobs:
         branch:  ${{ fromJson(github.event.inputs.branches) }}
       fail-fast: false
     steps:
-         - name: clone meta-aws ${{ github.event.inputs.branches }} branch
+         - name: clone meta-aws branch
            uses: actions/checkout@v4
            with:
               ref: ${{ matrix.branch }}
               path: meta-aws
               fetch-depth: 0
               token: ${{ secrets.BOT_CREDENTIAL }}
-         - name: merge ${{ matrix.branch }}-next into ${{ matrix.branch }}
+         - name: merge branch-next into branch
            working-directory: meta-aws
+           env:
+             BRANCH_NAME: ${{ matrix.branch }}
            run: |
              git config --global user.name aws-iot-embedded-linux-ci
              git config --global user.email aws-iot-embedded-linux-ci@users.noreply.github.com
-             git merge --ff-only origin/${{ matrix.branch }}-next
-         - name: push ${{ matrix.branch }}
+             git merge --ff-only "origin/${BRANCH_NAME}-next"
+         - name: push branch
            working-directory: meta-aws
+           env:
+             BRANCH_NAME: ${{ matrix.branch }}
            run: |
-             git push -u origin ${{ matrix.branch }}
+             git push -u origin "${BRANCH_NAME}"
