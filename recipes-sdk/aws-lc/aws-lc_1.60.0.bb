@@ -14,7 +14,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "eff1b1a63da05977d3fc262985478c1251763495"
+SRCREV = "98500e8bc7dc3e3e5871519abf12cdc781ebe4e1"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
@@ -44,6 +44,8 @@ EXTRA_OECMAKE += "\
     -DDISABLE_PERL=ON \
     -DDISABLE_GO=ON \
 "
+
+EXTRA_OECMAKE += "-DCMAKE_C_FLAGS='${CFLAGS}'"
 
 CXXFLAGS += "-Wno-ignored-attributes"
 
