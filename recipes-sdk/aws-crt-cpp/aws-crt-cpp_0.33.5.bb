@@ -85,14 +85,13 @@ do_install_ptest () {
     install -m 0755 ${B}/tests/aws-crt-cpp-tests ${D}${PTEST_PATH}/tests/
 }
 
-# -fsanitize=address does cause this
-# nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP - -fsanitize=address does cause this
+INSANE_SKIP:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
 
 PACKAGECONFIG[sanitize] = ",, gcc-sanitizers"
 OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP += "32bit-time"
+INSANE_SKIP:${PN} += "32bit-time"
 
 BRANCH = "main"

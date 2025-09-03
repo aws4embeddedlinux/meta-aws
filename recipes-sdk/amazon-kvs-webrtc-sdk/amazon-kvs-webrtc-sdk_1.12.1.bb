@@ -50,8 +50,7 @@ FILES:${PN} += "\
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
-# arm32 - gives this warning
-# nooelint: oelint.vars.specific
+# nooelint: oelint.vars.specific - arm32 gives this warning
 CFLAGS:append:arm = " -Wno-incompatible-pointer-types"
 
 EXTRA_OECMAKE += "\

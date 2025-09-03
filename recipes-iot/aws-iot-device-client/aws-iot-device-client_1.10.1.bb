@@ -24,14 +24,14 @@ SRC_URI = "\
 
 SRCREV = "7f9547bca3e1a199f2824f4376e1782b082b226f"
 
-# must match CMakeLists.txt.awssdk (check is done through failing patch)
 # nooelint: oelint.vars.specific
 SRCREV_aws-iot-device-sdk-cpp-v2 = "74c8b683ebe5b1cbf484f6acaa281f56aaa63948"
+# must match CMakeLists.txt.awssdk (check is done through failing patch)
 
-# must match CMakeLists.txt.googletest (check is done through failing patch)
-# this is always used as tests are not compatible with a recent version of googletest (https://github.com/awslabs/aws-iot-device-client/issues/404)
 # nooelint: oelint.vars.specific
 SRCREV_googletest = "15460959cbbfa20e66ef0b5ab497367e47fc0a04"
+# must match CMakeLists.txt.googletest (check is done through failing patch)
+# this is always used as tests are not compatible with a recent version of googletest (https://github.com/awslabs/aws-iot-device-client/issues/404)
 
 SRCREV_FORMAT .= "_aws-iot-device-sdk-cpp-v2_googletest"
 
