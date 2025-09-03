@@ -88,13 +88,10 @@ do_install_ptest () {
     install -m 0755 ${WORKDIR}/ptest_result.py ${D}${PTEST_PATH}/
 }
 
-# this is related to this issue
-# https://github.com/aws/aws-sdk-cpp/issues/2242
-# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP - this is related to this issue https://github.com/aws/aws-sdk-cpp/issues/2242
 INSANE_SKIP:${PN}-src:append:class-target = " buildpaths"
 
-# -fsanitize=address does cause this
-# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP - -fsanitize=address does cause this
 INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
 PACKAGECONFIG[sanitize] = ",,gcc-sanitizers"
 OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"
