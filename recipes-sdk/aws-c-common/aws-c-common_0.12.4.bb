@@ -54,4 +54,4 @@ BBCLASSEXTEND = "native nativesdk"
 INSANE_SKIP:${PN}-ptest += "buildpaths"
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP += "32bit-time"
+INSANE_SKIP:${PN} += "32bit-time"
