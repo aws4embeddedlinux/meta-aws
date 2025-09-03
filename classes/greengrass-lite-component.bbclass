@@ -17,10 +17,6 @@ GGL_IMAGE_COMPONENTS_ROOT = "/usr/share/greengrass-image-components"
 GGL_RECIPES_DIR = "${@'${GGL_PACKAGES_DIR}/recipes' if d.getVar('GREENGRASS_LITE_ZERO_COPY') == '1' else '${GGL_IMAGE_COMPONENTS_ROOT}/recipes'}"
 GGL_ARTIFACTS_DIR = "${@'${GGL_PACKAGES_DIR}/artifacts' if d.getVar('GREENGRASS_LITE_ZERO_COPY') == '1' else '${GGL_IMAGE_COMPONENTS_ROOT}/artifacts'}"
 
-# Component metadata
-COMPONENT_NAME ??= ""
-COMPONENT_VERSION ??= "1.0.0"
-
 # Validate that this is for Greengrass Lite
 python __anonymous() {
     variant = d.getVar('GREENGRASS_VARIANT')
@@ -35,8 +31,21 @@ python __anonymous() {
 
 # Extract component information from YAML file, allow recipe override
 python __anonymous() {
-    import yaml
     import os
+
+    def parse_simple_yaml(content):
+        """Simple YAML parser for basic key-value pairs"""
+        result = {}
+        lines = content.split('\n')
+        for line in lines:
+            line = line.strip()
+            if line and not line.startswith('#') and ':' in line:
+                key, value = line.split(':', 1)
+                key = key.strip()
+                value = value.strip().strip('"\'')
+                if value:
+                    result[key] = value
+        return result
 
     # First, check if COMPONENT_NAME and COMPONENT_VERSION are already set in recipe
     component_name = d.getVar('COMPONENT_NAME')
@@ -67,7 +76,9 @@ python __anonymous() {
         if yaml_file:
             try:
                 with open(yaml_file, 'r') as f:
-                    recipe = yaml.safe_load(f)
+                    content = f.read()
+
+                recipe = parse_simple_yaml(content)
 
                 # Set COMPONENT_NAME from YAML if not already set in recipe
                 if not component_name:
