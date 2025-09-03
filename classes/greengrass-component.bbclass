@@ -39,8 +39,21 @@ DEPENDS:prepend = "python3-pyyaml-native "
 
 # Extract component information from YAML file, allow recipe override
 python __anonymous() {
-    import yaml
     import os
+
+    def parse_simple_yaml(content):
+        """Simple YAML parser for basic key-value pairs"""
+        result = {}
+        lines = content.split('\n')
+        for line in lines:
+            line = line.strip()
+            if line and not line.startswith('#') and ':' in line:
+                key, value = line.split(':', 1)
+                key = key.strip()
+                value = value.strip().strip('"\'')
+                if value:
+                    result[key] = value
+        return result
 
     # First, check if COMPONENT_NAME and COMPONENT_VERSION are already set in recipe
     component_name = d.getVar('COMPONENT_NAME')
@@ -71,7 +84,9 @@ python __anonymous() {
         if yaml_file:
             try:
                 with open(yaml_file, 'r') as f:
-                    recipe = yaml.safe_load(f)
+                    content = f.read()
+
+                recipe = parse_simple_yaml(content)
 
                 # Set COMPONENT_NAME from YAML if not already set in recipe
                 if not component_name:
@@ -102,9 +117,6 @@ python __anonymous() {
 inherit deploy
 
 S = "${WORKDIR}"
-
-# Default component version if not specified
-COMPONENT_VERSION ??= "1.0.0"
 
 # Greengrass variant configuration - Classic only
 GREENGRASS_VARIANT ?= "classic"
