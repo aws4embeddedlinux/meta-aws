@@ -27,7 +27,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "78c4031387b5be86837e336730f4ef4ab6144815"
+SRCREV = "3d3af2e87acb9f316683b19439679a26e0883a3c"
 
 S = "${WORKDIR}/git"
 
@@ -94,3 +94,5 @@ OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanit
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP += "32bit-time"
+
+BRANCH = "main"
