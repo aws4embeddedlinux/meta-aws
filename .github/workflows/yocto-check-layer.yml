@@ -13,8 +13,10 @@ jobs:
     steps:
       - name: get yocto release name
         id: get-yocto-release-name
+        env:
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-            release_name=$(echo ${{github.event.pull_request.base.ref}} | cut -d- -f1)
+            release_name=$(echo "$PR_BASE_REF" | cut -d- -f1)
             echo "release_name=$release_name" >> $GITHUB_OUTPUT
       - name: install required packages to run yocto-check-layer
         run: |
