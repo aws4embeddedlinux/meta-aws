@@ -36,7 +36,7 @@ SRC_URI:append = " ${@bb.utils.contains('PACKAGECONFIG', 'fleetprovisioning', '\
     file://greengrass.service.patch \
     ', '', d)}"
 
-SRC_URI[sha256sum] = "a7cbc3cee5d245bfac9c49a036a482884898edbeb2f1e6fb27d17e9321007ce8"
+SRC_URI[sha256sum] = "650b4bbee368d5bdb8c5a89ef6b76c08c508050ead594360681d760a299f33ef"
 SRC_URI[fleetprovisioning.sha256sum] = "1e7fdc625d4e1e7795d63f0e97981feecad526277bf211154505de145009e8c1"
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 
@@ -76,7 +76,7 @@ do_install() {
     ln -s /${GG_BASENAME}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus ${GG_ROOT}/alts/init/distro
 
     install -m 0440 ${S}/LICENSE                         ${GG_ROOT}
-    install -m 0640 ${S}/../greengrassv2-init.yaml          ${GG_ROOT}/config/config.yaml.clean
+    install -m 0640 ${S}/../greengrassv2-init.yaml       ${GG_ROOT}/config/config.yaml.clean
     install -m 0640 ${S}/bin/greengrass.service.template ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/greengrass.service.template
     install -m 0750 ${S}/bin/loader                      ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/loader
     install -m 0640 ${S}/conf/recipe.yaml                ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/conf/recipe.yaml
@@ -130,14 +130,15 @@ GROUPADD_PARAM:${PN} = "-r ggc_group"
 USERADD_PARAM:${PN} = "-r -M -N -g ggc_group -s /bin/false ggc_user"
 GROUP_MEMS_PARAM:${PN} = ""
 
+# nooelint: oelint.vars.insaneskip
+INSANE_SKIP:${PN} += "already-stripped ldflags file-rdeps"
 #
 # Disable failing QA checks:
 #
 #   Binary was already stripped
 #   No GNU_HASH in the elf binary
 #
-# nooelint: oelint.vars.insaneskip
-INSANE_SKIP:${PN} += "already-stripped ldflags file-rdeps"
+
 
 RDEPENDS:${PN}-ptest += "\
     greengrass-bin \
