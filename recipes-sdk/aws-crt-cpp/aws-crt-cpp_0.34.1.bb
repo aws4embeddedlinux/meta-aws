@@ -86,6 +86,9 @@ do_install_ptest () {
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP - -fsanitize=address does cause this
 INSANE_SKIP:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
 
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN}-ptest += "buildpaths"
+
 PACKAGECONFIG[sanitize] = ",, gcc-sanitizers"
 OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanitize=address,undefined -fno-omit-frame-pointer', '', d)}"
 
