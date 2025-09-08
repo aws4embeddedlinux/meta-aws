@@ -121,6 +121,3 @@ do_install:prepend() {
 
 # Package the appropriate directories based on mode
 FILES:${PN} += "${@'${GGL_PACKAGES_DIR}/*' if d.getVar('GREENGRASS_LITE_ZERO_COPY') == '1' else '${GGL_IMAGE_COMPONENTS_ROOT}/*'}"
-
-# Runtime dependency on greengrass-lite
-RDEPENDS:${PN} += "greengrass-lite"

@@ -22,6 +22,8 @@ GREENGRASS_VARIANT ?= "lite"
 inherit_defer ${@'greengrass-lite-component' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-component'}
 inherit ptest
 
+RDEPENDS:${PN} += "${@'greengrass-lite' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-bin'}"
+
 SRC_URI = " \
     file://component-recipe.yaml \
     file://run-ptest \
