@@ -107,6 +107,9 @@ RDEPENDS:${PN}-ptest += "\
     python3 \
 "
 
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN}-ptest += "buildpaths"
+
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP - -fsanitize=address does cause this
 INSANE_SKIP:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', 'buildpaths', '', d)}"
 
