@@ -29,6 +29,8 @@ RDEPENDS:${PN} += "aws-iot-device-sdk-python-v2"
 RDEPENDS:${PN} += "${@'bash' if d.getVar('GREENGRASS_VARIANT') == 'classic' else ''}"
 RDEPENDS:${PN}-ptest += "bash"
 
+RDEPENDS:${PN} += "${@'greengrass-lite' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-bin'}"
+
 do_install:append() {
     if [ "${GREENGRASS_VARIANT}" = "lite" ]; then
         install -m 0755 ${UNPACKDIR}/hello_world.py ${D}${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/
