@@ -10,8 +10,8 @@ LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/Apache-2.0;md5=89aea4e17d99a7ca
 # COMPONENT_NAME = "com.example.HelloWorldSDKLite"
 # COMPONENT_VERSION = "1.0.0"
 
-# Default to lite variant, can be overwritten
-GREENGRASS_VARIANT ?= "lite"
+# Default to classic variant, can be overwritten
+GREENGRASS_VARIANT ?= "classic"
 
 # Always need SDK Lite for this component
 DEPENDS = "aws-greengrass-sdk-lite"
@@ -40,6 +40,8 @@ PACKAGECONFIG[static] = "-DUSE_STATIC_LIBS=ON,-DUSE_STATIC_LIBS=OFF"
 # greengrass-lite-component.bbclass = Greengrass Lite only
 inherit cmake ptest
 inherit_defer ${@'greengrass-lite-component' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-component'}
+
+RDEPENDS:${PN} += "${@'greengrass-lite' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-bin'}"
 
 FILES:${PN}-ptest += "${PTEST_PATH}/*"
 
