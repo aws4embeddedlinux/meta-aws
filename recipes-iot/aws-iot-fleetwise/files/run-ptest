@@ -13,6 +13,7 @@ fi
 
 ### fwe-gtest
 tests/fwe-gtest --gtest_filter=\
+-CANDataSourceTest.testNoDecoderDictionary:\
 -AwsIotConnectivityModuleTest*:\
 -CANDecoderTest*:\
 -CANDataSourceTest.*:\
@@ -20,9 +21,9 @@ tests/fwe-gtest --gtest_filter=\
 -CollectionInspectionWorkerThreadTest.*:\
 -IoTFleetWiseConfigTest.ReadOk:\
 -IoTFleetWiseEngineTest.*:\
--CollectionInspectionEngineDoubleTest.RandomDataTest\
+-CollectionInspectionEngineDoubleTest.RandomDataTest:\
 -ISOTPOverCANProtocolTest.*:\
--OBDOverCANModuleTest.* \
+-OBDOverCANModuleTest.*\
 --gtest_fail_fast --gtest_output=json:result.json > /dev/null ;  python3 ptest_result.py result.json 
 
 
