@@ -23,6 +23,7 @@ SRC_URI = "\
     file://0002-remove-cxx-standard.patch \
     file://0003-boost-include-format.patch \
     file://0004-cmake-version.patch \
+    file://0005-fix-boost-system-header-only.patch \
     file://run-ptest \
     "
 SRCREV = "feb59e268c8f4f1c7450f3a510963e84cc397ac7"
