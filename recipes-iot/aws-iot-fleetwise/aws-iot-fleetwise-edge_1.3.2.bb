@@ -19,6 +19,7 @@ DEPENDS = "\
 SRC_URI = "\
     git://github.com/aws/aws-iot-fleetwise-edge.git;protocol=https;branch=main \
     file://001-remove-cxx-standard.patch \
+    file://ptest_result.py \
     file://run-ptest \
     "
 
@@ -96,6 +97,7 @@ do_install() {
 
 do_install_ptest() {
     install -d ${D}${PTEST_PATH}/tests
+    install -m 0755 ${UNPACKDIR}/ptest_result.py ${D}${PTEST_PATH}/
     install -m 0755 ${S}/configuration/static-config.json ${D}${PTEST_PATH}/config-0.json
     install -m 0755 ${B}/fwe-gtest ${D}${PTEST_PATH}/tests/
     install -m 0755 ${B}/fwe-benchmark ${D}${PTEST_PATH}/tests/
