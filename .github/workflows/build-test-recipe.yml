@@ -24,30 +24,27 @@ jobs:
         BEFORE_SHA: ${{ github.event.before }}
         AFTER_SHA: ${{ github.event.after }}
       run: |
-        if [ "$GITHUB_BASE_REF" ]; then
+        if [ -n "$BASE_REF" ] && [ -n "$HEAD_REF" ] && [ -n "$HEAD_SHA" ]; then
           # Pull Request
-          # Fetch the base ref
           git fetch origin "$BASE_REF:$BASE_REF"
 
-          # For forks, we need to fetch from the head repository
-          if [ "$HEAD_REPO_NAME" != "$REPOSITORY" ]; then
+          if [ "$HEAD_REPO_NAME" != "$REPOSITORY" ] && [ -n "$HEAD_REPO_URL" ]; then
             git remote add fork "$HEAD_REPO_URL"
             git fetch fork "$HEAD_REF"
           else
             git fetch origin "$HEAD_REF:$HEAD_REF"
           fi
 
-          # Determine the merge base
           FORK_POINT=$(git merge-base "$BASE_REF" "$HEAD_SHA")
-          LATEST_COMMIT_IN_PR="$HEAD_SHA"
-
-          # Get the diff
-          DIFF=$(git diff --name-only --diff-filter=d "$FORK_POINT" "$LATEST_COMMIT_IN_PR")
-          echo "Diff between $FORK_POINT and $LATEST_COMMIT_IN_PR"
-        else
+          DIFF=$(git diff --name-only --diff-filter=d "$FORK_POINT" "$HEAD_SHA")
+          echo "Diff between $FORK_POINT and $HEAD_SHA"
+        elif [ -n "$BEFORE_SHA" ] && [ -n "$AFTER_SHA" ]; then
           # Push to a branch
           DIFF=$(git diff --name-only --diff-filter=d "$BEFORE_SHA" "$AFTER_SHA")
           echo "Diff between $BEFORE_SHA and $AFTER_SHA"
+        else
+          echo "No valid diff context found, checking all files"
+          DIFF=""
         fi
 
         echo "$DIFF"
