@@ -48,6 +48,7 @@ EXTRA_OECMAKE += "-DFWE_AWS_SDK_SHARED_LIBS=ON"
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
 
 SYSTEMD_SERVICE:${PN} = "fwe@.service"
+SYSTEMD_AUTO_ENABLE:${PN} = "disable"
 
 # Default values for configure-fwe
 CERTIFICATE_FILE ?= "/etc/aws-iot-fleetwise/certificate.pem"
