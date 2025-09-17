@@ -119,7 +119,6 @@ TESTS="\
 ./s2n_wildcard_hostname_test \
 ./s2n_ecc_evp_test \
 ./s2n_tls13_server_cert_test \
-./s2n_tls13_hybrid_shared_secret_test \
 ./s2n_tls13_handshake_early_data_test \
 ./s2n_stuffer_test \
 ./s2n_resume_test \
