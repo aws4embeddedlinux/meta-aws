@@ -14,7 +14,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "806fdfb33b1f683734fd85143c8090f116a41b74"
+SRCREV = "2294510cd0ecb2d5946461e3dbb038363b7b94cb"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 inherit cmake ptest pkgconfig
