@@ -1,23 +1,30 @@
-Skip ISO8601 parsing tests on 32-bit architectures due to time_t limitations
+From 4680fe2003362728bade7513cd1ad222211d0b8a Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Tue, 12 Aug 2025 08:51:48 +0000
+Subject: [PATCH] Skip ISO8601 parsing tests on 32-bit architectures due to
+ time_t limitations
 
 32-bit systems have time_t limitations that prevent ISO8601 parsing tests
 from working with dates outside the 1970-2038 range.
 
 Upstream-Status: Submitted [https://github.com/awslabs/aws-c-common/issues/1204]
+---
+ tests/date_time_test.c | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
 
-Index: aws-c-common-0.12.4/tests/date_time_test.c
-===================================================================
---- aws-c-common-0.12.4.orig/tests/date_time_test.c
-+++ aws-c-common-0.12.4/tests/date_time_test.c
-@@ -287,6 +287,7 @@ AWS_TEST_CASE(rfc822_invalid_auto_format
+diff --git a/tests/date_time_test.c b/tests/date_time_test.c
+index 69f0417f..2210981c 100644
+--- a/tests/date_time_test.c
++++ b/tests/date_time_test.c
+@@ -287,6 +287,7 @@ AWS_TEST_CASE(rfc822_invalid_auto_format, s_test_rfc822_invalid_auto_format_fn)
  static int s_test_iso8601_parsing_fn(struct aws_allocator *allocator, void *ctx) {
      (void)allocator;
      (void)ctx;
 +#if UINTPTR_MAX > 0xffffffff  /* Skip on 32-bit systems due to time_t limitations */
-
+ 
      /* array of {"date", "description"} */
      const char *valid_dates[][2] = {
-@@ -341,6 +342,9 @@ static int s_test_iso8601_parsing_fn(str
+@@ -341,6 +342,9 @@ static int s_test_iso8601_parsing_fn(struct aws_allocator *allocator, void *ctx)
          ASSERT_BIN_ARRAYS_EQUALS(expected_short_buf.buffer, expected_short_buf.len, str_output.buffer, str_output.len);
      }
      return AWS_OP_SUCCESS;
@@ -25,95 +32,95 @@ Index: aws-c-common-0.12.4/tests/date_time_test.c
 +    return AWS_OP_SUCCESS;  /* Skip on 32-bit */
 +#endif
  }
-
+ 
  AWS_TEST_CASE(iso8601_parsing, s_test_iso8601_parsing_fn)
-@@ -348,6 +352,7 @@ AWS_TEST_CASE(iso8601_parsing, s_test_is
+@@ -348,6 +352,7 @@ AWS_TEST_CASE(iso8601_parsing, s_test_iso8601_parsing_fn)
  static int s_test_iso8601_basic_utc_parsing_fn(struct aws_allocator *allocator, void *ctx) {
      (void)allocator;
      (void)ctx;
 +#if UINTPTR_MAX > 0xffffffff  /* Skip on 32-bit systems due to time_t limitations */
-
+ 
      struct aws_date_time date_time;
      const char *date_str = "20021002T080509.000Z";
-@@ -381,6 +386,9 @@ static int s_test_iso8601_basic_utc_pars
-
+@@ -381,6 +386,9 @@ static int s_test_iso8601_basic_utc_parsing_fn(struct aws_allocator *allocator,
+ 
      ASSERT_BIN_ARRAYS_EQUALS(expected_short_buf.buffer, expected_short_buf.len, str_output.buffer, str_output.len);
      return AWS_OP_SUCCESS;
 +#else
 +    return AWS_OP_SUCCESS;  /* Skip on 32-bit */
 +#endif
  }
-
+ 
  AWS_TEST_CASE(iso8601_basic_utc_parsing, s_test_iso8601_basic_utc_parsing_fn)
-@@ -388,6 +396,7 @@ AWS_TEST_CASE(iso8601_basic_utc_parsing,
+@@ -388,6 +396,7 @@ AWS_TEST_CASE(iso8601_basic_utc_parsing, s_test_iso8601_basic_utc_parsing_fn)
  static int s_test_iso8601_utc_parsing_auto_detect_fn(struct aws_allocator *allocator, void *ctx) {
      (void)allocator;
      (void)ctx;
 +#if UINTPTR_MAX > 0xffffffff  /* Skip on 32-bit systems due to time_t limitations */
-
+ 
      struct aws_date_time date_time;
      const char *date_str = "2002-10-02T08:05:09.000Z";
-@@ -413,6 +422,9 @@ static int s_test_iso8601_utc_parsing_au
+@@ -413,6 +422,9 @@ static int s_test_iso8601_utc_parsing_auto_detect_fn(struct aws_allocator *alloc
      ASSERT_BIN_ARRAYS_EQUALS(expected_date_buf.buffer, expected_date_buf.len, str_output.buffer, str_output.len);
-
+ 
      return AWS_OP_SUCCESS;
 +#else
 +    return AWS_OP_SUCCESS;  /* Skip on 32-bit */
 +#endif
  }
-
+ 
  AWS_TEST_CASE(iso8601_utc_parsing_auto_detect, s_test_iso8601_utc_parsing_auto_detect_fn)
-@@ -420,6 +432,7 @@ AWS_TEST_CASE(iso8601_utc_parsing_auto_d
+@@ -420,6 +432,7 @@ AWS_TEST_CASE(iso8601_utc_parsing_auto_detect, s_test_iso8601_utc_parsing_auto_d
  static int s_test_iso8601_basic_utc_parsing_auto_detect_fn(struct aws_allocator *allocator, void *ctx) {
      (void)allocator;
      (void)ctx;
 +#if UINTPTR_MAX > 0xffffffff  /* Skip on 32-bit systems due to time_t limitations */
-
+ 
      struct aws_date_time date_time;
      const char *date_str = "20021002T080509,000Z";
-@@ -445,6 +458,9 @@ static int s_test_iso8601_basic_utc_pars
+@@ -445,6 +458,9 @@ static int s_test_iso8601_basic_utc_parsing_auto_detect_fn(struct aws_allocator
      ASSERT_BIN_ARRAYS_EQUALS(expected_date_buf.buffer, expected_date_buf.len, str_output.buffer, str_output.len);
-
+ 
      return AWS_OP_SUCCESS;
 +#else
 +    return AWS_OP_SUCCESS;  /* Skip on 32-bit */
 +#endif
  }
-
+ 
  AWS_TEST_CASE(iso8601_basic_utc_parsing_auto_detect, s_test_iso8601_basic_utc_parsing_auto_detect_fn)
-@@ -452,6 +468,7 @@ AWS_TEST_CASE(iso8601_basic_utc_parsing_
+@@ -452,6 +468,7 @@ AWS_TEST_CASE(iso8601_basic_utc_parsing_auto_detect, s_test_iso8601_basic_utc_pa
  static int s_test_iso8601_date_only_parsing_fn(struct aws_allocator *allocator, void *ctx) {
      (void)allocator;
      (void)ctx;
 +#if UINTPTR_MAX > 0xffffffff  /* Skip on 32-bit systems due to time_t limitations */
-
+ 
      struct aws_date_time date_time;
      const char *date_str = "2002-10-02";
-@@ -477,6 +494,9 @@ static int s_test_iso8601_date_only_pars
+@@ -477,6 +494,9 @@ static int s_test_iso8601_date_only_parsing_fn(struct aws_allocator *allocator,
      ASSERT_BIN_ARRAYS_EQUALS(expected_date_buf.buffer, expected_date_buf.len, str_output.buffer, str_output.len);
-
+ 
      return AWS_OP_SUCCESS;
 +#else
 +    return AWS_OP_SUCCESS;  /* Skip on 32-bit */
 +#endif
  }
-
+ 
  AWS_TEST_CASE(iso8601_date_only_parsing, s_test_iso8601_date_only_parsing_fn)
-@@ -484,6 +504,7 @@ AWS_TEST_CASE(iso8601_date_only_parsing,
+@@ -484,6 +504,7 @@ AWS_TEST_CASE(iso8601_date_only_parsing, s_test_iso8601_date_only_parsing_fn)
  static int s_test_iso8601_basic_date_only_parsing_fn(struct aws_allocator *allocator, void *ctx) {
      (void)allocator;
      (void)ctx;
 +#if UINTPTR_MAX > 0xffffffff  /* Skip on 32-bit systems due to time_t limitations */
-
+ 
      struct aws_date_time date_time;
      const char *date_str = "20021002";
-@@ -509,6 +530,9 @@ static int s_test_iso8601_basic_date_onl
+@@ -509,6 +530,9 @@ static int s_test_iso8601_basic_date_only_parsing_fn(struct aws_allocator *alloc
      ASSERT_BIN_ARRAYS_EQUALS(expected_date_buf.buffer, expected_date_buf.len, str_output.buffer, str_output.len);
-
+ 
      return AWS_OP_SUCCESS;
 +#else
 +    return AWS_OP_SUCCESS;  /* Skip on 32-bit */
 +#endif
  }
-
+ 
  AWS_TEST_CASE(iso8601_basic_date_only_parsing, s_test_iso8601_basic_date_only_parsing_fn)
