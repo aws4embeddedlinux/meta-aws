@@ -26,7 +26,7 @@ python __anonymous() {
     zero_copy = d.getVar('GREENGRASS_LITE_ZERO_COPY')
     component_name = d.getVar('COMPONENT_NAME') or "unknown"
     deployment_mode = "zero-copy (direct placement)" if zero_copy == '1' else "traditional (copy-based)"
-    bb.note(f"Greengrass Lite component: {component_name} - {deployment_mode}")
+    bb.debug(1, f"Greengrass Lite component: {component_name} - {deployment_mode}")
 }
 
 # Extract component information from YAML file, allow recipe override
@@ -85,14 +85,14 @@ python __anonymous() {
                     yaml_component_name = recipe.get('ComponentName')
                     if yaml_component_name:
                         d.setVar('COMPONENT_NAME', yaml_component_name)
-                        bb.note(f"Set COMPONENT_NAME from YAML: {yaml_component_name}")
+                        bb.debug(1, f"Set COMPONENT_NAME from YAML: {yaml_component_name}")
                         component_name = yaml_component_name
 
                 # Set COMPONENT_VERSION from YAML if not already set in recipe
                 if not component_version:
                     yaml_component_version = recipe.get('ComponentVersion', '1.0.0')
                     d.setVar('COMPONENT_VERSION', yaml_component_version)
-                    bb.note(f"Set COMPONENT_VERSION from YAML: {yaml_component_version}")
+                    bb.debug(1, f"Set COMPONENT_VERSION from YAML: {yaml_component_version}")
                     component_version = yaml_component_version
 
             except Exception as e:
