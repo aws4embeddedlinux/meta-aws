@@ -93,14 +93,14 @@ python __anonymous() {
                     yaml_component_name = recipe.get('ComponentName')
                     if yaml_component_name:
                         d.setVar('COMPONENT_NAME', yaml_component_name)
-                        bb.note(f"Set COMPONENT_NAME from YAML: {yaml_component_name}")
+                        bb.debug(1, f"Set COMPONENT_NAME from YAML: {yaml_component_name}")
                         component_name = yaml_component_name
 
                 # Set COMPONENT_VERSION from YAML if not already set in recipe
                 if not component_version:
                     yaml_component_version = recipe.get('ComponentVersion', '1.0.0')
                     d.setVar('COMPONENT_VERSION', yaml_component_version)
-                    bb.note(f"Set COMPONENT_VERSION from YAML: {yaml_component_version}")
+                    bb.debug(1, f"Set COMPONENT_VERSION from YAML: {yaml_component_version}")
                     component_version = yaml_component_version
 
             except Exception as e:
@@ -134,7 +134,7 @@ python __anonymous() {
     d.setVar('GG_CONFIG_DIR', '/${GG_BASENAME}/config')
     d.setVar('GG_CONFIG_FRAGMENT_DIR', 'greengrass-plugin-fragments')
 
-    bb.note("Greengrass classic variant configured")
+    bb.debug(1, "Greengrass classic variant configured")
 }
 
 # Python function to convert component recipe to config fragment
@@ -222,7 +222,7 @@ python convert_recipe_to_fragment() {
     try:
         with open(output_file, 'w') as f:
             yaml.dump(fragment, f, default_flow_style=False, sort_keys=False)
-        bb.note(f"Converted recipe to config fragment: {output_file}")
+        bb.debug(1, f"Converted recipe to config fragment: {output_file}")
         d.setVar('CONVERSION_SUCCESS', '1')
     except Exception as e:
         bb.error(f"Error writing config fragment {output_file}: {e}")
@@ -306,7 +306,7 @@ python do_deploy() {
             if config_file == 'config.yaml.template':
                 # Direct copy for template fragments
                 shutil.copy2(config_path, fragment_file)
-                bb.note(f"Using direct config fragment for greengrass-bin: {config_file}")
+                bb.debug(1, f"Using direct config fragment for greengrass-bin: {config_file}")
             else:
                 # Convert recipe to fragment using inline function
                 d.setVar('recipe_file', config_path)
@@ -317,7 +317,7 @@ python do_deploy() {
                 success = d.getVar('CONVERSION_SUCCESS')
 
                 if success == '1':
-                    bb.note(f"Converted {config_file} to config fragment for greengrass-bin")
+                    bb.debug(1, f"Converted {config_file} to config fragment for greengrass-bin")
                 else:
                     bb.error(f"Failed to convert {config_file}")
                     continue
