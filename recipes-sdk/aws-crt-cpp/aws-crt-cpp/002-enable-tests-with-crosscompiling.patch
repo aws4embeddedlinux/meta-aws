@@ -1,0 +1,21 @@
+This enable the tests even when crosscompiling.
+
+Upstream-Status: Inappropriate [oe specific]
+
+Index: aws-crt-cpp-0.34.4/CMakeLists.txt
+===================================================================
+--- aws-crt-cpp-0.34.4.orig/CMakeLists.txt
++++ aws-crt-cpp-0.34.4/CMakeLists.txt
+@@ -412,7 +412,6 @@ install(FILES "${GENERATED_ROOT_DIR}/${P
+     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}/"
+     COMPONENT Development)
+
+-if(NOT CMAKE_CROSSCOMPILING)
+     if(BUILD_TESTING)
+         add_subdirectory(tests)
+
+@@ -422,4 +421,3 @@ if(NOT CMAKE_CROSSCOMPILING)
+             add_subdirectory(bin/mqtt5_canary)
+         endif()
+     endif()
+-endif()

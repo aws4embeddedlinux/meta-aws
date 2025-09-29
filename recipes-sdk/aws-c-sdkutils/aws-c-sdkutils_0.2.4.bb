@@ -13,6 +13,7 @@ PROVIDES += "aws/c-sdkutils"
 SRC_URI = "\
     git://github.com/awslabs/aws-c-sdkutils.git;protocol=https;branch=main \
     file://run-ptest \
+    file://001-enable-tests-with-crosscompiling.patch \
     "
 SRCREV = "f678bda9e21f7217e4bbf35e0d1ea59540687933"
 
