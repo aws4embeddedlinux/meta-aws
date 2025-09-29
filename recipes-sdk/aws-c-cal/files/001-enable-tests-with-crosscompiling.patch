@@ -1,0 +1,17 @@
+This enable the tests even when crosscompiling.
+
+Upstream-Status: Inappropriate [oe specific]
+
+Index: aws-c-cal-0.9.3/CMakeLists.txt
+===================================================================
+--- aws-c-cal-0.9.3.orig/CMakeLists.txt
++++ aws-c-cal-0.9.3/CMakeLists.txt
+@@ -218,7 +218,7 @@ install(FILES ${EXPORT_MODULES}
+         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}/modules"
+         COMPONENT Development)
+
+-if (NOT CMAKE_CROSSCOMPILING AND NOT BYO_CRYPTO)
++if (NOT BYO_CRYPTO)
+     include(CTest)
+     if (BUILD_TESTING)
+         add_subdirectory(bin/sha256_profile)

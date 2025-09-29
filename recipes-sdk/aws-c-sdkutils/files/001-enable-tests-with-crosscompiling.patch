@@ -1,0 +1,18 @@
+This enable the tests even when crosscompiling.
+
+Upstream-Status: Inappropriate [oe specific]
+
+Index: aws-c-sdkutils-0.2.4/CMakeLists.txt
+===================================================================
+--- aws-c-sdkutils-0.2.4.orig/CMakeLists.txt
++++ aws-c-sdkutils-0.2.4/CMakeLists.txt
+@@ -90,9 +90,7 @@ install(FILES ${EXPORT_MODULES}
+         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}/modules"
+         COMPONENT Development)
+
+-if (NOT CMAKE_CROSSCOMPILING)
+     include(CTest)
+     if (BUILD_TESTING)
+         add_subdirectory(tests)
+     endif()
+-endif()
