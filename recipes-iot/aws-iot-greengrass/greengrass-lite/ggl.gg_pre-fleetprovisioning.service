@@ -15,7 +15,6 @@ ExecStart=/bin/sh -c '\
     sed -i "s/<unique>/$mac_address/g" "/etc/greengrass/config.d/fleetprovisioning.yaml";'
 Restart=on-failure
 RestartSec=10s
-StartLimitIntervalSec=300
 StartLimitBurst=3
 TimeoutSec=300
 SuccessExitStatus=0 1 15

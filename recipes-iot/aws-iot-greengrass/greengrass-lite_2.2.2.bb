@@ -48,17 +48,13 @@ SRC_URI = "\
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.gg_fleetprovisioning.service','',d)} \
 "
 
-# Both patches enabled: fix-deployment-copy-path.patch and fix-deployment-queue-processing.patch
-# Improved deployment script: ggl-deploy-image-components with atomic deployment and component verification
-# Comprehensive solution addressing both root cause and edge cases
-
-SRCREV_ggl = "ed2b01efd60fc7e44b0f175985a67f4ce72ab323"
+SRCREV_ggl = "cf6789832e2911ff164daa103f515f4f0862a3d3"
 
 # must match fc_deps.json
 SRCREV_mqtt = "f1827d8b46703f1c5ff05d21b34692d3122c9a04"
 SRCREV_backoff = "f2f3bb2d8310f7cb48baa3ee64b635a5d66f838b"
 SRCREV_sigv4 = "f0409ced6c2c9430f0e972019b7e8f20bbf58f4e"
-SRCREV_sdk = "0d239f96101608441dd6434f98a9e7f6623556c7"
+SRCREV_sdk = "dbef3a9cefe34469a213a7d0614d2716d5b10d75"
 
 EXTRA_OECMAKE:append = " \
     -DFETCHCONTENT_SOURCE_DIR_CORE_MQTT=${S}/thirdparty/core_mqtt \
@@ -122,9 +118,7 @@ PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DBUILD_EXAMPLES=ON,-DBUILD_TEST
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
 # EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=MinSizeRel"
 
-# add DEBUG logs
-EXTRA_OECMAKE:append = " -DGGL_LOG_LEVEL=DEBUG"
-# EXTRA_OECMAKE:append = " -DGGL_LOG_LEVEL=TRACE"
+# EXTRA_OECMAKE:append = " -DGGL_LOG_LEVEL=DEBUG"
 
 # No warnings should be in commited code, not enabled yet
 # CFLAGS:append = " -Werror"
