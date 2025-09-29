@@ -5,7 +5,6 @@ Before=ggl.core.iotcored.service
 After=systemd-time-wait-sync.service
 # Only run if device is not already provisioned
 ConditionPathExists=!/var/lib/greengrass/provisioned-cert/certificate.pem.crt
-StartLimitIntervalSec=300
 StartLimitBurst=3
 
 [Service]
