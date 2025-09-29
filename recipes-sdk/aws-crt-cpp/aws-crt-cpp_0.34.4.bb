@@ -25,6 +25,7 @@ SRC_URI = "\
     gitsm://github.com/awslabs/aws-crt-cpp.git;protocol=https;branch=${BRANCH} \
     ${@bb.utils.contains('PACKAGECONFIG', 'static', '', 'file://001-shared-static-crt-libs.patch', d)} \
     file://run-ptest \
+    file://002-enable-tests-with-crosscompiling.patch \
     "
 
 SRCREV = "3045c57c3e375114793fadf5d8587f81c51679ae"
