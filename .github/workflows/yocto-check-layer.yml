@@ -42,7 +42,7 @@ jobs:
         run: |
           cd yocto_checklayer/
           source poky/oe-init-build-env build
-          echo DISTRO_FEATURES += \"systemd\" >> conf/local.conf
+          echo DISTRO = \"poky-altcfg\" >> conf/local.conf
           yocto-check-layer ../meta-aws/ --dependency ../meta-openembedded/meta-oe/ ../meta-openembedded/meta-python/ ../meta-openembedded/meta-multimedia ../meta-openembedded/meta-networking --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency
       - name: save test result
         uses: actions/upload-artifact@v4
