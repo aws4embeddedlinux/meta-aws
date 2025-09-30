@@ -17,6 +17,7 @@ BRANCH ?= "main"
 
 SRC_URI = "\
     git://github.com/awslabs/aws-c-cal.git;protocol=https;branch=${BRANCH}; \
+    file://001-enable-tests-with-crosscompiling.patch \
     file://run-ptest \
     "
 
