@@ -118,7 +118,7 @@ PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DBUILD_EXAMPLES=ON,-DBUILD_TEST
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
 # EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=MinSizeRel"
 
-# EXTRA_OECMAKE:append = " -DGGL_LOG_LEVEL=DEBUG"
+EXTRA_OECMAKE:append = " -DGGL_LOG_LEVEL=INFO"
 
 # No warnings should be in commited code, not enabled yet
 # CFLAGS:append = " -Werror"
