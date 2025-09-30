@@ -1,0 +1,17 @@
+This enable the tests even when crosscompiling.
+
+Upstream-Status: Inappropriate [oe specific]
+
+Index: aws-c-io-0.22.1/CMakeLists.txt
+===================================================================
+--- aws-c-io-0.22.1.orig/CMakeLists.txt
++++ aws-c-io-0.22.1/CMakeLists.txt
+@@ -245,8 +245,6 @@ install(FILES "${CMAKE_CURRENT_BINARY_DI
+         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}/"
+         COMPONENT Development)
+
+-if (NOT CMAKE_CROSSCOMPILING)
+     if (BUILD_TESTING)
+        add_subdirectory(tests)
+     endif()
+-endif()
