@@ -20,6 +20,7 @@ PROVIDES += "aws/crt-c-io"
 BRANCH ?= "main"
 SRC_URI = "\
     git://github.com/awslabs/aws-c-io.git;protocol=https;branch=${BRANCH} \
+    file://001-enable-tests-with-crosscompiling.patch \
     file://run-ptest \
     "
 SRCREV = "9b8d716b3b12de435fbabed834ef435fd3f153c2"
@@ -33,8 +34,7 @@ PACKAGECONFIG ??= "\
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
-# CMAKE_CROSSCOMPILING=ON will disable building the tests
-PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
+PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
