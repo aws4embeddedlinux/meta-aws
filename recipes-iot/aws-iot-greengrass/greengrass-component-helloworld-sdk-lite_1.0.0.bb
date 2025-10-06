@@ -25,8 +25,7 @@ SRC_URI = " \
 
 S = "${UNPACKDIR}"
 
-# Skip QA check for buildpaths in debug symbols
-# oelint-disable: oelint.vars.insaneskip
+# nooelint: oelint.vars.insaneskip
 INSANE_SKIP:${PN}-dbg += "buildpaths"
 
 # Package configuration options
@@ -62,6 +61,7 @@ do_install_ptest() {
     install -m 0644 ${S}/component-recipe.yaml ${D}${PTEST_PATH}/test-data/
 
     # Store expected paths for testing
+    echo "${GREENGRASS_VARIANT}" > ${D}${PTEST_PATH}/test-data/greengrass-variant
     echo "${COMPONENT_NAME}" > ${D}${PTEST_PATH}/test-data/component-name
     echo "${COMPONENT_VERSION}" > ${D}${PTEST_PATH}/test-data/component-version
     echo "hello-world-sdk-lite" > ${D}${PTEST_PATH}/test-data/expected-artifact
