@@ -43,6 +43,7 @@ jobs:
           echo "Diff between $FORK_POINT and $HEAD_SHA"
         elif [ -n "$MERGE_GROUP_BASE_SHA" ] && [ -n "$MERGE_GROUP_HEAD_SHA" ]; then
           # Merge Group
+          git fetch origin "$MERGE_GROUP_BASE_SHA" "$MERGE_GROUP_HEAD_SHA"
           DIFF=$(git diff --name-only --diff-filter=d "$MERGE_GROUP_BASE_SHA" "$MERGE_GROUP_HEAD_SHA")
           echo "Diff between $MERGE_GROUP_BASE_SHA and $MERGE_GROUP_HEAD_SHA"
         elif [ -n "$BEFORE_SHA" ] && [ -n "$AFTER_SHA" ]; then
