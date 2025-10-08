@@ -70,7 +70,7 @@ jobs:
             RELEASE=$(echo "$PR_BASE_REF" | cut -d- -f1)
             ;;
           "merge_group")
-            RELEASE=$(echo "$MERGE_GROUP_BASE_REF" | cut -d- -f1)
+            RELEASE=$(echo "$MERGE_GROUP_BASE_REF" | sed 's|refs/heads/||' | cut -d- -f1)
             ;;
           *)
             RELEASE=$(echo "$REF_NAME" | cut -d- -f1)
