@@ -24,6 +24,8 @@ jobs:
         HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         BEFORE_SHA: ${{ github.event.before }}
         AFTER_SHA: ${{ github.event.after }}
+        MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
       run: |
         if [ -n "$BASE_REF" ] && [ -n "$HEAD_REF" ] && [ -n "$HEAD_SHA" ]; then
           # Pull Request
@@ -39,6 +41,11 @@ jobs:
           FORK_POINT=$(git merge-base "$BASE_REF" "$HEAD_SHA")
           DIFF=$(git diff --name-only --diff-filter=d "$FORK_POINT" "$HEAD_SHA")
           echo "Diff between $FORK_POINT and $HEAD_SHA"
+        elif [ -n "$MERGE_GROUP_BASE_SHA" ] && [ -n "$MERGE_GROUP_HEAD_SHA" ]; then
+          # Merge Group
+          git fetch origin "$MERGE_GROUP_BASE_SHA" "$MERGE_GROUP_HEAD_SHA"
+          DIFF=$(git diff --name-only --diff-filter=d "$MERGE_GROUP_BASE_SHA" "$MERGE_GROUP_HEAD_SHA")
+          echo "Diff between $MERGE_GROUP_BASE_SHA and $MERGE_GROUP_HEAD_SHA"
         elif [ -n "$BEFORE_SHA" ] && [ -n "$AFTER_SHA" ]; then
           # Push to a branch
           DIFF=$(git diff --name-only --diff-filter=d "$BEFORE_SHA" "$AFTER_SHA")
@@ -55,13 +62,20 @@ jobs:
       env:
         EVENT_NAME: ${{ github.event_name }}
         PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        MERGE_GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
         REF_NAME: ${{ github.ref_name }}
       run: |
-        if [[ "$EVENT_NAME" == "pull_request" ]]; then
-          RELEASE=$(echo "$PR_BASE_REF" | cut -d- -f1)
-        else
-          RELEASE=$(echo "$REF_NAME" | cut -d- -f1)
-        fi
+        case "$EVENT_NAME" in
+          "pull_request")
+            RELEASE=$(echo "$PR_BASE_REF" | cut -d- -f1)
+            ;;
+          "merge_group")
+            RELEASE=$(echo "$MERGE_GROUP_BASE_REF" | sed 's|refs/heads/||' | cut -d- -f1)
+            ;;
+          *)
+            RELEASE=$(echo "$REF_NAME" | cut -d- -f1)
+            ;;
+        esac
         echo "Determined release: $RELEASE"
         echo "release=${RELEASE}" >> $GITHUB_OUTPUT
   build-test:
@@ -121,7 +135,8 @@ jobs:
              source poky/oe-init-build-env build
              echo QEMU_USE_KVM = \"\" >> conf/local.conf
              # set to max for arm32
-             echo QB_MEM = \"-m 3G\" >> conf/local.conf
+             echo QB_MEM:arm = \"-m 3G\" >> conf/local.conf
+             echo QB_MEM = \"-m 8G\" >> conf/local.conf
              # use slirp networking instead of TAP interface (require root rights)
              echo QEMU_USE_SLIRP = \"1\" >> conf/local.conf
              echo TEST_RUNQEMUPARAMS += \"slirp\" >> conf/local.conf
