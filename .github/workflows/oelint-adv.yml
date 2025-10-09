@@ -4,28 +4,42 @@ on:
   pull_request:
     branches:
       - '*-next'
+  merge_group:
 
 jobs:
   oelint-adv:
     runs-on: ubuntu-22.04
-      
+
     steps:
       - name: install required packages to run oelint_adv
-        run: | 
+        run: |
           sudo apt-get -y install python3-pip
           sudo pip3 install oelint_adv
-          
+
       - name: checkout meta-aws branch to test
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
- 
+
       - name: get changed bb files
-        id: changes       
-        run: |          
-          echo "::set-output name=bb::$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep .bb | xargs)"          
-          
-      - name: run oelint_adv      
+        id: changes
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ -n "$PR_BASE_SHA" ]; then
+            BASE_SHA="$PR_BASE_SHA"
+          elif [ -n "$MERGE_GROUP_BASE_SHA" ]; then
+            BASE_SHA="$MERGE_GROUP_BASE_SHA"
+          else
+            echo "No base SHA found"
+            exit 1
+          fi
+          BB_FILES=$(git diff --name-only --diff-filter=ACMRT "$BASE_SHA" "$HEAD_SHA" | grep .bb | xargs)
+          echo "bb=$BB_FILES" >> $GITHUB_OUTPUT
+
+      - name: run oelint_adv
         if: ${{steps.changes.outputs.bb}}
         run: |
           oelint-adv --nowarn --noinfo ${{steps.changes.outputs.bb}}
