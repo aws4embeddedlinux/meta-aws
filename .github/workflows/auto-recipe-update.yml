@@ -6,7 +6,7 @@ on:
 jobs:
   update:
     name: Recipe Update
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Setup Yocto Dependencies
         run: |
@@ -54,7 +54,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.BOT_CREDENTIAL }}
         run: |
-          upgrader create-pulls --branch-file=../build/branches.txt --repo=${{ github.repository }} --target-branch=${{ github.ref_name }}-next --delay 300
+          upgrader create-pulls --branch-file=../build/branches.txt --repo=${{ github.repository }} --target-branch=${{ github.ref_name }}-next
       - name: Publish Artifacts
         uses: actions/upload-artifact@v4
         with:
