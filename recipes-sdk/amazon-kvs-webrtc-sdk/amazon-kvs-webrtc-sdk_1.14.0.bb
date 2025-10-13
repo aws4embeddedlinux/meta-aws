@@ -48,11 +48,12 @@ FILES:${PN} += "\
     ${libdir} \
     "
 
+# nooelint: oelint.vars.specific
 COMPATIBLE_HOST:arm = "null"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
-# nooelint: oelint.vars.specific - arm32 gives this warning
+# nooelint: oelint.vars.specific
 CFLAGS:append:arm = " -Wno-incompatible-pointer-types"
 
 EXTRA_OECMAKE += "\
