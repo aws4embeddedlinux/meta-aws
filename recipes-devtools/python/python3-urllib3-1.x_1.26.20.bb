@@ -26,6 +26,8 @@ RDEPENDS:${PN} += "\
 
 CVE_PRODUCT = "urllib3"
 
+CVE_STATUS[CVE-2025-50181] = "not-applicable-config: By default, requests and botocore users are not affected"
+
 BBCLASSEXTEND = "native nativesdk"
 
 RCONFLICTS:${PN} = "python3-urllib3"
