@@ -8,18 +8,28 @@ COMPATIBLE_MACHINE = "(^$)"
 COMPATIBLE_MACHINE:aarch64 = "(.*)"
 COMPATIBLE_MACHINE:x86-64 = "(.*)"
 
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
+
 inherit go-mod go-mod-update-modules ptest
+
+RECIPE_UPGRADE_EXTRA_TASKS += "do_update_modules"
+
+INSANE_SKIP:${PN} += "license-exists"
+
+# Disable license and SPDX tasks due to Go module license issues
+do_populate_lic[noexec] = "1"
+do_create_spdx[noexec] = "1"
+do_create_package_spdx[noexec] = "1"
+
 GO_IMPORT = "github.com/aws/amazon-cloudwatch-agent"
 
 SRC_URI = "\
     git://${GO_IMPORT}.git;branch=main;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
     file://run-ptest \
     "
-#     file://001-makefile.patch
-# git://${GO_IMPORT}.git;branch=main;protocol=http;destsuffix=git/src/github.com/aws/amazon-cloudwatch-agent
-SRCREV = "01b3fbdbe2d2234a44b1219d4f71d11335b771f2"
 
-# S = "${UNPACKDIR}/git/src/${GO_IMPORT}"
+SRCREV = "01b3fbdbe2d2234a44b1219d4f71d11335b771f2"
 
 # Include the generated files (these will be created by do_update_modules)
 require ${BPN}-go-mods.inc
@@ -53,7 +63,7 @@ go_do_install:aarch64() {
 go_do_install:x86-64() {
     install -d ${D}${bindir}/
     cp ${S}/src/github.com/aws/amazon-cloudwatch-agent/build/bin/linux_amd64/amazon-cloudwatch-agent ${D}${bindir}/
-    cp ${S}/src/github.com/aws/amazon-cloudwatch-agent/build/bin/linux_amd64/start-amazon-cloudwatch-agent  ${D}${bindir}/
+    cp ${S}/src/github.com/aws/amazon-cloudwatch-agent/build/bin/linux_amd64/start-amazon-cloudwatch-agent ${D}${bindir}/
 }
 
 # nooelint: oelint.vars.insaneskip
