@@ -109,6 +109,20 @@ jobs:
         run: |
           echo diff:
           echo ${{ needs.changed.outputs.diff }}
+          
+          # Map machine to architecture for COMPATIBLE_HOST check
+          case "${{ matrix.machine }}" in
+            qemuarm)
+              ARCH="arm"
+              ;;
+            qemuarm64)
+              ARCH="aarch64"
+              ;;
+            qemux86-64)
+              ARCH="x86-64"
+              ;;
+          esac
+          
           export RECIPES=$( echo "${{ needs.changed.outputs.diff }}" | tr ' ' '\n' | grep '\.bb.*$' | sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
           if [ "" == "$RECIPES" ]; then
             echo "No changed recipes, adding everything with a ptest to test, build"
@@ -119,6 +133,16 @@ jobs:
             export RECIPES=$(find meta-aws/ -name *.bb -type f \( ${THINGS_TO_EXCLUDE} \) -print | xargs grep -l 'inherit.*ptest.*'| sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
             echo THINGS_TO_EXCLUDE: $THINGS_TO_EXCLUDE
           fi
+          
+          # Filter out recipes with COMPATIBLE_HOST:$ARCH = "null"
+          FILTERED_RECIPES=""
+          for recipe in $RECIPES; do
+            if ! find meta-aws/ -name "${recipe}.bb" -o -name "${recipe}_*.bb" | xargs grep -q "COMPATIBLE_HOST:${ARCH}[[:space:]]*=[[:space:]]*\"null\"" 2>/dev/null; then
+              FILTERED_RECIPES+="$recipe "
+            fi
+          done
+          export RECIPES="$FILTERED_RECIPES"
+          
           echo RECIPES to build, test: "$RECIPES"
           echo "recipes=$RECIPES" >> $GITHUB_OUTPUT
       - name: Run build
