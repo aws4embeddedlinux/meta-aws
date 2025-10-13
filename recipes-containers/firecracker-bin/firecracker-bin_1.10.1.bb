@@ -3,8 +3,7 @@ DESCRIPTION = "Secure and fast microVMs for serverless computing."
 HOMEPAGE = "https://firecracker-microvm.github.io/"
 CVE_PRODUCT = "firecracker"
 LICENSE = "Apache-2.0"
-# nooelint: oelint.var.licenseremotefile:License-File
-LIC_FILES_CHKSUM = "file://${S}/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 ARCH_DIR:x86-64 = "x86_64"
 ARCH_DIR:aarch64 = "aarch64"
@@ -12,6 +11,9 @@ ARCH_DIR:aarch64 = "aarch64"
 COMPATIBLE_MACHINE = "null"
 COMPATIBLE_MACHINE:aarch64 = "(.*)"
 COMPATIBLE_MACHINE:x86-64 = "(.*)"
+
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 # nooelint: oelint.vars.srcurichecksum
 SRC_URI = "https://github.com/firecracker-microvm/firecracker/releases/download/v${PV}/firecracker-v${PV}-${ARCH_DIR}.tgz;name=${ARCH_DIR}"
@@ -27,7 +29,7 @@ SRC_URI:append = " \
     file://run-ptest \
 "
 
-S = "${UNPACKDIR}/release-v${PV}-${TARGET_ARCH}"
+S = "${UNPACKDIR}/release-v${PV}-${ARCH_DIR}"
 
 inherit bin_package ptest
 
@@ -42,7 +44,7 @@ FILES:${PN} += "\
 do_install() {
     install -d ${D}${bindir}
 
-    install -m 0755 ${S}/firecracker-v${PV}-${TARGET_ARCH} ${D}${bindir}/firecracker
+    install -m 0755 ${S}/firecracker-v${PV}-${ARCH_DIR} ${D}${bindir}/firecracker
 }
 
 # https://bugzilla.yoctoproject.org/show_bug.cgi?id=15227
