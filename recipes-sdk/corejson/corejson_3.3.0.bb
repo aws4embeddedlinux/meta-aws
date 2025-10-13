@@ -5,13 +5,15 @@ LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=7ae2be7fb1637141840314b51970a9f7"
 
 SRC_URI = "\
-    gitsm://github.com/FreeRTOS/coreJSON.git;protocol=https;branch=main \
+    gitsm://github.com/FreeRTOS/coreJSON.git;protocol=https;nobranch=1 \
     file://CMakeLists.txt \
     file://Findcore_json.cmake \
     file://run-ptest \
 "
 
-SRCREV = "03a463f23ead5240974c663477baf03fe82fc530"
+UPSTREAM_CHECK_URI = "https://github.com/FreeRTOS/coreJSON/releases"
+
+SRCREV = "e3b7663f6392d8c10e8db57506ec37e4801b145a"
 
 S = "${WORKDIR}/git"
 
