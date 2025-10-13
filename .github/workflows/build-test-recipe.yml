@@ -103,6 +103,11 @@ jobs:
       - name: Checkout poky
         run: |
           git clone git://git.yoctoproject.org/poky --single-branch  ${{ github.workspace }}/poky -b ${{ needs.changed.outputs.release }}
+      - name: Install websockets for hashserve
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install websockets>=10.0
       - name: Get changed Recipes or defaults
         id: recipes_to_build_test
         shell: bash
@@ -167,6 +172,11 @@ jobs:
              echo TEST_SERVER_IP = \"127.0.0.1\" >> conf/local.conf
              echo DISTRO_FEATURES += \"ptest\" >> conf/local.conf
              echo DISTRO = \"poky-altcfg\" >> conf/local.conf
+             # Enable hashserve and sstate mirrors for faster builds
+             echo BB_HASHSERVE_UPSTREAM = \"wss://hashserv.yoctoproject.org/ws\" >> conf/local.conf
+             echo SSTATE_MIRRORS ?= \"file://.* http://cdn.jsdelivr.net/yocto/sstate/all/PATH;downloadfilename=PATH\" >> conf/local.conf
+             echo BB_HASHSERVE = \"auto\" >> conf/local.conf
+             echo BB_SIGNATURE_HANDLER = \"OEEquivHash\" >> conf/local.conf
              # this will specify what test should run when running testimage cmd - oeqa layer tests + ptests:
              # Ping and SSH are not required, but do help in debugging. ptest will discover all ptest packages.
              echo TEST_SUITES = \" ping ssh ptest parselogs\" >> conf/local.conf
