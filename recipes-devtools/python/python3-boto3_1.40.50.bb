@@ -4,9 +4,13 @@ HOMEPAGE = "https://github.com/boto/boto3"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=2ee41112a44fe7014dce33e26468ba93"
 
+FILESEXTRAPATHS:prepend := "${THISDIR}/../files:"
+
 SRC_URI = "\
     git://github.com/boto/boto3.git;protocol=https;branch=master \
-    file://run-ptest"
+    file://run-ptest \
+    file://python_dependency_test.py \
+    "
 
 SRCREV = "d8b41867dbfac406a2115d87abe1f8caea0365e7"
 S = "${WORKDIR}/git"
@@ -29,4 +33,5 @@ RDEPENDS:${PN}-ptest += "\
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
         cp -rf ${S}/tests/* ${D}${PTEST_PATH}/tests/
+        install -m 0755 ${WORKDIR}/python_dependency_test.py ${D}${PTEST_PATH}/
 }
