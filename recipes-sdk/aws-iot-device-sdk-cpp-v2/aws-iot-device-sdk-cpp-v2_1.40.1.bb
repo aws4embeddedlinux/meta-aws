@@ -50,7 +50,7 @@ PACKAGECONFIG ??= "\
 FILES:${PN}-dev += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '${libdir}/s2n/cmake', '', d)}"
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'ldflags', '', d)}"
+INSANE_SKIP:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'ldflags', '', d)}"
 
 RDEPENDS:${PN}-ptest:prepend = "\
     aws-iot-device-sdk-cpp-v2-samples-mqtt5-pubsub \
