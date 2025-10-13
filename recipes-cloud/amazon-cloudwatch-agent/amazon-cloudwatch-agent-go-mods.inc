@@ -4,7 +4,7 @@
 # Do not modify it by hand, as the contents will be replaced when
 # running the update-modules task.
 
-SRC_URI:append = " \
+SRC_URI += "\
     gomod://cloud.google.com/go;version=v0.26.0;mod=1;sha256sum=2218a34f20b971bc195216d4195f57520a2acbd85de7fc31acfc440266704c11 \
     gomod://cloud.google.com/go;version=v0.34.0;mod=1;sha256sum=2218a34f20b971bc195216d4195f57520a2acbd85de7fc31acfc440266704c11 \
     gomod://cloud.google.com/go;version=v0.38.0;mod=1;sha256sum=21155eedc3e4c7a09c719ce23c703fbf14c34aca42ed00dc08774de6ebbe8007 \
