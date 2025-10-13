@@ -4,9 +4,12 @@ HOMEPAGE = "https://github.com/boto/botocore"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=2ee41112a44fe7014dce33e26468ba93"
 
+FILESEXTRAPATHS:prepend := "${THISDIR}/../files:"
+
 SRC_URI = "\
     git://github.com/boto/botocore.git;protocol=https;branch=master \
     file://run-ptest \
+    file://python_dependency_test.py \
     "
 
 SRCREV = "dc8eb09cd30fb3fe1259c98a2a2f7955dc700227"
@@ -27,4 +30,5 @@ RDEPENDS:${PN}-ptest += "\
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
         cp -rf ${S}/tests/* ${D}${PTEST_PATH}/tests/
+        install -m 0755 ${UNPACKDIR}/python_dependency_test.py ${D}${PTEST_PATH}/
 }
