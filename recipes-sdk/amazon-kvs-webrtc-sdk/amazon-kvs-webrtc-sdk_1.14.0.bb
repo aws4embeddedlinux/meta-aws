@@ -46,6 +46,8 @@ FILES:${PN} += "\
     ${libdir} \
     "
 
+COMPATIBLE_HOST:arm = "null"
+
 CFLAGS:append = " -Wl,-Bsymbolic"
 
 # nooelint: oelint.vars.specific - arm32 gives this warning
