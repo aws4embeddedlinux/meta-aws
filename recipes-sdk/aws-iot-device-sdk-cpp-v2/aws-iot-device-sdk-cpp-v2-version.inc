@@ -1,4 +1,3 @@
 BRANCH ?= "main"
 SRC_URI = "gitsm://github.com/aws/aws-iot-device-sdk-cpp-v2.git;protocol=https;branch=${BRANCH}"
-SRCREV = "0a3ddbc93410f3c2fe0af56dab07f38e982f5cba"
-PV = "1.35.1"
+SRCREV = "db306883b8a418c89ffe37232b8f75676f2b8d53"
