@@ -215,7 +215,7 @@ jobs:
              export MACHINE=${{ matrix.machine }}
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
              bitbake core-image-minimal
-             bitbake core-image-minimal -c testimage
+             bitbake core-image-minimal -f -c testimage
              resulttool report tmp/log/oeqa/testresults.json | tee -a ${{ matrix.machine }}-resulttool_report.txt'
             set -e
             echo RECIPES to test: $RECIPES
