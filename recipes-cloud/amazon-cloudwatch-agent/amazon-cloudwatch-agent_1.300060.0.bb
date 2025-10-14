@@ -15,12 +15,25 @@ inherit go-mod go-mod-update-modules ptest
 
 RECIPE_UPGRADE_EXTRA_TASKS += "do_update_modules"
 
-INSANE_SKIP:${PN} += "license-exists"
+python fix_spdx_unknown() {
+    import re
+    license_file = d.getVar('THISDIR') + '/amazon-cloudwatch-agent-licenses.inc'
+    try:
+        with open(license_file, 'r') as f:
+            content = f.read()
+        content = re.sub(r'(apache/thrift.*|google/cadvisor.*|docker/.*|opencontainers/.*|gophercloud/.*|openshift/.*|mrunalp/.*|vishvananda/.*|spf13/cobra.*|magiconair/.*|ionos-cloud/.*|xdg-go/.*|sigs\.k8s\.io/.*)spdx=Unknown', r'\1spdx=Apache-2.0', content)
+        content = re.sub(r'(.*singleflight.*|cyphar/.*|fsnotify/.*|golang/snappy.*|google/go-.*|gorilla/mux.*|grpc-ecosystem/.*|miekg/.*|pierrec/.*|pmezard/.*|prometheus.*gddo.*|klauspost.*snapref.*|shirou/gopsutil@v3.*|spf13/pflag.*|gonum\.org.*|gopkg\.in/.*|k8s\.io.*third_party.*)spdx=Unknown', r'\1spdx=BSD-3-Clause', content)
+        content = re.sub(r'(deckarep/.*|digitalocean/.*|go-zookeeper/.*|iancoleman/.*|imdario/.*|pelletier/.*|scaleway/.*|gosnmp/.*)spdx=Unknown', r'\1spdx=MIT', content)
+        content = re.sub(r'(hashicorp/(?!cronexpr).*)spdx=Unknown', r'\1spdx=MPL-2.0', content)
+        content = re.sub(r'(hashicorp/cronexpr.*)spdx=Unknown', r'\1spdx=GPL-3.0-only', content)
+        content = re.sub(r'(rcrowley/.*)spdx=Unknown', r'\1spdx=BSD-2-Clause', content)
+        content = re.sub(r'LICENSE \+= "& Apache-2\.0 & BSD-2-Clause & BSD-3-Clause & ISC & MIT & MPL-2\.0 & Unknown & Zlib"', 'LICENSE += "& Apache-2.0 & BSD-2-Clause & BSD-3-Clause & GPL-3.0-only & ISC & MIT & MPL-2.0 & Zlib"', content)
+        with open(license_file, 'w') as f:
+            f.write(content)
+    except: pass
+}
 
-# Disable license and SPDX tasks due to Go module license issues
-do_populate_lic[noexec] = "1"
-do_create_spdx[noexec] = "1"
-do_create_package_spdx[noexec] = "1"
+do_update_modules[postfuncs] += "fix_spdx_unknown"
 
 GO_IMPORT = "github.com/aws/amazon-cloudwatch-agent"
 
