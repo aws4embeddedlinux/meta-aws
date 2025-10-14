@@ -1,7 +1,7 @@
 # nooelint: oelint.file.underscores
 require aws-iot-device-sdk-cpp-v2-samples.inc
 
-S = "${UNPACKDIR}/${BP}/samples/fleet_provisioning/fleet_provisioning"
+S = "${UNPACKDIR}/${BP}/samples/fleet_provisioning/provision-basic"
 
 SRC_URI:append = " \
     file://run-ptest \
@@ -11,7 +11,7 @@ RDEPENDS:${PN}-ptest += "python3 aws-cli"
 
 do_install() {
  install -d ${D}${bindir}
- install ${B}/fleet-provisioning ${D}${bindir}/aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning
+ install ${B}/fleet-provisioning-basic ${D}${bindir}/aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning
 }
 
 inherit ptest
