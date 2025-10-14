@@ -15,12 +15,13 @@ COMPONENT_ARTIFACTS = ""
 
 # Default to lite variant, can be overwritten in local.conf e.g.
 GREENGRASS_VARIANT ?= "lite"
+REQUIRED_DISTRO_FEATURES = "systemd"
 
 # Conditionally inherit the appropriate class based on variant
 # greengrass-component.bbclass = Classic Greengrass only
 # greengrass-lite-component.bbclass = Greengrass Lite only
 inherit_defer ${@'greengrass-lite-component' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-component'}
-inherit ptest
+inherit ptest features_check
 
 RDEPENDS:${PN} += "${@'greengrass-lite' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-bin'}"
 
