@@ -1,15 +1,21 @@
-This enable the tests even when crosscompiling.
+From 1ecec3f435edef2d3fb22c5db9ba6d04cbe4adb9 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Mon, 29 Sep 2025 12:51:03 +0000
+Subject: [PATCH] This enable the tests even when crosscompiling.
 
 Upstream-Status: Inappropriate [oe specific]
+---
+ CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
-Index: aws-c-cal-0.9.3/CMakeLists.txt
-===================================================================
---- aws-c-cal-0.9.3.orig/CMakeLists.txt
-+++ aws-c-cal-0.9.3/CMakeLists.txt
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 29ff105..666b31b 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
 @@ -218,7 +218,7 @@ install(FILES ${EXPORT_MODULES}
          DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}/modules"
          COMPONENT Development)
-
+ 
 -if (NOT CMAKE_CROSSCOMPILING AND NOT BYO_CRYPTO)
 +if (NOT BYO_CRYPTO)
      include(CTest)
