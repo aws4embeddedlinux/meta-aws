@@ -4,7 +4,7 @@
 # Do not modify it by hand, as the contents will be replaced when
 # running the update-modules task.
 
-LICENSE += "& Apache-2.0 & BSD-2-Clause & BSD-3-Clause & ISC & MIT & MPL-2.0 & Unknown & Zlib"
+LICENSE += "& Apache-2.0 & BSD-2-Clause & BSD-3-Clause & GPL-3.0-only & ISC & MIT & MPL-2.0 & Zlib"
 
 LIC_FILES_CHKSUM += "\
     file://pkg/mod/cloud.google.com/go/auth/oauth2adapt@v0.2.4/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
@@ -21,7 +21,6 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/github.com/!code-!hex/go-generics-cache@v1.5.1/LICENSE;md5=e65ef7babab7e3e4367d470e27f20205;spdx=MIT \
     file://pkg/mod/github.com/!google!cloud!platform/opentelemetry-operations-go/detectors/gcp@v1.25.0/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/github.com/!i!b!m/sarama@v1.43.3/LICENSE.md;md5=05234e0c56234d44778615b08bc1a14b;spdx=MIT \
-    file://pkg/mod/github.com/!jeffail/gabs@v1.4.0/LICENSE;md5=407c129d63c240b92eb245e25f74995e;spdx=MIT \
     file://pkg/mod/github.com/!showmax/go-fqdn@v1.0.0/LICENSE;md5=864586d44b3057352c7897147d04ab97;spdx=Apache-2.0 \
     file://pkg/mod/github.com/alecthomas/participle/v2@v2.1.1/COPYING;md5=c9b197062ffa2eb27eed3d8ef59c1a56;spdx=MIT \
     file://pkg/mod/github.com/alecthomas/participle@v0.4.1/COPYING;md5=5d5bf78db4b4e33b05aa47e51384f131;spdx=MIT \
@@ -55,7 +54,7 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/github.com/antchfx/jsonquery@v1.1.5/LICENSE;md5=5debb370f50e1dfd24ff5144233a2ef6;spdx=MIT \
     file://pkg/mod/github.com/antchfx/xmlquery@v1.4.2/LICENSE;md5=5debb370f50e1dfd24ff5144233a2ef6;spdx=MIT \
     file://pkg/mod/github.com/antchfx/xpath@v1.3.2/LICENSE;md5=5debb370f50e1dfd24ff5144233a2ef6;spdx=MIT \
-    file://pkg/mod/github.com/apache/thrift@v0.21.0/LICENSE;md5=c40a383cb3f747e0c7abbf1482f194f0;spdx=Unknown \
+    file://pkg/mod/github.com/apache/thrift@v0.21.0/LICENSE;md5=c40a383cb3f747e0c7abbf1482f194f0;spdx=Apache-2.0 \
     file://pkg/mod/github.com/armon/go-metrics@v0.4.1/LICENSE;md5=d2d77030c0183e3d1e66d26dc1f243be;spdx=MIT \
     file://pkg/mod/github.com/aws/aws-sdk-go-v2/config@v1.28.6/LICENSE.txt;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/github.com/aws/aws-sdk-go-v2/credentials@v1.17.47/LICENSE.txt;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
@@ -70,16 +69,15 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/github.com/aws/aws-sdk-go-v2/service/ssooidc@v1.28.6/LICENSE.txt;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/github.com/aws/aws-sdk-go-v2/service/sts@v1.33.2/LICENSE.txt;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/github.com/aws/aws-sdk-go-v2@v1.32.6/LICENSE.txt;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
-    file://pkg/mod/github.com/aws/aws-sdk-go-v2@v1.32.6/internal/sync/singleflight/LICENSE;md5=bdc234595bc2fe370918f5de5077c8e9;spdx=Unknown \
+    file://pkg/mod/github.com/aws/aws-sdk-go-v2@v1.32.6/internal/sync/singleflight/LICENSE;md5=bdc234595bc2fe370918f5de5077c8e9;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/aws/aws-sdk-go@v1.48.6/LICENSE.txt;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/github.com/aws/aws-sdk-go@v1.48.6/internal/sync/singleflight/LICENSE;md5=5d4950ecb7b26d2c5e4e7b4e0dd74707;spdx=BSD-3-Clause \
-    file://pkg/mod/github.com/aws/smithy-go@v1.22.1/LICENSE;md5=34400b68072d710fecd0a2940a0d1658;spdx=Unknown \
-    file://pkg/mod/github.com/aws/smithy-go@v1.22.1/internal/sync/singleflight/LICENSE;md5=bdc234595bc2fe370918f5de5077c8e9;spdx=Unknown \
+    file://pkg/mod/github.com/aws/smithy-go@v1.22.1/LICENSE;md5=34400b68072d710fecd0a2940a0d1658;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/aws/smithy-go@v1.22.1/internal/sync/singleflight/LICENSE;md5=bdc234595bc2fe370918f5de5077c8e9;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/aws/telegraf/patches/gopsutil/v3@v3.0.0-20250113150713-a2dfaa4cdf6d/LICENSE;md5=ae6de3dee02712a1e55b280671be53bf;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/aws/telegraf@v0.10.2-0.20250113150713-a2dfaa4cdf6d/LICENSE;md5=c5d3aeddd4f7a4c4993bbdc4a41aec44;spdx=MIT \
     file://pkg/mod/github.com/benbjohnson/clock@v1.3.0/LICENSE;md5=b812f1e4ef9067011cad556daf595138;spdx=MIT \
     file://pkg/mod/github.com/beorn7/perks@v1.0.1/LICENSE;md5=0d0738f37ee8dc0b5f88a32e83c60198;spdx=MIT \
-    file://pkg/mod/github.com/bigkevmcd/go-configparser@v0.0.0-20200217161103-d137835d2579/LICENSE;md5=44381688418ce176aa35a0094fc629bd;spdx=MIT \
     file://pkg/mod/github.com/blang/semver/v4@v4.0.0/LICENSE;md5=5a3ade42a900439691ebc22013660cae;spdx=MIT \
     file://pkg/mod/github.com/bmatcuk/doublestar/v4@v4.7.1/LICENSE;md5=2a0ed06d3f9d0a3be066dc72088ae2ed;spdx=MIT \
     file://pkg/mod/github.com/caio/go-tdigest@v3.1.0+incompatible/LICENSE;md5=d1fb2347fdcbf952e01cfa52413e237b;spdx=MIT \
@@ -88,20 +86,20 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/github.com/checkpoint-restore/go-criu/v5@v5.3.0/LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e;spdx=Apache-2.0 \
     file://pkg/mod/github.com/cilium/ebpf@v0.11.0/LICENSE;md5=011d5eef39494cc16bc0b1848fe42759;spdx=MIT \
     file://pkg/mod/github.com/cncf/xds/go@v0.0.0-20240905190251-b4127c9b8d78/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
-    file://pkg/mod/github.com/containerd/console@v1.0.4/LICENSE;md5=1269f40c0d099c21a871163984590d89;spdx=Unknown \
-    file://pkg/mod/github.com/containerd/log@v0.1.0/LICENSE;md5=1269f40c0d099c21a871163984590d89;spdx=Unknown \
+    file://pkg/mod/github.com/containerd/console@v1.0.4/LICENSE;md5=1269f40c0d099c21a871163984590d89;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/containerd/log@v0.1.0/LICENSE;md5=1269f40c0d099c21a871163984590d89;spdx=Apache-2.0 \
     file://pkg/mod/github.com/containerd/ttrpc@v1.2.5/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
     file://pkg/mod/github.com/coreos/go-semver@v0.3.0/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/github.com/coreos/go-systemd/v22@v22.5.0/LICENSE;md5=19cbd64715b51267a47bf3750cc6a8a5;spdx=Apache-2.0 \
-    file://pkg/mod/github.com/cyphar/filepath-securejoin@v0.2.5/LICENSE;md5=8d322afab99e1998dbfcc712f94e824d;spdx=Unknown \
+    file://pkg/mod/github.com/cyphar/filepath-securejoin@v0.2.5/LICENSE;md5=8d322afab99e1998dbfcc712f94e824d;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/davecgh/go-spew@v1.1.2-0.20180830191138-d8f796af33cc/LICENSE;md5=c06795ed54b2a35ebeeb543cd3a73e56;spdx=ISC \
-    file://pkg/mod/github.com/deckarep/golang-set/v2@v2.3.1/LICENSE;md5=5deb1cece31e59a82919c60f40aaeadc;spdx=Unknown \
+    file://pkg/mod/github.com/deckarep/golang-set/v2@v2.3.1/LICENSE;md5=5deb1cece31e59a82919c60f40aaeadc;spdx=MIT \
     file://pkg/mod/github.com/dennwc/varint@v1.0.0/LICENSE;md5=0093e097002cda002f8fc6a427d00ea9;spdx=MIT \
-    file://pkg/mod/github.com/digitalocean/godo@v1.126.0/LICENSE.txt;md5=507dec7929f9cb3da81bfb45dc2c1e6a;spdx=Unknown \
+    file://pkg/mod/github.com/digitalocean/godo@v1.126.0/LICENSE.txt;md5=507dec7929f9cb3da81bfb45dc2c1e6a;spdx=MIT \
     file://pkg/mod/github.com/distribution/reference@v0.6.0/LICENSE;md5=d2794c0df5b907fdace235a619d80314;spdx=Apache-2.0 \
-    file://pkg/mod/github.com/docker/docker@v27.3.1+incompatible/LICENSE;md5=4859e97a9c7780e77972d989f0823f28;spdx=Unknown \
-    file://pkg/mod/github.com/docker/go-connections@v0.5.0/LICENSE;md5=04424bc6f5a5be60691b9824d65c2ad8;spdx=Unknown \
-    file://pkg/mod/github.com/docker/go-units@v0.5.0/LICENSE;md5=04424bc6f5a5be60691b9824d65c2ad8;spdx=Unknown \
+    file://pkg/mod/github.com/docker/docker@v27.3.1+incompatible/LICENSE;md5=4859e97a9c7780e77972d989f0823f28;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/docker/go-connections@v0.5.0/LICENSE;md5=04424bc6f5a5be60691b9824d65c2ad8;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/docker/go-units@v0.5.0/LICENSE;md5=04424bc6f5a5be60691b9824d65c2ad8;spdx=Apache-2.0 \
     file://pkg/mod/github.com/doclambda/protobufquery@v0.0.0-20210317203640-88ffabe06a60/LICENSE;md5=5debb370f50e1dfd24ff5144233a2ef6;spdx=MIT \
     file://pkg/mod/github.com/eapache/go-resiliency@v1.7.0/LICENSE;md5=b5d5c42dfd88384315d2340222c139ab;spdx=MIT \
     file://pkg/mod/github.com/eapache/go-xerial-snappy@v0.0.0-20230731223053-c322873962e3/LICENSE;md5=dcb7929be2a0ff22ad39f869509911d7;spdx=MIT \
@@ -115,7 +113,7 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/github.com/expr-lang/expr@v1.16.9/LICENSE;md5=1cad8446548a7b361129ccfca629db1a;spdx=MIT \
     file://pkg/mod/github.com/fatih/color@v1.16.0/LICENSE.md;md5=316e6d590bdcde7993fb175662c0dd5a;spdx=MIT \
     file://pkg/mod/github.com/felixge/httpsnoop@v1.0.4/LICENSE.txt;md5=684da2bf3eed8fc8860e75ad84638225;spdx=MIT \
-    file://pkg/mod/github.com/fsnotify/fsnotify@v1.8.0/LICENSE;md5=8bae8b116e2cfd723492b02d9a212fe2;spdx=Unknown \
+    file://pkg/mod/github.com/fsnotify/fsnotify@v1.8.0/LICENSE;md5=8bae8b116e2cfd723492b02d9a212fe2;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/fxamacker/cbor/v2@v2.7.0/LICENSE;md5=827f5a2fa861382d35a3943adf9ebb86;spdx=MIT \
     file://pkg/mod/github.com/gabriel-vasile/mimetype@v1.4.3/LICENSE;md5=9a7efbc857c4b2a2b35938578a5e6d78;spdx=MIT \
     file://pkg/mod/github.com/gin-contrib/sse@v0.1.0/LICENSE;md5=2e674b99ec94fcbd735f85c03ab8d74f;spdx=MIT \
@@ -132,7 +130,7 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/github.com/go-playground/validator/v10@v10.20.0/LICENSE;md5=a718a0f318d76f7c5d510cbae84f0b60;spdx=MIT \
     file://pkg/mod/github.com/go-resty/resty/v2@v2.13.1/LICENSE;md5=6a117e09b7c983726d6ca7dd38ccc903;spdx=MIT \
     file://pkg/mod/github.com/go-viper/mapstructure/v2@v2.2.1/LICENSE;md5=3f7765c3d4f58e1f84c4313cecf0f5bd;spdx=MIT \
-    file://pkg/mod/github.com/go-zookeeper/zk@v1.0.4/LICENSE;md5=0d3bff996e9a8f99d8ba45af7c9f6da7;spdx=Unknown \
+    file://pkg/mod/github.com/go-zookeeper/zk@v1.0.4/LICENSE;md5=0d3bff996e9a8f99d8ba45af7c9f6da7;spdx=MIT \
     file://pkg/mod/github.com/gobwas/glob@v0.2.3/LICENSE;md5=0945febef83436030e30c73ea9980b42;spdx=MIT \
     file://pkg/mod/github.com/goccy/go-json@v0.10.4/LICENSE;md5=33a07164132d795872805bfc53f6097d;spdx=MIT \
     file://pkg/mod/github.com/godbus/dbus/v5@v5.1.0/LICENSE;md5=09042bd5c6c96a2b9e45ddf1bc517eed;spdx=BSD-2-Clause \
@@ -140,47 +138,47 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/github.com/gogo/protobuf@v1.3.2/LICENSE;md5=38be95f95200434dc208e2ee3dab5081;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/golang/groupcache@v0.0.0-20210331224755-41bb18bfe9da/LICENSE;md5=19cbd64715b51267a47bf3750cc6a8a5;spdx=Apache-2.0 \
     file://pkg/mod/github.com/golang/protobuf@v1.5.4/LICENSE;md5=939cce1ec101726fa754e698ac871622;spdx=BSD-3-Clause \
-    file://pkg/mod/github.com/golang/snappy@v0.0.4/LICENSE;md5=b8b79c7d4cda128290b98c6a21f9aac6;spdx=Unknown \
+    file://pkg/mod/github.com/golang/snappy@v0.0.4/LICENSE;md5=b8b79c7d4cda128290b98c6a21f9aac6;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/golang-jwt/jwt/v5@v5.2.1/LICENSE;md5=a21b708d8b320c68979c44ac9dba9b0d;spdx=MIT \
-    file://pkg/mod/github.com/google/cadvisor@v0.49.1-0.20240628164550-89f779d86055/LICENSE;md5=e7790b946bfacb700e8a8f2baedb3205;spdx=Unknown \
-    file://pkg/mod/github.com/google/cadvisor@v0.49.1-0.20240628164550-89f779d86055/third_party/containerd/LICENSE;md5=1269f40c0d099c21a871163984590d89;spdx=Unknown \
+    file://pkg/mod/github.com/google/cadvisor@v0.49.1-0.20240628164550-89f779d86055/LICENSE;md5=e7790b946bfacb700e8a8f2baedb3205;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/google/cadvisor@v0.49.1-0.20240628164550-89f779d86055/third_party/containerd/LICENSE;md5=1269f40c0d099c21a871163984590d89;spdx=Apache-2.0 \
     file://pkg/mod/github.com/google/gnostic-models@v0.6.8/LICENSE;md5=b1e01b26bacfc2232046c90a330332b3;spdx=Apache-2.0 \
-    file://pkg/mod/github.com/google/go-cmp@v0.6.0/LICENSE;md5=4ac66f7dea41d8d116cb7fb28aeff2ab;spdx=Unknown \
-    file://pkg/mod/github.com/google/go-querystring@v1.1.0/LICENSE;md5=29f156828ca5f2df0d1c12543a75f12a;spdx=Unknown \
+    file://pkg/mod/github.com/google/go-cmp@v0.6.0/LICENSE;md5=4ac66f7dea41d8d116cb7fb28aeff2ab;spdx=BSD-3-Clause \
+    file://pkg/mod/github.com/google/go-querystring@v1.1.0/LICENSE;md5=29f156828ca5f2df0d1c12543a75f12a;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/google/gofuzz@v1.2.0/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/github.com/google/s2a-go@v0.1.8/LICENSE.md;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/github.com/google/uuid@v1.6.0/LICENSE;md5=88073b6dd8ec00fe09da59e0b6dfded1;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/googleapis/enterprise-certificate-proxy@v0.3.4/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/github.com/googleapis/gax-go/v2@v2.13.0/LICENSE;md5=0dd48ae8103725bd7b401261520cdfbb;spdx=BSD-3-Clause \
-    file://pkg/mod/github.com/gophercloud/gophercloud@v1.14.1/LICENSE;md5=97442d133cf61b7ad91e38f39c5d8389;spdx=Unknown \
-    file://pkg/mod/github.com/gorilla/mux@v1.8.1/LICENSE;md5=c30eee78985cf2584cded5f89ba3d787;spdx=Unknown \
+    file://pkg/mod/github.com/gophercloud/gophercloud@v1.14.1/LICENSE;md5=97442d133cf61b7ad91e38f39c5d8389;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/gorilla/mux@v1.8.1/LICENSE;md5=c30eee78985cf2584cded5f89ba3d787;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/gorilla/websocket@v1.5.0/LICENSE;md5=c007b54a1743d596f46b2748d9f8c044;spdx=BSD-2-Clause \
-    file://pkg/mod/github.com/gosnmp/gosnmp@v1.34.0/LICENSE;md5=0dd18b0da66d7495c1854498b25ad986;spdx=Unknown \
+    file://pkg/mod/github.com/gosnmp/gosnmp@v1.34.0/LICENSE;md5=0dd18b0da66d7495c1854498b25ad986;spdx=MIT \
     file://pkg/mod/github.com/grafana/regexp@v0.0.0-20240518133315-a468a5bfb3bc/LICENSE;md5=5d4950ecb7b26d2c5e4e7b4e0dd74707;spdx=BSD-3-Clause \
-    file://pkg/mod/github.com/grpc-ecosystem/grpc-gateway/v2@v2.23.0/LICENSE;md5=c510a2a01572b82d27f28fd4d02ca318;spdx=Unknown \
-    file://pkg/mod/github.com/hashicorp/consul/api@v1.30.0/LICENSE;md5=2925e7910462fe55fcd3a652c4cf2a2d;spdx=Unknown \
-    file://pkg/mod/github.com/hashicorp/cronexpr@v1.1.2/GPLv3;md5=f3d2b3f33b4cee4675268fdb8e76ca32;spdx=Unknown \
+    file://pkg/mod/github.com/grpc-ecosystem/grpc-gateway/v2@v2.23.0/LICENSE;md5=c510a2a01572b82d27f28fd4d02ca318;spdx=BSD-3-Clause \
+    file://pkg/mod/github.com/hashicorp/consul/api@v1.30.0/LICENSE;md5=2925e7910462fe55fcd3a652c4cf2a2d;spdx=MPL-2.0 \
+    file://pkg/mod/github.com/hashicorp/cronexpr@v1.1.2/GPLv3;md5=f3d2b3f33b4cee4675268fdb8e76ca32;spdx=GPL-3.0-only \
     file://pkg/mod/github.com/hashicorp/errwrap@v1.1.0/LICENSE;md5=b278a92d2c1509760384428817710378;spdx=MPL-2.0 \
-    file://pkg/mod/github.com/hashicorp/go-cleanhttp@v0.5.2/LICENSE;md5=65d26fcc2f35ea6a181ac777e42db1ea;spdx=Unknown \
+    file://pkg/mod/github.com/hashicorp/go-cleanhttp@v0.5.2/LICENSE;md5=65d26fcc2f35ea6a181ac777e42db1ea;spdx=MPL-2.0 \
     file://pkg/mod/github.com/hashicorp/go-hclog@v1.6.3/LICENSE;md5=08d72ffda4fb40269260bfa13423c5be;spdx=MIT \
-    file://pkg/mod/github.com/hashicorp/go-immutable-radix@v1.3.1/LICENSE;md5=65d26fcc2f35ea6a181ac777e42db1ea;spdx=Unknown \
+    file://pkg/mod/github.com/hashicorp/go-immutable-radix@v1.3.1/LICENSE;md5=65d26fcc2f35ea6a181ac777e42db1ea;spdx=MPL-2.0 \
     file://pkg/mod/github.com/hashicorp/go-multierror@v1.1.1/LICENSE;md5=d44fdeb607e2d2614db9464dbedd4094;spdx=MPL-2.0 \
-    file://pkg/mod/github.com/hashicorp/go-retryablehttp@v0.7.7/LICENSE;md5=bffc21c92b5f3adcbbb06f8e0067e786;spdx=Unknown \
-    file://pkg/mod/github.com/hashicorp/go-rootcerts@v1.0.2/LICENSE;md5=65d26fcc2f35ea6a181ac777e42db1ea;spdx=Unknown \
-    file://pkg/mod/github.com/hashicorp/go-uuid@v1.0.3/LICENSE;md5=1694f6ca1fdc81a15c1fd408542d47e6;spdx=Unknown \
-    file://pkg/mod/github.com/hashicorp/go-version@v1.7.0/LICENSE;md5=81eb103d8076ec72ebe52e3ee40176db;spdx=Unknown \
-    file://pkg/mod/github.com/hashicorp/golang-lru/v2@v2.0.7/LICENSE;md5=dc2f3ee49116a594755b22b853cc8b6b;spdx=Unknown \
-    file://pkg/mod/github.com/hashicorp/golang-lru/v2@v2.0.7/simplelru/LICENSE_list;md5=36e7e1c318b6301bd0c13090ed16adb2;spdx=Unknown \
-    file://pkg/mod/github.com/hashicorp/golang-lru@v1.0.2/LICENSE;md5=dc2f3ee49116a594755b22b853cc8b6b;spdx=Unknown \
-    file://pkg/mod/github.com/hashicorp/nomad/api@v0.0.0-20240717122358-3d93bd3778f3/LICENSE;md5=bffc21c92b5f3adcbbb06f8e0067e786;spdx=Unknown \
+    file://pkg/mod/github.com/hashicorp/go-retryablehttp@v0.7.7/LICENSE;md5=bffc21c92b5f3adcbbb06f8e0067e786;spdx=MPL-2.0 \
+    file://pkg/mod/github.com/hashicorp/go-rootcerts@v1.0.2/LICENSE;md5=65d26fcc2f35ea6a181ac777e42db1ea;spdx=MPL-2.0 \
+    file://pkg/mod/github.com/hashicorp/go-uuid@v1.0.3/LICENSE;md5=1694f6ca1fdc81a15c1fd408542d47e6;spdx=MPL-2.0 \
+    file://pkg/mod/github.com/hashicorp/go-version@v1.7.0/LICENSE;md5=81eb103d8076ec72ebe52e3ee40176db;spdx=MPL-2.0 \
+    file://pkg/mod/github.com/hashicorp/golang-lru/v2@v2.0.7/LICENSE;md5=dc2f3ee49116a594755b22b853cc8b6b;spdx=MPL-2.0 \
+    file://pkg/mod/github.com/hashicorp/golang-lru/v2@v2.0.7/simplelru/LICENSE_list;md5=36e7e1c318b6301bd0c13090ed16adb2;spdx=MPL-2.0 \
+    file://pkg/mod/github.com/hashicorp/golang-lru@v1.0.2/LICENSE;md5=dc2f3ee49116a594755b22b853cc8b6b;spdx=MPL-2.0 \
+    file://pkg/mod/github.com/hashicorp/nomad/api@v0.0.0-20240717122358-3d93bd3778f3/LICENSE;md5=bffc21c92b5f3adcbbb06f8e0067e786;spdx=MPL-2.0 \
     file://pkg/mod/github.com/hashicorp/serf@v0.10.1/LICENSE;md5=b278a92d2c1509760384428817710378;spdx=MPL-2.0 \
     file://pkg/mod/github.com/hetznercloud/hcloud-go/v2@v2.13.1/LICENSE;md5=50fd56482c03f0e049d29e752e6e8013;spdx=MIT \
-    file://pkg/mod/github.com/iancoleman/strcase@v0.3.0/LICENSE;md5=809a7bcb6415543e8f857d969bd45c95;spdx=Unknown \
-    file://pkg/mod/github.com/imdario/mergo@v0.3.16/LICENSE;md5=ff13e03bb57bf9c52645f2f942afa28b;spdx=Unknown \
+    file://pkg/mod/github.com/iancoleman/strcase@v0.3.0/LICENSE;md5=809a7bcb6415543e8f857d969bd45c95;spdx=MIT \
+    file://pkg/mod/github.com/imdario/mergo@v0.3.16/LICENSE;md5=ff13e03bb57bf9c52645f2f942afa28b;spdx=MIT \
     file://pkg/mod/github.com/influxdata/line-protocol/v2@v2.2.1/LICENSE;md5=240fa5366110b23baeed752009395f92;spdx=MIT \
     file://pkg/mod/github.com/influxdata/toml@v0.0.0-20190415235208-270119a8ce65/LICENSE;md5=9191b4cb03404322c952b5e2a69c0914;spdx=MIT \
     file://pkg/mod/github.com/influxdata/wlog@v0.0.0-20160411224016-7c63b0a71ef8/LICENSE;md5=6fff484b68651576c5d61eb26c51b043;spdx=MIT \
-    file://pkg/mod/github.com/ionos-cloud/sdk-go/v6@v6.2.1/LICENSE;md5=9f82d1d892c11a7e23fabc3c0251029f;spdx=Unknown \
+    file://pkg/mod/github.com/ionos-cloud/sdk-go/v6@v6.2.1/LICENSE;md5=9f82d1d892c11a7e23fabc3c0251029f;spdx=Apache-2.0 \
     file://pkg/mod/github.com/jaegertracing/jaeger@v1.62.0/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
     file://pkg/mod/github.com/jcmturner/aescts/v2@v2.0.0/LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e;spdx=Apache-2.0 \
     file://pkg/mod/github.com/jcmturner/dnsutils/v2@v2.0.0/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
@@ -197,7 +195,7 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/github.com/kardianos/service@v1.2.1/LICENSE;md5=b5f729083058adfe7476d146a6218ffc;spdx=Zlib \
     file://pkg/mod/github.com/karrick/godirwalk@v1.17.0/LICENSE;md5=7bea66fc0a31c6329f9392034bee75d2;spdx=BSD-2-Clause \
     file://pkg/mod/github.com/klauspost/compress@v1.17.11/LICENSE;md5=d0fd9ebda39468b51ff4539c9fbb13a8;spdx=BSD-3-Clause \
-    file://pkg/mod/github.com/klauspost/compress@v1.17.11/internal/snapref/LICENSE;md5=b8b79c7d4cda128290b98c6a21f9aac6;spdx=Unknown \
+    file://pkg/mod/github.com/klauspost/compress@v1.17.11/internal/snapref/LICENSE;md5=b8b79c7d4cda128290b98c6a21f9aac6;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/klauspost/compress@v1.17.11/zstd/internal/xxhash/LICENSE.txt;md5=802da049c92a99b4387d3f3d91b00fa9;spdx=MIT \
     file://pkg/mod/github.com/knadh/koanf/v2@v2.1.2/LICENSE;md5=79708d7c07004029466c51bb93453378;spdx=MIT \
     file://pkg/mod/github.com/knadh/koanf@v1.5.0/LICENSE;md5=79708d7c07004029466c51bb93453378;spdx=MIT \
@@ -208,12 +206,12 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/github.com/leodido/ragel-machinery@v0.0.0-20190525184631-5f46317e436b/LICENSE;md5=8f50db5538ec1148a9b3d14ed96c3418;spdx=MIT \
     file://pkg/mod/github.com/lightstep/go-expohisto@v1.0.0/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
     file://pkg/mod/github.com/linode/linodego@v1.41.0/LICENSE;md5=adcc77737b3990a929ec2d43823227b2;spdx=MIT \
-    file://pkg/mod/github.com/magiconair/properties@v1.8.7/LICENSE.md;md5=714beb7325ffa89d5a68d936a3bb04e5;spdx=Unknown \
+    file://pkg/mod/github.com/magiconair/properties@v1.8.7/LICENSE.md;md5=714beb7325ffa89d5a68d936a3bb04e5;spdx=Apache-2.0 \
     file://pkg/mod/github.com/mailru/easyjson@v0.7.7/LICENSE;md5=819e81c2ec13e1bbc47dc5e90bb4d88b;spdx=MIT \
     file://pkg/mod/github.com/mattn/go-colorable@v0.1.13/LICENSE;md5=24ce168f90aec2456a73de1839037245;spdx=MIT \
     file://pkg/mod/github.com/mattn/go-isatty@v0.0.20/LICENSE;md5=f509beadd5a11227c27b5d2ad6c9f2c6;spdx=MIT \
     file://pkg/mod/github.com/matttproud/golang_protobuf_extensions@v1.0.4/LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e;spdx=Apache-2.0 \
-    file://pkg/mod/github.com/miekg/dns@v1.1.62/COPYRIGHT;md5=2ba6b7bd91e16af46a856eca87db2504;spdx=Unknown \
+    file://pkg/mod/github.com/miekg/dns@v1.1.62/COPYRIGHT;md5=2ba6b7bd91e16af46a856eca87db2504;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/mistifyio/go-zfs@v2.1.2-0.20190413222219-f784269be439+incompatible/LICENSE;md5=cce9462224bfb44c1866ef7bd5eddf54;spdx=Apache-2.0 \
     file://pkg/mod/github.com/mitchellh/copystructure@v1.2.0/LICENSE;md5=56da355a12d4821cda57b8f23ec34bc4;spdx=MIT \
     file://pkg/mod/github.com/mitchellh/mapstructure@v1.5.1-0.20231216201459-8508981c8b6c/LICENSE;md5=3f7765c3d4f58e1f84c4313cecf0f5bd;spdx=MIT \
@@ -223,7 +221,7 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/github.com/modern-go/concurrent@v0.0.0-20180306012644-bacd9c7ef1dd/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
     file://pkg/mod/github.com/modern-go/reflect2@v1.0.2/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
     file://pkg/mod/github.com/mostynb/go-grpc-compression@v1.2.3/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
-    file://pkg/mod/github.com/mrunalp/fileutils@v0.5.1/LICENSE;md5=435b266b3899aa8a959f17d41c56def8;spdx=Unknown \
+    file://pkg/mod/github.com/mrunalp/fileutils@v0.5.1/LICENSE;md5=435b266b3899aa8a959f17d41c56def8;spdx=Apache-2.0 \
     file://pkg/mod/github.com/munnerz/goautoneg@v0.0.0-20191010083416-a7dc8b61c822/LICENSE;md5=0c241922fc69330e2e5590de114f3bf5;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/mwitkow/go-conntrack@v0.0.0-20190716064945-2f068394615f/LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e;spdx=Apache-2.0 \
     file://pkg/mod/github.com/naoina/go-stringutil@v0.1.0/LICENSE;md5=fd48b703ec0214c2b9490e1db9d0d82b;spdx=MIT \
@@ -271,39 +269,39 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/github.com/open-telemetry/opentelemetry-collector-contrib/receiver/tcplogreceiver@v0.115.0/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
     file://pkg/mod/github.com/open-telemetry/opentelemetry-collector-contrib/receiver/udplogreceiver@v0.115.0/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
     file://pkg/mod/github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver@v0.115.0/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
-    file://pkg/mod/github.com/opencontainers/go-digest@v1.0.0/LICENSE;md5=2d6fc0e85c3f118af64c85a78d56d3cf;spdx=Unknown \
-    file://pkg/mod/github.com/opencontainers/image-spec@v1.1.0/LICENSE;md5=27ef03aa2da6e424307f102e8b42621d;spdx=Unknown \
-    file://pkg/mod/github.com/opencontainers/runc@v1.1.14/LICENSE;md5=435b266b3899aa8a959f17d41c56def8;spdx=Unknown \
-    file://pkg/mod/github.com/opencontainers/runtime-spec@v1.2.0/LICENSE;md5=b355a61a394a504dacde901c958f662c;spdx=Unknown \
+    file://pkg/mod/github.com/opencontainers/go-digest@v1.0.0/LICENSE;md5=2d6fc0e85c3f118af64c85a78d56d3cf;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/opencontainers/image-spec@v1.1.0/LICENSE;md5=27ef03aa2da6e424307f102e8b42621d;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/opencontainers/runc@v1.1.14/LICENSE;md5=435b266b3899aa8a959f17d41c56def8;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/opencontainers/runtime-spec@v1.2.0/LICENSE;md5=b355a61a394a504dacde901c958f662c;spdx=Apache-2.0 \
     file://pkg/mod/github.com/opencontainers/selinux@v1.11.0/LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e;spdx=Apache-2.0 \
     file://pkg/mod/github.com/openshift/api@v0.0.0-20180801171038-322a19404e37/LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e;spdx=Apache-2.0 \
-    file://pkg/mod/github.com/openshift/client-go@v0.0.0-20210521082421-73d9475a9142/LICENSE;md5=27bdb051f43ea9035ac160542145b43e;spdx=Unknown \
+    file://pkg/mod/github.com/openshift/client-go@v0.0.0-20210521082421-73d9475a9142/LICENSE;md5=27bdb051f43ea9035ac160542145b43e;spdx=Apache-2.0 \
     file://pkg/mod/github.com/openzipkin/zipkin-go@v0.4.3/LICENSE;md5=aa0e5d6d95d878dca816abf94da09587;spdx=Apache-2.0 \
     file://pkg/mod/github.com/ovh/go-ovh@v1.6.0/LICENSE;md5=e155b5ac742e63ab4a231348f006390f;spdx=BSD-3-Clause \
-    file://pkg/mod/github.com/pelletier/go-toml/v2@v2.2.2/LICENSE;md5=390892c6562af0d807e527b06d635f94;spdx=Unknown \
+    file://pkg/mod/github.com/pelletier/go-toml/v2@v2.2.2/LICENSE;md5=390892c6562af0d807e527b06d635f94;spdx=MIT \
     file://pkg/mod/github.com/philhofer/fwd@v1.1.1/LICENSE.md;md5=cfd452e4c91aa5191e3af8f3e4b67a9a;spdx=MIT \
-    file://pkg/mod/github.com/pierrec/lz4/v4@v4.1.21/LICENSE;md5=09ece85f3c312a63b522bfc6ebd44943;spdx=Unknown \
+    file://pkg/mod/github.com/pierrec/lz4/v4@v4.1.21/LICENSE;md5=09ece85f3c312a63b522bfc6ebd44943;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/pkg/browser@v0.0.0-20240102092130-5ac0b6a4141c/LICENSE;md5=2c6b03e6a9b13bd75b50a8dbeed074da;spdx=BSD-2-Clause \
     file://pkg/mod/github.com/pkg/errors@v0.9.1/LICENSE;md5=6fe682a02df52c6653f33bd0f7126b5a;spdx=BSD-2-Clause \
-    file://pkg/mod/github.com/pmezard/go-difflib@v1.0.1-0.20181226105442-5d4384ee4fb2/LICENSE;md5=e9a2ebb8de779a07500ddecca806145e;spdx=Unknown \
+    file://pkg/mod/github.com/pmezard/go-difflib@v1.0.1-0.20181226105442-5d4384ee4fb2/LICENSE;md5=e9a2ebb8de779a07500ddecca806145e;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/prometheus/client_golang@v1.20.5/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
-    file://pkg/mod/github.com/prometheus/client_golang@v1.20.5/internal/github.com/golang/gddo/LICENSE;md5=4c728948788b1a02f33ae4e906546eef;spdx=Unknown \
+    file://pkg/mod/github.com/prometheus/client_golang@v1.20.5/internal/github.com/golang/gddo/LICENSE;md5=4c728948788b1a02f33ae4e906546eef;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/prometheus/client_model@v0.6.1/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
     file://pkg/mod/github.com/prometheus/common/sigv4@v0.1.0/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
     file://pkg/mod/github.com/prometheus/common@v0.61.0/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
     file://pkg/mod/github.com/prometheus/procfs@v0.15.1/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
     file://pkg/mod/github.com/prometheus/prometheus@v0.54.1/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
-    file://pkg/mod/github.com/rcrowley/go-metrics@v0.0.0-20201227073835-cf1acfcdf475/LICENSE;md5=1bdf5d819f50f141366dabce3be1460f;spdx=Unknown \
+    file://pkg/mod/github.com/rcrowley/go-metrics@v0.0.0-20201227073835-cf1acfcdf475/LICENSE;md5=1bdf5d819f50f141366dabce3be1460f;spdx=BSD-2-Clause \
     file://pkg/mod/github.com/relvacode/iso8601@v1.6.0/LICENSE;md5=6c960305dc52f06752fe6d11bb000648;spdx=MIT \
     file://pkg/mod/github.com/rs/cors@v1.11.1/LICENSE;md5=04924a837bc661a5d288479a17393ff2;spdx=MIT \
     file://pkg/mod/github.com/safchain/ethtool@v0.0.0-20210803160452-9aa261dae9b1/LICENSE;md5=fa818a259cbed7ce8bc2a22d35a464fc;spdx=Apache-2.0 \
-    file://pkg/mod/github.com/scaleway/scaleway-sdk-go@v1.0.0-beta.30/LICENSE;md5=edc09e5410976eec98735ee0139f7ba4;spdx=Unknown \
+    file://pkg/mod/github.com/scaleway/scaleway-sdk-go@v1.0.0-beta.30/LICENSE;md5=edc09e5410976eec98735ee0139f7ba4;spdx=MIT \
     file://pkg/mod/github.com/shirou/gopsutil/v4@v4.24.11/LICENSE;md5=ae6de3dee02712a1e55b280671be53bf;spdx=BSD-3-Clause \
-    file://pkg/mod/github.com/shirou/gopsutil@v3.21.11+incompatible/LICENSE;md5=ed7522382cec5b7a6d6ebb8e30eed40e;spdx=Unknown \
+    file://pkg/mod/github.com/shirou/gopsutil@v3.21.11+incompatible/LICENSE;md5=ed7522382cec5b7a6d6ebb8e30eed40e;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/sirupsen/logrus@v1.9.3/LICENSE;md5=8dadfef729c08ec4e631c4f6fc5d43a0;spdx=MIT \
     file://pkg/mod/github.com/sleepinggenius2/gosmi@v0.4.4/LICENSE;md5=efa33eb09890384bd2a69093c9970992;spdx=MIT \
-    file://pkg/mod/github.com/spf13/cobra@v1.8.1/LICENSE.txt;md5=920d76114a32b0fb75b3f2718c5a91be;spdx=Unknown \
-    file://pkg/mod/github.com/spf13/pflag@v1.0.5/LICENSE;md5=1e8b7dc8b906737639131047a590f21d;spdx=Unknown \
+    file://pkg/mod/github.com/spf13/cobra@v1.8.1/LICENSE.txt;md5=920d76114a32b0fb75b3f2718c5a91be;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/spf13/pflag@v1.0.5/LICENSE;md5=1e8b7dc8b906737639131047a590f21d;spdx=BSD-3-Clause \
     file://pkg/mod/github.com/stretchr/objx@v0.5.2/LICENSE;md5=d023fd31d3ca39ec61eec65a91732735;spdx=MIT \
     file://pkg/mod/github.com/stretchr/testify@v1.10.0/LICENSE;md5=188f01994659f3c0d310612333d2a26f;spdx=MIT \
     file://pkg/mod/github.com/syndtr/gocapability@v0.0.0-20200815063812-42c35b437635/LICENSE;md5=a7304f5073e7be4ba7bffabbf9f2bbca;spdx=BSD-2-Clause \
@@ -318,15 +316,15 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/github.com/ua-parser/uap-go@v0.0.0-20240611065828-3a4781585db6/uaparser/LICENSE.md;md5=0269ce4304b4c67995adeedbc40dfb4b;spdx=MIT \
     file://pkg/mod/github.com/ugorji/go/codec@v1.2.12/LICENSE;md5=f39cb00aceeac4bc5f861dc07456d5d5;spdx=MIT \
     file://pkg/mod/github.com/valyala/fastjson@v1.6.4/LICENSE;md5=7780bf961575e8d21fbfb56f09632be7;spdx=MIT \
-    file://pkg/mod/github.com/vishvananda/netlink@v1.3.0/LICENSE;md5=2ade771c7d7211af507864e8dd520529;spdx=Unknown \
-    file://pkg/mod/github.com/vishvananda/netns@v0.0.4/LICENSE;md5=2ade771c7d7211af507864e8dd520529;spdx=Unknown \
+    file://pkg/mod/github.com/vishvananda/netlink@v1.3.0/LICENSE;md5=2ade771c7d7211af507864e8dd520529;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/vishvananda/netns@v0.0.4/LICENSE;md5=2ade771c7d7211af507864e8dd520529;spdx=Apache-2.0 \
     file://pkg/mod/github.com/vjeantet/grok@v1.0.1/LICENSE;md5=d2794c0df5b907fdace235a619d80314;spdx=Apache-2.0 \
     file://pkg/mod/github.com/vultr/govultr/v2@v2.17.2/LICENSE;md5=899e56efdac7262a420952eba8250944;spdx=MIT \
     file://pkg/mod/github.com/wavefronthq/wavefront-sdk-go@v0.9.10/LICENSE;md5=604fc8caa3bb282dddfa58084a0b4d3e;spdx=Apache-2.0 \
     file://pkg/mod/github.com/x448/float16@v0.8.4/LICENSE;md5=de8f8e025d57fe7ee0b67f30d571323b;spdx=MIT \
-    file://pkg/mod/github.com/xdg-go/pbkdf2@v1.0.0/LICENSE;md5=34400b68072d710fecd0a2940a0d1658;spdx=Unknown \
-    file://pkg/mod/github.com/xdg-go/scram@v1.1.2/LICENSE;md5=34400b68072d710fecd0a2940a0d1658;spdx=Unknown \
-    file://pkg/mod/github.com/xdg-go/stringprep@v1.0.4/LICENSE;md5=34400b68072d710fecd0a2940a0d1658;spdx=Unknown \
+    file://pkg/mod/github.com/xdg-go/pbkdf2@v1.0.0/LICENSE;md5=34400b68072d710fecd0a2940a0d1658;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/xdg-go/scram@v1.1.2/LICENSE;md5=34400b68072d710fecd0a2940a0d1658;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/xdg-go/stringprep@v1.0.4/LICENSE;md5=34400b68072d710fecd0a2940a0d1658;spdx=Apache-2.0 \
     file://pkg/mod/github.com/xeipuuv/gojsonpointer@v0.0.0-20190905194746-02993c407bfb/LICENSE-APACHE-2.0.txt;md5=f7a6312e0b85b17786de3ae15ab42bed;spdx=Apache-2.0 \
     file://pkg/mod/github.com/xeipuuv/gojsonreference@v0.0.0-20180127040603-bd5ef7bd5415/LICENSE-APACHE-2.0.txt;md5=f7a6312e0b85b17786de3ae15ab42bed;spdx=Apache-2.0 \
     file://pkg/mod/github.com/xeipuuv/gojsonschema@v1.2.0/LICENSE-APACHE-2.0.txt;md5=f7a6312e0b85b17786de3ae15ab42bed;spdx=Apache-2.0 \
@@ -431,7 +429,7 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/golang.org/x/term@v0.29.0/LICENSE;md5=7998cb338f82d15c0eff93b7004d272a;spdx=BSD-3-Clause \
     file://pkg/mod/golang.org/x/text@v0.22.0/LICENSE;md5=7998cb338f82d15c0eff93b7004d272a;spdx=BSD-3-Clause \
     file://pkg/mod/golang.org/x/time@v0.6.0/LICENSE;md5=7998cb338f82d15c0eff93b7004d272a;spdx=BSD-3-Clause \
-    file://pkg/mod/gonum.org/v1/gonum@v0.15.1/LICENSE;md5=fabff3dab4b5a6c3e29611c973dc3df9;spdx=Unknown \
+    file://pkg/mod/gonum.org/v1/gonum@v0.15.1/LICENSE;md5=fabff3dab4b5a6c3e29611c973dc3df9;spdx=BSD-3-Clause \
     file://pkg/mod/google.golang.org/api@v0.199.0/LICENSE;md5=a651bb3d8b1c412632e28823bb432b40;spdx=BSD-3-Clause \
     file://pkg/mod/google.golang.org/api@v0.199.0/internal/third_party/uritemplates/LICENSE;md5=4ee4feb2b545c2231749e5c54ace343e;spdx=BSD-3-Clause \
     file://pkg/mod/google.golang.org/genproto/googleapis/api@v0.0.0-20241104194629-dd2ea8efbc28/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
@@ -439,12 +437,12 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/google.golang.org/genproto@v0.0.0-20240903143218-8af14fe29dc1/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/google.golang.org/grpc@v1.68.1/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/google.golang.org/protobuf@v1.35.2/LICENSE;md5=02d4002e9171d41a8fad93aa7faf3956;spdx=BSD-3-Clause \
-    file://pkg/mod/gopkg.in/evanphx/json-patch.v4@v4.12.0/LICENSE;md5=96ae735ca1b4dcdb6b26f4ca4b8ba645;spdx=Unknown \
-    file://pkg/mod/gopkg.in/fsnotify.v1@v1.4.7/LICENSE;md5=c38914c9a7ab03bb2b96d4baaee10769;spdx=Unknown \
-    file://pkg/mod/gopkg.in/inf.v0@v0.9.1/LICENSE;md5=13cea479df204c85485b5db6eb1bc9d5;spdx=Unknown \
+    file://pkg/mod/gopkg.in/evanphx/json-patch.v4@v4.12.0/LICENSE;md5=96ae735ca1b4dcdb6b26f4ca4b8ba645;spdx=BSD-3-Clause \
+    file://pkg/mod/gopkg.in/fsnotify.v1@v1.4.7/LICENSE;md5=c38914c9a7ab03bb2b96d4baaee10769;spdx=BSD-3-Clause \
+    file://pkg/mod/gopkg.in/inf.v0@v0.9.1/LICENSE;md5=13cea479df204c85485b5db6eb1bc9d5;spdx=BSD-3-Clause \
     file://pkg/mod/gopkg.in/ini.v1@v1.67.0/LICENSE;md5=4e2a8d8f9935d6a766a5879a77ddc24d;spdx=Apache-2.0 \
     file://pkg/mod/gopkg.in/natefinch/lumberjack.v2@v2.0.0/LICENSE;md5=574cdb55b81249478f5af5f789e9e29f;spdx=MIT \
-    file://pkg/mod/gopkg.in/tomb.v1@v1.0.0-20141024135613-dd632973f1e7/LICENSE;md5=95d4102f39f26da9b66fee5d05ac597b;spdx=Unknown \
+    file://pkg/mod/gopkg.in/tomb.v1@v1.0.0-20141024135613-dd632973f1e7/LICENSE;md5=95d4102f39f26da9b66fee5d05ac597b;spdx=BSD-3-Clause \
     file://pkg/mod/gopkg.in/yaml.v2@v2.4.0/LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e;spdx=Apache-2.0 \
     file://pkg/mod/gopkg.in/yaml.v3@v3.0.1/LICENSE;md5=3c91c17266710e16afdbb2b6d15c761c;spdx=Apache-2.0 \
     file://pkg/mod/k8s.io/api@v0.31.3/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
@@ -453,14 +451,14 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/k8s.io/client-go@v0.31.3/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/k8s.io/klog/v2@v2.130.1/LICENSE;md5=19cbd64715b51267a47bf3750cc6a8a5;spdx=Apache-2.0 \
     file://pkg/mod/k8s.io/kube-openapi@v0.0.0-20240228011516-70dd3763d340/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
-    file://pkg/mod/k8s.io/kube-openapi@v0.0.0-20240228011516-70dd3763d340/pkg/internal/third_party/go-json-experiment/json/LICENSE;md5=9d210c7471ce08e3db5261f33bf8fce6;spdx=Unknown \
+    file://pkg/mod/k8s.io/kube-openapi@v0.0.0-20240228011516-70dd3763d340/pkg/internal/third_party/go-json-experiment/json/LICENSE;md5=9d210c7471ce08e3db5261f33bf8fce6;spdx=BSD-3-Clause \
     file://pkg/mod/k8s.io/kube-openapi@v0.0.0-20240228011516-70dd3763d340/pkg/validation/spec/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/k8s.io/kubelet@v0.30.0/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/k8s.io/utils@v0.0.0-20240711033017-18e509b52bc8/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/k8s.io/utils@v0.0.0-20240711033017-18e509b52bc8/inotify/LICENSE;md5=5d4950ecb7b26d2c5e4e7b4e0dd74707;spdx=BSD-3-Clause \
-    file://pkg/mod/k8s.io/utils@v0.0.0-20240711033017-18e509b52bc8/internal/third_party/forked/golang/LICENSE;md5=591778525c869cdde0ab5a1bf283cd81;spdx=Unknown \
-    file://pkg/mod/sigs.k8s.io/json@v0.0.0-20221116044647-bc3834ca7abd/LICENSE;md5=545d3f23616dee7495323aeb0b098df3;spdx=Unknown \
+    file://pkg/mod/k8s.io/utils@v0.0.0-20240711033017-18e509b52bc8/internal/third_party/forked/golang/LICENSE;md5=591778525c869cdde0ab5a1bf283cd81;spdx=BSD-3-Clause \
+    file://pkg/mod/sigs.k8s.io/json@v0.0.0-20221116044647-bc3834ca7abd/LICENSE;md5=545d3f23616dee7495323aeb0b098df3;spdx=Apache-2.0 \
     file://pkg/mod/sigs.k8s.io/structured-merge-diff/v4@v4.4.1/LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e;spdx=Apache-2.0 \
-    file://pkg/mod/sigs.k8s.io/yaml@v1.4.0/LICENSE;md5=b5d30dd5bc47d1b56b678ac06dead1c7;spdx=Unknown \
+    file://pkg/mod/sigs.k8s.io/yaml@v1.4.0/LICENSE;md5=b5d30dd5bc47d1b56b678ac06dead1c7;spdx=Apache-2.0 \
     file://pkg/mod/sigs.k8s.io/yaml@v1.4.0/goyaml.v2/LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e;spdx=Apache-2.0 \
 "
