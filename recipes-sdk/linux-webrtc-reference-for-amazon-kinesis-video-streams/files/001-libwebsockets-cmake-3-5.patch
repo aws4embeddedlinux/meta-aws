@@ -1,4 +1,4 @@
-From df95bf0eee4d371b8bf21282002fd139b970b842 Mon Sep 17 00:00:00 2001
+From 88cd784ba4312724fa6cfdc512aa9d7daf688c3f Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Wed, 23 Jul 2025 20:33:00 +0000
 Subject: [PATCH] linux-webrtc-reference-for-amazon-kinesis-video-streams:
