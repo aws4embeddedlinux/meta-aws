@@ -36,7 +36,7 @@ SRC_URI = "\
      file://002-usrsctp-cmake-3-5.patch \
 "
 
-SRCREV = "85af946d8b95d8977ef7d5299dc31c1988c61d9b"
+SRCREV = "8c1d922b3251da7d766a1e85ec79d288ee81bcf8"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
