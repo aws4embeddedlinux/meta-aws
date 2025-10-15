@@ -16,8 +16,8 @@ COMPATIBLE_MACHINE:x86-64 = "(.*)"
 # nooelint: oelint.vars.srcurichecksum
 SRC_URI = "https://github.com/firecracker-microvm/firecracker/releases/download/v${PV}/firecracker-v${PV}-${ARCH_DIR}.tgz;name=${ARCH_DIR}"
 
-SRC_URI[x86_64.sha256sum] = "36112969952b0e34fadcfca769d48a55dc22cbba99af17e02bd0e24fc35adc77"
-SRC_URI[aarch64.sha256sum] = "9e3641071de140979afaac0c52fdc107baeba398bdb5709c12f77ee469207fcd"
+SRC_URI[x86_64.sha256sum] = "59450b9171ff2ebdf2f9a25be3a248a7ba79fb6371aec51a9d6d8eefca7b4faf"
+SRC_URI[aarch64.sha256sum] = "3ae4006ccb33a068f41d93a9c488cad17356bb9c22418e3c7efc7ca2256a6e84"
 
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 
