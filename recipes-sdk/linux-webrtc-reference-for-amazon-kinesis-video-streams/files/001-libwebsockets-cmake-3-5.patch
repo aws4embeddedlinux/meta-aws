@@ -1,4 +1,4 @@
-From 88cd784ba4312724fa6cfdc512aa9d7daf688c3f Mon Sep 17 00:00:00 2001
+From 02ae9cef965afa38e2d28ccdda30a6bb034eeba3 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Wed, 23 Jul 2025 20:33:00 +0000
 Subject: [PATCH] linux-webrtc-reference-for-amazon-kinesis-video-streams:
@@ -9,7 +9,7 @@ Upstream-Status: Inappropriate [oe-specific]
  1 file changed, 1 insertion(+)
 
 diff --git a/CMake/libwebsockets.cmake b/CMake/libwebsockets.cmake
-index cae4b4b..ac658ea 100644
+index 701a359..3cb1ac7 100644
 --- a/CMake/libwebsockets.cmake
 +++ b/CMake/libwebsockets.cmake
 @@ -1,3 +1,4 @@
