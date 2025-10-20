@@ -57,12 +57,12 @@ RDEPENDS:${PN} += "\
 
 do_install:append() {
     if ${@bb.utils.contains('DISTRO_FEATURES','x11','false','true',d)}; then
-        rm ${D}${libdir}/${SHR}/lib/libawt_xawt.so
-        rm ${D}${libdir}/${SHR}/lib/libjawt.so
-        rm ${D}${libdir}/${SHR}/lib/libsplashscreen.so
+        rm -f ${D}${libdir}/${SHR}/lib/libawt_xawt.so
+        rm -f ${D}${libdir}/${SHR}/lib/libjawt.so
+        rm -f ${D}${libdir}/${SHR}/lib/libsplashscreen.so
     fi
     if ${@bb.utils.contains('DISTRO_FEATURES','alsa','false','true',d)}; then
-        rm ${D}${libdir}/${SHR}/lib/libjsound.so
+        rm -f ${D}${libdir}/${SHR}/lib/libjsound.so
     fi
 }
 
