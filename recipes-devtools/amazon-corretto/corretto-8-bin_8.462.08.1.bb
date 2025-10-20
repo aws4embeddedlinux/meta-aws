@@ -44,13 +44,5 @@ require corretto-bin-common.inc
 do_package_qa[noexec] = "1"
 EXCLUDE_FROM_SHLIBS = "1"
 
-# nooelint: oelint.vars.dependsordered
-RDEPENDS:${PN} += "\
-    cairo \
-    gtk+ \
-    libgl \
-    pango \
-"
-
 # this is used by meta-aws-tests to find this recipe for ptests, so it should stay in this file instead of moving into corretto-bin-common
 inherit ptest
