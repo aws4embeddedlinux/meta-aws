@@ -7,7 +7,7 @@ on:
           default: '["master", "dunfell", "gatesgarth", "hardknott", "honister", "kirkstone", "zeus", "langdale", "mickledore", "nanbield", "scarthgap", "styhead", "walnascar"]'
           required: true
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   ff-merge:
