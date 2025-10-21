@@ -1,3 +1,4 @@
+From a0dc8479757354cf8a72b51a9a71b6920950873e Mon Sep 17 00:00:00 2001
 From: Yocto Build System <yocto@example.com>
 Date: Mon, 9 Sep 2024 11:30:00 +0000
 Subject: [PATCH] Fix Boost compatibility for Boost 1.89+
@@ -13,11 +14,14 @@ This maintains compatibility with both older and newer Boost versions.
 
 Upstream-Status: Inappropriate [oe specific]
 Signed-off-by: Thomas Roos <throos@amazon.de>
+---
+ CMakeLists.txt | 29 +++++++++++++++++++----------
+ 1 file changed, 19 insertions(+), 10 deletions(-)
 
-Index: aws-iot-securetunneling-localproxy-git/CMakeLists.txt
-===================================================================
---- aws-iot-securetunneling-localproxy-git.orig/CMakeLists.txt
-+++ aws-iot-securetunneling-localproxy-git/CMakeLists.txt
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index e0b3615..437aa55 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
 @@ -85,15 +85,10 @@ endif(BUILD_TESTS)
  #########################################
  # Boost dependencies                    #
@@ -34,7 +38,7 @@ Index: aws-iot-securetunneling-localproxy-git/CMakeLists.txt
 -    string(REPLACE ${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_STATIC_LIBRARY_SUFFIX} BOOST_STATIC_LIB ${BOOST_LIB})
 -    list(APPEND Boost_STATIC_LIBRARIES ${BOOST_STATIC_LIB})
 -endforeach()
-
+ 
  #########################################
  # Target : Build aws-tunnel-local-proxy #
 @@ -132,7 +127,14 @@ else()
