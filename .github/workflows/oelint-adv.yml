@@ -6,6 +6,9 @@ on:
       - '*-next'
   merge_group:
 
+permissions:
+  contents: read
+
 jobs:
   oelint-adv:
     runs-on: ubuntu-22.04
