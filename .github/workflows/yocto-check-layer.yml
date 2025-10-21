@@ -5,6 +5,9 @@ on:
     branches:
       - '*-next'
 
+permissions:
+  contents: read
+
 jobs:
   yocto-check-layer:
     runs-on:
