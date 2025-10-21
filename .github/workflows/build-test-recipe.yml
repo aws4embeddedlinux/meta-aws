@@ -3,6 +3,9 @@ on:
   workflow_dispatch:
   pull_request:
   merge_group:
+permissions:
+  contents: read
+
 jobs:
   changed:
     name: Get changed recipes
