@@ -6,8 +6,7 @@ on:
     branches:
       - '*-next'
 
-permissions:
-  pull-requests: write
+permissions: {}
 
 jobs:
   auto-approve-and-merge:
