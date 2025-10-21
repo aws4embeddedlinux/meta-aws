@@ -6,6 +6,9 @@ on:
           description: 'branches to ff merge branch-next into'
           default: '["master", "dunfell", "gatesgarth", "hardknott", "honister", "kirkstone", "zeus", "langdale", "mickledore", "nanbield", "scarthgap", "styhead", "walnascar"]'
           required: true
+permissions:
+  contents: write
+
 jobs:
   ff-merge:
     runs-on: ubuntu-22.04
