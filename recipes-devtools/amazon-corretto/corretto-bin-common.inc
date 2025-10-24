@@ -107,3 +107,63 @@ python do_package:prepend () {
 
 
 ALTERNATIVE:${PN} = "${ALTERNATIVE_NAMES}"
+
+RECIPE_UPGRADE_EXTRA_TASKS = "update_other_arch_checksum"
+
+python do_update_other_arch_checksum() {
+    import urllib.request
+    import hashlib
+    import re
+
+    pv = d.getVar('PV')
+    recipe_file = d.getVar('FILE')
+    upgrade_archs = d.getVar('UPGRADE_ARCHS').split()
+    current_arch = d.getVar('ARCH_DIR')
+
+    with open(recipe_file, 'r') as f:
+        content = f.read()
+
+    # Update checksums for other architectures (exclude current one)
+    for arch in upgrade_archs:
+        if arch != current_arch:
+            arch_map = {
+                "aarch64": "aarch64",
+                "x86-64": "x64",
+                "arm": "armv7",
+                "x86": "x86"
+            }
+
+            if arch not in arch_map:
+                bb.fatal(f"Unsupported architecture: {arch}")
+
+            url = f"https://corretto.aws/downloads/resources/{pv}/amazon-corretto-{pv}-linux-{arch_map[arch]}.tar.gz"
+
+            with urllib.request.urlopen(url) as response:
+                data = response.read()
+                sha256_hash = hashlib.sha256(data).hexdigest()
+
+            # Add or update checksum line
+            pattern = rf'^SRC_URI\[{arch}\.sha256sum\] = ".*"$'
+            replacement = f'SRC_URI[{arch}.sha256sum] = "{sha256_hash}"'
+
+            if re.search(pattern, content, re.MULTILINE):
+                content = re.sub(pattern, replacement, content, flags=re.MULTILINE)
+            else:
+                # Add new line after existing checksums
+                content = re.sub(
+                    r'(SRC_URI\[\w+\.sha256sum\] = ".*")',
+                    rf'\1\n{replacement}',
+                    content,
+                    count=1
+                )
+
+            bb.note(f"Updated {arch} SHA256: {sha256_hash}")
+
+    with open(recipe_file, 'w') as f:
+        f.write(content)
+}
+addtask do_update_other_arch_checksum
+do_update_other_arch_checksum[network] = "1"
+
+# nooelint: oelint.vars.insaneskip
+INSANE_SKIP:${PN} += "already-stripped"
