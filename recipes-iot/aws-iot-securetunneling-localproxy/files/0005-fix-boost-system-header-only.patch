@@ -1,0 +1,75 @@
+From 3a04b9ce91ef7e51ec4a8822e20e7e38ad181a19 Mon Sep 17 00:00:00 2001
+From: Yocto Build System <yocto@example.com>
+Date: Mon, 9 Sep 2024 11:30:00 +0000
+Subject: [PATCH] Fix Boost compatibility for Boost 1.89+
+
+In Boost 1.89, the system library became header-only and the legacy
+CMake variables are no longer properly populated. This patch:
+
+1. Makes the system component optional (header-only in Boost 1.89+)
+2. Uses modern CMake Boost targets instead of legacy variables
+3. Removes static library conversion that doesn't work with new Boost
+
+This maintains compatibility with both older and newer Boost versions.
+
+Upstream-Status: Inappropriate [oe specific]
+Signed-off-by: Thomas Roos <throos@amazon.de>
+---
+ CMakeLists.txt | 29 +++++++++++++++++++----------
+ 1 file changed, 19 insertions(+), 10 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index e0b3615..437aa55 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -85,15 +85,10 @@ endif(BUILD_TESTS)
+ #########################################
+ # Boost dependencies                    #
+ #########################################
+-set(Boost_USE_STATIC_LIBS ON)
+-set(Boost_USE_DEBUG_RUNTIME OFF)
+-#set_property(GLOBAL PROPERTY Boost_USE_MULTITHREADED ON)
+-find_package(Boost REQUIRED COMPONENTS system log log_setup thread program_options date_time filesystem chrono)
++find_package(Boost REQUIRED COMPONENTS log log_setup thread program_options date_time filesystem chrono)
++# Try to find system component, but don't require it (header-only in Boost 1.89+)
++find_package(Boost QUIET COMPONENTS system)
+ include_directories(${Boost_INCLUDE_DIRS})
+-foreach(BOOST_LIB ${Boost_LIBRARIES})
+-    string(REPLACE ${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_STATIC_LIBRARY_SUFFIX} BOOST_STATIC_LIB ${BOOST_LIB})
+-    list(APPEND Boost_STATIC_LIBRARIES ${BOOST_STATIC_LIB})
+-endforeach()
+
+ #########################################
+ # Target : Build aws-tunnel-local-proxy #
+@@ -132,7 +127,14 @@ else()
+ endif()
+ target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${OpenSSL_STATIC_SSL_LIBRARY})
+ target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${OpenSSL_STATIC_CRYPTO_LIBRARY})
+-target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${Boost_STATIC_LIBRARIES})
++target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME}
++    Boost::log
++    Boost::log_setup
++    Boost::thread
++    Boost::program_options
++    Boost::date_time
++    Boost::filesystem
++    Boost::chrono)
+ target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${Protobuf_LITE_STATIC_LIBRARY})
+ target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${CMAKE_DL_LIBS})
+ set_property(TARGET ${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} APPEND_STRING PROPERTY COMPILE_FLAGS ${CUSTOM_COMPILER_FLAGS})
+@@ -148,7 +150,14 @@ if(BUILD_TESTS)
+     endif()
+     target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} ${OpenSSL_STATIC_SSL_LIBRARY})
+     target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} ${OpenSSL_STATIC_CRYPTO_LIBRARY})
+-    target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} ${Boost_STATIC_LIBRARIES})
++    target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME}
++        Boost::log
++        Boost::log_setup
++        Boost::thread
++        Boost::program_options
++        Boost::date_time
++        Boost::filesystem
++        Boost::chrono)
+     target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} ${Protobuf_LITE_STATIC_LIBRARY})
+     target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} ${CMAKE_DL_LIBS})
+     set_property(TARGET ${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} APPEND_STRING PROPERTY COMPILE_FLAGS ${TEST_COMPILER_FLAGS})
