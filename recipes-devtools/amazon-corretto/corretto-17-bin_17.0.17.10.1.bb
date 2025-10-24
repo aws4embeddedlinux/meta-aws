@@ -8,8 +8,8 @@ SRC_URI:append:aarch64 = " https://corretto.aws/downloads/resources/${PV}/amazon
 SRC_URI:append:x86-64 = " https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x64.tar.gz;name=x86-64"
 
 # you can find checksum here: https://github.com/corretto/corretto-17/releases since devtool upgrade can only do one arch atm.
-SRC_URI[x86-64.sha256sum] = "8459613474a7701b9aa8e42c99f6f15cedb294c0f43146860c3d1e70dece29e5"
-SRC_URI[aarch64.sha256sum] = "936877e9b97c1555d39abb0335086fc7c5992f7bcecd647748a36cf87ca21409"
+SRC_URI[aarch64.sha256sum] = "31b08051e647044da8ea201744becdbc76e05b807d45e68636f765e15fd830ae"
+SRC_URI[x86-64.sha256sum] = "ce991faba33be89046b03518e2c971f892a279570bc09f700b363282db1ac552"
 
 # also available in master (not kirkstone) in classes-recipe: github-releases
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
@@ -24,3 +24,5 @@ require corretto-bin-common.inc
 
 # this is used by meta-aws-tests to find this recipe for ptests, so it should stay in this file instead of moving into corretto-bin-common
 inherit ptest
+
+UPGRADE_ARCHS = "x86-64 aarch64"
