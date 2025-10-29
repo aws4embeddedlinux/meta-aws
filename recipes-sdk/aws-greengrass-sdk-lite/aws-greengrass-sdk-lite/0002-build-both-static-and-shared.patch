@@ -1,6 +1,7 @@
+From b7009481ead7715301c9cdb0bae9553c689e1e22 Mon Sep 17 00:00:00 2001
 From: meta-aws <meta-aws@example.com>
-Date: Tue, 6 Aug 2025 15:25:00 +0000
-Subject: [PATCH 2/2] Build both static and shared libraries
+Date: Wed, 6 Aug 2025 15:25:00 +0000
+Subject: [PATCH] Build both static and shared libraries
 
 This patch modifies the CMakeLists.txt to build both static and shared
 versions of libggl-sdk, allowing packages to choose the appropriate
@@ -39,11 +40,14 @@ attribute.
 
 Upstream-Status: Submitted [https://github.com/aws-greengrass/aws-greengrass-sdk-lite/pull/26]
 Signed-off-by: meta-aws <meta-aws@example.com>
+---
+ CMakeLists.txt | 47 ++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 46 insertions(+), 1 deletion(-)
 
-Index: aws-greengrass-sdk-lite-0.2.0/CMakeLists.txt
-===================================================================
---- aws-greengrass-sdk-lite-0.2.0.orig/CMakeLists.txt
-+++ aws-greengrass-sdk-lite-0.2.0/CMakeLists.txt
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 930ee1a..389de34 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
 @@ -13,6 +13,8 @@ if(PROJECT_IS_TOP_LEVEL)
  
    option(BUILD_SAMPLES "Build sample components" ON)
@@ -92,7 +96,7 @@ Index: aws-greengrass-sdk-lite-0.2.0/CMakeLists.txt
  target_compile_options(ggl-sdk PRIVATE -pthread -fno-strict-aliasing -std=gnu11
                                         -Wno-missing-braces)
  target_compile_definitions(ggl-sdk PRIVATE _GNU_SOURCE)
-@@ -179,8 +213,19 @@ string(TOUPPER "${GGL_LOG_LEVEL}" log_le
+@@ -179,8 +213,19 @@ string(TOUPPER "${GGL_LOG_LEVEL}" log_level)
  set(choose_level "$<IF:$<BOOL:${log_level}>,${log_level},DEBUG>")
  target_compile_definitions(ggl-sdk PUBLIC GGL_LOG_LEVEL=GGL_LOG_${choose_level})
  
