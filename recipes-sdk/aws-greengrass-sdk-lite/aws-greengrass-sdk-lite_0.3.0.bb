@@ -6,7 +6,7 @@ HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-sdk-lite"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-SRCREV = "0835c6ad20948ab55d86fbd5864fd38e62559ed2"
+SRCREV = "1ee3a5ad3de59f141973839412b5025e67ea533d"
 SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-sdk-lite.git;protocol=https;branch=main \
            file://0001-fix-crc32-syntax.patch \
            file://0002-build-both-static-and-shared.patch \
