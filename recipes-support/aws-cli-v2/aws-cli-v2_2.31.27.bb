@@ -32,7 +32,7 @@ SRC_URI = "\
     file://run-ptest \
 "
 
-SRCREV = "df1297ba036d1bdf16c106a53e72fa0f4bd01e90"
+SRCREV = "6889732a920676148bf3035cc1fea211da52e5d7"
 
 # version 2.x
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>2\.\d+(\.\d+)+)"
@@ -74,12 +74,28 @@ RDEPENDS:${PN} += "\
 
 do_patch() {
     sed -i -E 's/(([a-zA-Z0-9_.-]+)(>=?[0-9.]+)?(,)?(<[0-9.]+\*|<=?[0-9.]+)?|([a-zA-Z0-9_.-]+)==[0-9.]+)/\2\3\6/' ${S}/pyproject.toml ${S}/requirements/bootstrap.txt
+    
+    # Patch awscli logger to handle CRT initialization errors
+    sed -i '/def enable_crt_logging():/,/awscrt.io.init_logging/ {
+        s/awscrt.io.init_logging/try:\n        awscrt.io.init_logging/
+        /awscrt.io.init_logging/a\    except RuntimeError:\n        pass
+    }' ${S}/awscli/logger.py
+    
+    sed -i '/def disable_crt_logging():/,/awscrt.io.init_logging/ {
+        s/awscrt.io.init_logging/try:\n        awscrt.io.init_logging/
+        /awscrt.io.init_logging/a\    except RuntimeError:\n        pass
+    }' ${S}/awscli/logger.py
 }
 
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
         # just install some tests with low memory (less than 4GB) consumption
         cp -rf ${S}/tests/* ${D}${PTEST_PATH}/tests/
+}
+
+do_install_ptest:append() {
+    # Patch test conftest to handle CRT initialization errors
+    sed -i '/awscli.logger.disable_crt_logging()/c\    try:\n        awscli.logger.disable_crt_logging()\n    except RuntimeError:\n        pass' ${D}${PTEST_PATH}/tests/conftest.py
 }
 
 RDEPENDS:${PN}-ptest += "\
