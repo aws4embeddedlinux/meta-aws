@@ -37,19 +37,24 @@ SRC_URI = "\
     git://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main;name=sigv4;destsuffix=${S}/thirdparty/aws_sigv4 \
     git://github.com/aws-greengrass/aws-greengrass-sdk-lite.git;protocol=https;branch=main;name=sdk;destsuffix=${S}/thirdparty/ggl_sdk \
     file://001-disable_strip.patch \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://002-fix-deployment-copy-path.patch','',d)} \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://003-ggl-cli-multi-component.patch','',d)} \
+    ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://004-fix-fleet-provisioning-circular-dependency.patch','',d)} \
     file://greengrass-lite.yaml \
     file://run-ptest \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://ggl.local-deployment.service','',d)} \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://ggl-deploy-image-components','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.gg_pre-fleetprovisioning.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.gg_fleetprovisioning.service','',d)} \
 "
 
-SRCREV_ggl = "ed2b01efd60fc7e44b0f175985a67f4ce72ab323"
+SRCREV_ggl = "cf6789832e2911ff164daa103f515f4f0862a3d3"
 
 # must match fc_deps.json
 SRCREV_mqtt = "f1827d8b46703f1c5ff05d21b34692d3122c9a04"
 SRCREV_backoff = "f2f3bb2d8310f7cb48baa3ee64b635a5d66f838b"
 SRCREV_sigv4 = "f0409ced6c2c9430f0e972019b7e8f20bbf58f4e"
-SRCREV_sdk = "0d239f96101608441dd6434f98a9e7f6623556c7"
+SRCREV_sdk = "dbef3a9cefe34469a213a7d0614d2716d5b10d75"
 
 EXTRA_OECMAKE:append = " \
     -DFETCHCONTENT_SOURCE_DIR_CORE_MQTT=${S}/thirdparty/core_mqtt \
@@ -82,14 +87,20 @@ AWS_REGION ?= ""
 
 FILES:${PN}:append = " \
     ${systemd_unitdir}/system/greengrass-lite.service \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','${systemd_unitdir}/system/ggl.local-deployment.service','',d)} \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','${bindir}/ggl-deploy-image-components','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','${systemd_unitdir}/system/ggl.gg_fleetprovisioning.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','${systemd_unitdir}/system/ggl.gg_pre-fleetprovisioning.service','',d)} \
     /usr/components/* \
+    /usr/share/greengrass-image-components/* \
     ${sysconfdir}/sudoers.d/${BPN} \
     /usr/lib/* \
     ${gg_workingdir} \
     ${sysconfdir}/greengrass/certs/* \
     "
+
+# Runtime dependencies
+RDEPENDS:${PN} += "bash"
 
 REQUIRED_DISTRO_FEATURES = "systemd"
 
@@ -101,6 +112,7 @@ PACKAGECONFIG ?= "\
 
 # this is to make the PACKAGECONFIG QA check happy
 PACKAGECONFIG[fleetprovisioning] = ""
+PACKAGECONFIG[localdeployment] = ""
 
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DBUILD_EXAMPLES=ON,-DBUILD_TESTING=OFF,"
 
@@ -108,9 +120,7 @@ PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DBUILD_EXAMPLES=ON,-DBUILD_TEST
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
 # EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=MinSizeRel"
 
-# add DEBUG logs
-EXTRA_OECMAKE:append = " -DGGL_LOG_LEVEL=DEBUG"
-# EXTRA_OECMAKE:append = " -DGGL_LOG_LEVEL=TRACE"
+EXTRA_OECMAKE:append = " -DGGL_LOG_LEVEL=INFO"
 
 # No warnings should be in commited code, not enabled yet
 # CFLAGS:append = " -Werror"
@@ -134,6 +144,7 @@ SYSTEMD_SERVICE:${PN} = "\
     ggl.gg_pubsub.socket \
     ggl.gg-ipc.socket.socket \
     ggl.ipc_component.socket \
+    ${@bb.utils.contains('PACKAGECONFIG','localdeployment','ggl.local-deployment.service','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','ggl.gg_fleetprovisioning.service ','',d)} \
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','ggl.gg_pre-fleetprovisioning.service ','',d)} \
     greengrass-lite.target \
@@ -171,10 +182,16 @@ do_install:append() {
     install -d ${D}/${gg_workingdir}
     chown ${gg_user}:${gg_group} ${D}/${gg_workingdir}
 
+    # Local deployment service and script are installed conditionally via PACKAGECONFIG
+    if ${@bb.utils.contains('PACKAGECONFIG','localdeployment','true','false',d)}; then
+        install -m 0644 ${UNPACKDIR}/ggl.local-deployment.service ${D}${systemd_unitdir}/system/
+        install -m 0755 ${UNPACKDIR}/ggl-deploy-image-components ${D}${bindir}/
+    fi
+
     if ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','true','false',d)}; then
         # Create ggcredentials directory for fleet provisioning
-        install ${UNPACKDIR}/ggl.gg_pre-fleetprovisioning.service ${D}${systemd_unitdir}/system/
-        install ${UNPACKDIR}/ggl.gg_fleetprovisioning.service ${D}${systemd_unitdir}/system/
+        install -m 0644 ${UNPACKDIR}/ggl.gg_pre-fleetprovisioning.service ${D}${systemd_unitdir}/system/
+        install -m 0644 ${UNPACKDIR}/ggl.gg_fleetprovisioning.service ${D}${systemd_unitdir}/system/
 
         # Replace variables in the config file using a temporary file to ensure proper expansion
         cat > ${D}/${sysconfdir}/greengrass/config.d/fleetprovisioning.yaml << EOF

@@ -1,0 +1,7 @@
+services:
+  aws.greengrass.crypto.Pkcs11Provider:
+    configuration:
+      name: "aws.greengrass.crypto.Pkcs11Provider"
+      library: "/usr/lib/pkcs11/libtpm2_pkcs11.so"
+      slot: 1
+      userPin: "123456"
