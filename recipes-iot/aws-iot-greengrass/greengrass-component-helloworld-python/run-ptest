@@ -1,0 +1,48 @@
+#!/bin/bash
+
+set -e
+
+echo "========================================="
+echo "Testing greengrass-component-helloworld-python"
+echo "========================================="
+
+COMPONENT_RECIPE="/usr/lib/greengrass-component-helloworld-python/ptest/test-data/component-recipe.yaml"
+PYTHON_SCRIPT="/usr/lib/greengrass-component-helloworld-python/ptest/test-data/hello_world.py"
+
+echo "Checking for component recipe at: ${COMPONENT_RECIPE}"
+
+if [ -f "${COMPONENT_RECIPE}" ]; then
+    echo "PASS: Component recipe found"
+else
+    echo "FAIL: Component recipe not found at ${COMPONENT_RECIPE}"
+    exit 1
+fi
+
+echo "Checking for Python script at: ${PYTHON_SCRIPT}"
+
+if [ -f "${PYTHON_SCRIPT}" ]; then
+    echo "PASS: Python script found"
+else
+    echo "FAIL: Python script not found at ${PYTHON_SCRIPT}"
+    exit 1
+fi
+
+echo "Validating component recipe content..."
+
+if grep -q "com.example.HelloWorldPython" "${COMPONENT_RECIPE}"; then
+    echo "PASS: Component name found in recipe"
+else
+    echo "FAIL: Component name not found in recipe"
+    exit 1
+fi
+
+echo "Validating Python script syntax..."
+
+if python3 -m py_compile "${PYTHON_SCRIPT}"; then
+    echo "PASS: Python script compiles successfully"
+else
+    echo "FAIL: Python script has syntax errors"
+    exit 1
+fi
+
+echo "All tests passed!"

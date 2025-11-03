@@ -1,0 +1,30 @@
+#!/bin/bash
+
+set -e
+
+# Read test data
+COMPONENT_NAME=$(cat test-data/component-name)
+COMPONENT_VERSION=$(cat test-data/component-version)
+EXPECTED_ARTIFACT=$(cat test-data/expected-artifact)
+GREENGRASS_VARIANT=$(cat test-data/greengrass-variant)
+
+# Use GREENGRASS_VARIANT to determine binary location
+if [ "${GREENGRASS_VARIANT}" = "lite" ]; then
+    EXPECTED_PATH="/var/lib/greengrass/packages/artifacts/${COMPONENT_NAME}/${COMPONENT_VERSION}/${EXPECTED_ARTIFACT}"
+elif [ "${GREENGRASS_VARIANT}" = "classic" ]; then
+    EXPECTED_PATH="/greengrass/v2/components/${COMPONENT_NAME}/${COMPONENT_VERSION}/${EXPECTED_ARTIFACT}"
+else
+    echo "FAIL: GREENGRASS_VARIANT not set or invalid (expected 'lite' or 'classic')"
+    exit 1
+fi
+
+echo "Using variant: ${GREENGRASS_VARIANT}"
+echo "Checking for binary at: ${EXPECTED_PATH}"
+
+if [ -f "${EXPECTED_PATH}" ] && [ -x "${EXPECTED_PATH}" ]; then
+    echo "PASS: Binary found and executable at correct location"
+else
+    echo "FAIL: Binary not found or not executable at ${EXPECTED_PATH}"
+    echo EXPECTED_PATH: ${EXPECTED_PATH}
+    exit 1
+fi
