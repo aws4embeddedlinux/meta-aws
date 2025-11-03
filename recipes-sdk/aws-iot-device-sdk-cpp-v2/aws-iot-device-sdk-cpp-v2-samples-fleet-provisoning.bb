@@ -5,6 +5,7 @@ S = "${UNPACKDIR}/${BP}/samples/fleet_provisioning/provision-basic"
 
 SRC_URI:append = " \
     file://run-ptest \
+    file://001-fix-dangling-reference-fleet-provisioning.patch \
 "
 
 RDEPENDS:${PN}-ptest += "python3 aws-cli"

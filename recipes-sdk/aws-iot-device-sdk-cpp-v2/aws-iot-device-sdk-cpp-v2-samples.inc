@@ -18,6 +18,7 @@ BRANCH ?= "main"
 UPSTREAM_CHECK_GITTAGREGEX = "git_invalid_tag_regex"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
+CXXFLAGS:append = " -Wdangling-reference"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
