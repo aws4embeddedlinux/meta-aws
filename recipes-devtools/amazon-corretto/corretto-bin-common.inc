@@ -118,7 +118,13 @@ python do_update_other_arch_checksum() {
     pv = d.getVar('PV')
     recipe_file = d.getVar('FILE')
     upgrade_archs = d.getVar('UPGRADE_ARCHS').split()
-    current_arch = d.getVar('ARCH_DIR')
+    
+    # Map TARGET_ARCH to UPGRADE_ARCHS format
+    target_arch = d.getVar('TARGET_ARCH')
+    arch_to_upgrade = {"x86_64": "x86-64", "aarch64": "aarch64", "arm": "arm", "i686": "x86", "i586": "x86"}
+    current_arch = arch_to_upgrade.get(target_arch)
+    
+    bb.note(f"TARGET_ARCH={target_arch}, current_arch={current_arch}, upgrade_archs={upgrade_archs}")
 
     with open(recipe_file, 'r') as f:
         content = f.read()
@@ -126,6 +132,7 @@ python do_update_other_arch_checksum() {
     # Update checksums for other architectures (exclude current one)
     for arch in upgrade_archs:
         if arch != current_arch:
+            bb.note(f"Processing arch: {arch}")
             arch_map = {
                 "aarch64": "aarch64",
                 "x86-64": "x64",
@@ -143,7 +150,7 @@ python do_update_other_arch_checksum() {
                 sha256_hash = hashlib.sha256(data).hexdigest()
 
             # Add or update checksum line
-            pattern = rf'^SRC_URI\[{arch}\.sha256sum\] = ".*"$'
+            pattern = rf'^SRC_URI\[{re.escape(arch)}\.sha256sum\] = ".*"$'
             replacement = f'SRC_URI[{arch}.sha256sum] = "{sha256_hash}"'
 
             if re.search(pattern, content, re.MULTILINE):
@@ -151,7 +158,7 @@ python do_update_other_arch_checksum() {
             else:
                 # Add new line after existing checksums
                 content = re.sub(
-                    r'(SRC_URI\[\w+\.sha256sum\] = ".*")',
+                    r'(SRC_URI\[[^\]]+\.sha256sum\] = ".*")',
                     rf'\1\n{replacement}',
                     content,
                     count=1
