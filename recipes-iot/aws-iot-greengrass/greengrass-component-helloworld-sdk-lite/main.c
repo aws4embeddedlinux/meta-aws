@@ -21,7 +21,9 @@ static void get_timestamp(char *buffer, size_t size) {
     strftime(buffer, size, "%Y-%m-%dT%H:%M:%S.000Z", tm_info);
 }
 
-static void response_handler(GglBuffer topic, GglBuffer payload) {
+static void response_handler(void *ctx, GglBuffer topic, GglBuffer payload, GgIpcSubscriptionHandle handle) {
+    (void) ctx;
+    (void) handle;
     char timestamp[32];
     get_timestamp(timestamp, sizeof(timestamp));
     
@@ -96,7 +98,8 @@ int main(void) {
     printf("[%s] [HelloWorldSDKLite] Connected to GG nucleus successfully\n", timestamp);
     fflush(stdout);
 
-    ret = ggipc_subscribe_to_iot_core(GGL_STR("hello"), 0, &response_handler);
+    GgIpcSubscriptionHandle sub_handle;
+    ret = ggipc_subscribe_to_iot_core(GGL_STR("hello"), 0, &response_handler, NULL, &sub_handle);
     if (ret != GGL_ERR_OK) {
         get_timestamp(timestamp, sizeof(timestamp));
         printf("[%s] [HelloWorldSDKLite] WARNING: Failed to subscribe to IoT Core topic 'hello' (error: %d)\n", timestamp, ret);
