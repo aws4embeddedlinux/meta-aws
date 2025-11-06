@@ -2,19 +2,27 @@
 Description=Greengrass Lite Fleet Provisioning Service
 After=ggl.core.ggconfigd.service
 After=systemd-time-wait-sync.service
+<<<<<<< HEAD
 ConditionPathExists=!/var/lib/greengrass/provisioned-cert/certificate.pem.crt
+=======
+# Only run if device is not already provisioned
+ConditionPathExists=!/var/lib/greengrass/credentials/certificate.pem
+>>>>>>> 5e34c7e8 (greengrass-lite: upgrade 2.2.0 -> 2.3.0)
 
 [Service]
 Type=oneshot
-ExecStartPre=/bin/sh -c '\
-    sleep 10; \
-    mkdir -p /var/lib/greengrass/provisioned-cert'
 ExecStart=/usr/bin/fleet-provisioning
 Restart=on-failure
 RestartSec=10s
+<<<<<<< HEAD
 StartLimitIntervalSec=300
 StartLimitBurst=3
 TimeoutSec=300
+=======
+# try forever
+TimeoutSec=0
+# Consider exit codes 0, 1 as successful completion
+>>>>>>> 5e34c7e8 (greengrass-lite: upgrade 2.2.0 -> 2.3.0)
 SuccessExitStatus=0 1
 User=root
 Group=root
