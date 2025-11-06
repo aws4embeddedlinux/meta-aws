@@ -6,10 +6,8 @@ HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-sdk-lite"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-SRCREV = "0835c6ad20948ab55d86fbd5864fd38e62559ed2"
+SRCREV = "1ee3a5ad3de59f141973839412b5025e67ea533d"
 SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-sdk-lite.git;protocol=https;branch=main \
-           file://0001-fix-crc32-syntax.patch \
-           file://0002-build-both-static-and-shared.patch \
 "
 
 S = "${UNPACKDIR}/git"
@@ -80,10 +78,10 @@ do_install() {
 do_compile_ptest() {
     # Compile test programs using shared library
     ${CC} ${CFLAGS} ${LDFLAGS} -I${S}/include -I${S}/priv_include \
-        -o ${B}/test-basic-api ${UNPACKDIR}/test-basic-api.c -L${B} -lggl-sdk -lpthread
+        -o ${B}/test-basic-api ${UNPACKDIR}/test-basic-api.c -L${B}/lib -lggl-sdk -lpthread
 
     ${CC} ${CFLAGS} ${LDFLAGS} -I${S}/include -I${S}/priv_include \
-        -o ${B}/test-json-ops ${UNPACKDIR}/test-json-ops.c -L${B} -lggl-sdk -lpthread
+        -o ${B}/test-json-ops ${UNPACKDIR}/test-json-ops.c -L${B}/lib -lggl-sdk -lpthread
 }
 
 do_install_ptest() {
@@ -103,19 +101,19 @@ PACKAGES = "${PN} ${PN}-dev ${PN}-staticdev ${PN}-doc ${PN}-ptest ${PN}-ptest-db
 
 # Main package contains shared library and sample binaries if enabled
 FILES:${PN} = " \
-    ${libdir}/libggl-sdk.so.* \
+    ${libdir}/libggl-sdk.so* \
     ${@bb.utils.contains('PACKAGECONFIG', 'samples', '${bindir}/*', '', d)} \
 "
 
-# Development package contains headers and shared library symlinks
+# Development package contains headers
 FILES:${PN}-dev = " \
     ${includedir}/ggl/* \
-    ${libdir}/libggl-sdk.so \
 "
 
 # Static development package contains static library
 FILES:${PN}-staticdev = " \
     ${libdir}/libggl-sdk.a \
+    ${libdir}/libggl-sdk++.a \
 "
 
 # Documentation package
