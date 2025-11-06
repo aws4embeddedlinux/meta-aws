@@ -13,8 +13,6 @@ Restart=on-failure
 RestartSec=10s
 # try forever
 TimeoutSec=0
-# Consider exit codes 0, 1 as successful completion
-SuccessExitStatus=0 1
 User=root
 Group=root
 RemainAfterExit=true
