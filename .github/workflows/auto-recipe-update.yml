@@ -19,50 +19,66 @@ jobs:
           python3-jinja2 xterm python3-subunit zstd liblz4-tool
           git config --global user.name aws-iot-embedded-linux-ci
           git config --global user.email aws-iot-embedded-linux-ci@users.noreply.github.com
-          git clone git://git.yoctoproject.org/poky -b ${{ github.ref_name }}
-          git clone https://github.com/openembedded/meta-openembedded.git -b ${{ github.ref_name }}
+      - name: Clone BitBake
+        run: git clone https://git.openembedded.org/bitbake -b ${{ github.ref_name }}
       - name: Clone Our Layer
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref_name }}-next
           path: meta-aws
           fetch-depth: 0
-      - name: Clone CI Tolls Repo
+      - name: Clone CI Tools Repo
         uses: actions/checkout@v4
         with:
           path: ci
           repository: 'aws4embeddedlinux/meta-aws-ci'
           ref: master
       - name: Install Helper Tool
+        run: pip install ci/auto-upgrader
+      - name: Setup Source Override
         run: |
-          pip install ci/auto-upgrader
+          cat > meta-aws-override.json << 'EOF'
+          {
+            "sources": {
+              "meta-aws": {
+                "git-remote": {
+                  "remotes": {
+                    "origin": {
+                      "uri": "file://${{ github.workspace }}/meta-aws"
+                    }
+                  },
+                  "branch": "${{ github.ref_name }}-next",
+                  "rev": "HEAD"
+                },
+                "path": "meta-aws"
+              }
+            },
+            "version": "1.0"
+          }
+          EOF
+      - name: Initialize Build Environment
+        run: |
+          bitbake/bin/bitbake-setup init --non-interactive \
+            --source-overrides meta-aws-override.json \
+            ${{ github.workspace }}/meta-aws/.github/workflows/poky-with-meta-aws.conf.json \
+            poky distro/poky machine/qemux86-64
       - name: Run Update
         run: |
-          source poky/oe-init-build-env build
-          git -C ../poky status
-          git -C ../meta-openembedded/ status
-          git -C ../meta-aws/ status
-          bitbake-layers add-layer ../meta-openembedded/meta-oe
-          bitbake-layers add-layer ../meta-openembedded/meta-python
-          bitbake-layers add-layer ../meta-openembedded/meta-multimedia
-          bitbake-layers add-layer ../meta-openembedded/meta-networking
-          bitbake-layers add-layer ../meta-aws
-          upgrader update --layer-path ../meta-aws --target-branch=${{ github.ref_name }}-next
+          source /home/runner/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/build/init-build-env
+          upgrader update --layer-path /home/runner/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/layers/meta-aws --target-branch=${{ github.ref_name }}-next
       - name: Push Result
-        working-directory: meta-aws
-        run: |
-          cat ../build/branches.txt | xargs -n1 git push origin
+        working-directory: /home/runner/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/layers/meta-aws
+        run: cat ../../../../build/branches.txt | xargs -n1 git push origin
       - name: Create Pulls
-        working-directory: meta-aws
+        working-directory: /home/runner/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/layers/meta-aws
         env:
           GITHUB_TOKEN: ${{ secrets.BOT_CREDENTIAL }}
-        run: |
-          upgrader create-pulls --branch-file=../build/branches.txt --repo=${{ github.repository }} --target-branch=${{ github.ref_name }}-next
+        run: upgrader create-pulls --branch-file=../../../../build/branches.txt --repo=${{ github.repository }} --target-branch=${{ github.ref_name }}-next
       - name: Publish Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: updated-recipes
           path: |
-            ./build/result.json
-            ./build/upgrader.log
-            ./build/branches.txt
+            /home/runner/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/build/result.json
+            /home/runner/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/build/upgrader.log
+            /home/runner/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/build/branches.txt
