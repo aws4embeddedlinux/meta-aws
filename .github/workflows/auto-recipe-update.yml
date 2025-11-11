@@ -39,6 +39,7 @@ jobs:
         run: |
           cat > meta-aws-override.json << 'EOF'
           {
+            "sources": {},
             "bb-layers-file-relative": ["../../../meta-aws"],
             "version": "1.0"
           }
