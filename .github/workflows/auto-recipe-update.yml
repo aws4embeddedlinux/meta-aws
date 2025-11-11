@@ -39,20 +39,7 @@ jobs:
         run: |
           cat > meta-aws-override.json << 'EOF'
           {
-            "sources": {
-              "meta-aws": {
-                "git-remote": {
-                  "remotes": {
-                    "origin": {
-                      "uri": "file://${{ github.workspace }}/meta-aws"
-                    }
-                  },
-                  "branch": "${{ github.ref_name }}-next",
-                  "rev": "HEAD"
-                },
-                "path": "meta-aws"
-              }
-            },
+            "bb-layers-file-relative": ["../../../meta-aws"],
             "version": "1.0"
           }
           EOF
