@@ -39,6 +39,8 @@ jobs:
         run: |
           cat > meta-aws-override.json << 'EOF'
           {
+            "description": "Source override to use local meta-aws layer",
+            "sources": {},
             "bb-layers-file-relative": ["../../../meta-aws"],
             "version": "1.0"
           }
