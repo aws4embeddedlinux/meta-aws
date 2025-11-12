@@ -54,12 +54,12 @@ jobs:
       - name: Run Update
         run: |
           source /home/runner/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/build/init-build-env
-          upgrader update --layer-path /home/runner/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/layers/meta-aws --target-branch=${{ github.ref_name }}-next
+          upgrader update --layer-path  ${{ github.workspace }}/meta-aws --target-branch=${{ github.ref_name }}-next
       - name: Push Result
-        working-directory: meta-aws
-        run: cat /home/runner/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/build/branches.txt | xargs -n1 git push origin
+        working-directory:  ${{ github.workspace }}/meta-aws
+        run: cat ../../build/branches.txt | xargs -n1 git push origin
       - name: Create Pulls
-        working-directory: meta-aws
+        working-directory:  ${{ github.workspace }}/meta-aws
         env:
           GITHUB_TOKEN: ${{ secrets.BOT_CREDENTIAL }}
         run: upgrader create-pulls --branch-file=/home/runner/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/build/branches.txt --repo=${{ github.repository }} --target-branch=${{ github.ref_name }}-next
