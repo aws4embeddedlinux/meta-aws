@@ -37,8 +37,8 @@ jobs:
         run: pip install ci/auto-upgrader
       - name: Initialize Build Environment
         run: |
-          bitbake/bin/bitbake-setup init --non-interactive \
-            --setting default top-dir-prefix /home/runner/bitbake-builds \
+          bitbake/bin/bitbake-setup --setting default top-dir-prefix /home/runner/bitbake-builds \
+            init --non-interactive \
             ${{ github.workspace }}/meta-aws/.github/workflows/poky-without-meta-aws.conf.json \
             poky distro/poky machine/qemux86-64
       - name: Debug bblayers.conf
