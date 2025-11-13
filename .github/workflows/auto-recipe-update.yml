@@ -38,8 +38,17 @@ jobs:
       - name: Initialize Build Environment
         run: |
           bitbake/bin/bitbake-setup init --non-interactive \
+            --setting default top-dir-prefix /home/runner/bitbake-builds \
             ${{ github.workspace }}/meta-aws/.github/workflows/poky-without-meta-aws.conf.json \
             poky distro/poky machine/qemux86-64
+      - name: Debug bblayers.conf
+        run: |
+          echo "=== bblayers.conf content ==="
+          cat /home/runner/bitbake-builds/poky-without-meta-aws-poky-distro_poky-machine_qemux86-64/build/conf/bblayers.conf
+          echo "=== Check if meta-aws path exists ==="
+          ls -la ${{ github.workspace }}/meta-aws/ || echo "meta-aws directory not found"
+          echo "=== Check workspace structure ==="
+          ls -la ${{ github.workspace }}/
       - name: Run Update
         run: |
           source /home/runner/bitbake-builds/poky-without-meta-aws-poky-distro_poky-machine_qemux86-64/build/init-build-env
