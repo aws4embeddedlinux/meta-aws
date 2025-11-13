@@ -36,8 +36,9 @@ jobs:
       - name: Install Helper Tool
         run: pip install ci/auto-upgrader
       - name: Initialize Build Environment
+        continue-on-error: true
         run: |
-          bitbake/bin/bitbake-setup --setting default top-dir-prefix /home/runner/bitbake-builds \
+          bitbake/bin/bitbake-setup --setting default top-dir-prefix /home/runner \
             init --non-interactive \
             ${{ github.workspace }}/meta-aws/.github/workflows/poky-without-meta-aws.conf.json \
             poky distro/poky machine/qemux86-64
