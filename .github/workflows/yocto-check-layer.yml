@@ -33,41 +33,18 @@ jobs:
           path: meta-aws
       - name: Checkout BitBake
         run: git clone https://git.openembedded.org/bitbake -b ${{steps.get-yocto-release-name.outputs.release_name}}
-      - name: Setup Source Override
-        run: |
-          cd meta-aws
-          META_AWS_REV=$(git rev-parse HEAD)
-          cd ..
-          cat > meta-aws-override.json << EOF
-          {
-            "sources": {
-              "meta-aws": {
-                "git-remote": {
-                  "remotes": {
-                    "origin": {
-                      "uri": "file://${{ github.workspace }}/meta-aws"
-                    }
-                  },
-                  "rev": "${META_AWS_REV}"
-                },
-                "path": "meta-aws"
-              }
-            },
-            "version": "1.0"
-          }
-          EOF
       - name: Initialize Build Environment
         run: |
-          bitbake/bin/bitbake-setup init --non-interactive \
-            --source-overrides meta-aws-override.json \
-            ${{ github.workspace }}/meta-aws/.github/workflows/poky-with-meta-aws.conf.json \
+          bitbake/bin/bitbake-setup --setting default top-dir-prefix /home/runner \
+            init --non-interactive \
+            ${{ github.workspace }}/meta-aws/.github/workflows/poky-for-yocto-check-layer.conf.json \
             poky distro/poky machine/qemux86-64
       - name: run yocto-check-layer
         run: |
-          source ~/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/build/init-build-env
-          yocto-check-layer ~/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/layers/meta-aws/ --dependency ~/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/layers/meta-openembedded/meta-oe/ ~/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/layers/meta-openembedded/meta-python/ ~/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/layers/meta-openembedded/meta-multimedia ~/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/layers/meta-openembedded/meta-networking --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency
+          source ~/bitbake-builds/poky-for-yocto-check-layer-poky-distro_poky-machine_qemux86-64/build/init-build-env
+          yocto-check-layer ${{ github.workspace }}/meta-aws --dependency ~/bitbake-builds/poky-for-yocto-check-layer-poky-distro_poky-machine_qemux86-64/layers/meta-openembedded/meta-oe/ ~/bitbake-builds/poky-for-yocto-check-layer-poky-distro_poky-machine_qemux86-64/layers/meta-openembedded/meta-python/ ~/bitbake-builds/poky-for-yocto-check-layer-poky-distro_poky-machine_qemux86-64/layers/meta-openembedded/meta-multimedia ~/bitbake-builds/poky-for-yocto-check-layer-poky-distro_poky-machine_qemux86-64/layers/meta-openembedded/meta-networking --output-log ycl-check_meta-aws.log --debug --no-auto --no-auto-dependency
       - name: save test result
         uses: actions/upload-artifact@v4
         with:
           name: ycl-check_meta-aws
-          path: ~/bitbake-builds/poky-with-meta-aws-poky-distro_poky-machine_qemux86-64/build/ycl-check_meta-aws.log
+          path: ~/bitbake-builds/poky-for-yocto-check-layer-poky-distro_poky-machine_qemux86-64/build/ycl-check_meta-aws.log
