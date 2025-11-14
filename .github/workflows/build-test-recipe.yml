@@ -100,35 +100,12 @@ jobs:
             path: ${{ github.workspace }}/meta-aws
       - name: Checkout BitBake
         run: git clone https://git.openembedded.org/bitbake -b ${{ needs.changed.outputs.release }} ${{ github.workspace }}/bitbake
-      - name: Setup Source Override
-        run: |
-          cd meta-aws
-          META_AWS_REV=$(git rev-parse HEAD)
-          cd ..
-          cat > meta-aws-override.json << EOF
-          {
-            "sources": {
-              "meta-aws": {
-                "git-remote": {
-                  "remotes": {
-                    "origin": {
-                      "uri": "file://${{ github.workspace }}/meta-aws"
-                    }
-                  },
-                  "rev": "${META_AWS_REV}"
-                },
-                "path": "meta-aws"
-              }
-            },
-            "version": "1.0"
-          }
-          EOF
       - name: Initialize Build Environment
         run: |
           chown -R yoctouser .
-          sudo -u yoctouser bitbake/bin/bitbake-setup init --non-interactive \
-            --source-overrides meta-aws-override.json \
-            ${{ github.workspace }}/meta-aws/.github/workflows/poky-with-meta-aws.conf.json \
+          sudo -u yoctouser bitbake/bin/bitbake-setup --setting default top-dir-prefix /home/yoctouser \
+            init --non-interactive \
+            ${{ github.workspace }}/meta-aws/.github/workflows/poky-without-meta-aws.conf.json \
             poky distro/poky-altcfg machine/${{ matrix.machine }} core/yocto/root-login-with-empty-password
       - name: Get changed Recipes or defaults
         id: recipes_to_build_test
@@ -177,7 +154,7 @@ jobs:
       - name: Run build
         env:
           RECIPES: ${{ steps.recipes_to_build_test.outputs.recipes }}
-          BUILD_DIR: /home/yoctouser/bitbake-builds/poky-with-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}
+          BUILD_DIR: /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}
         run: |
            echo RECIPES to build: $RECIPES
            echo "Using build directory: $BUILD_DIR"
@@ -224,11 +201,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.machine }}-build.log
-          path: /home/yoctouser/bitbake-builds/poky-with-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/${{ matrix.machine }}-build.log
+          path: /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/${{ matrix.machine }}-build.log
       - name: Run test
         env:
           RECIPES: ${{ steps.recipes_to_build_test.outputs.recipes }}
-          BUILD_DIR: /home/yoctouser/bitbake-builds/poky-with-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}
+          BUILD_DIR: /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}
         run: |
            sudo RECIPES="$RECIPES" BUILD_DIR="$BUILD_DIR" -u yoctouser bash -c '
              cd  ${{ github.workspace }}
@@ -253,4 +230,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.machine }}-resulttool_report.txt
-          path: /home/yoctouser/bitbake-builds/poky-with-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/${{ matrix.machine }}-resulttool_report.txt
+          path: /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/${{ matrix.machine }}-resulttool_report.txt
