@@ -134,7 +134,7 @@ jobs:
             if [ ${{ matrix.machine }} == "qemuarm" ]; then
               THINGS_TO_EXCLUDE+="! -name amazon-kvs-webrtc-sdk* ! -name amazon-kvs-producer-pic* ! -name amazon-cloudwatch-agent*"
             elif [ ${{ matrix.machine }} == "qemuriscv64" ]; then
-              THINGS_TO_EXCLUDE+="! -name greengrass-lite* ! -name greengrass-component-* ! -name amazon-cloudwatch-agent* ! -name  corretto-* ! -name  greengrass-bin*"
+              THINGS_TO_EXCLUDE+="! -name greengrass-lite* ! -name greengrass-component-* ! -name amazon-cloudwatch-agent* ! -name corretto-* ! -name  greengrass-bin* ! -name aws-sdk-cpp* ! -name amazon-kvs-producer-pic* ! -name amazon-kvs-webrtc-sdk*"
             fi
             export RECIPES=$(find meta-aws/ -name *.bb -type f \( ${THINGS_TO_EXCLUDE} \) -print | xargs grep -l 'inherit.*ptest.*'| sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
             echo THINGS_TO_EXCLUDE: $THINGS_TO_EXCLUDE
