@@ -21,6 +21,7 @@ RDEPENDS:${PN} += "\
     python3-dateutil \
     python3-jmespath \
     python3-logging \
+    python3-html \
     "
 
 RDEPENDS:${PN}-ptest += "\
