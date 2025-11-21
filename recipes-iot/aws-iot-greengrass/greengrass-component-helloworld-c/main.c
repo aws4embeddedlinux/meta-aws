@@ -1,9 +1,9 @@
 //! Sample component demonstrating pubsub with AWS IoT Core using SDK Lite
 
-#include <ggl/buffer.h>
-#include <ggl/error.h>
-#include <ggl/ipc/client.h>
-#include <ggl/sdk.h>
+#include <gg/buffer.h>
+#include <gg/error.h>
+#include <gg/ipc/client.h>
+#include <gg/sdk.h>
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -21,7 +21,7 @@ static void get_timestamp(char *buffer, size_t size) {
     strftime(buffer, size, "%Y-%m-%dT%H:%M:%S.000Z", tm_info);
 }
 
-static void response_handler(void *ctx, GglBuffer topic, GglBuffer payload, GgIpcSubscriptionHandle handle) {
+static void response_handler(void *ctx, GgBuffer topic, GgBuffer payload, GgIpcSubscriptionHandle handle) {
     (void) ctx;
     (void) handle;
     char timestamp[32];
@@ -51,7 +51,7 @@ static void log_publish_success(const char* topic, const char* message) {
     fflush(stdout);
 }
 
-static void log_publish_failure(const char* topic, const char* message, GglError error) {
+static void log_publish_failure(const char* topic, const char* message, GgError error) {
     char timestamp[32];
     get_timestamp(timestamp, sizeof(timestamp));
     
@@ -84,10 +84,10 @@ int main(void) {
     printf("  ========================================\n");
     fflush(stdout);
 
-    ggl_sdk_init();
+    gg_sdk_init();
 
-    GglError ret = ggipc_connect();
-    if (ret != GGL_ERR_OK) {
+    GgError ret = ggipc_connect();
+    if (ret != GG_ERR_OK) {
         get_timestamp(timestamp, sizeof(timestamp));
         printf("[%s] [HelloWorldSDKLite] FATAL: Failed to connect to GG nucleus (error: %d)\n", timestamp, ret);
         fflush(stderr);
@@ -99,8 +99,8 @@ int main(void) {
     fflush(stdout);
 
     GgIpcSubscriptionHandle sub_handle;
-    ret = ggipc_subscribe_to_iot_core(GGL_STR("hello"), 0, &response_handler, NULL, &sub_handle);
-    if (ret != GGL_ERR_OK) {
+    ret = ggipc_subscribe_to_iot_core(GG_STR("hello"), 0, &response_handler, NULL, &sub_handle);
+    if (ret != GG_ERR_OK) {
         get_timestamp(timestamp, sizeof(timestamp));
         printf("[%s] [HelloWorldSDKLite] WARNING: Failed to subscribe to IoT Core topic 'hello' (error: %d)\n", timestamp, ret);
         printf("  Continuing with publish-only mode...\n");
@@ -133,8 +133,8 @@ int main(void) {
                 "}", 
                 message_counter, timestamp, successful_publishes, failed_publishes);
 
-        ret = ggipc_publish_to_iot_core(GGL_STR("hello"), (GglBuffer){.data = (uint8_t*)message, .len = strlen(message)}, 0);
-        if (ret != GGL_ERR_OK) {
+        ret = ggipc_publish_to_iot_core(GG_STR("hello"), (GgBuffer){.data = (uint8_t*)message, .len = strlen(message)}, 0);
+        if (ret != GG_ERR_OK) {
             log_publish_failure("hello", message, ret);
         } else {
             log_publish_success("hello", message);
