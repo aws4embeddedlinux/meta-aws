@@ -1,0 +1,28 @@
+#!/bin/sh
+# Simple ptest runner for AWS Greengrass Component SDK samples
+# Note: These samples require a running Greengrass nucleus to function properly
+
+echo "SKIP: sample_config (requires Greengrass nucleus)"
+echo "SKIP: sample_iot_core_mqtt (requires Greengrass nucleus)"
+echo "SKIP: sample_restart_component (requires Greengrass nucleus)"
+echo "SKIP: sample_subscribe_to_configuration_update (requires Greengrass nucleus)"
+echo "SKIP: sample_update_state (requires Greengrass nucleus)"
+
+# Check that C sample binaries exist
+for sample in sample_config sample_iot_core_mqtt sample_restart_component \
+              sample_subscribe_to_configuration_update sample_update_state; do
+    if [ -x "./$sample" ]; then
+        echo "PASS: $sample binary exists"
+    else
+        echo "FAIL: $sample binary missing"
+    fi
+done
+
+# Check Rust examples if they exist
+for rust_sample in rust_config rust_iot_core_mqtt rust_restart_component \
+                   rust_subscribe_to_configuration_update rust_update_state; do
+    if [ -x "./$rust_sample" ]; then
+        echo "PASS: $rust_sample binary exists"
+        echo "SKIP: $rust_sample (requires Greengrass nucleus)"
+    fi
+done

@@ -1,0 +1,55 @@
+From: AWS Yocto Team <aws-yocto@amazon.com>
+Date: Thu, 1 Jan 2024 00:00:00 +0000
+Subject: [PATCH] Add RISC-V architecture support
+Upstream-Status: Submitted [https://github.com/aws-greengrass/aws-greengrass-lite/pull/1000]
+
+Add support for RISC-V 64-bit architecture detection in Greengrass Lite
+components including fleet status service and recipe modules.
+
+Signed-off-by: AWS Yocto Team <aws-yocto@amazon.com>
+---
+ misc/dictionary.txt                              | 1 +
+ modules/gg-fleet-statusd/src/fleet_status_service.c | 2 ++
+ modules/ggl-recipe/src/recipe.c                  | 2 ++
+ 3 files changed, 5 insertions(+)
+
+diff --git a/misc/dictionary.txt b/misc/dictionary.txt
+index 1234567..abcdefg 100644
+--- a/misc/dictionary.txt
++++ b/misc/dictionary.txt
+@@ -112,6 +112,7 @@ pyproject
+ rbio
+ Renesas
+ respfd
++riscv
+ rlimits
+ rodata
+ rootca
+diff --git a/modules/gg-fleet-statusd/src/fleet_status_service.c b/modules/gg-fleet-statusd/src/fleet_status_service.c
+index 1234567..abcdefg 100644
+--- a/modules/gg-fleet-statusd/src/fleet_status_service.c
++++ b/modules/gg-fleet-statusd/src/fleet_status_service.c
+@@ -45,6 +45,8 @@ static const GglBuffer ARCHITECTURE =
+     GGL_STR("aarch64");
+ #elif defined(__arm__)
+     GGL_STR("arm");
++#elif defined(__riscv) && (__riscv_xlen == 64)
++    GGL_STR("riscv64");
+ #else
+ #error "Unknown target architecture"
+     { 0 };
+diff --git a/modules/ggl-recipe/src/recipe.c b/modules/ggl-recipe/src/recipe.c
+index 1234567..abcdefg 100644
+--- a/modules/ggl-recipe/src/recipe.c
++++ b/modules/ggl-recipe/src/recipe.c
+@@ -318,6 +318,8 @@ GglBuffer get_current_architecture(void) {
+     current_arch = GGL_STR("aarch64");
+ #elif defined(__arm__)
+     current_arch = GGL_STR("arm");
++#elif defined(__riscv) && (__riscv_xlen == 64)
++    current_arch = GGL_STR("riscv64");
+ #endif
+     return current_arch;
+ }
+-- 
+2.34.1

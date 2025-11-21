@@ -8,37 +8,37 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # Option to control library linking type (default: shared)
 option(USE_STATIC_LIBS "Link against static libraries instead of shared" OFF)
 
-# Find the AWS Greengrass SDK Lite
-find_path(GGL_INCLUDE_DIR ggl/sdk.h)
+# Find the AWS Greengrass Component SDK
+find_path(GGL_INCLUDE_DIR gg/sdk.h)
 
 if(USE_STATIC_LIBS)
     # Prefer static library
-    find_library(GGL_LIBRARY NAMES libggl-sdk.a PATHS /usr/lib)
+    find_library(GGL_LIBRARY NAMES libgg-sdk.a PATHS /usr/lib)
     if(NOT GGL_LIBRARY)
         message(STATUS "Static library not found, falling back to shared")
-        find_library(GGL_LIBRARY NAMES ggl-sdk libggl-sdk.so PATHS /usr/lib)
+        find_library(GGL_LIBRARY NAMES gg-sdk libgg-sdk.so PATHS /usr/lib)
     else()
-        message(STATUS "Using static Greengrass SDK Lite library: ${GGL_LIBRARY}")
+        message(STATUS "Using static Greengrass Component SDK library: ${GGL_LIBRARY}")
     endif()
 else()
     # Prefer shared library (default)
-    find_library(GGL_LIBRARY NAMES ggl-sdk libggl-sdk.so PATHS /usr/lib)
+    find_library(GGL_LIBRARY NAMES gg-sdk libgg-sdk.so PATHS /usr/lib)
     if(NOT GGL_LIBRARY)
         message(STATUS "Shared library not found, falling back to static")
-        find_library(GGL_LIBRARY NAMES libggl-sdk.a PATHS /usr/lib)
+        find_library(GGL_LIBRARY NAMES libgg-sdk.a PATHS /usr/lib)
     else()
-        message(STATUS "Using shared Greengrass SDK Lite library: ${GGL_LIBRARY}")
+        message(STATUS "Using shared Greengrass Component SDK library: ${GGL_LIBRARY}")
     endif()
 endif()
 
 if(NOT GGL_INCLUDE_DIR OR NOT GGL_LIBRARY)
-    message(FATAL_ERROR "AWS Greengrass SDK Lite not found")
+    message(FATAL_ERROR "AWS Greengrass Component SDK not found")
 endif()
 
 # Create the executable
 add_executable(hello-world-sdk-lite main.c)
 
-# Link with the Greengrass SDK Lite
+# Link with the Greengrass Component SDK
 target_include_directories(hello-world-sdk-lite PRIVATE ${GGL_INCLUDE_DIR})
 target_link_libraries(hello-world-sdk-lite ${GGL_LIBRARY})
 
