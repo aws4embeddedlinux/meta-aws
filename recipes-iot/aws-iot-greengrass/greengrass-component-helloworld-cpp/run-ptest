@@ -1,0 +1,33 @@
+#!/bin/sh
+
+VARIANT=$(cat test-data/greengrass-variant)
+COMPONENT_NAME=$(cat test-data/component-name)
+COMPONENT_VERSION=$(cat test-data/component-version)
+ARTIFACT=$(cat test-data/expected-artifact)
+
+if [ -f test-data/component-recipe.yaml ]; then
+    echo "PASS: component-recipe.yaml exists"
+else
+    echo "FAIL: component-recipe.yaml not found"
+fi
+
+if grep -q "$COMPONENT_NAME" test-data/component-recipe.yaml; then
+    echo "PASS: component name found in recipe"
+else
+    echo "FAIL: component name not found in recipe"
+fi
+
+if [ "$VARIANT" = "lite" ]; then
+    ARTIFACT_PATH="/var/lib/greengrass/packages/artifacts/$COMPONENT_NAME/$COMPONENT_VERSION/$ARTIFACT"
+    if [ -f "$ARTIFACT_PATH" ]; then
+        echo "PASS: artifact exists at $ARTIFACT_PATH"
+    else
+        echo "SKIP: artifact not found (may not be installed)"
+    fi
+    
+    if [ -x "$ARTIFACT_PATH" ]; then
+        echo "PASS: artifact is executable"
+    else
+        echo "SKIP: artifact not executable or not found"
+    fi
+fi

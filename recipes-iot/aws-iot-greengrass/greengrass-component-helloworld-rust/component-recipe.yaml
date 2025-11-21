@@ -1,0 +1,26 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: com.example.HelloWorldRust
+ComponentVersion: '1.0.0'
+ComponentType: aws.greengrass.generic
+ComponentDescription: Hello World component written in Rust using AWS Greengrass Component SDK
+ComponentPublisher: AWS
+ComponentConfiguration:
+  DefaultConfiguration:
+    Message: "Hello from Rust Greengrass component!"
+    accessControl:
+      aws.greengrass.ipc.mqttproxy:
+        "com.example.HelloWorldRust:mqttproxy:1":
+          policyDescription: "Allows pub/sub to IoT Core topic hello"
+          operations:
+            - "aws.greengrass#PublishToIoTCore"
+            - "aws.greengrass#SubscribeToIoTCore"
+          resources:
+            - "hello"
+Manifests:
+  - Platform:
+      os: linux
+      runtime: "*"
+    Lifecycle:
+      run: |
+        {artifacts:path}/hello-world-rust
