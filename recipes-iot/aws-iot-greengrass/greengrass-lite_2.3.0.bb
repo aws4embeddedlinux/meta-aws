@@ -35,7 +35,7 @@ SRC_URI = "\
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/FreeRTOS/coreMQTT.git;protocol=https;branch=main;name=mqtt;destsuffix=${S}/thirdparty/core_mqtt'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/FreeRTOS/backoffAlgorithm.git;protocol=https;branch=main;name=backoff;destsuffix=${S}/thirdparty/backoff_algorithm'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main;name=sigv4;destsuffix=${S}/thirdparty/aws_sigv4'} \
-    ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws-greengrass/aws-greengrass-sdk-lite.git;protocol=https;branch=main;name=sdk;destsuffix=${S}/thirdparty/ggl_sdk'} \
+    ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;branch=main;name=sdk;destsuffix=${S}/thirdparty/ggl_sdk'} \
     file://001-disable_strip.patch \
     file://greengrass-lite.yaml \
     file://run-ptest \
