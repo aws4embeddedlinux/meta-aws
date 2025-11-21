@@ -23,8 +23,6 @@ REQUIRED_DISTRO_FEATURES = "systemd"
 inherit_defer ${@'greengrass-lite-component' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-component'}
 inherit ptest features_check
 
-RDEPENDS:${PN} += "${@'greengrass-lite' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-bin'}"
-
 SRC_URI = " \
     file://component-recipe.yaml \
     file://run-ptest \
@@ -45,6 +43,4 @@ do_install_ptest() {
     install -m 0644 ${WORKDIR}/component-recipe.yaml ${D}${PTEST_PATH}/test-data/
 }
 
-# Add bash dependency since this is a bash component and ptest needs it
-RDEPENDS:${PN} += "bash"
-RDEPENDS:${PN}-ptest = "${PN} bash grep"
+RDEPENDS:${PN}-ptest += "grep"

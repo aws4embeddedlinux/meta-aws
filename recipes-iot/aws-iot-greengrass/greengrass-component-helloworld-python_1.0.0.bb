@@ -5,8 +5,8 @@ LICENSE = "Apache-2.0"
 # nooelint: oelint.var.licenseremotefile
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/Apache-2.0;md5=89aea4e17d99a7cacdbeed46a0096b10"
 
-# Default to classic variant, can be overwritten
-GREENGRASS_VARIANT ?= "classic"
+# Default to lite variant, can be overwritten
+GREENGRASS_VARIANT ?= "lite"
 
 SRC_URI = " \
     file://hello_world.py \
@@ -27,9 +27,6 @@ inherit ptest
 # Always need Python SDK for this component
 RDEPENDS:${PN} += "aws-iot-device-sdk-python-v2"
 RDEPENDS:${PN} += "${@'bash' if d.getVar('GREENGRASS_VARIANT') == 'classic' else ''}"
-RDEPENDS:${PN}-ptest += "bash"
-
-RDEPENDS:${PN} += "${@'greengrass-lite' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-bin'}"
 
 do_install:append() {
     if [ "${GREENGRASS_VARIANT}" = "lite" ]; then
@@ -54,4 +51,4 @@ do_install_ptest() {
     echo "hello_world.py" > ${D}${PTEST_PATH}/test-data/expected-artifact
 }
 
-RDEPENDS:${PN}-ptest = "${PN} bash grep python3"
+RDEPENDS:${PN}-ptest += "grep python3"

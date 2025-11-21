@@ -10,11 +10,11 @@ LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/Apache-2.0;md5=89aea4e17d99a7ca
 # COMPONENT_NAME = "com.example.HelloWorldSDKLite"
 # COMPONENT_VERSION = "1.0.0"
 
-# Default to classic variant, can be overwritten
-GREENGRASS_VARIANT ?= "classic"
+# Default to lite variant, can be overwritten (classic)
+GREENGRASS_VARIANT ?= "lite"
 
-# Always need SDK Lite for this component
-DEPENDS = "aws-greengrass-sdk-lite"
+# Always need Component SDK for this component
+DEPENDS = "aws-greengrass-component-sdk"
 
 SRC_URI = " \
     file://main.c \
@@ -39,8 +39,6 @@ PACKAGECONFIG[static] = "-DUSE_STATIC_LIBS=ON,-DUSE_STATIC_LIBS=OFF"
 # greengrass-lite-component.bbclass = Greengrass Lite only
 inherit cmake ptest
 inherit_defer ${@'greengrass-lite-component' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-component'}
-
-RDEPENDS:${PN} += "${@'greengrass-lite' if d.getVar('GREENGRASS_VARIANT') == 'lite' else 'greengrass-bin'}"
 
 FILES:${PN}-ptest += "${PTEST_PATH}/*"
 
@@ -69,7 +67,6 @@ do_install_ptest() {
 
 # Add runtime dependency on shared library package when using shared linking (default)
 # Only skip this dependency when explicitly using static linking
-RDEPENDS:${PN} += "${@'' if bb.utils.contains('PACKAGECONFIG', 'static', True, False, d) else 'aws-greengrass-sdk-lite'}"
-RDEPENDS:${PN} += "bash"
+RDEPENDS:${PN} += "${@'' if bb.utils.contains('PACKAGECONFIG', 'static', True, False, d) else 'aws-greengrass-component-sdk'}"
 
-RDEPENDS:${PN}-ptest = "${PN} bash grep"
+RDEPENDS:${PN}-ptest += "grep"
