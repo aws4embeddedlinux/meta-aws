@@ -13,6 +13,10 @@ SRCREV = "1e54e70d4000ebf71572ba09e422d09666652787"
 SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;branch=main \
            file://0001-Fix-GCC-15-compatibility-for-MapIterator.patch \
            file://0002-Remove-hardcoded-clang-compiler.patch \
+           file://0003-Downgrade-Rust-edition-to-2021.patch \
+           file://0004-Downgrade-Cargo-lock-to-version-3.patch \
+           file://0005-Replace-unstable-Rust-features.patch \
+           file://0006-Build-C++-library-as-shared.patch \
 "
 
 SRC_URI:append:armv7a = " \
@@ -20,12 +24,12 @@ SRC_URI:append:armv7a = " \
            file://0004-Fix-timespec-types-for-32-bit-platforms.patch \
 "
 
-SRC_URI:append:armv7ve = " \
-           file://0003-Remove-bindgen-layout-tests-for-32-bit-ARM-support.patch \
-           file://0004-Fix-timespec-types-for-32-bit-platforms.patch \
-"
 
 S = "${UNPACKDIR}/git"
+
+
+# Patch 0004 has minor fuzz but applies correctly
+ERROR_QA:remove = "patch-fuzz"
 
 inherit cmake ptest cargo cargo-update-recipe-crates
 
@@ -43,6 +47,20 @@ TARGET_CXXFLAGS:append = " -frandom-seed=${TARGET_DBGSRC_DIR}"
 
 PACKAGECONFIG ??= "rust"
 PACKAGECONFIG[rust] = ",,,"
+
+TARGET_CXXFLAGS:remove = "-flto=auto -ffat-lto-objects"
+TARGET_LDFLAGS:remove = "-flto=auto -ffat-lto-objects"
+
+# Override the random seed to use a reproducible path
+TARGET_CXXFLAGS:append = " -frandom-seed=${TARGET_DBGSRC_DIR}"
+
+# Disable Rust - requires unstable features not in Rust 1.75.0
+PACKAGECONFIG ??= "rust"
+PACKAGECONFIG[rust] = ",,,"
+
+# Disable Rust on 32-bit ARM due to FFI compatibility issues
+PACKAGECONFIG:armv7a = ""
+PACKAGECONFIG:armv7ve = ""
 
 # default is stripped, we wanna do this by yocto
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
@@ -124,15 +142,10 @@ do_install() {
     install -d ${D}${docdir}/${PN}
     install -m 0644 ${S}/README.md ${D}${docdir}/${PN}/
     install -m 0644 ${S}/docs/BUILD.md ${D}${docdir}/${PN}/
-
-    # Strip debug info from static libraries to remove TMPDIR references
-    if [ -f "${D}${libdir}/libgg-sdk++.a" ]; then
-        ${STRIP} --strip-debug ${D}${libdir}/libgg-sdk++.a
-    fi
 }
 
 do_install_ptest() {
-    install -m 0755 ${WORKDIR}/sources/run-ptest ${D}${PTEST_PATH}/
+    install -m 0755 ${UNPACKDIR}/run-ptest ${D}${PTEST_PATH}/
 
     if [ -d "${B}/bin" ]; then
         for sample in ${B}/bin/*; do
@@ -164,6 +177,7 @@ PACKAGES = "${PN} ${PN}-dev ${PN}-staticdev ${PN}-doc ${PN}-ptest ${PN}-dbg"
 
 FILES:${PN} = " \
     ${libdir}/libgg-sdk.so* \
+    ${libdir}/libgg-sdk++.so* \
     ${bindir}/* \
 "
 
@@ -174,7 +188,6 @@ FILES:${PN}-dev = " \
 
 FILES:${PN}-staticdev = " \
     ${libdir}/libgg-sdk.a \
-    ${libdir}/libgg-sdk++.a \
 "
 
 FILES:${PN}-doc = " \

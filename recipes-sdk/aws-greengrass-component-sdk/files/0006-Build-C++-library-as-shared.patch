@@ -1,0 +1,31 @@
+From: Yocto Build <build@yoctoproject.org>
+Subject: Build C++ library as shared library
+Upstream-Status: Inappropriate [embedded specific]
+
+Build the C++ wrapper library as a shared library and link to C library
+publicly to avoid linking issues with static archives.
+
+diff --git a/cpp/CMakeLists.txt b/cpp/CMakeLists.txt
+index 1234567..abcdefg 100644
+--- a/cpp/CMakeLists.txt
++++ b/cpp/CMakeLists.txt
+@@ -22,16 +22,16 @@ foreach(src ${SRCS})
+ endforeach()
+ 
+ if(aws-greengrass-component-sdk_IS_TOP_LEVEL)
+-  add_library(gg-sdk++ STATIC ${SRCS})
++  add_library(gg-sdk++ SHARED ${SRCS})
+ else()
+-  add_library(gg-sdk++ STATIC EXCLUDE_FROM_ALL ${SRCS})
++  add_library(gg-sdk++ SHARED EXCLUDE_FROM_ALL ${SRCS})
+ endif()
+ 
+ target_compile_options(gg-sdk++ PRIVATE -pthread -fno-strict-aliasing
+                                         -std=gnu++20)
+ target_include_directories(gg-sdk++ PRIVATE include priv_include)
+ target_include_directories(gg-sdk++ SYSTEM INTERFACE include)
+ target_compile_definitions(gg-sdk++ PRIVATE "GG_MODULE=(\"gg-sdk++\")")
+-target_link_libraries(gg-sdk++ PRIVATE gg-sdk)
++target_link_libraries(gg-sdk++ PUBLIC gg-sdk)
+ 
+ if(aws-greengrass-component-sdk_IS_TOP_LEVEL)

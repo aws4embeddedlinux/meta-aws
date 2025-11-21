@@ -1,0 +1,28 @@
+From: Yocto Build <build@yoctoproject.org>
+Date: Mon, 25 Nov 2025 15:47:00 +0000
+Subject: [PATCH] Downgrade Rust edition to 2021
+
+Rust 1.75.0 in Scarthgap doesn't support edition 2024.
+
+Upstream-Status: Inappropriate [embedded specific]
+
+Signed-off-by: Yocto Build <build@yoctoproject.org>
+---
+ rust/Cargo.toml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/rust/Cargo.toml b/rust/Cargo.toml
+index 1234567..abcdefg 100644
+--- a/rust/Cargo.toml
++++ b/rust/Cargo.toml
+@@ -1,7 +1,7 @@
+ [package]
+ name = "gg-sdk"
+ version = "0.0.2"
+-edition = "2024"
++edition = "2021"
+ license = "Apache-2.0"
+ repository = "https://github.com/aws/aws-greengrass-component-sdk"
+ description = "Lightweight AWS IoT Greengrass SDK"
+-- 
+2.34.1

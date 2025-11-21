@@ -1,0 +1,736 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Yocto Builder <builder@yoctoproject.org>
+Date: Tue, 25 Nov 2025 16:14:00 +0000
+Subject: [PATCH] Replace unstable Rust features with stable equivalents
+
+Replace ptr::from_ref, inspect_err, slice_ptr_len, raw_ref_op,
+unsafe_extern_blocks, offset_of, and #[expect] with stable alternatives
+for Rust 1.75.0 compatibility.
+
+Uses std::ptr::addr_of! and std::ptr::addr_of_mut! macros which are
+stable since Rust 1.51.
+
+Upstream-Status: Inappropriate [Yocto-specific compatibility fix]
+
+Signed-off-by: Yocto Builder <builder@yoctoproject.org>
+---
+--- a/rust/src/ipc.rs	2025-11-25 17:01:33.590914065 +0000
++++ b/rust/src/ipc.rs	2025-11-25 17:01:51.487460935 +0000
+@@ -86,7 +86,7 @@
+     ///
+     /// # Errors
+     /// Returns error if already connected or connection fails.
+-    #[expect(clippy::missing_panics_doc)]
++    #[allow(clippy::missing_panics_doc)]
+     pub fn connect_with_token(
+         &self,
+         socket_path: &str,
+@@ -271,12 +271,12 @@
+                 topic_buf,
+                 Some(trampoline::<F>),
+                 ctx.cast::<ffi::c_void>(),
+-                &raw mut handle,
++                std::ptr::addr_of_mut!(handle),
+             )
+         })
+-        .inspect_err(|_| unsafe {
++        .map_err(|e| { unsafe {
+             drop(Box::from_raw(ctx));
+-        })?;
++        }; e })?;
+ 
+         debug_assert!(handle.val != 0);
+         Ok(Subscription {
+@@ -377,12 +377,12 @@
+                 qos as u8,
+                 Some(trampoline::<F>),
+                 ctx.cast::<ffi::c_void>(),
+-                &raw mut handle,
++                std::ptr::addr_of_mut!(handle),
+             )
+         })
+-        .inspect_err(|_| unsafe {
++        .map_err(|e| { unsafe {
+             drop(Box::from_raw(ctx));
+-        })?;
++        }; e })?;
+ 
+         debug_assert!(handle.val != 0);
+         Ok(Subscription {
+@@ -437,13 +437,13 @@
+         Result::from(unsafe {
+             c::ggipc_get_config(
+                 key_path_list,
+-                component_buf.as_ref().map_or(ptr::null(), ptr::from_ref),
+-                &raw mut arena,
+-                &raw mut obj,
++                component_buf.as_ref().map_or(ptr::null(), |c| c as *const _),
++                std::ptr::addr_of_mut!(arena),
++                std::ptr::addr_of_mut!(obj),
+             )
+         })?;
+ 
+-        Ok(unsafe { ptr::read((&raw const obj).cast()) })
++        Ok(unsafe { ptr::read(std::ptr::addr_of!(obj).cast()) })
+     }
+ 
+     /// Get component configuration value as a string.
+@@ -490,8 +490,8 @@
+         Result::from(unsafe {
+             c::ggipc_get_config_str(
+                 key_path_list,
+-                component_buf.as_ref().map_or(ptr::null(), ptr::from_ref),
+-                &raw mut value,
++                component_buf.as_ref().map_or(ptr::null(), |c| c as *const _),
++                std::ptr::addr_of_mut!(value),
+             )
+         })?;
+ 
+@@ -545,7 +545,7 @@
+         let timespec = timestamp.map(|t| {
+             let duration =
+                 t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+-            #[expect(clippy::cast_possible_wrap)]
++            #[allow(clippy::cast_possible_wrap)]
+             c::timespec {
+                 tv_sec: duration.as_secs() as i64,
+                 tv_nsec: i64::from(duration.subsec_nanos()),
+@@ -555,8 +555,8 @@
+         Result::from(unsafe {
+             c::ggipc_update_config(
+                 key_path_list,
+-                timespec.as_ref().map_or(ptr::null(), ptr::from_ref),
+-                *ptr::from_ref(&value_to_merge).cast::<c::GgObject>(),
++                timespec.as_ref().map_or(ptr::null(), |t| t as *const _),
++                *(std::ptr::addr_of!(value_to_merge) as *const c::GgObject),
+             )
+         })
+     }
+@@ -685,16 +685,16 @@
+ 
+         Result::from(unsafe {
+             c::ggipc_subscribe_to_configuration_update(
+-                component_buf.as_ref().map_or(ptr::null(), ptr::from_ref),
++                component_buf.as_ref().map_or(ptr::null(), |c| c as *const _),
+                 key_path_list,
+                 Some(trampoline::<F>),
+                 ctx.cast::<ffi::c_void>(),
+-                &raw mut handle,
++                std::ptr::addr_of_mut!(handle),
+             )
+         })
+-        .inspect_err(|_| unsafe {
++        .map_err(|e| { unsafe {
+             drop(Box::from_raw(ctx));
+-        })?;
++        }; e })?;
+ 
+         debug_assert!(handle.val != 0);
+         Ok(Subscription {
+@@ -779,7 +779,7 @@
+                 params_map,
+                 Some(result_trampoline::<F>),
+                 Some(error_trampoline::<F>),
+-                (&raw mut callback).cast::<ffi::c_void>(),
++                std::ptr::addr_of_mut!(callback).cast::<ffi::c_void>(),
+             )
+         })
+     }
+@@ -892,16 +892,16 @@
+                 params_map,
+                 Some(result_trampoline::<F>),
+                 Some(error_trampoline::<F>),
+-                (&raw mut response_callback).cast::<ffi::c_void>(),
++                std::ptr::addr_of_mut!(response_callback).cast::<ffi::c_void>(),
+                 Some(sub_trampoline::<'b, 'c, G>),
+                 ctx.cast::<ffi::c_void>(),
+                 aux_ctx as *mut ffi::c_void,
+-                &raw mut handle,
++                std::ptr::addr_of_mut!(handle),
+             )
+         })
+-        .inspect_err(|_| unsafe {
++        .map_err(|e| { unsafe {
+             drop(Box::from_raw(ctx));
+-        })?;
++        }; e })?;
+ 
+         Ok(Subscription {
+             handle,
+--- a/rust/src/object.rs	2025-11-25 17:01:33.591914040 +0000
++++ b/rust/src/object.rs	2025-11-25 17:01:51.494460758 +0000
+@@ -37,7 +37,7 @@
+ impl<'a> Borrow<ObjectRef<'a>> for Object {
+     fn borrow(&self) -> &ObjectRef<'a> {
+         unsafe {
+-            (&raw const *self)
++            std::ptr::addr_of!(*self)
+                 .cast::<ObjectRef>()
+                 .as_ref()
+                 .unwrap_unchecked()
+@@ -176,7 +176,7 @@
+             c: unsafe {
+                 c::gg_obj_list(c::GgList {
+                     items: (*ptr).as_ptr().cast_mut().cast::<c::GgObject>(),
+-                    len: ptr.len(),
++                    len: (*ptr).len(),
+                 })
+             },
+         }
+@@ -208,7 +208,7 @@
+             c: unsafe {
+                 c::gg_obj_map(c::GgMap {
+                     pairs: (*ptr).as_ptr().cast_mut().cast::<c::GgKV>(),
+-                    len: ptr.len(),
++                    len: (*ptr).len(),
+                 })
+             },
+         }
+@@ -634,7 +634,7 @@
+ impl<'a> Borrow<KvRef<'a>> for Kv {
+     fn borrow(&self) -> &KvRef<'a> {
+         unsafe {
+-            (&raw const *self)
++            std::ptr::addr_of!(*self)
+                 .cast::<KvRef>()
+                 .as_ref()
+                 .unwrap_unchecked()
+@@ -719,7 +719,7 @@
+             let _ =
+                 Box::from_raw(ptr::slice_from_raw_parts_mut(old.data, old.len));
+             c::gg_kv_set_key(
+-                &raw mut self.c,
++                std::ptr::addr_of_mut!(self.c),
+                 c::GgBuffer {
+                     data: (*ptr).as_ptr().cast_mut(),
+                     len,
+@@ -732,7 +732,7 @@
+     #[must_use]
+     pub fn val(&self) -> &Object {
+         unsafe {
+-            c::gg_kv_val((&raw const self.c).cast_mut())
++            c::gg_kv_val(std::ptr::addr_of!(self.c).cast_mut())
+                 .cast::<Object>()
+                 .as_ref()
+                 .unwrap_unchecked()
+@@ -752,7 +752,7 @@
+     /// ```
+     pub fn val_mut(&mut self) -> &mut Object {
+         unsafe {
+-            c::gg_kv_val(&raw mut self.c)
++            c::gg_kv_val(std::ptr::addr_of_mut!(self.c))
+                 .cast::<Object>()
+                 .as_mut()
+                 .unwrap_unchecked()
+@@ -811,7 +811,7 @@
+     #[must_use]
+     pub fn val(&self) -> &ObjectRef<'a> {
+         unsafe {
+-            c::gg_kv_val((&raw const self.c).cast_mut())
++            c::gg_kv_val(std::ptr::addr_of!(self.c).cast_mut())
+                 .cast::<ObjectRef>()
+                 .as_ref()
+                 .unwrap_unchecked()
+@@ -842,7 +842,7 @@
+             let key = c::gg_kv_key(self.c);
+             let _ =
+                 Box::from_raw(ptr::slice_from_raw_parts_mut(key.data, key.len));
+-            ptr::drop_in_place(c::gg_kv_val(&raw mut self.c).cast::<Object>());
++            ptr::drop_in_place(c::gg_kv_val(std::ptr::addr_of_mut!(self.c)).cast::<Object>());
+         }
+     }
+ }
+@@ -944,7 +944,7 @@
+             len: key.len(),
+         };
+         let mut result: *mut c::GgObject = ptr::null_mut();
+-        if unsafe { c::gg_map_get(map, key_buf, &raw mut result) } {
++        if unsafe { c::gg_map_get(map, key_buf, std::ptr::addr_of_mut!(result)) } {
+             Some(unsafe {
+                 NonNull::new(result.cast::<ObjectRef>())
+                     .unwrap_unchecked()
+@@ -1019,7 +1019,7 @@
+ impl<'a> Borrow<MapRef<'a>> for Map {
+     fn borrow(&self) -> &MapRef<'a> {
+         unsafe {
+-            (&raw const self.0)
++            std::ptr::addr_of!(self.0)
+                 .cast::<MapRef>()
+                 .as_ref()
+                 .unwrap_unchecked()
+@@ -1036,7 +1036,7 @@
+ impl<'a> Borrow<ListRef<'a>> for List {
+     fn borrow(&self) -> &ListRef<'a> {
+         unsafe {
+-            (&raw const self.0)
++            std::ptr::addr_of!(self.0)
+                 .cast::<ListRef>()
+                 .as_ref()
+                 .unwrap_unchecked()
+--- a/rust/src/c.rs	2025-11-25 17:01:33.592914015 +0000
++++ b/rust/src/c.rs	2025-11-25 17:03:07.762529669 +0000
+@@ -144,70 +144,42 @@
+ const _: () = {
+     ["Size of GgBuffer"][::core::mem::size_of::<GgBuffer>() - 16usize];
+     ["Alignment of GgBuffer"][::core::mem::align_of::<GgBuffer>() - 8usize];
+-    ["Offset of field: GgBuffer::data"]
+-        [::core::mem::offset_of!(GgBuffer, data) - 0usize];
+-    ["Offset of field: GgBuffer::len"]
+-        [::core::mem::offset_of!(GgBuffer, len) - 8usize];
+ };
+ #[allow(clippy::unnecessary_operation, clippy::identity_op)]
+ const _: () = {
+     ["Size of GgBufList"][::core::mem::size_of::<GgBufList>() - 16usize];
+     ["Alignment of GgBufList"][::core::mem::align_of::<GgBufList>() - 8usize];
+-    ["Offset of field: GgBufList::bufs"]
+-        [::core::mem::offset_of!(GgBufList, bufs) - 0usize];
+-    ["Offset of field: GgBufList::len"]
+-        [::core::mem::offset_of!(GgBufList, len) - 8usize];
+ };
+ #[allow(clippy::unnecessary_operation, clippy::identity_op)]
+ const _: () = {
+     ["Size of GgObject"][::core::mem::size_of::<GgObject>() - 11usize];
+     ["Alignment of GgObject"][::core::mem::align_of::<GgObject>() - 1usize];
+-    ["Offset of field: GgObject::_private"]
+-        [::core::mem::offset_of!(GgObject, _private) - 0usize];
+ };
+ #[allow(clippy::unnecessary_operation, clippy::identity_op)]
+ const _: () = {
+     ["Size of GgList"][::core::mem::size_of::<GgList>() - 16usize];
+     ["Alignment of GgList"][::core::mem::align_of::<GgList>() - 8usize];
+-    ["Offset of field: GgList::items"]
+-        [::core::mem::offset_of!(GgList, items) - 0usize];
+-    ["Offset of field: GgList::len"]
+-        [::core::mem::offset_of!(GgList, len) - 8usize];
+ };
+ #[allow(clippy::unnecessary_operation, clippy::identity_op)]
+ const _: () = {
+     ["Size of GgKV"][::core::mem::size_of::<GgKV>() - 21usize];
+     ["Alignment of GgKV"][::core::mem::align_of::<GgKV>() - 1usize];
+-    ["Offset of field: GgKV::_private"]
+-        [::core::mem::offset_of!(GgKV, _private) - 0usize];
+ };
+ #[allow(clippy::unnecessary_operation, clippy::identity_op)]
+ const _: () = {
+     ["Size of GgMap"][::core::mem::size_of::<GgMap>() - 16usize];
+     ["Alignment of GgMap"][::core::mem::align_of::<GgMap>() - 8usize];
+-    ["Offset of field: GgMap::pairs"]
+-        [::core::mem::offset_of!(GgMap, pairs) - 0usize];
+-    ["Offset of field: GgMap::len"]
+-        [::core::mem::offset_of!(GgMap, len) - 8usize];
+ };
+ #[allow(clippy::unnecessary_operation, clippy::identity_op)]
+ const _: () = {
+     ["Size of GgArena"][::core::mem::size_of::<GgArena>() - 16usize];
+     ["Alignment of GgArena"][::core::mem::align_of::<GgArena>() - 8usize];
+-    ["Offset of field: GgArena::mem"]
+-        [::core::mem::offset_of!(GgArena, mem) - 0usize];
+-    ["Offset of field: GgArena::capacity"]
+-        [::core::mem::offset_of!(GgArena, capacity) - 8usize];
+-    ["Offset of field: GgArena::index"]
+-        [::core::mem::offset_of!(GgArena, index) - 12usize];
+ };
+ #[allow(clippy::unnecessary_operation, clippy::identity_op)]
+ const _: () = {
+     ["Size of GgArenaState"][::core::mem::size_of::<GgArenaState>() - 4usize];
+     ["Alignment of GgArenaState"]
+         [::core::mem::align_of::<GgArenaState>() - 4usize];
+-    ["Offset of field: GgArenaState::index"]
+-        [::core::mem::offset_of!(GgArenaState, index) - 0usize];
+ };
+ #[allow(clippy::unnecessary_operation, clippy::identity_op)]
+ const _: () = {
+@@ -215,8 +187,6 @@
+         [::core::mem::size_of::<GgIpcSubscriptionHandle>() - 4usize];
+     ["Alignment of GgIpcSubscriptionHandle"]
+         [::core::mem::align_of::<GgIpcSubscriptionHandle>() - 4usize];
+-    ["Offset of field: GgIpcSubscriptionHandle::val"]
+-        [::core::mem::offset_of!(GgIpcSubscriptionHandle, val) - 0usize];
+ };
+ pub const GgPresence_GG_PRESENCE_REQUIRED: GgPresence__bindgen_ty_1 =
+     GgPresence__bindgen_ty_1::GG_PRESENCE_REQUIRED;
+@@ -228,8 +198,6 @@
+ const _: () = {
+     ["Size of GgPresence"][::core::mem::size_of::<GgPresence>() - 4usize];
+     ["Alignment of GgPresence"][::core::mem::align_of::<GgPresence>() - 4usize];
+-    ["Offset of field: GgPresence::val"]
+-        [::core::mem::offset_of!(GgPresence, val) - 0usize];
+ };
+ #[allow(clippy::unnecessary_operation, clippy::identity_op)]
+ const _: () = {
+@@ -237,33 +205,17 @@
+         [::core::mem::size_of::<GgMapSchemaEntry>() - 32usize];
+     ["Alignment of GgMapSchemaEntry"]
+         [::core::mem::align_of::<GgMapSchemaEntry>() - 8usize];
+-    ["Offset of field: GgMapSchemaEntry::key"]
+-        [::core::mem::offset_of!(GgMapSchemaEntry, key) - 0usize];
+-    ["Offset of field: GgMapSchemaEntry::required"]
+-        [::core::mem::offset_of!(GgMapSchemaEntry, required) - 16usize];
+-    ["Offset of field: GgMapSchemaEntry::type_"]
+-        [::core::mem::offset_of!(GgMapSchemaEntry, type_) - 20usize];
+-    ["Offset of field: GgMapSchemaEntry::value"]
+-        [::core::mem::offset_of!(GgMapSchemaEntry, value) - 24usize];
+ };
+ #[allow(clippy::unnecessary_operation, clippy::identity_op)]
+ const _: () = {
+     ["Size of GgMapSchema"][::core::mem::size_of::<GgMapSchema>() - 16usize];
+     ["Alignment of GgMapSchema"]
+         [::core::mem::align_of::<GgMapSchema>() - 8usize];
+-    ["Offset of field: GgMapSchema::entries"]
+-        [::core::mem::offset_of!(GgMapSchema, entries) - 0usize];
+-    ["Offset of field: GgMapSchema::entry_count"]
+-        [::core::mem::offset_of!(GgMapSchema, entry_count) - 8usize];
+ };
+ #[allow(clippy::unnecessary_operation, clippy::identity_op)]
+ const _: () = {
+     ["Size of timespec"][::core::mem::size_of::<timespec>() - 16usize];
+     ["Alignment of timespec"][::core::mem::align_of::<timespec>() - 8usize];
+-    ["Offset of field: timespec::tv_sec"]
+-        [::core::mem::offset_of!(timespec, tv_sec) - 0usize];
+-    ["Offset of field: timespec::tv_nsec"]
+-        [::core::mem::offset_of!(timespec, tv_nsec) - 8usize];
+ };
+ #[repr(u32)]
+ #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+@@ -382,107 +334,107 @@
+         }
+     }
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_strerror(err: GgError) -> *const ::core::ffi::c_char;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_buffer_from_null_term(str_: *mut ::core::ffi::c_char)
+         -> GgBuffer;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_buffer_eq(buf1: GgBuffer, buf2: GgBuffer) -> bool;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_buffer_has_prefix(buf: GgBuffer, prefix: GgBuffer) -> bool;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_buffer_remove_prefix(
+         buf: *mut GgBuffer,
+         prefix: GgBuffer,
+     ) -> bool;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_buffer_has_suffix(buf: GgBuffer, suffix: GgBuffer) -> bool;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_buffer_remove_suffix(
+         buf: *mut GgBuffer,
+         suffix: GgBuffer,
+     ) -> bool;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_buffer_contains(
+         buf: GgBuffer,
+         substring: GgBuffer,
+         start: *mut usize,
+     ) -> bool;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_buffer_substr(
+         buf: GgBuffer,
+         start: usize,
+         end: usize,
+     ) -> GgBuffer;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_str_to_int64(str_: GgBuffer, value: *mut i64) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_buf_copy(source: GgBuffer, target: *mut GgBuffer) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_type(obj: GgObject) -> GgObjectType;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_bool(value: bool) -> GgObject;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_into_bool(boolean: GgObject) -> bool;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_i64(value: i64) -> GgObject;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_into_i64(i64_: GgObject) -> i64;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_f64(value: f64) -> GgObject;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_into_f64(f64_: GgObject) -> f64;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_buf(value: GgBuffer) -> GgObject;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_into_buf(buf: GgObject) -> GgBuffer;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_map(value: GgMap) -> GgObject;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_into_map(map: GgObject) -> GgMap;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_list(value: GgList) -> GgObject;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_into_list(list: GgObject) -> GgList;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_obj_mem_usage(obj: GgObject, size: *mut usize) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_arena_init(buf: GgBuffer) -> GgArena;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_arena_alloc(
+         arena: *mut GgArena,
+         size: usize,
+         alignment: usize,
+     ) -> *mut ::core::ffi::c_void;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_arena_resize_last(
+         arena: *mut GgArena,
+         ptr: *const ::core::ffi::c_void,
+@@ -490,64 +442,64 @@
+         size: usize,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_arena_owns(
+         arena: *const GgArena,
+         ptr: *const ::core::ffi::c_void,
+     ) -> bool;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_arena_alloc_rest(arena: *mut GgArena) -> GgBuffer;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_arena_claim_obj(
+         obj: *mut GgObject,
+         arena: *mut GgArena,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_arena_claim_buf(
+         buf: *mut GgBuffer,
+         arena: *mut GgArena,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_arena_claim_obj_bufs(
+         obj: *mut GgObject,
+         arena: *mut GgArena,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_connect() -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_connect_with_token(
+         socket_path: GgBuffer,
+         auth_token: GgBuffer,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_close_subscription(handle: GgIpcSubscriptionHandle);
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_publish_to_topic_json(
+         topic: GgBuffer,
+         payload: GgMap,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_publish_to_topic_binary(
+         topic: GgBuffer,
+         payload: GgBuffer,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_publish_to_topic_binary_b64(
+         topic: GgBuffer,
+         b64_payload: GgBuffer,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_subscribe_to_topic(
+         topic: GgBuffer,
+         callback: GgIpcSubscribeToTopicCallback,
+@@ -555,21 +507,21 @@
+         handle: *mut GgIpcSubscriptionHandle,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_publish_to_iot_core(
+         topic_name: GgBuffer,
+         payload: GgBuffer,
+         qos: u8,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_publish_to_iot_core_b64(
+         topic_name: GgBuffer,
+         b64_payload: GgBuffer,
+         qos: u8,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_subscribe_to_iot_core(
+         topic_filter: GgBuffer,
+         qos: u8,
+@@ -578,7 +530,7 @@
+         handle: *mut GgIpcSubscriptionHandle,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_get_config(
+         key_path: GgBufList,
+         component_name: *const GgBuffer,
+@@ -586,27 +538,27 @@
+         value: *mut GgObject,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_get_config_str(
+         key_path: GgBufList,
+         component_name: *const GgBuffer,
+         value: *mut GgBuffer,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_update_config(
+         key_path: GgBufList,
+         timestamp: *const timespec,
+         value_to_merge: GgObject,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_update_state(state: GgComponentState) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_restart_component(component_name: GgBuffer) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_subscribe_to_configuration_update(
+         component_name: *const GgBuffer,
+         key_path: GgBufList,
+@@ -615,7 +567,7 @@
+         handle: *mut GgIpcSubscriptionHandle,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_call(
+         operation: GgBuffer,
+         service_model_type: GgBuffer,
+@@ -625,7 +577,7 @@
+         response_ctx: *mut ::core::ffi::c_void,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn ggipc_subscribe(
+         operation: GgBuffer,
+         service_model_type: GgBuffer,
+@@ -639,35 +591,35 @@
+         sub_handle: *mut GgIpcSubscriptionHandle,
+     ) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_map_get(
+         map: GgMap,
+         key: GgBuffer,
+         result: *mut *mut GgObject,
+     ) -> bool;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_map_get_path(
+         map: GgMap,
+         path: GgBufList,
+         result: *mut *mut GgObject,
+     ) -> bool;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_kv(key: GgBuffer, val: GgObject) -> GgKV;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_kv_key(kv: GgKV) -> GgBuffer;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_kv_set_key(kv: *mut GgKV, key: GgBuffer);
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_kv_val(kv: *mut GgKV) -> *mut GgObject;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_map_validate(map: GgMap, schema: GgMapSchema) -> GgError;
+ }
+-unsafe extern "C" {
++extern "C" {
+     pub fn gg_sdk_init();
+ }
