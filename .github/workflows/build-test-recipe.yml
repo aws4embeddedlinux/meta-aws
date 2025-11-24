@@ -173,7 +173,6 @@ jobs:
              echo TEST_RUNQEMUPARAMS += \"slirp\" >> conf/local.conf
              echo TEST_SERVER_IP = \"127.0.0.1\" >> conf/local.conf
              echo DISTRO_FEATURES += \"ptest\" >> conf/local.conf
-             echo DISTRO = \"poky-altcfg\" >> conf/local.conf
              # this will specify what test should run when running testimage cmd - oeqa layer tests + ptests:
              # Ping and SSH are not required, but do help in debugging. ptest will discover all ptest packages.
              echo TEST_SUITES = \" ping ssh ptest parselogs\" >> conf/local.conf
@@ -182,9 +181,8 @@ jobs:
              cat conf/local.conf
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
-             export MACHINE=${{ matrix.machine }}
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
-             bitbake $RECIPES -f -k | tee -a $MACHINE-build.log'
+             bitbake $RECIPES -f -k | tee -a ${{ matrix.machine }}-build.log'
            set -e
            echo RECIPES to build: $RECIPES
            if [ -e "${BUILD_DIR}/build/${{ matrix.machine }}-build.log" ]; then
@@ -216,7 +214,6 @@ jobs:
              echo IMAGE_FEATURES:append = \" allow-empty-password empty-root-password allow-root-login\" >> conf/local.conf
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
-             export MACHINE=${{ matrix.machine }}
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
              bitbake core-image-minimal
              bitbake core-image-minimal -f -c testimage
