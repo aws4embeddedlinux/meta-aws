@@ -21,6 +21,7 @@ PACKAGECONFIG[pkcs11] = ",,greengrass-plugin-pkcs11,greengrass-plugin-pkcs11"
 SRC_URI = "\
     https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-${PV}.zip;subdir=greengrass-bin \
     file://001-service-time-wait.patch \
+    file://002-fix-service-exec-and-docker.patch \
     file://greengrassv2-init.yaml \
     file://run-ptest \
     file://config.yaml.template \
