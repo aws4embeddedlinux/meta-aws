@@ -37,7 +37,7 @@ index 39ae0a7..1ff0dc6 100644
  
 +        # Add OpenSSL compatibility flags to suppress deprecated warnings
 +        cmake_args.extend([
-+            '-DCMAKE_C_FLAGS=-DOPENSSL_SUPPRESS_DEPRECATED'
++            '-DCMAKE_C_FLAGS=-DOPENSSL_SUPPRESS_DEPRECATED %s' % os.environ['CFLAGS']
 +        ])
 +
          if sys.platform == 'darwin':
