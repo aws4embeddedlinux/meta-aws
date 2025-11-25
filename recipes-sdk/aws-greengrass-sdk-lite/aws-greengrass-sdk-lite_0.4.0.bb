@@ -6,7 +6,7 @@ HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-sdk-lite"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-SRCREV = "1ee3a5ad3de59f141973839412b5025e67ea533d"
+SRCREV = "1e54e70d4000ebf71572ba09e422d09666652787"
 SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-sdk-lite.git;protocol=https;branch=main \
 "
 
