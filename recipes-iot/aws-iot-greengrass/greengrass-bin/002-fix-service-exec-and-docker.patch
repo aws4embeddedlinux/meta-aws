@@ -1,0 +1,34 @@
+Fix systemd service ExecStart and add Docker dependencies
+
+This patch addresses two issues:
+
+1. Fixes ExecStart to properly invoke the loader without the unreplaced
+   REPLACE_WITH_LOADER_LOG_FILE placeholder, allowing journalctl to capture logs
+
+2. Adds Docker service ordering for systems using containerized Greengrass components
+
+See: https://github.com/aws4embeddedlinux/meta-aws/issues/14242
+
+Upstream-Status: Inappropriate [OE-Specific]
+
+Index: greengrass-bin/bin/greengrass.service.template
+===================================================================
+--- greengrass-bin.orig/bin/greengrass.service.template
++++ greengrass-bin/bin/greengrass.service.template
+@@ -1,6 +1,7 @@
+ [Unit]
+ Description=Greengrass Core
+ After=network.target
++After=docker.service
+ 
+ [Service]
+ Type=simple
+@@ -8,7 +9,7 @@ PIDFile=REPLACE_WITH_GG_LOADER_PID_FILE
+ RemainAfterExit=no
+ Restart=on-failure
+ RestartSec=10
+-ExecStart=/bin/sh -c "exec REPLACE_WITH_GG_LOADER_FILE >> REPLACE_WITH_LOADER_LOG_FILE 2>&1"
++ExecStart=/bin/sh REPLACE_WITH_GG_LOADER_FILE
+ KillMode=mixed
+ 
+ [Install]
