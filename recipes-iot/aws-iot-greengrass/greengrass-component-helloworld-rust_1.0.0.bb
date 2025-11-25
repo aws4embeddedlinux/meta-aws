@@ -53,6 +53,9 @@ do_install() {
 do_install:append() {
     if [ "${GREENGRASS_VARIANT}" = "lite" ]; then
         install -m 0755 ${B}/target/${CARGO_TARGET_SUBDIR}/hello-world-rust ${D}${GGL_ARTIFACTS_DIR}/${COMPONENT_NAME}/${COMPONENT_VERSION}/
+    else
+        install -d ${D}/${GG_BASENAME}/components/${COMPONENT_NAME}/${COMPONENT_VERSION}
+        install -m 0755 ${B}/target/${CARGO_TARGET_SUBDIR}/hello-world-rust ${D}/${GG_BASENAME}/components/${COMPONENT_NAME}/${COMPONENT_VERSION}/
     fi
 }
 
