@@ -21,6 +21,7 @@ PACKAGECONFIG[fleetprovisioning] = ""
 
 SRC_URI = "\
     https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-${PV}.zip;subdir=greengrass-bin \
+    file://002-fix-service-exec-and-docker.patch \
     file://greengrassv2-init.yaml \
     file://run-ptest \
     "
@@ -36,7 +37,7 @@ SRC_URI:append = " ${@bb.utils.contains('PACKAGECONFIG', 'fleetprovisioning', '\
     file://greengrass.service.patch \
     ', '', d)}"
 
-SRC_URI[sha256sum] = "650b4bbee368d5bdb8c5a89ef6b76c08c508050ead594360681d760a299f33ef"
+SRC_URI[sha256sum] = "f07742c76eca868617127b5c6c9028e41c45c2b4ec25dd0db6f3b40ef7638b4e"
 SRC_URI[fleetprovisioning.sha256sum] = "1e7fdc625d4e1e7795d63f0e97981feecad526277bf211154505de145009e8c1"
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 
