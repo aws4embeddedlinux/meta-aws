@@ -1,0 +1,164 @@
+From 35c101f2c5825e502d494146311e9013562f0735 Mon Sep 17 00:00:00 2001
+From: Archit Gupta <archigup@amazon.com>
+Date: Tue, 25 Nov 2025 11:55:11 -0800
+Subject: [PATCH] Remove bindgen layout tests
+
+Layout tests assume layouts for current platform, and thus fail on
+32-bit platforms.
+
+Upstream-Status: Submitted [https://github.com/aws-greengrass/aws-greengrass-component-sdk/pull/90]
+
+Signed-off-by: Archit Gupta <archigup@amazon.com>
+---
+ misc/run_bindgen.sh |   1 +
+ rust/src/c.rs       | 119 --------------------------------------------
+ 2 files changed, 1 insertion(+), 119 deletions(-)
+
+diff --git a/misc/run_bindgen.sh b/misc/run_bindgen.sh
+index a44ce91..6966254 100755
+--- a/misc/run_bindgen.sh
++++ b/misc/run_bindgen.sh
+@@ -15,6 +15,7 @@ bindgen wrapper.h \
+   --with-derive-default \
+   --disable-header-comment \
+   --no-doc-comments \
++  --no-layout-tests \
+   --use-core \
+   --generate-cstr \
+   --sort-semantically \
+diff --git a/rust/src/c.rs b/rust/src/c.rs
+index 5c7890a..0b21a2d 100644
+--- a/rust/src/c.rs
++++ b/rust/src/c.rs
+@@ -140,131 +140,12 @@ pub const GG_MAX_OBJECT_DEPTH: u32 = 15;
+ pub const GG_MAX_OBJECT_SUBOBJECTS: u32 = 255;
+ pub const GG_IPC_MAX_STREAMS: u32 = 16;
+ pub const GG_IPC_RESPONSE_TIMEOUT: u32 = 10;
+-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+-const _: () = {
+-    ["Size of GgBuffer"][::core::mem::size_of::<GgBuffer>() - 16usize];
+-    ["Alignment of GgBuffer"][::core::mem::align_of::<GgBuffer>() - 8usize];
+-    ["Offset of field: GgBuffer::data"]
+-        [::core::mem::offset_of!(GgBuffer, data) - 0usize];
+-    ["Offset of field: GgBuffer::len"]
+-        [::core::mem::offset_of!(GgBuffer, len) - 8usize];
+-};
+-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+-const _: () = {
+-    ["Size of GgBufList"][::core::mem::size_of::<GgBufList>() - 16usize];
+-    ["Alignment of GgBufList"][::core::mem::align_of::<GgBufList>() - 8usize];
+-    ["Offset of field: GgBufList::bufs"]
+-        [::core::mem::offset_of!(GgBufList, bufs) - 0usize];
+-    ["Offset of field: GgBufList::len"]
+-        [::core::mem::offset_of!(GgBufList, len) - 8usize];
+-};
+-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+-const _: () = {
+-    ["Size of GgObject"][::core::mem::size_of::<GgObject>() - 11usize];
+-    ["Alignment of GgObject"][::core::mem::align_of::<GgObject>() - 1usize];
+-    ["Offset of field: GgObject::_private"]
+-        [::core::mem::offset_of!(GgObject, _private) - 0usize];
+-};
+-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+-const _: () = {
+-    ["Size of GgList"][::core::mem::size_of::<GgList>() - 16usize];
+-    ["Alignment of GgList"][::core::mem::align_of::<GgList>() - 8usize];
+-    ["Offset of field: GgList::items"]
+-        [::core::mem::offset_of!(GgList, items) - 0usize];
+-    ["Offset of field: GgList::len"]
+-        [::core::mem::offset_of!(GgList, len) - 8usize];
+-};
+-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+-const _: () = {
+-    ["Size of GgKV"][::core::mem::size_of::<GgKV>() - 21usize];
+-    ["Alignment of GgKV"][::core::mem::align_of::<GgKV>() - 1usize];
+-    ["Offset of field: GgKV::_private"]
+-        [::core::mem::offset_of!(GgKV, _private) - 0usize];
+-};
+-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+-const _: () = {
+-    ["Size of GgMap"][::core::mem::size_of::<GgMap>() - 16usize];
+-    ["Alignment of GgMap"][::core::mem::align_of::<GgMap>() - 8usize];
+-    ["Offset of field: GgMap::pairs"]
+-        [::core::mem::offset_of!(GgMap, pairs) - 0usize];
+-    ["Offset of field: GgMap::len"]
+-        [::core::mem::offset_of!(GgMap, len) - 8usize];
+-};
+-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+-const _: () = {
+-    ["Size of GgArena"][::core::mem::size_of::<GgArena>() - 16usize];
+-    ["Alignment of GgArena"][::core::mem::align_of::<GgArena>() - 8usize];
+-    ["Offset of field: GgArena::mem"]
+-        [::core::mem::offset_of!(GgArena, mem) - 0usize];
+-    ["Offset of field: GgArena::capacity"]
+-        [::core::mem::offset_of!(GgArena, capacity) - 8usize];
+-    ["Offset of field: GgArena::index"]
+-        [::core::mem::offset_of!(GgArena, index) - 12usize];
+-};
+-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+-const _: () = {
+-    ["Size of GgArenaState"][::core::mem::size_of::<GgArenaState>() - 4usize];
+-    ["Alignment of GgArenaState"]
+-        [::core::mem::align_of::<GgArenaState>() - 4usize];
+-    ["Offset of field: GgArenaState::index"]
+-        [::core::mem::offset_of!(GgArenaState, index) - 0usize];
+-};
+-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+-const _: () = {
+-    ["Size of GgIpcSubscriptionHandle"]
+-        [::core::mem::size_of::<GgIpcSubscriptionHandle>() - 4usize];
+-    ["Alignment of GgIpcSubscriptionHandle"]
+-        [::core::mem::align_of::<GgIpcSubscriptionHandle>() - 4usize];
+-    ["Offset of field: GgIpcSubscriptionHandle::val"]
+-        [::core::mem::offset_of!(GgIpcSubscriptionHandle, val) - 0usize];
+-};
+ pub const GgPresence_GG_PRESENCE_REQUIRED: GgPresence__bindgen_ty_1 =
+     GgPresence__bindgen_ty_1::GG_PRESENCE_REQUIRED;
+ pub const GgPresence_GG_PRESENCE_OPTIONAL: GgPresence__bindgen_ty_1 =
+     GgPresence__bindgen_ty_1::GG_PRESENCE_OPTIONAL;
+ pub const GgPresence_GG_PRESENCE_MISSING: GgPresence__bindgen_ty_1 =
+     GgPresence__bindgen_ty_1::GG_PRESENCE_MISSING;
+-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+-const _: () = {
+-    ["Size of GgPresence"][::core::mem::size_of::<GgPresence>() - 4usize];
+-    ["Alignment of GgPresence"][::core::mem::align_of::<GgPresence>() - 4usize];
+-    ["Offset of field: GgPresence::val"]
+-        [::core::mem::offset_of!(GgPresence, val) - 0usize];
+-};
+-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+-const _: () = {
+-    ["Size of GgMapSchemaEntry"]
+-        [::core::mem::size_of::<GgMapSchemaEntry>() - 32usize];
+-    ["Alignment of GgMapSchemaEntry"]
+-        [::core::mem::align_of::<GgMapSchemaEntry>() - 8usize];
+-    ["Offset of field: GgMapSchemaEntry::key"]
+-        [::core::mem::offset_of!(GgMapSchemaEntry, key) - 0usize];
+-    ["Offset of field: GgMapSchemaEntry::required"]
+-        [::core::mem::offset_of!(GgMapSchemaEntry, required) - 16usize];
+-    ["Offset of field: GgMapSchemaEntry::type_"]
+-        [::core::mem::offset_of!(GgMapSchemaEntry, type_) - 20usize];
+-    ["Offset of field: GgMapSchemaEntry::value"]
+-        [::core::mem::offset_of!(GgMapSchemaEntry, value) - 24usize];
+-};
+-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+-const _: () = {
+-    ["Size of GgMapSchema"][::core::mem::size_of::<GgMapSchema>() - 16usize];
+-    ["Alignment of GgMapSchema"]
+-        [::core::mem::align_of::<GgMapSchema>() - 8usize];
+-    ["Offset of field: GgMapSchema::entries"]
+-        [::core::mem::offset_of!(GgMapSchema, entries) - 0usize];
+-    ["Offset of field: GgMapSchema::entry_count"]
+-        [::core::mem::offset_of!(GgMapSchema, entry_count) - 8usize];
+-};
+-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+-const _: () = {
+-    ["Size of timespec"][::core::mem::size_of::<timespec>() - 16usize];
+-    ["Alignment of timespec"][::core::mem::align_of::<timespec>() - 8usize];
+-    ["Offset of field: timespec::tv_sec"]
+-        [::core::mem::offset_of!(timespec, tv_sec) - 0usize];
+-    ["Offset of field: timespec::tv_nsec"]
+-        [::core::mem::offset_of!(timespec, tv_nsec) - 8usize];
+-};
+ #[repr(u32)]
+ #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+ pub enum GgError {

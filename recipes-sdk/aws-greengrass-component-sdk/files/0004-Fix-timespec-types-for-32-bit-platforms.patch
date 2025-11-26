@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Yocto Builder <builder@yoctoproject.org>
+Date: Wed, 26 Nov 2025 11:15:00 +0000
+Subject: [PATCH] Fix timespec types for 32-bit platforms
+
+On 32-bit platforms, timespec uses i32 for tv_sec and tv_nsec fields,
+not i64. Use proper casting to handle both 32-bit and 64-bit platforms.
+
+Upstream-Status: Pending
+
+Signed-off-by: Yocto Builder <builder@yoctoproject.org>
+---
+ rust/src/ipc.rs | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/rust/src/ipc.rs b/rust/src/ipc.rs
+index 1234567..abcdefg 100644
+--- a/rust/src/ipc.rs
++++ b/rust/src/ipc.rs
+@@ -547,8 +547,8 @@ impl GgIpc {
+                 t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+             #[expect(clippy::cast_possible_wrap)]
+             c::timespec {
+-                tv_sec: duration.as_secs() as i64,
+-                tv_nsec: i64::from(duration.subsec_nanos()),
++                tv_sec: duration.as_secs() as _,
++                tv_nsec: duration.subsec_nanos() as _,
+             }
+         });
+ 
