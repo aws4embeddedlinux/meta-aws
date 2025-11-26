@@ -4,10 +4,6 @@ HOMEPAGE = "https://github.com/aws/meta-aws"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/Apache-2.0;md5=89aea4e17d99a7cacdbeed46a0096b10"
 
-# Rust not supported on 32-bit ARM due to FFI compatibility issues
-COMPATIBLE_MACHINE:armv7a = "null"
-COMPATIBLE_MACHINE:armv7ve = "null"
-
 # COMPONENT_NAME and COMPONENT_VERSION will be read from component-recipe.yaml
 # They can be overridden here if needed:
 # COMPONENT_NAME = "com.example.HelloWorldRust"

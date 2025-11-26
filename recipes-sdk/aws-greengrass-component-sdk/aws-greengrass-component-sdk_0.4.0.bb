@@ -15,6 +15,16 @@ SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;prot
            file://0002-Remove-hardcoded-clang-compiler.patch \
 "
 
+SRC_URI:append:armv7a = " \
+           file://0003-Remove-bindgen-layout-tests-for-32-bit-ARM-support.patch \
+           file://0004-Fix-timespec-types-for-32-bit-platforms.patch \
+"
+
+SRC_URI:append:armv7ve = " \
+           file://0003-Remove-bindgen-layout-tests-for-32-bit-ARM-support.patch \
+           file://0004-Fix-timespec-types-for-32-bit-platforms.patch \
+"
+
 inherit cmake ptest cargo cargo-update-recipe-crates
 
 CARGO_SRC_DIR = "rust"
@@ -31,10 +41,6 @@ TARGET_CXXFLAGS:append = " -frandom-seed=${TARGET_DBGSRC_DIR}"
 
 PACKAGECONFIG ??= "rust"
 PACKAGECONFIG[rust] = ",,,"
-
-# Disable Rust on 32-bit ARM due to FFI compatibility issues
-PACKAGECONFIG:armv7a = ""
-PACKAGECONFIG:armv7ve = ""
 
 # default is stripped, we wanna do this by yocto
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
