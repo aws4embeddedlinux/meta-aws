@@ -1,0 +1,16 @@
+Upstream-Status: Inappropriate [Yocto-specific]
+
+Index: aws-greengrass-component-sdk-0.4.0/rust/Cargo.toml
+===================================================================
+--- aws-greengrass-component-sdk-0.4.0.orig/rust/Cargo.toml
++++ aws-greengrass-component-sdk-0.4.0/rust/Cargo.toml
+@@ -10,6 +10,9 @@ readme = "../README.md"
+ keywords = ["aws", "greengrass", "iot"]
+ categories = ["api-bindings"]
+ 
++[lib]
++crate-type = ["cdylib", "rlib"]
++
+ [build-dependencies]
+ cc = "1"
+ bindgen = "0.72"

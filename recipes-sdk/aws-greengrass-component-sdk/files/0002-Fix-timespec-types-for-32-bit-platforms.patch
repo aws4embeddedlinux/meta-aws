@@ -1,0 +1,26 @@
+Upstream-Status: Pending
+
+Index: aws-greengrass-component-sdk-0.4.0/rust/src/ipc.rs
+===================================================================
+--- aws-greengrass-component-sdk-0.4.0.orig/rust/src/ipc.rs
++++ aws-greengrass-component-sdk-0.4.0/rust/src/ipc.rs
+@@ -3,7 +3,7 @@
+ // SPDX-License-Identifier: Apache-2.0
+ 
+ use std::{
+-    env, ffi,
++    env, ffi::{self, c_long},
+     marker::PhantomData,
+     mem, ptr, result, slice, str,
+     sync::{Mutex, OnceLock},
+@@ -548,8 +548,8 @@ impl Ipc {
+                 t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+             #[expect(clippy::cast_possible_wrap)]
+             c::timespec {
+-                tv_sec: duration.as_secs() as i64,
+-                tv_nsec: i64::from(duration.subsec_nanos()),
++                tv_sec: duration.as_secs() as c_long,
++                tv_nsec: duration.subsec_nanos() as c_long,
+             }
+         });
+ 
