@@ -1,0 +1,16 @@
+Upstream-Status: Inappropriate [Yocto-specific]
+
+Let Yocto handle stripping instead of Cargo.
+
+Index: aws-greengrass-component-sdk-0.4.0/rust/Cargo.toml
+===================================================================
+--- aws-greengrass-component-sdk-0.4.0.orig/rust/Cargo.toml
++++ aws-greengrass-component-sdk-0.4.0/rust/Cargo.toml
+@@ -17,7 +17,6 @@ cc = "1"
+ bindgen = "0.72"
+ 
+ [profile.release]
+-strip = true
+ opt-level = "z"
+ lto = true
+ codegen-units = 1

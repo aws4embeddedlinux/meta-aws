@@ -8,4 +8,6 @@ name = "hello-world-rust"
 path = "main.rs"
 
 [dependencies]
-gg-sdk = { path = "gg-sdk" }
+
+[profile.release]
+panic = "abort"
