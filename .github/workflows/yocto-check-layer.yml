@@ -1,9 +1,9 @@
 name: yocto-check-layer
 
 on:
+  workflow_dispatch:
   pull_request:
-    branches:
-      - '*-next'
+  merge_group:
 
 permissions:
   contents: read
