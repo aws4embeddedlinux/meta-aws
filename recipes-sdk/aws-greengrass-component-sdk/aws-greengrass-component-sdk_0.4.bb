@@ -30,6 +30,18 @@ do_configure:prepend() {
     rm -f ${S}/rust/src/c.rs
 }
 
+# Manual bindgen task for debugging (not called automatically)
+# Usage: bitbake aws-greengrass-component-sdk -c create_bindings
+do_create_bindings[depends] += "bindgen-cli-native:do_populate_sysroot clang-native:do_populate_sysroot"
+do_create_bindings() {
+    ${STAGING_BINDIR_NATIVE}/bindgen ${S}/rust/wrapper.h -o ${S}/rust/src/c.rs \
+        --allowlist-type "Gg.*" \
+        --allowlist-function "gg_.*" \
+        --allowlist-var "GG_.*" \
+        -- -I${S}/include --target=${RUST_HOST_SYS}
+    bbnote "Generated bindings at ${S}/rust/src/c.rs"
+}
+
 # Set LIBCLANG_PATH for bindgen
 export LIBCLANG_PATH = "${STAGING_LIBDIR_NATIVE}"
 
