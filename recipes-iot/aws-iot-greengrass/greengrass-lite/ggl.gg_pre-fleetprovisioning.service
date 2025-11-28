@@ -10,13 +10,14 @@ ConditionPathExists=!/var/lib/greengrass/credentials
 [Service]
 Type=oneshot
 ExecStart=/bin/sh -c '\
-    default_iface=$(ip route | grep default | cut -d" " -f5 | head -n1); \
+    while true; do \
+        default_iface=$(ip route | grep default | cut -d" " -f5 | head -n1); \
+        [ -n "$default_iface" ] && [ -f "/sys/class/net/$default_iface/address" ] && break; \
+        sleep 1; \
+    done; \
     mac_address=$(cat /sys/class/net/"$default_iface"/address | tr ":" "_"); \
     sed -i "s/<unique>/$mac_address/g" "/etc/greengrass/config.d/fleetprovisioning.yaml";'
-Restart=on-failure
-RestartSec=10s
-StartLimitBurst=3
-TimeoutSec=300
+TimeoutSec=infinity
 SuccessExitStatus=0 1 15
 User=root
 Group=root
