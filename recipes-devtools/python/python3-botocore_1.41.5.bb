@@ -27,6 +27,7 @@ RDEPENDS:${PN}-ptest += "\
         python3 \
         python3-pytest \
         python3-urllib3 \
+        ${PYTHON_PN}-setuptools \
 "
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
