@@ -144,26 +144,26 @@ jobs:
           FILTERED_RECIPES=""
           for recipe in $RECIPES; do
             SKIP_RECIPE=false
-            
+
             # Check COMPATIBLE_HOST
             if find meta-aws/ -name "${recipe}.bb" -o -name "${recipe}_*.bb" | xargs grep -q "COMPATIBLE_HOST:${ARCH}[[:space:]]*=[[:space:]]*\"null\"" 2>/dev/null; then
               SKIP_RECIPE=true
             fi
-            
+
             # Check COMPATIBLE_MACHINE for ARM32
             if [ "${{ matrix.machine }}" == "qemuarm" ]; then
               if find meta-aws/ -name "${recipe}.bb" -o -name "${recipe}_*.bb" | xargs grep -q "COMPATIBLE_MACHINE:armv7[av][[:space:]]*=[[:space:]]*\"null\"" 2>/dev/null; then
                 SKIP_RECIPE=true
               fi
             fi
-            
+
             # Check COMPATIBLE_MACHINE for RISC-V
             if [ "${{ matrix.machine }}" == "qemuriscv64" ]; then
               if find meta-aws/ -name "${recipe}.bb" -o -name "${recipe}_*.bb" | xargs grep -q "COMPATIBLE_MACHINE:riscv64[[:space:]]*=[[:space:]]*\"null\"" 2>/dev/null; then
                 SKIP_RECIPE=true
               fi
             fi
-            
+
             if [ "$SKIP_RECIPE" = "false" ]; then
               FILTERED_RECIPES+="$recipe "
             fi
