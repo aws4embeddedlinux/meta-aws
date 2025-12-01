@@ -1,0 +1,18 @@
+#!/bin/sh
+set -euxo pipefail
+
+FILE=/usr/bin/java.corretto-25-bin
+if [ -f "$FILE" ]; then
+    echo "$FILE exists. Using alternate java name to test."
+    $FILE --version
+else
+    echo "$FILE does not exist. Using default java to test."
+    java --version
+fi
+
+RETVAL=$?
+if [ $RETVAL -eq 0 ] ; then
+    echo "PASS: corretto-25-bin startup test"
+else
+    echo "FAIL: corretto-25-bin startup test"
+fi

@@ -106,3 +106,6 @@ python do_package:prepend () {
 
 
 ALTERNATIVE:${PN} = "${ALTERNATIVE_NAMES}"
+
+# nooelint: oelint.vars.insaneskip
+INSANE_SKIP:${PN} += "already-stripped"
