@@ -14,13 +14,27 @@ jobs:
       group: meta-aws
       labels: meta-aws_ubuntu-latest_32-core
     steps:
-      - name: get yocto release name
+      - name: Get Yocto release name
         id: get-yocto-release-name
         env:
+          EVENT_NAME: ${{ github.event_name }}
           PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          MERGE_GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-            release_name=$(echo "$PR_BASE_REF" | cut -d- -f1)
-            echo "release_name=$release_name" >> $GITHUB_OUTPUT
+          case "$EVENT_NAME" in
+            "pull_request")
+              RELEASE=$(echo "$PR_BASE_REF" | cut -d- -f1)
+              ;;
+            "merge_group")
+              RELEASE=$(echo "$MERGE_GROUP_BASE_REF" | sed 's|refs/heads/||' | cut -d- -f1)
+              ;;
+            *)
+              RELEASE=$(echo "$REF_NAME" | cut -d- -f1)
+              ;;
+          esac
+          echo "Determined release: $RELEASE"
+          echo "release=${RELEASE}" >> $GITHUB_OUTPUT            
       - name: install required packages to run yocto-check-layer
         run: |
           sudo apt-get -y install gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio python3 xz-utils zstd liblz4-tool locales
@@ -32,7 +46,7 @@ jobs:
         with:
           path: meta-aws
       - name: Checkout BitBake
-        run: git clone https://git.openembedded.org/bitbake -b ${{steps.get-yocto-release-name.outputs.release_name}}
+        run: git clone https://git.openembedded.org/bitbake -b ${{steps.get-yocto-release-name.outputs.release}}
       - name: Initialize Build Environment
         run: |
           bitbake/bin/bitbake-setup --setting default top-dir-prefix /home/runner \
