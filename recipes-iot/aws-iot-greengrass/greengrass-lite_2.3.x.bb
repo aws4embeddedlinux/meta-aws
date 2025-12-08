@@ -33,11 +33,9 @@ LDFLAGS:append:libc-musl = " -largp"
 SRC_URI = "\
     git://github.com/aws-greengrass/aws-greengrass-lite.git;protocol=https;branch=main;name=ggl \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/FreeRTOS/coreMQTT.git;protocol=https;branch=main;name=mqtt;destsuffix=${S}/thirdparty/core_mqtt'} \
-    ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/FreeRTOS/backoffAlgorithm.git;protocol=https;branch=main;name=backoff;destsuffix=${S}/thirdparty/backoff_algorithm'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main;name=sigv4;destsuffix=${S}/thirdparty/aws_sigv4'} \
-    ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;branch=main;name=sdk;destsuffix=${S}/thirdparty/ggl_sdk'} \
+    ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;branch=main;name=sdk;destsuffix=${S}/thirdparty/gg_sdk'} \
     file://001-disable_strip.patch \
-    ${@bb.utils.contains('TARGET_ARCH', 'riscv64', 'file://001-Add-RISC-V-architecture-support.patch', '', d)} \
     file://greengrass-lite.yaml \
     file://run-ptest \
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://ggl.local-deployment.service','',d)} \
@@ -48,33 +46,31 @@ SRC_URI = "\
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.aws.greengrass.TokenExchangeService.service.d-fleet-provisioning.conf','',d)} \
 "
 
-SRCREV_ggl = "584b9dadc5446e400f53ffa7d1b2c15dcc6b9e4f"
+PV = "2.3.x+git${SRCPV}"
+
+SRCREV_ggl = "7a7e6dcf6bdf5eac15745112fe6c175162b0b41d"
 
 # must match fc_deps.json
 
 # nooelint: oelint.vars.specific
 SRCREV_mqtt = "f1827d8b46703f1c5ff05d21b34692d3122c9a04"
 # nooelint: oelint.vars.specific
-SRCREV_backoff = "f2f3bb2d8310f7cb48baa3ee64b635a5d66f838b"
-# nooelint: oelint.vars.specific
 SRCREV_sigv4 = "f0409ced6c2c9430f0e972019b7e8f20bbf58f4e"
 # nooelint: oelint.vars.specific
-SRCREV_sdk = "1ee3a5ad3de59f141973839412b5025e67ea533d"
+SRCREV_sdk = "08be374523066becf92dce52c84d3cb9bf3825a5"
 
 EXTRA_OECMAKE:append = " \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_CORE_MQTT=${S}/thirdparty/core_mqtt'} \
-    ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_BACKOFF_ALGORITHM=${S}/thirdparty/backoff_algorithm'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_AWS_SIGV4=${S}/thirdparty/aws_sigv4'} \
-    ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_GGL_SDK=${S}/thirdparty/ggl_sdk'} \
+    ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_GG_SDK=${S}/thirdparty/gg_sdk'} \
     ${@'-DFETCHCONTENT_FULLY_DISCONNECTED=OFF' if d.getVar('DISABLE_FETCHCONTENT') else ''} \
     "
 
-SRCREV_FORMAT .= "_ggl_core_mqtt_backoff_aws_sigv4_ggl_sdk"
+SRCREV_FORMAT .= "_ggl_core_mqtt_aws_sigv4_gg_sdk"
 
 do_configure:prepend() {
     # verify that all dependencies have correct version
     grep -q ${SRCREV_mqtt} ${S}/fc_deps.json || bbfatal "ERROR: dependency version mismatch, please update 'SRCREV_mqtt'!"
-    grep -q ${SRCREV_backoff} ${S}/fc_deps.json || bbfatal "ERROR: dependency version mismatch, please update 'SRCREV_backoff'!"
     grep -q ${SRCREV_sigv4} ${S}/fc_deps.json || bbfatal "ERROR: dependency version mismatch, please update 'SRCREV_sigv4'!"
     grep -q ${SRCREV_sdk} ${S}/fc_deps.json || bbfatal "ERROR: dependency version mismatch, please update 'SRCREV_sdk'!"
 }
@@ -128,7 +124,7 @@ PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DBUILD_EXAMPLES=ON,-DBUILD_TEST
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
 # EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=MinSizeRel"
 
-EXTRA_OECMAKE:append = " -DGGL_LOG_LEVEL=INFO"
+EXTRA_OECMAKE:append = " -DGG_LOG_LEVEL=INFO"
 
 # No warnings should be in the code
 CFLAGS:append = " -Werror"
