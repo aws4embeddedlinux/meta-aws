@@ -29,6 +29,7 @@ RDEPENDS:${PN} += "\
 
 RDEPENDS:${PN}-ptest += "\
         ${PYTHON_PN}-pytest \
+        ${PYTHON_PN}-setuptools \
 "
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
