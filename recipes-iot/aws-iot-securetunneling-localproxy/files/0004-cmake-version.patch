@@ -1,4 +1,4 @@
-From cfcf2145613ef6c010e256ccd77217e154543b7b Mon Sep 17 00:00:00 2001
+From 3a3344973e44dde76dbaf9eb4631a39be8422444 Mon Sep 17 00:00:00 2001
 From: OpenEmbedded <oe.patch@oe>
 Date: Tue, 22 Oct 2024 02:00:39 +0000
 Subject: [PATCH] aws-iot-securetunneling-localproxy: upgrade git -> new
@@ -9,10 +9,10 @@ Upstream-Status: Submitted [https://github.com/aws-samples/aws-iot-securetunneli
  1 file changed, 3 insertions(+)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index fe71762..e0b3615 100644
+index 253a4a8..5695fcd 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -155,3 +155,6 @@ if(BUILD_TESTS)
+@@ -175,3 +175,6 @@ if(BUILD_TESTS)
  endif(BUILD_TESTS)
  
  install(TARGETS ${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} DESTINATION "bin")
