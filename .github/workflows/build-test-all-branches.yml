@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: '0 5 * * *'
 
+permissions:
+  actions: write
+  contents: read
+
 jobs:
   trigger-branch-workflows:
     runs-on: ubuntu-latest
