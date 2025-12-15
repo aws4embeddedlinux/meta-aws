@@ -4,7 +4,7 @@ on:
       inputs:
         branches:
           description: 'branches to ff merge branch-next into'
-          default: '["master", "dunfell", "gatesgarth", "hardknott", "honister", "kirkstone", "zeus", "langdale", "mickledore", "nanbield", "scarthgap", "styhead", "walnascar"]'
+          default: '["master", "dunfell", "gatesgarth", "hardknott", "honister", "kirkstone", "zeus", "langdale", "mickledore", "nanbield", "scarthgap", "styhead", "walnascar", "whinlatter"]'
           required: true
 permissions:
   contents: read
