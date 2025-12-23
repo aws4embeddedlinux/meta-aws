@@ -12,7 +12,7 @@ SRC_URI = "\
     file://python_dependency_test.py \
     "
 
-SRCREV = "2b328a1b6022dc029564fefb9641ce49b0c00333"
+SRCREV = "19a9efb97712f46f697919da3f11652f962ec2e1"
 
 inherit setuptools3 ptest
 
