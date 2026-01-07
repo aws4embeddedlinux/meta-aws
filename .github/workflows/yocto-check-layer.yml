@@ -46,7 +46,7 @@ jobs:
         with:
           path: meta-aws
       - name: Checkout BitBake
-        run: git clone https://git.openembedded.org/bitbake -b ${{steps.get-yocto-release-name.outputs.release}}
+        run: git clone https://git.openembedded.org/bitbake -b master
       - name: Initialize Build Environment
         run: |
           bitbake/bin/bitbake-setup --setting default top-dir-prefix /home/runner \
