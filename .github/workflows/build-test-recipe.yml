@@ -99,7 +99,7 @@ jobs:
         with:
             path: ${{ github.workspace }}/meta-aws
       - name: Checkout BitBake
-        run: git clone https://git.openembedded.org/bitbake -b ${{ needs.changed.outputs.release }} ${{ github.workspace }}/bitbake
+        run: git clone https://git.openembedded.org/bitbake -b master ${{ github.workspace }}/bitbake
       - name: Initialize Build Environment
         run: |
           chown -R yoctouser .
