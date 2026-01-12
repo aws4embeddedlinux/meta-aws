@@ -1,4 +1,4 @@
-From b2fda7e0331f9bb5d50f44626a639632c0fe4492 Mon Sep 17 00:00:00 2001
+From ea48a1a0e5748ad7d1c0a0af428e962b273253e7 Mon Sep 17 00:00:00 2001
 From: Yocto Build System <yocto@example.com>
 Date: Mon, 9 Sep 2024 11:30:00 +0000
 Subject: [PATCH] Fix Boost compatibility for Boost 1.89+
@@ -22,7 +22,7 @@ diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 5695fcd..8cd1dc6 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -105,15 +105,10 @@ endif(BUILD_TESTS)
+@@ -109,15 +109,10 @@ endif(BUILD_TESTS)
  #########################################
  # Boost dependencies                    #
  #########################################
@@ -41,10 +41,10 @@ index 5695fcd..8cd1dc6 100644
  
  #########################################
  # Target : Build aws-tunnel-local-proxy #
-@@ -152,7 +147,14 @@ else()
+@@ -154,7 +149,14 @@ else()
+     target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} OpenSSL::SSL)
+     target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} OpenSSL::Crypto)
  endif()
- target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${OpenSSL_STATIC_SSL_LIBRARY})
- target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${OpenSSL_STATIC_CRYPTO_LIBRARY})
 -target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${Boost_STATIC_LIBRARIES})
 +target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME}
 +    Boost::log
@@ -58,9 +58,9 @@ index 5695fcd..8cd1dc6 100644
  target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${CMAKE_DL_LIBS})
  set_property(TARGET ${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} APPEND_STRING PROPERTY COMPILE_FLAGS ${CUSTOM_COMPILER_FLAGS})
 @@ -168,7 +170,14 @@ if(BUILD_TESTS)
+         target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} OpenSSL::SSL)
+         target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} OpenSSL::Crypto)
      endif()
-     target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} ${OpenSSL_STATIC_SSL_LIBRARY})
-     target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} ${OpenSSL_STATIC_CRYPTO_LIBRARY})
 -    target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} ${Boost_STATIC_LIBRARIES})
 +    target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME}
 +        Boost::log
