@@ -20,8 +20,8 @@
                         "uri": "git://git.openembedded.org/openembedded-core;protocol=https"
                     }
                 },
-                "branch": "master",
-                "rev": "master"
+                "branch": "whinlatter",
+                "rev": "whinlatter"
             },
             "path": "openembedded-core"
         },
@@ -32,8 +32,8 @@
                         "uri": "git://git.yoctoproject.org/meta-yocto;protocol=https"
                     }
                 },
-                "branch": "master",
-                "rev": "master"
+                "branch": "whinlatter",
+                "rev": "whinlatter"
             },
             "path": "meta-yocto"
         },
@@ -44,8 +44,8 @@
                         "uri": "https://github.com/openembedded/meta-openembedded.git"
                     }
                 },
-                "branch": "master",
-                "rev": "master"
+                "branch": "whinlatter",
+                "rev": "whinlatter"
             },
             "path": "meta-openembedded"
         }
