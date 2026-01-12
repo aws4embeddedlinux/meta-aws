@@ -36,7 +36,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "c49b22f7c79578bcc2a85a469bdba18b5eb89e16"
+SRCREV = "0bdff88605bc06b4228658044c4693c1bd07428d"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 inherit setuptools3_legacy ptest
