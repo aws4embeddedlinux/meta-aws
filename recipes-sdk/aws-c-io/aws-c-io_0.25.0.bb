@@ -23,7 +23,7 @@ SRC_URI = "\
     file://001-enable-tests-with-crosscompiling.patch \
     file://run-ptest \
     "
-SRCREV = "e9fa33228e7417e1af22a9cee0361abc00d8c426"
+SRCREV = "93e934387cb5788acb234478a49d6d9e6c75650d"
 
 S = "${WORKDIR}/git"
 
