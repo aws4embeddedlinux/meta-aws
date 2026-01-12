@@ -23,7 +23,7 @@ DEPENDS += "\
     python3-ruamel-yaml-clib-native \
     python3-ruamel-yaml-native \
     python3-s3transfer \
-    python3-urllib3-1.x-native \
+    python3-urllib3-native \
     python3-zipp-native \
 "
 
@@ -32,7 +32,7 @@ SRC_URI = "\
     file://run-ptest \
 "
 
-SRCREV = "0adb0502f47da9388709a024040ad4df3122fd79"
+SRCREV = "275856fc64ee5f16a0149049cd844f0496e38ca7"
 
 # version 2.x
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>2\.\d+(\.\d+)+)"
@@ -68,19 +68,19 @@ RDEPENDS:${PN} += "\
     python3-ruamel-yaml \
     python3-sqlite3 \
     python3-unixadmin \
-    python3-urllib3-1.x \
+    python3-urllib3 \
     python3-zipp \
 "
 
 do_patch() {
     sed -i -E 's/(([a-zA-Z0-9_.-]+)(>=?[0-9.]+)?(,)?(<[0-9.]+\*|<=?[0-9.]+)?|([a-zA-Z0-9_.-]+)==[0-9.]+)/\2\3\6/' ${S}/pyproject.toml ${S}/requirements/bootstrap.txt
-    
+
     # Patch awscli logger to handle CRT initialization errors
     sed -i '/def enable_crt_logging():/,/awscrt.io.init_logging/ {
         s/awscrt.io.init_logging/try:\n        awscrt.io.init_logging/
         /awscrt.io.init_logging/a\    except RuntimeError:\n        pass
     }' ${S}/awscli/logger.py
-    
+
     sed -i '/def disable_crt_logging():/,/awscrt.io.init_logging/ {
         s/awscrt.io.init_logging/try:\n        awscrt.io.init_logging/
         /awscrt.io.init_logging/a\    except RuntimeError:\n        pass

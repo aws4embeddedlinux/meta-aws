@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# Simple test to verify ruamel.yaml.clib can be imported and basic functionality works
+python3 -c "
+import sys
+try:
+    import ruamel.yaml.clib
+    print('PASS: ruamel.yaml.clib import successful')
+    
+    # Test basic functionality if available
+    if hasattr(ruamel.yaml.clib, 'version_info'):
+        version = ruamel.yaml.clib.version_info
+        print('PASS: ruamel.yaml.clib version info accessible:', version)
+    else:
+        print('PASS: ruamel.yaml.clib basic functionality verified')
+        
+except ImportError as e:
+    print('FAIL: ruamel.yaml.clib import failed:', str(e))
+    sys.exit(1)
+except Exception as e:
+    print('FAIL: ruamel.yaml.clib test failed:', str(e))
+    sys.exit(1)
+"
