@@ -50,6 +50,13 @@ jobs:
           ls -la ${{ github.workspace }}/meta-aws/ || echo "meta-aws directory not found"
           echo "=== Check workspace structure ==="
           ls -la ${{ github.workspace }}/
+      - name: free disk space
+        run: |
+          sudo swapoff -a
+          sudo rm -f /swapfile
+          sudo apt clean
+          docker rmi $(docker image ls -aq)
+          df -h          
       - name: Run Update
         run: |
           source /home/runner/bitbake-builds/poky-without-meta-aws-poky-distro_poky-machine_qemux86-64/build/init-build-env
