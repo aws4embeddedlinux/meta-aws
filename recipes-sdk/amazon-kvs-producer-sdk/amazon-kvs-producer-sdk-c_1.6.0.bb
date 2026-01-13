@@ -16,20 +16,19 @@ PROVIDES += "aws/amazon-kvs-producer-sdk-c"
 
 BRANCH ?= "master"
 SRC_URI = "\
-    git://github.com/awslabs/amazon-kinesis-video-streams-producer-c.git;protocol=https;branch=${BRANCH}\
+    git://github.com/awslabs/amazon-kinesis-video-streams-producer-c.git;protocol=https;branch=${BRANCH} \
+    file://run-ptest \
     "
 
-# this recipe should be released only together with amazon-kvs-producer-sdk-pic and amazon-kvs-producer-sdk-cpp
+# this recipe should be released only together with amazon-kvs-producer-sdk-pic and amazon-kvs-producer-sdk-cpp and amazon-kvs-webrtc-sdk
 UPSTREAM_VERSION_UNKNOWN = "1"
 # set to match only git_invalid_tag_regex because UPSTREAM_VERSION_UNKNOWN seems to be broken for git
 UPSTREAM_CHECK_GITTAGREGEX = "git_invalid_tag_regex"
-SRCREV = "3e519b7670e39031375d227f983ad2cde888078e"
+SRCREV = "7590b2317470041e139833bdc974e3619fad495a"
 
 S = "${WORKDIR}/git"
 
-inherit cmake pkgconfig
-
-# ptest are disabled, cause running tests require a certificate
+inherit cmake pkgconfig ptest
 
 PACKAGECONFIG ??= "\
      ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
@@ -51,7 +50,7 @@ FILES:${PN}-dev += "\
     ${libdir}/libcproducer.so \
     "
 
-RDEPENDS:${PN} = ""
+RDEPENDS:${PN}-ptest += "ldd"
 CFLAGS:append = " -Wl,-Bsymbolic"
 
 EXTRA_OECMAKE += "\
@@ -70,10 +69,5 @@ EXTRA_OECMAKE += "\
 
 # Notify that libraries are not versioned
 FILES_SOLIBSDEV = ""
-
-do_install_ptest () {
-   install -d ${D}${PTEST_PATH}/tests
-   cp -r ${B}/tst/* ${D}${PTEST_PATH}/tests/
-}
 
 BBCLASSEXTEND = "native nativesdk"
