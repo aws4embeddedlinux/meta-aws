@@ -17,11 +17,12 @@ BRANCH ?= "master"
 SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git;protocol=https;branch=${BRANCH} \
            file://001-amazon-kvs-producer-sdk-cpp-deps.patch \
            file://002-global-thread-sleep-linkerror.patch \
-           "
+           file://run-ptest \
+"
 
 SRCREV = "7771598527883545b2161b56a78160429def4fc1"
 
-inherit cmake pkgconfig
+inherit cmake pkgconfig ptest
 
 PACKAGECONFIG ??= "gstreamer"
 
@@ -41,6 +42,8 @@ FILES:${PN}-dev += "\
     "
 
 CFLAGS:append = " -Wl,-Bsymbolic"
+
+RDEPENDS:${PN}-ptest += "ldd"
 
 EXTRA_OECMAKE += "\
     -DBUILD_DEPENDENCIES=OFF \
