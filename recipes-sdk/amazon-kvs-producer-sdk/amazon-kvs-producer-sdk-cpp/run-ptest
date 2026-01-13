@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# Simple ptest for amazon-kvs-producer-sdk-cpp
+# Check if C++ shared libraries have all dependencies available
+
+for lib in /usr/lib/libKinesisVideoProducer.so*; do
+    if [ -f "$lib" ]; then
+        echo "Checking $lib..."
+        if ldd "$lib" | grep -q "not found"; then
+            echo "FAIL: $lib has missing dependencies"
+            ldd "$lib" | grep "not found"
+            exit 1
+        else
+            echo "PASS: $lib dependencies OK"
+        fi
+    fi
+done
+
+echo "PASS: amazon-kvs-producer-sdk-cpp library dependency check"
