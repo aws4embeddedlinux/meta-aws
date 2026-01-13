@@ -3,6 +3,9 @@ on:
   schedule:
     - cron: '0 1 * * 2-5'
   workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
 jobs:
   update:
     name: Recipe Update
@@ -33,6 +36,13 @@ jobs:
       - name: Install Helper Tool
         run: |
           pip install ci/auto-upgrader
+      - name: free disk space
+        run: |
+          sudo swapoff -a
+          sudo rm -f /swapfile
+          sudo apt clean
+          docker rmi $(docker image ls -aq)
+          df -h
       - name: Run Update
         run: |
           source poky/oe-init-build-env build
