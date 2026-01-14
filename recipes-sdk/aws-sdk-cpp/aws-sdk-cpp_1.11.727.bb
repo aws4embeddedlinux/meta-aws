@@ -19,9 +19,10 @@ SRC_URI = "\
     git://github.com/aws/aws-sdk-cpp.git;protocol=https;branch=main \
     file://run-ptest \
     file://ptest_result.py \
+    file://0001-tinyxml2-fix-null-format-string.patch \
     "
 
-SRCREV = "499b33563545d985f51ec609e6b48de5bd86c23b"
+SRCREV = "88f81d833c718bba2290764c96458d5569d29722"
 
 inherit cmake ptest pkgconfig
 
