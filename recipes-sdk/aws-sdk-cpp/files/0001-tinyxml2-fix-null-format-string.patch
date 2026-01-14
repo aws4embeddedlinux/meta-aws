@@ -1,0 +1,16 @@
+Fix null format string warning in tinyxml2
+
+Upstream-Status: Pending
+
+--- a/src/aws-cpp-sdk-core/source/external/tinyxml2/tinyxml2.cpp
++++ b/src/aws-cpp-sdk-core/source/external/tinyxml2/tinyxml2.cpp
+@@ -119,6 +119,9 @@ static inline int TIXML_VSCPRINTF( const char* format, va_list va )
+     #define TIXML_VSNPRINTF	vsnprintf
+     static inline int TIXML_VSCPRINTF( const char* format, va_list va )
+     {
++        if ( !format ) {
++            return 0;
++        }
+         int len = vsnprintf( 0, 0, format, va );
+         TIXMLASSERT( len >= 0 );
+         return len;
