@@ -1,16 +1,19 @@
-SUMMARY = "AWS IoT Greengrass Nucleus - Binary Distribution"
-DESCRIPTION = "The Greengrass nucleus component provides functionality for device side orchestration of deployments and lifecycle management for execution of Greengrass components and applications."
+SUMMARY = "AWS IoT Greengrass Nucleus - Built from Source"
+DESCRIPTION = "The Greengrass nucleus component provides functionality for device side orchestration of deployments and lifecycle management for execution of Greengrass components and applications. Built from source with custom patches."
 HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-nucleus"
 LICENSE = "Apache-2.0"
 
 require classes/greengrass-common.inc
 
-LIC_FILES_CHKSUM = "file://${WORKDIR}/greengrass-bin/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-DEPENDS += "gettext-native"
-
-# for the component fragment merge
-DEPENDS += "python3-pyyaml-native"
+# Build dependencies
+DEPENDS += " \
+    gettext-native \
+    python3-pyyaml-native \
+    maven-native \
+    jdk-11-native \
+"
 
 # enable fleetprovisioning for testing by default to get test coverage
 PACKAGECONFIG ??= "${@bb.utils.contains('PTEST_ENABLED', '1', 'fleetprovisioning', '', d)}"
@@ -19,7 +22,7 @@ PACKAGECONFIG[fleetprovisioning] = ",,greengrass-plugin-fleetprovisioning,greeng
 PACKAGECONFIG[pkcs11] = ",,greengrass-plugin-pkcs11,greengrass-plugin-pkcs11"
 
 SRC_URI = "\
-    https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-${PV}.zip;subdir=greengrass-bin \
+    git://github.com/aws-greengrass/aws-greengrass-nucleus.git;protocol=https;nobranch=1 \
     file://001-service-time-wait.patch \
     file://002-fix-service-exec-and-docker.patch \
     file://greengrassv2-init.yaml \
@@ -27,7 +30,9 @@ SRC_URI = "\
     file://config.yaml.template \
     "
 
-SRC_URI[sha256sum] = "f07742c76eca868617127b5c6c9028e41c45c2b4ec25dd0db6f3b40ef7638b4e"
+# Pin to specific version tag
+SRCREV = "v${PV}"
+
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 
 UPSTREAM_CHECK_URI = "https://github.com/aws-greengrass/aws-greengrass-nucleus/tags"
@@ -36,7 +41,8 @@ GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no',
 
 inherit systemd useradd ptest pkgconfig
 
-S = "${WORKDIR}/greengrass-bin"
+# Source directory is now git checkout
+S = "${WORKDIR}/git"
 
 FILES:${PN} += "\
     /${GG_BASENAME} \
@@ -52,8 +58,43 @@ RDEPENDS:${PN} += "\
     sudo \
     "
 
-do_configure[noexec] = "1"
-do_compile[noexec] = "1"
+# Configure Maven environment
+export JAVA_HOME = "${STAGING_LIBDIR_NATIVE}/jvm/jdk-11-native"
+export MAVEN_OPTS = "-Xmx2048m -XX:MaxPermSize=512m"
+
+do_configure() {
+    # Maven doesn't need explicit configure
+    :
+}
+
+# Maven MUSI pobierać zależności z internetu
+do_compile[network] = "1"
+
+do_compile() {
+    cd ${S}
+
+    bbnote "Building Greengrass Nucleus with Maven..."
+    bbnote "JAVA_HOME: ${JAVA_HOME}"
+
+    # Build with Maven
+    # -B: batch mode (non-interactive)
+    # -DskipTests: skip running tests
+    # -Dmaven.javadoc.skip: skip javadoc generation
+    # -Dmaven.source.skip: skip source jar generation
+    mvn -B clean package \
+        -DskipTests \
+        -Dmaven.javadoc.skip=true \
+        -Dmaven.source.skip=true \
+        -Dcheckstyle.skip=true \
+        -Dspotbugs.skip=true
+
+    bbnote "Maven build completed successfully"
+
+    # Verify the JAR was built
+    if [ ! -f ${S}/target/Greengrass.jar ]; then
+        bbfatal "Greengrass.jar was not built! Check Maven output."
+    fi
+}
 
 do_install() {
     install -d ${GG_ROOT}/config
@@ -65,18 +106,22 @@ do_install() {
     install -d ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/lib
     ln -s /${GG_BASENAME}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus ${GG_ROOT}/alts/init/distro
 
-    install -m 0440 ${S}/LICENSE                         ${GG_ROOT}
-    install -m 0640 ${S}/../greengrassv2-init.yaml       ${GG_ROOT}/config/config.yaml.clean
-    install -m 0640 ${S}/bin/greengrass.service.template ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/greengrass.service.template
-    install -m 0750 ${S}/bin/loader                      ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/loader
-    install -m 0640 ${S}/conf/recipe.yaml                ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/conf/recipe.yaml
-    install -m 0740 ${S}/lib/Greengrass.jar              ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/lib/Greengrass.jar
+    install -m 0440 ${S}/LICENSE ${GG_ROOT}
+    install -m 0640 ${WORKDIR}/greengrassv2-init.yaml ${GG_ROOT}/config/config.yaml.clean
+    install -m 0640 ${S}/scripts/greengrass.service.template \
+        ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/greengrass.service.template
+    install -m 0750 ${S}/scripts/loader \
+        ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/bin/loader
+    install -m 0640 ${S}/conf/recipe.yaml \
+        ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/conf/recipe.yaml
+    install -m 0740 ${S}/target/Greengrass.jar \
+        ${GG_ROOT}/packages/artifacts-unarchived/aws.greengrass.Nucleus/${PV}/aws.greengrass.nucleus/lib/Greengrass.jar
 
     ln -s /${GG_BASENAME}/alts/init ${GG_ROOT}/alts/current
 
     # Install systemd service file
     install -d ${D}${systemd_unitdir}/system/
-    install -m 0644 ${S}/bin/greengrass.service.template ${D}${systemd_unitdir}/system/greengrass.service
+    install -m 0644 ${S}/scripts/greengrass.service.template ${D}${systemd_unitdir}/system/greengrass.service
     sed -i -e "s,REPLACE_WITH_GG_LOADER_FILE,/${GG_BASENAME}/alts/current/distro/bin/loader,g" ${D}${systemd_unitdir}/system/greengrass.service
     sed -i -e "s,REPLACE_WITH_GG_LOADER_PID_FILE,/var/run/greengrass.pid,g" ${D}${systemd_unitdir}/system/greengrass.service
 
