@@ -174,3 +174,5 @@ do_update_other_arch_checksum[network] = "1"
 
 # nooelint: oelint.vars.insaneskip
 INSANE_SKIP:${PN} += "already-stripped"
+
+BBCLASSEXTEND = "native"

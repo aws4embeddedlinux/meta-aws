@@ -13,8 +13,8 @@ Upstream-Status: Inappropriate [OE-Specific]
 
 Index: greengrass-bin/bin/greengrass.service.template
 ===================================================================
---- greengrass-bin.orig/bin/greengrass.service.template
-+++ greengrass-bin/bin/greengrass.service.template
+--- git/scripts.orig/greengrass.service.template
++++ git/scripts/greengrass.service.template
 @@ -2,6 +2,7 @@
  Description=Greengrass Core
  After=network.target
