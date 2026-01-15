@@ -19,7 +19,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-c-s3.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "3a2d31ac5e2d557a1abbb15216efb5462461a82b"
+SRCREV = "e9d1bde139f88b08aaa3bf0507f443f31ccede93"
 
 inherit cmake ptest pkgconfig
 
