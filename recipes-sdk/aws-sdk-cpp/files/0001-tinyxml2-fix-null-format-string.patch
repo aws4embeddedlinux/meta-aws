@@ -1,10 +1,18 @@
-Fix null format string warning in tinyxml2
+From 77774f111dd98c7f5cc450a8ec5f57f362d50aca Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Wed, 14 Jan 2026 11:22:24 +0000
+Subject: [PATCH] Fix null format string warning in tinyxml2
 
 Upstream-Status: Pending
+---
+ src/aws-cpp-sdk-core/source/external/tinyxml2/tinyxml2.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
 
+diff --git a/src/aws-cpp-sdk-core/source/external/tinyxml2/tinyxml2.cpp b/src/aws-cpp-sdk-core/source/external/tinyxml2/tinyxml2.cpp
+index 9c01e730384..2061ec9c72e 100644
 --- a/src/aws-cpp-sdk-core/source/external/tinyxml2/tinyxml2.cpp
 +++ b/src/aws-cpp-sdk-core/source/external/tinyxml2/tinyxml2.cpp
-@@ -119,6 +119,9 @@ static inline int TIXML_VSCPRINTF( const char* format, va_list va )
+@@ -119,6 +119,9 @@ This file has been modified from its original version by Amazon:
      #define TIXML_VSNPRINTF	vsnprintf
      static inline int TIXML_VSCPRINTF( const char* format, va_list va )
      {
