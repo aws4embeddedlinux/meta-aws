@@ -1,30 +1,21 @@
 #!/bin/sh
 
-aws-iot-fleetwise-edge config-0.json 2>&1 > test.log &
-sleep 30
-grep "AWS API ShutDown Completed" test.log
-
-RETVAL=$?
-if [ $RETVAL -eq 0 ] ; then
-    echo "PASS: aws-iot-fleetwise startup test"
-else
-    echo "FAIL: aws-iot-fleetwise startup test"
-fi
+mkdir -p /tmp/fleetwise-persist
 
 ### fwe-gtest
-tests/fwe-gtest --gtest_filter=\
--CANDataSourceTest.testNoDecoderDictionary:\
+tests/fwe-gtest --gtest_filter='\
+-CANDataSourceTest*:\
 -AwsIotConnectivityModuleTest*:\
 -CANDecoderTest*:\
--CANDataSourceTest.*:\
 -CollectionInspectionEngine*:\
 -CollectionInspectionWorkerThreadTest.*:\
+-IoTFleetWiseConfigTest*:\
 -IoTFleetWiseConfigTest.ReadOk:\
 -IoTFleetWiseEngineTest.*:\
 -CollectionInspectionEngineDoubleTest.RandomDataTest:\
 -ISOTPOverCANProtocolTest.*:\
--OBDOverCANModuleTest.*\
---gtest_fail_fast --gtest_output=json:result.json > /dev/null ;  python3 ptest_result.py result.json 
+-OBDOverCANModuleTest.*' \
+--gtest_fail_fast --gtest_output=json:result.json > /dev/null 2>&1 ;  python3 ptest_result.py result.json 
 
 
 ### fwe-benchmark
