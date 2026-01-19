@@ -6,9 +6,12 @@ import sys
 import re
 
 def check_sanitizer_failure(test):
-    # Look for sanitizer errors in system-out or system-err if they exist
-    system_out = test.get('system-out', '')
-    system_err = test.get('system-err', '')
+    # Only check if system-out or system-err are available
+    system_out = test.get('system-out')
+    system_err = test.get('system-err')
+    
+    if not system_out and not system_err:
+        return False
     
     sanitizer_patterns = [
         r'==\d+==ERROR: .*Sanitizer',
@@ -18,8 +21,8 @@ def check_sanitizer_failure(test):
     ]
     
     for pattern in sanitizer_patterns:
-        if (re.search(pattern, system_out) or 
-            re.search(pattern, system_err)):
+        if ((system_out and re.search(pattern, system_out)) or 
+            (system_err and re.search(pattern, system_err))):
             return True
     return False
 
