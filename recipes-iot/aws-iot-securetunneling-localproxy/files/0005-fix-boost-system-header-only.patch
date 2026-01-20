@@ -1,4 +1,4 @@
-From ea48a1a0e5748ad7d1c0a0af428e962b273253e7 Mon Sep 17 00:00:00 2001
+From 4d6b8e5bae6c5f9be728c0990d5997bffacceabe Mon Sep 17 00:00:00 2001
 From: Yocto Build System <yocto@example.com>
 Date: Mon, 9 Sep 2024 11:30:00 +0000
 Subject: [PATCH] Fix Boost compatibility for Boost 1.89+
@@ -19,7 +19,7 @@ Signed-off-by: Thomas Roos <throos@amazon.de>
  1 file changed, 19 insertions(+), 10 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 5695fcd..8cd1dc6 100644
+index 69fa125..4e7e2e8 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -109,15 +109,10 @@ endif(BUILD_TESTS)
