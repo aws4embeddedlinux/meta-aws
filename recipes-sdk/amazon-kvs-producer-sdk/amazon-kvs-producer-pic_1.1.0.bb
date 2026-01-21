@@ -22,6 +22,8 @@ SRCREV = "65e38dac9b30523d43a57bc009d679e627b58d9a"
 
 inherit cmake pkgconfig ptest
 
+COMPATIBLE_MACHINE:riscv64 = "null"
+
 PACKAGECONFIG ??= "\
      ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
      "
@@ -45,7 +47,7 @@ EXTRA_OECMAKE += "\
     -DUNDEFINED_BEHAVIOR_SANITIZER=OFF \
     -DDEBUG_HEAP=OFF \
     -DCOMPILER_WARNINGS=ON \
-    -DALIGNED_MEMORY_MODEL=OFF \
+    -DALIGNED_MEMORY_MODEL=${@'ON' if 'riscv' in d.getVar('TARGET_ARCH') else 'OFF'} \
     -DCMAKE_BUILD_TYPE=Release \
 "
 
