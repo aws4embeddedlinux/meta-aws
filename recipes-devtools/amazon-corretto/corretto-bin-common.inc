@@ -11,6 +11,7 @@ BASE:x86-64 = "amazon-corretto-${PV}-linux-x64"
 COMPATIBLE_MACHINE = "(^$)"
 COMPATIBLE_MACHINE:aarch64 = "(.*)"
 COMPATIBLE_MACHINE:x86-64 = "(.*)"
+COMPATIBLE_MACHINE:riscv64 = "null"
 
 # also available in master (not kirkstone) in classes-recipe: github-releases
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
