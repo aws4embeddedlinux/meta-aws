@@ -10,6 +10,7 @@ COMPATIBLE_MACHINE:x86-64 = "(.*)"
 
 # nooelint: oelint.vars.specific
 COMPATIBLE_HOST:arm = "null"
+COMPATIBLE_MACHINE:riscv64 = "null"
 
 inherit go-mod go-mod-update-modules ptest
 
