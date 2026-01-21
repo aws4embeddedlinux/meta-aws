@@ -36,6 +36,8 @@ GG_USESYSTEMD = "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'yes', 'no',
 
 inherit systemd useradd ptest pkgconfig
 
+COMPATIBLE_MACHINE:riscv64 = "null"
+
 S = "${UNPACKDIR}/greengrass-bin"
 
 FILES:${PN} += "\
