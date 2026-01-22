@@ -23,6 +23,7 @@ SRCREV = "65e38dac9b30523d43a57bc009d679e627b58d9a"
 inherit cmake pkgconfig ptest
 
 COMPATIBLE_MACHINE:riscv64 = "null"
+COMPATIBLE_HOST:arm = "null"
 
 PACKAGECONFIG ??= "\
      ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
