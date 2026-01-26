@@ -1,0 +1,22 @@
+[Unit]
+Description=AWS IoT Greengrass Fleet Provisioning Pre-Service
+Documentation=https://docs.aws.amazon.com/greengrass/
+Before=greengrass.service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+Group=root
+ExecStart=/bin/sh -c '\
+    default_iface=$(ip route | grep default | awk "{print \$5}" | head -n1); \
+    mac_address=$(cat /sys/class/net/"$default_iface"/address | tr ":" "_"); \
+    sed -i "s/<unique>/$mac_address/g" "/greengrass/v2/config/config.yaml"; \
+    chown ggc_user:ggc_group /greengrass/v2/config/config.yaml'
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

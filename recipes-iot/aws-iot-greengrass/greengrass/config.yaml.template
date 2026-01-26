@@ -1,0 +1,8 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      awsRegion: "${AWS_DEFAULT_REGION}"
+      runWithDefault:
+        posixUser: "${PROXY_USER}"
+---
