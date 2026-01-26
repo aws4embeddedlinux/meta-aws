@@ -1,6 +1,13 @@
 SUMMARY = "Amazon Corretto 25"
 HOMEPAGE = "https://github.com/corretto/corretto-25"
 
+COMPATIBLE_MACHINE:armv7a = "null"
+COMPATIBLE_MACHINE:armv7ve = "null"
+COMPATIBLE_MACHINE:x86 = "null"
+COMPATIBLE_MACHINE:x86-64 = "(.*)"
+COMPATIBLE_MACHINE:aarch64 = "(.*)"
+COMPATIBLE_MACHINE:riscv64 = "null"
+
 # nooelint: oelint.vars.srcurichecksum:SRC_URI[aarch64.md5sum]
 SRC_URI:append:aarch64 = " https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-aarch64.tar.gz;name=aarch64"
 
@@ -18,6 +25,8 @@ UPSTREAM_CHECK_URI = "https://github.com/corretto/corretto-25/tags"
 
 ALTERNATIVE_PRIORITY = "90"
 RPROVIDES:${PN} = "java jdk-25 java-25"
+RCONFLICTS:${PN}:x86-64 = "corretto-8-bin corretto-11-bin corretto-17-bin corretto-21-bin"
+RCONFLICTS:${PN}-ptest:x86-64 = "corretto-8-bin-ptest corretto-11-bin-ptest corretto-17-bin-ptest corretto-21-bin-ptest"
 
 # nooelint: oelint.file.underscores
 require corretto-bin-common.inc

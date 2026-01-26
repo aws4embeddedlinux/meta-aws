@@ -9,9 +9,6 @@ BASE:aarch64 = "amazon-corretto-${PV}-linux-aarch64"
 BASE:x86-64 = "amazon-corretto-${PV}-linux-x64"
 
 COMPATIBLE_MACHINE = "(^$)"
-COMPATIBLE_MACHINE:aarch64 = "(.*)"
-COMPATIBLE_MACHINE:x86-64 = "(.*)"
-COMPATIBLE_MACHINE:riscv64 = "null"
 
 # also available in master (not kirkstone) in classes-recipe: github-releases
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
@@ -43,7 +40,7 @@ do_install:append:x86-64() {
     # up this way on the device, the program will not run.
     install -d ${D}/lib64
     cd ${D}/lib64
-    ln -s ../lib/ld-linux-x86-64.so.2 ld-linux-x86-64.so.2
+    ln -s ../lib/ld-linux-x86-64.so.2 ld-linux-x86-64.so.2.${SHR}
 }
 
 FILES:${PN} += "/lib64"
@@ -98,6 +95,10 @@ ALTERNATIVE_NAMES ?= "\
     serialver \
 "
 
+ALTERNATIVE_NAMES:append:x86-64 = " ld-linux-x86-64.so.2"
+ALTERNATIVE_LINK_NAME[ld-linux-x86-64.so.2] = "/lib64/ld-linux-x86-64.so.2"
+ALTERNATIVE_TARGET[ld-linux-x86-64.so.2] = "/lib64/ld-linux-x86-64.so.2.${SHR}"
+
 python do_package:prepend () {
     prio = d.getVar('ALTERNATIVE_PRIORITY')
     alt_names = d.getVar('ALTERNATIVE_NAMES')
@@ -119,12 +120,12 @@ python do_update_other_arch_checksum() {
     pv = d.getVar('PV')
     recipe_file = d.getVar('FILE')
     upgrade_archs = d.getVar('UPGRADE_ARCHS').split()
-    
+
     # Map TARGET_ARCH to UPGRADE_ARCHS format
     target_arch = d.getVar('TARGET_ARCH')
     arch_to_upgrade = {"x86_64": "x86-64", "aarch64": "aarch64", "arm": "arm", "i686": "x86", "i586": "x86"}
     current_arch = arch_to_upgrade.get(target_arch)
-    
+
     bb.note(f"TARGET_ARCH={target_arch}, current_arch={current_arch}, upgrade_archs={upgrade_archs}")
 
     with open(recipe_file, 'r') as f:
