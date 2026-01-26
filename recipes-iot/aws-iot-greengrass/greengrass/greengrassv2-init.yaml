@@ -1,0 +1,16 @@
+system:
+  thingName: ##thing_name##
+  privateKeyPath: ##private_key##
+  rootCaPath: ##root_ca##
+  certificateFilePath: ##certificate_path##
+services:
+  main:
+    lifecycle: {}
+  aws.greengrass.Nucleus:
+    configuration:
+      awsRegion: ##aws_region##
+      iotCredEndpoint: ##iot_cred_endpoint##
+      iotDataEndpoint: ##iot_data_endpoint##
+      iotRoleAlias: ##role_alias##
+      runWithDefault:
+        posixUser: ##posixUser##

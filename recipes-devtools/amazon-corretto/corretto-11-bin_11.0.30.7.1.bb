@@ -37,6 +37,7 @@ ALTERNATIVE_PRIORITY = "60"
 RPROVIDES:${PN} = "java jdk-11 java-11"
 RCONFLICTS:${PN}:x86-64 = "corretto-8-bin corretto-17-bin corretto-21-bin corretto-25-bin"
 RCONFLICTS:${PN}-ptest:x86-64 = "corretto-8-bin-ptest corretto-17-bin-ptest corretto-21-bin-ptest corretto-25-bin-ptest"
+PROVIDES:class-native = "java-11-native jdk-11-native"
 
 # nooelint: oelint.file.underscores
 require corretto-bin-common.inc
@@ -45,10 +46,19 @@ require corretto-bin-common.inc
 INSANE_SKIP:${PN} += "ldflags"
 
 RDEPENDS:${PN}-ptest:prepend = "\
-    greengrass-bin \
+    greengrass \
     "
 
 # this is used by meta-aws-tests to find this recipe for ptests, so it should stay in this file instead of moving into corretto-bin-common
 inherit ptest
 
 UPGRADE_ARCHS = "x86 x86-64 arm aarch64"
+
+do_install:append:class-native() {
+    install -d ${D}${libdir}/jvm
+
+    ln -sf ../amazon-corretto-${PV} ${D}${libdir}/jvm/jdk-11-native
+}
+
+# Dodaj symlink do FILES
+FILES:${PN}:append:class-native = " ${libdir}/jvm/jdk-11-native"
