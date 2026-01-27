@@ -1,4 +1,4 @@
-From e94913d7871ef57e9cede47fe4ca8d97b2fb04af Mon Sep 17 00:00:00 2001
+From 99f62c3981861bf68c7b6645e23347eddb2c8c21 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Tue, 9 Jan 2024 14:34:32 +0000
 Subject: [PATCH] aws-iot-securetunneling-localproxy: remove setting of
@@ -9,7 +9,7 @@ Upstream-Status: Submitted [author]
  1 file changed, 3 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 6f4cfcd..388c441 100644
+index 6b03150..4bda156 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -1,4 +1,3 @@
@@ -17,7 +17,7 @@ index 6f4cfcd..388c441 100644
  
  set(AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME localproxy)
  set(AWS_TUNNEL_LOCAL_PROXY_LIB_NAME lproxy)
-@@ -32,8 +31,6 @@ endif ()
+@@ -33,8 +32,6 @@ endif ()
  # Section : Common Build setttings #
  ########################################
  # Set required compiler standard to standard c++11. Disable extensions.

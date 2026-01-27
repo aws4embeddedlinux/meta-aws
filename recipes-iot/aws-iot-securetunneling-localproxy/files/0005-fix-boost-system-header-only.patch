@@ -1,4 +1,4 @@
-From 4d6b8e5bae6c5f9be728c0990d5997bffacceabe Mon Sep 17 00:00:00 2001
+From 84ac6ac02cdc9aa722a576e67ce8e4e8362f213e Mon Sep 17 00:00:00 2001
 From: Yocto Build System <yocto@example.com>
 Date: Mon, 9 Sep 2024 11:30:00 +0000
 Subject: [PATCH] Fix Boost compatibility for Boost 1.89+
@@ -19,10 +19,10 @@ Signed-off-by: Thomas Roos <throos@amazon.de>
  1 file changed, 19 insertions(+), 10 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 69fa125..4e7e2e8 100644
+index a060094..97527fb 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -109,15 +109,10 @@ endif(BUILD_TESTS)
+@@ -116,15 +116,10 @@ endif(BUILD_TESTS)
  #########################################
  # Boost dependencies                    #
  #########################################
@@ -41,7 +41,7 @@ index 69fa125..4e7e2e8 100644
  
  #########################################
  # Target : Build aws-tunnel-local-proxy #
-@@ -154,7 +149,14 @@ else()
+@@ -160,7 +155,14 @@ else()
      target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} OpenSSL::SSL)
      target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} OpenSSL::Crypto)
  endif()
@@ -57,7 +57,7 @@ index 69fa125..4e7e2e8 100644
  target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${Protobuf_LITE_STATIC_LIBRARY})
  target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${CMAKE_DL_LIBS})
  set_property(TARGET ${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} APPEND_STRING PROPERTY COMPILE_FLAGS ${CUSTOM_COMPILER_FLAGS})
-@@ -168,7 +170,14 @@ if(BUILD_TESTS)
+@@ -174,7 +176,14 @@ if(BUILD_TESTS)
          target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} OpenSSL::SSL)
          target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} OpenSSL::Crypto)
      endif()
