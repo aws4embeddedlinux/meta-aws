@@ -69,12 +69,18 @@ python do_update_maven_deps() {
         bb.fatal(f"Maven dependency download failed: {e.output}")
     
     # Map repository IDs to URLs
+    # Default repositories
     repo_urls = {
         "central": "https://repo1.maven.org/maven2",
-        "greengrass-common": "https://d2jrmugq4soldf.cloudfront.net/snapshots",
-        "greengrass-snapshot": "https://d2jrmugq4soldf.cloudfront.net/snapshots",
-        "yle-public": "https://d2x444wtt5plvm.cloudfront.net/release",
     }
+    
+    # Allow recipes to define custom repository mappings
+    # Format: MAVEN_REPO_URLS = "repo-id=https://url repo-id2=https://url2"
+    custom_repos = d.getVar("MAVEN_REPO_URLS") or ""
+    for mapping in custom_repos.split():
+        if "=" in mapping:
+            repo_id, url = mapping.split("=", 1)
+            repo_urls[repo_id] = url
     
     # Collect all downloaded artifacts
     src_uris = []
