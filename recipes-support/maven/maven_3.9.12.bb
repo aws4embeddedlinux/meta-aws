@@ -65,6 +65,8 @@ BBCLASSEXTEND = "native nativesdk"
 
 inherit ptest
 
+RDEPENDS:${PN}-ptest += "java-11"
+
 do_install_ptest() {
     install -d ${D}${PTEST_PATH}
     echo "#!/bin/sh" > ${D}${PTEST_PATH}/run-ptest
