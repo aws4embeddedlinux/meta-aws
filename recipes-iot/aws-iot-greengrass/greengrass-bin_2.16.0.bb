@@ -3,6 +3,8 @@ DESCRIPTION = "The Greengrass nucleus component provides functionality for devic
 HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-nucleus"
 LICENSE = "Apache-2.0"
 
+CONFLICTS = "greengrass"
+
 require classes/greengrass-common.inc
 
 LIC_FILES_CHKSUM = "file://${UNPACKDIR}/greengrass-bin/LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
