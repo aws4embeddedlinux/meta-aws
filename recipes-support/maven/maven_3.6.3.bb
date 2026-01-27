@@ -19,6 +19,8 @@ PR = "r0"
 
 PACKAGES = "${PN}"
 
+COMPATIBLE_MACHINE:riscv64 = "null"
+
 S = "${UNPACKDIR}/apache-maven-${PV}"
 
 do_configure() {
@@ -60,8 +62,6 @@ FILES:${PN} = "\
 "
 
 BBCLASSEXTEND = "native nativesdk"
-
-COMPATIBLE_HOST:riscv64 = "null"
 
 inherit ptest
 
