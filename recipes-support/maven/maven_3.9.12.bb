@@ -3,17 +3,17 @@ DESCRIPTION = "Apache Maven is a software project management and comprehension t
 HOMEPAGE = "http://maven.apache.org"
 SECTION = "devel"
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://${S}/LICENSE;md5=47b7ce43312b5e1e13a8edf5c31245ad"
+LIC_FILES_CHKSUM = "file://${S}/LICENSE;md5=d8588a64ef8c5eb9c3545dd9114be451"
 
 SRC_URI = "\
     https://archive.apache.org/dist/maven/maven-3/${PV}/binaries/apache-maven-${PV}-bin.tar.gz \
     file://settings.xml \
 "
 
-SRC_URI[sha256sum] = "26ad91d751b3a9a53087aefa743f4e16a17741d3915b219cf74112bf87a438c5"
-SRC_URI[sha1sum] = "cc836dc7e64b113472df31996caaedf132969009"
-SRC_URI[sha384sum] = "b5a8b74eefcfee6e5b450526143fd562802d37bcedef1fbecc61eb30835329cb52c78d2550a4be14e8dfef04a1c450bb"
-SRC_URI[sha512sum] = "c35a1803a6e70a126e80b2b3ae33eed961f83ed74d18fcd16909b2d44d7dada3203f1ffe726c17ef8dcca2dcaa9fca676987befeadc9b9f759967a8cb77181c0"
+SRC_URI[sha256sum] = "fa2c9948729296c23afd18fd01a90f62cdda09a46191b54a8bc3764c2eee812e"
+SRC_URI[sha1sum] = "3bdcdd002f5453b9d5bb417ee0d4d22a545c34b2"
+SRC_URI[sha384sum] = "06eb477f2176b2ee41bfbcaab959e0b486ef2e39503a7ccddb194387709c6305bd22a83b0a1524e4187588004b6cb733"
+SRC_URI[sha512sum] = "0a1be79f02466533fc1a80abbef8796e4f737c46c6574ede5658b110899942a94db634477dfd3745501c80aef9aac0d4f841d38574373f7e2d24cce89d694f70"
 
 PR = "r0"
 
