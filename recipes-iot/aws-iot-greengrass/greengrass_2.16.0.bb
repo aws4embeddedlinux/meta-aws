@@ -7,9 +7,73 @@ CONFLICTS = "greengrass-bin"
 
 require classes/greengrass-common.inc
 
+# Maven repository mappings for custom Greengrass artifacts
+MAVEN_REPO_URLS = "greengrass-common=https://d2jrmugq4soldf.cloudfront.net/snapshots yle-public=https://d2x444wtt5plvm.cloudfront.net/release"
+
 # Maven dependencies are pre-downloaded and stored in greengrass-maven-deps.inc
 # To update after a version upgrade, run: bitbake greengrass -c update_maven_deps
 require greengrass-maven-deps.inc
+
+# Fix repository URLs for Greengrass-specific artifacts after update_maven_deps
+do_update_maven_deps[postfuncs] += "fix_greengrass_maven_repos"
+
+python fix_greengrass_maven_repos() {
+    import os
+    import re
+    
+    thisdir = d.getVar("THISDIR")
+    bpn = d.getVar("BPN")
+    deps_file = os.path.join(thisdir, f"{bpn}-maven-deps.inc")
+    
+    if not os.path.exists(deps_file):
+        return
+    
+    # Parse MAVEN_REPO_URLS to get repository mappings
+    repo_urls = {}
+    custom_repos = d.getVar("MAVEN_REPO_URLS") or ""
+    for mapping in custom_repos.split():
+        if "=" in mapping:
+            repo_id, url = mapping.split("=", 1)
+            repo_urls[repo_id] = url
+    
+    if not repo_urls:
+        return
+    
+    # Read the file
+    with open(deps_file, 'r') as f:
+        content = f.read()
+    
+    # Get URLs from mappings
+    greengrass_url = repo_urls.get("greengrass-common", "")
+    yle_url = repo_urls.get("yle-public", "")
+    
+    if greengrass_url:
+        # Fix Greengrass SNAPSHOT artifacts (com/aws/greengrass and -GG-SNAPSHOT)
+        content = re.sub(
+            r'https://repo1\.maven\.org/maven2/(com/aws/greengrass/[^"]*SNAPSHOT[^"]*)',
+            f'{greengrass_url}/\\1',
+            content
+        )
+        content = re.sub(
+            r'https://repo1\.maven\.org/maven2/([^"]*-GG-SNAPSHOT[^"]*)',
+            f'{greengrass_url}/\\1',
+            content
+        )
+    
+    if yle_url:
+        # Fix yle-public artifacts
+        content = re.sub(
+            r'https://repo1\.maven\.org/maven2/(fi/yle/[^"]*)',
+            f'{yle_url}/\\1',
+            content
+        )
+    
+    # Write back
+    with open(deps_file, 'w') as f:
+        f.write(content)
+    
+    bb.note("Fixed Greengrass-specific Maven repository URLs")
+}
 
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
