@@ -3,6 +3,8 @@ DESCRIPTION = "The Greengrass nucleus component provides functionality for devic
 HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-nucleus"
 LICENSE = "Apache-2.0"
 
+CONFLICTS = "greengrass-bin"
+
 require classes/greengrass-common.inc
 
 # Maven dependencies are pre-downloaded and stored in greengrass-maven-deps.inc
