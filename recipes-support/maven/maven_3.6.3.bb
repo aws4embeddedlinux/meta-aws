@@ -61,6 +61,8 @@ FILES:${PN} = "\
 
 BBCLASSEXTEND = "native nativesdk"
 
+COMPATIBLE_HOST:riscv64 = "null"
+
 inherit ptest
 
 do_install_ptest() {
