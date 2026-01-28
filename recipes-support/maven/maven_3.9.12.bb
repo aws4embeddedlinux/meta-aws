@@ -17,6 +17,8 @@ SRC_URI[sha512sum] = "0a1be79f02466533fc1a80abbef8796e4f737c46c6574ede5658b11089
 
 PR = "r0"
 
+CVE_STATUS[CVE-2021-26291] = "not-applicable-platform: Maven repository management handled by build system"
+
 PACKAGES = "${PN}"
 
 COMPATIBLE_MACHINE:riscv64 = "null"
