@@ -10,7 +10,7 @@ SRC_URI = "gitsm://github.com/FreeRTOS/backoffAlgorithm.git;protocol=https;branc
     file://run-ptest \
 "
 
-SRCREV = "50e30d7d0aa0aa74e85134088a86f91978267d41"
+SRCREV = "14f4c88b33dd554be30a00a312c88d3986d457d0"
 
 inherit cmake ptest
 
