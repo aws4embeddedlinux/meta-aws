@@ -20,7 +20,7 @@ SRC_URI = "\
     file://0001-tinyxml2-fix-null-format-string.patch \
     "
 
-SRCREV = "89cca882a1203876f88f1e88e57181a738c6e02b"
+SRCREV = "cabb58ac09e6962451bfde4ddc8e9356f985e3b3"
 
 inherit cmake ptest pkgconfig
 
