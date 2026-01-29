@@ -12,7 +12,7 @@ SRC_URI = "\
     file://run-ptest \
 "
 
-SRCREV = "169c2879589dee06fce4a4f9803924f76131f483"
+SRCREV = "192b96cf68cb54dfbd0679630e103bf5d5c2f695"
 
 inherit cmake ptest
 
