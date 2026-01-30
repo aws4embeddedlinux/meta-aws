@@ -1,4 +1,4 @@
-From dca728bc7ecd480d4ed67702d233b1269da89818 Mon Sep 17 00:00:00 2001
+From 0529fffa0ab9dece45665f94278e612270930ce2 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Wed, 14 Jan 2026 11:22:24 +0000
 Subject: [PATCH] Fix null format string warning in tinyxml2
