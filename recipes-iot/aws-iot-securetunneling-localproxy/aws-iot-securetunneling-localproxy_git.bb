@@ -21,12 +21,11 @@ SRC_URI = "\
     git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https \
     file://0001-boost-support-any.patch \
     file://0002-remove-cxx-standard.patch \
-    file://0003-boost-include-format.patch \
     file://0004-cmake-version.patch \
     file://0005-fix-boost-system-header-only.patch \
     file://run-ptest \
     "
-SRCREV = "a1d9dfddee4fce6f29d9dbe25c88b8e3f6c9f94d"
+SRCREV = "a8d7c866d5d9b070e6980c9f1c3dd6087c9ec153"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
@@ -38,10 +37,13 @@ PACKAGECONFIG ??= "\
 
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTS=ON,-DBUILD_TESTS=OFF,"
 
+EXTRA_OECMAKE += "-DLINK_STATIC_OPENSSL=OFF"
+
 do_configure:prepend() {
     sed -i "s/Protobuf_LITE_STATIC_LIBRARY/Protobuf_LITE_LIBRARY/g" ${S}/CMakeLists.txt
-    sed -i "s/string.*Protobuf_LITE_LIBRARY.*/#&/g" ${S}/CMakeLists.txt
+    sed -i "/string(REPLACE.*CMAKE_SHARED_LIBRARY_SUFFIX.*CMAKE_STATIC_LIBRARY_SUFFIX/{ N; /Protobuf_LITE_LIBRARY/d; }" ${S}/CMakeLists.txt
     sed -i "s/set_property.*PROTOBUF_USE_STATIC_LIBS.*/#&/g" ${S}/CMakeLists.txt
+    sed -i "s/find_package(Protobuf/set(Protobuf_USE_STATIC_LIBS OFF)\nfind_package(Protobuf/g" ${S}/CMakeLists.txt
 }
 
 do_install () {

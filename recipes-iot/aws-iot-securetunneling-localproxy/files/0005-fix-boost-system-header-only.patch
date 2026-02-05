@@ -1,4 +1,4 @@
-From 84ac6ac02cdc9aa722a576e67ce8e4e8362f213e Mon Sep 17 00:00:00 2001
+From 3d2c6e5fa84a431c21275fbc6374ba5062a5d42e Mon Sep 17 00:00:00 2001
 From: Yocto Build System <yocto@example.com>
 Date: Mon, 9 Sep 2024 11:30:00 +0000
 Subject: [PATCH] Fix Boost compatibility for Boost 1.89+
@@ -18,35 +18,35 @@ Signed-off-by: Thomas Roos <throos@amazon.de>
  CMakeLists.txt | 29 +++++++++++++++++++----------
  1 file changed, 19 insertions(+), 10 deletions(-)
 
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index a060094..97527fb 100644
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -116,15 +116,10 @@ endif(BUILD_TESTS)
- #########################################
+Index: aws-iot-securetunneling-localproxy-git/CMakeLists.txt
+===================================================================
+--- aws-iot-securetunneling-localproxy-git.orig/CMakeLists.txt
++++ aws-iot-securetunneling-localproxy-git/CMakeLists.txt
+@@ -136,16 +136,11 @@ endif(BUILD_TESTS)
+ # ##############################################################################
  # Boost dependencies                    #
- #########################################
+ # ##############################################################################
 -set(Boost_USE_STATIC_LIBS ON)
 -set(Boost_USE_DEBUG_RUNTIME OFF)
--#set_property(GLOBAL PROPERTY Boost_USE_MULTITHREADED ON)
+ # set_property(GLOBAL PROPERTY Boost_USE_MULTITHREADED ON)
 -find_package(Boost REQUIRED COMPONENTS system log log_setup thread program_options date_time filesystem chrono)
 +find_package(Boost REQUIRED COMPONENTS log log_setup thread program_options date_time filesystem chrono)
 +# Try to find system component, but don't require it (header-only in Boost 1.89+)
 +find_package(Boost QUIET COMPONENTS system)
  include_directories(${Boost_INCLUDE_DIRS})
 -foreach(BOOST_LIB ${Boost_LIBRARIES})
--    string(REPLACE ${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_STATIC_LIBRARY_SUFFIX} BOOST_STATIC_LIB ${BOOST_LIB})
--    list(APPEND Boost_STATIC_LIBRARIES ${BOOST_STATIC_LIB})
+-  string(REPLACE ${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_STATIC_LIBRARY_SUFFIX}
+-                 BOOST_STATIC_LIB ${BOOST_LIB})
+-  list(APPEND Boost_STATIC_LIBRARIES ${BOOST_STATIC_LIB})
 -endforeach()
  
- #########################################
+ # ##############################################################################
  # Target : Build aws-tunnel-local-proxy #
-@@ -160,7 +155,14 @@ else()
-     target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} OpenSSL::SSL)
-     target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} OpenSSL::Crypto)
+@@ -201,7 +196,13 @@ else()
+   target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} OpenSSL::Crypto)
  endif()
--target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${Boost_STATIC_LIBRARIES})
-+target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME}
+ target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME}
+-                      ${Boost_STATIC_LIBRARIES})
 +    Boost::log
 +    Boost::log_setup
 +    Boost::thread
@@ -54,22 +54,21 @@ index a060094..97527fb 100644
 +    Boost::date_time
 +    Boost::filesystem
 +    Boost::chrono)
- target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${Protobuf_LITE_STATIC_LIBRARY})
+ target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME}
+                       ${Protobuf_LITE_STATIC_LIBRARY})
  target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} ${CMAKE_DL_LIBS})
- set_property(TARGET ${AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME} APPEND_STRING PROPERTY COMPILE_FLAGS ${CUSTOM_COMPILER_FLAGS})
-@@ -174,7 +176,14 @@ if(BUILD_TESTS)
-         target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} OpenSSL::SSL)
-         target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} OpenSSL::Crypto)
-     endif()
--    target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} ${Boost_STATIC_LIBRARIES})
-+    target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME}
-+        Boost::log
-+        Boost::log_setup
-+        Boost::thread
-+        Boost::program_options
-+        Boost::date_time
-+        Boost::filesystem
-+        Boost::chrono)
-     target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} ${Protobuf_LITE_STATIC_LIBRARY})
-     target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} ${CMAKE_DL_LIBS})
-     set_property(TARGET ${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} APPEND_STRING PROPERTY COMPILE_FLAGS ${TEST_COMPILER_FLAGS})
+@@ -223,7 +224,13 @@ if(BUILD_TESTS)
+     target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} OpenSSL::Crypto)
+   endif()
+   target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME}
+-                        ${Boost_STATIC_LIBRARIES})
++    Boost::log
++    Boost::log_setup
++    Boost::thread
++    Boost::program_options
++    Boost::date_time
++    Boost::filesystem
++    Boost::chrono)
+   target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME}
+                         ${Protobuf_LITE_STATIC_LIBRARY})
+   target_link_libraries(${AWS_TUNNEL_LOCAL_PROXY_TEST_NAME} ${CMAKE_DL_LIBS})
