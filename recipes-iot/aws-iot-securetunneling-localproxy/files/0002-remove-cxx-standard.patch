@@ -1,4 +1,4 @@
-From 99f62c3981861bf68c7b6645e23347eddb2c8c21 Mon Sep 17 00:00:00 2001
+From 4051efb0d0b5aba26dee90b58e289d4fe18e672c Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Tue, 9 Jan 2024 14:34:32 +0000
 Subject: [PATCH] aws-iot-securetunneling-localproxy: remove setting of
@@ -8,21 +8,21 @@ Upstream-Status: Submitted [author]
  CMakeLists.txt | 3 ---
  1 file changed, 3 deletions(-)
 
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 6b03150..4bda156 100644
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
+Index: aws-iot-securetunneling-localproxy-git/CMakeLists.txt
+===================================================================
+--- aws-iot-securetunneling-localproxy-git.orig/CMakeLists.txt
++++ aws-iot-securetunneling-localproxy-git/CMakeLists.txt
 @@ -1,4 +1,3 @@
 -cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
  
  set(AWS_TUNNEL_LOCAL_PROXY_TARGET_NAME localproxy)
  set(AWS_TUNNEL_LOCAL_PROXY_LIB_NAME lproxy)
-@@ -33,8 +32,6 @@ endif ()
+@@ -38,8 +37,6 @@ endif()
  # Section : Common Build setttings #
- ########################################
+ # ##############################################################################
  # Set required compiler standard to standard c++11. Disable extensions.
 -set(CMAKE_CXX_STANDARD 14) # C++14
--set(CMAKE_CXX_STANDARD_REQUIRED ON) #...is required...
- set(CMAKE_CXX_EXTENSIONS OFF) #...without compiler extensions like gnu++11
+-set(CMAKE_CXX_STANDARD_REQUIRED ON) # ...is required...
+ set(CMAKE_CXX_EXTENSIONS OFF) # ...without compiler extensions like gnu++11
  
  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
