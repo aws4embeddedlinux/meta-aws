@@ -1,4 +1,4 @@
-From 4051efb0d0b5aba26dee90b58e289d4fe18e672c Mon Sep 17 00:00:00 2001
+From 5b91070b46636aeee90474f1b547f244607f8312 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Tue, 9 Jan 2024 14:34:32 +0000
 Subject: [PATCH] aws-iot-securetunneling-localproxy: remove setting of
@@ -8,10 +8,10 @@ Upstream-Status: Submitted [author]
  CMakeLists.txt | 3 ---
  1 file changed, 3 deletions(-)
 
-Index: aws-iot-securetunneling-localproxy-git/CMakeLists.txt
-===================================================================
---- aws-iot-securetunneling-localproxy-git.orig/CMakeLists.txt
-+++ aws-iot-securetunneling-localproxy-git/CMakeLists.txt
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 58a1546..04b7549 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
 @@ -1,4 +1,3 @@
 -cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
  
