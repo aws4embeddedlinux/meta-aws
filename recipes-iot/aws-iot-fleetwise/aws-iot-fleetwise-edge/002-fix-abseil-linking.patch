@@ -1,0 +1,33 @@
+Upstream-Status: Pending
+
+Index: aws-iot-fleetwise-edge-1.3.2/CMakeLists.txt
+===================================================================
+--- aws-iot-fleetwise-edge-1.3.2.orig/CMakeLists.txt
++++ aws-iot-fleetwise-edge-1.3.2/CMakeLists.txt
+@@ -693,6 +693,8 @@ target_link_libraries(aws-iot-fleetwise
+   fwe
+   fwe-proto
+   $<$<BOOL:${FWE_FEATURE_SOMEIP}>:fwe-someip-example>
++  absl_log_internal_check_op
++  absl_log_internal_message
+   $<$<BOOL:${FWE_FEATURE_SOMEIP}>:fwe-device-shadow-over-someip>
+ )
+ target_include_directories(aws-iot-fleetwise-edge PRIVATE
+@@ -732,6 +734,8 @@ if(${BUILD_TESTING})
+     $<$<BOOL:${FWE_FEATURE_SOMEIP}>:fwe-device-shadow-over-someip>
+     ${GMOCK_LIB}
+     GTest::GTest
++    absl_log_internal_check_op
++    absl_log_internal_message
+   )
+ 
+   set(TEST_BINARIES_PARALLEL ${TEST_BINARIES_PARALLEL} fwe-gtest)
+@@ -749,6 +753,8 @@ if(${BUILD_TESTING})
+     fwe
+     fwe-proto
+     benchmark::benchmark
++    absl_log_internal_check_op
++    absl_log_internal_message
+   )
+   add_test(
+     NAME fwe-benchmark
