@@ -6,6 +6,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
 # nooelint: oelint.vars.dependsordered
 DEPENDS = "\
+    abseil-cpp \
     aws-sdk-cpp \
     boost \
     jsoncpp \
@@ -19,6 +20,7 @@ DEPENDS = "\
 SRC_URI = "\
     git://github.com/aws/aws-iot-fleetwise-edge.git;protocol=https;branch=main \
     file://001-remove-cxx-standard.patch \
+    file://002-fix-abseil-linking.patch \
     file://ptest_result.py \
     file://run-ptest \
     "
@@ -45,6 +47,9 @@ RDEPENDS:${PN} = "protobuf"
 EXTRA_OECMAKE += "-DFWE_AWS_SDK_SHARED_LIBS=ON"
 
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
+
+# Link against abseil libraries required by protobuf
+LDFLAGS:append = " -labsl_log_internal_check_op -labsl_log_internal_message"
 
 SYSTEMD_SERVICE:${PN} = "fwe@.service"
 SYSTEMD_AUTO_ENABLE:${PN} = "disable"
