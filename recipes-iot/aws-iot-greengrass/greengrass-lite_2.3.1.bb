@@ -31,7 +31,7 @@ LDFLAGS:append:libc-musl = " -largp"
 
 # THIS IS DISABLED IF exernalsrc is enabled
 SRC_URI = "\
-    git://github.com/aws-greengrass/aws-greengrass-lite.git;protocol=https;branch=main;name=ggl \
+    git://github.com/aws-greengrass/aws-greengrass-lite.git;protocol=https;branch=release/2.3.x;name=ggl \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/FreeRTOS/coreMQTT.git;protocol=https;branch=main;name=mqtt;destsuffix=${S}/thirdparty/core_mqtt'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main;name=sigv4;destsuffix=${S}/thirdparty/aws_sigv4'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;branch=main;name=sdk;destsuffix=${S}/thirdparty/gg_sdk'} \
@@ -46,9 +46,7 @@ SRC_URI = "\
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.aws.greengrass.TokenExchangeService.service.d-fleet-provisioning.conf','',d)} \
 "
 
-PV = "2.3.x+git${SRCPV}"
-
-SRCREV_ggl = "7a7e6dcf6bdf5eac15745112fe6c175162b0b41d"
+SRCREV_ggl = "813f4d49afd25c84f73032391cf5da877c496892"
 
 # must match fc_deps.json
 
