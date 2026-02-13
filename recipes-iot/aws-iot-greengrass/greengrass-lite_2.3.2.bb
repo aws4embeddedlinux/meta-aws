@@ -46,7 +46,7 @@ SRC_URI = "\
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.aws.greengrass.TokenExchangeService.service.d-fleet-provisioning.conf','',d)} \
 "
 
-SRCREV_ggl = "813f4d49afd25c84f73032391cf5da877c496892"
+SRCREV_ggl = "5488d8f34d355a04e66612981ab3edfafc8386a2"
 
 # must match fc_deps.json
 
