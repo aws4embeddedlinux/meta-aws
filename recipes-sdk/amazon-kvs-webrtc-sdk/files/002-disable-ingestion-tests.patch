@@ -1,0 +1,18 @@
+Upstream-Status: Inappropriate [disable failing test due to missing AWS SDK header]
+
+Disable IngestionFunctionalityTests.cpp from compilation as it requires
+aws/core/utils/pagination/Paginator.h which is not available in the current
+AWS SDK version.
+
+Index: amazon-kvs-webrtc-sdk-1.15.0/tst/CMakeLists.txt
+===================================================================
+--- amazon-kvs-webrtc-sdk-1.15.0.orig/tst/CMakeLists.txt
++++ amazon-kvs-webrtc-sdk-1.15.0/tst/CMakeLists.txt
+@@ -37,6 +37,7 @@ if(ENABLE_AWS_SDK_IN_TESTS)
+ endif()
+ 
+ file(GLOB WEBRTC_CLIENT_TEST_SOURCE_FILES "*.cpp" )
++list(REMOVE_ITEM WEBRTC_CLIENT_TEST_SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/IngestionFunctionalityTests.cpp")
+ 
+ add_executable(webrtc_client_test ${WEBRTC_CLIENT_TEST_SOURCE_FILES} SignalingApiFunctionalityTest.h)
+ target_link_libraries(webrtc_client_test
