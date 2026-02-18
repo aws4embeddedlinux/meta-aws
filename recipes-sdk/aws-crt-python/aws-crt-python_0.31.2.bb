@@ -59,6 +59,37 @@ export AWS_CRT_BUILD_FORCE_STATIC_LIBS = "1"
 
 do_configure:prepend(){
     sed -i "s/__version__ = '1.0.0.dev0'/__version__ = '${PV}'/" ${S}/awscrt/__init__.py
+    
+    # Fix UNKNOWN.egg-info issue for kirkstone (lack of PEP-621 support in setuptools)
+    if ! grep -q "\[metadata\]" ${S}/setup.cfg; then
+        cat >> ${S}/setup.cfg << 'EOF'
+
+[metadata]
+name = awscrt
+description = A common runtime for AWS Python projects
+version = ${PV}
+url = https://github.com/awslabs/aws-crt-python
+readme = README.md
+author = Amazon Web Services, Inc
+author_email = aws-sdk-common-runtime@amazon.com
+project_urls =
+  github = https://github.com/awslabs/aws-crt-python
+  documentation = https://awslabs.github.io/aws-crt-python
+  issues = https://github.com/awslabs/aws-crt-python/issues
+  releasenotes = https://github.com/awslabs/aws-crt-python/releases
+license = Apache-2.0
+license_files = LICENSE
+classifiers =
+  Programming Language :: Python :: 3
+  Operating System :: Microsoft :: Windows
+  Operating System :: POSIX
+  Operating System :: Unix
+  Operating System :: MacOS
+
+[options]
+packages = find:
+EOF
+    fi
 }
 
 # Create CMake toolchain file for cross-compilation as setuptools is using cmake internally
