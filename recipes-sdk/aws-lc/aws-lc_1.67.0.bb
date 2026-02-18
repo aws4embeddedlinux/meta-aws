@@ -8,6 +8,29 @@
 #
 # --- LICENSE
 # +++ LICENSE
+# @@ -206,9 +206,6 @@
+#     written permission.
+#  
+#  
+# -The code in crypto/kyber/pqcrystals-kyber_kyber512_ref and
+# -crypto/ml_kem/ml_kem_ipd_ref_common carries the Public Domain license:
+# -
+#  Public Domain (https://creativecommons.org/share-your-work/public-domain/cc0/)
+#  
+#  For Keccak and AES we are using public-domain
+# 
+#
+
+# FIXME: the LIC_FILES_CHKSUM values have been updated by 'devtool upgrade'.
+# The following is the difference between the old and the new license text.
+# Please update the LICENSE value if needed, and summarize the changes in
+# the commit message via 'License-Update:' tag.
+# (example: 'License-Update: copyright years updated.')
+#
+# The changes:
+#
+# --- LICENSE
+# +++ LICENSE
 # @@ -215,9 +215,52 @@
 #  code from sources and by authors listed in
 #  comments on top of the respective files.
@@ -110,7 +133,7 @@ DESCRIPTION = "AWS-LC is a general-purpose cryptographic library maintained by t
 HOMEPAGE = "https://github.com/awslabs/aws-lc"
 
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=4ae91dadf6b1388279f17467b5bf4fe6"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=ce6d111cc4010ef5f69af2cbec1dddfc"
 
 PROVIDES += "aws/lc"
 
@@ -120,7 +143,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "728811eecec794802c78105be6dbfe9d79870ac7"
+SRCREV = "bee13c3051b4cdc568d4c358660aeeb734157804"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 S = "${WORKDIR}/git"
