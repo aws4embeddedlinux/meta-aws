@@ -1,15 +1,18 @@
-From b38f182a9e22eefa67db7600198af49367810d9b Mon Sep 17 00:00:00 2001
+From e90a0cadd2f290e2156f0741417d1dfc7d03e170 Mon Sep 17 00:00:00 2001
 From: rpcme <rich@richelberger.com>
 Date: Sun, 16 Jan 2022 06:00:06 -0500
 Subject: [PATCH] add support for amazon kvs producer sdk cpp
 
 Upstream-Status: Submitted [author]
+---
+ CMakeLists.txt | 2 ++
+ 1 file changed, 2 insertions(+)
 
-Index: amazon-kvs-producer-sdk-cpp-3.5.0/CMakeLists.txt
-===================================================================
---- amazon-kvs-producer-sdk-cpp-3.5.0.orig/CMakeLists.txt
-+++ amazon-kvs-producer-sdk-cpp-3.5.0/CMakeLists.txt
-@@ -92,13 +92,15 @@ set(BUILD_COMMON_LWS
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0392468..7a561fb 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -95,6 +95,7 @@ set(BUILD_COMMON_LWS
  set(BUILD_COMMON_CURL
      TRUE
      CACHE BOOL "Build ProducerC with CURL Support" FORCE)
@@ -17,12 +20,11 @@ Index: amazon-kvs-producer-sdk-cpp-3.5.0/CMakeLists.txt
  set(DEPENDENCY_DOWNLOAD_PATH ${CMAKE_CURRENT_SOURCE_DIR}/dependency)
  if(NOT EXISTS ${DEPENDENCY_DOWNLOAD_PATH})
    file(MAKE_DIRECTORY ${DEPENDENCY_DOWNLOAD_PATH})
- endif()
-
+@@ -102,6 +103,7 @@ endif()
+ 
  fetch_repo(kvscproducer)
--add_subdirectory(${DEPENDENCY_DOWNLOAD_PATH}/libkvscproducer/kvscproducer-src EXCLUDE_FROM_ALL)
-+add_subdirectory(${DEPENDENCY_DOWNLOAD_PATH}/libkvscproducer/kvscproducer-src EXCLUDE_FROM_ALL)
+ add_subdirectory(${DEPENDENCY_DOWNLOAD_PATH}/libkvscproducer/kvscproducer-src EXCLUDE_FROM_ALL)
 +endif()
  ############# find dependent libraries ############
-
+ 
  find_package(Threads)
