@@ -1,24 +1,35 @@
-From 13893a008cf52f430d633929b890db5bb28afd84 Mon Sep 17 00:00:00 2001
+From a2304f3c1bf919ff60d7ad6ad6dc6866c8ff5ab9 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Fri, 10 Mar 2023 12:46:05 +0000
 Subject: [PATCH] aws-iot-securetunneling-localproxy: support any boost version
 
 Upstream-Status: Denied [Any version that compile should be good, team does only support a specific version]
 ---
- CMakeLists.txt | 3 +--
- 1 file changed, 1 insertion(+), 2 deletions(-)
+ CMakeLists.txt | 14 +-------------
+ 1 file changed, 1 insertion(+), 13 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index a7f6d72..02ac23c 100644
+index c72e8e7..58a1546 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -92,8 +92,7 @@ endif(BUILD_TESTS)
+@@ -142,19 +142,7 @@ endif(BUILD_TESTS)
  set(Boost_USE_STATIC_LIBS ON)
  set(Boost_USE_DEBUG_RUNTIME OFF)
- #set_property(GLOBAL PROPERTY Boost_USE_MULTITHREADED ON)
--set(BOOST_PKG_VERSION "1.87.0" CACHE STRING "")
--find_package(Boost ${BOOST_PKG_VERSION} REQUIRED COMPONENTS system log log_setup thread program_options date_time filesystem chrono)
+ # set_property(GLOBAL PROPERTY Boost_USE_MULTITHREADED ON)
+-set(BOOST_PKG_VERSION
+-    "1.87.0"
+-    CACHE STRING "")
+-find_package(
+-  Boost ${BOOST_PKG_VERSION} REQUIRED
+-  COMPONENTS system
+-             log
+-             log_setup
+-             thread
+-             program_options
+-             date_time
+-             filesystem
+-             chrono)
 +find_package(Boost REQUIRED COMPONENTS system log log_setup thread program_options date_time filesystem chrono)
  include_directories(${Boost_INCLUDE_DIRS})
  foreach(BOOST_LIB ${Boost_LIBRARIES})
-     string(REPLACE ${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_STATIC_LIBRARY_SUFFIX} BOOST_STATIC_LIB ${BOOST_LIB})
+   string(REPLACE ${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_STATIC_LIBRARY_SUFFIX}
