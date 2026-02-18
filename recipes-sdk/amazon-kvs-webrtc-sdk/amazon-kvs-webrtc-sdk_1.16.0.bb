@@ -22,7 +22,6 @@ BRANCH = "main"
 SRC_URI = "\
     git://github.com/awslabs/amazon-kinesis-video-streams-webrtc-sdk-c.git;protocol=https;branch=${BRANCH} \
     file://001-disable-download-of-kvs-common-lws.patch \
-    file://002-disable-ingestion-tests.patch \
     file://run-ptest \
     file://ptest_result.py \
 "
