@@ -16,11 +16,10 @@ BRANCH ?= "master"
 # nooelint: oelint.file.patchsignedoff
 SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git;protocol=https;branch=${BRANCH} \
            file://001-amazon-kvs-producer-sdk-cpp-deps.patch \
-           file://002-global-thread-sleep-linkerror.patch \
            file://run-ptest \
 "
 
-SRCREV = "7771598527883545b2161b56a78160429def4fc1"
+SRCREV = "a6efdf5d2fe1fcc5be85048a0c1b6a90ab80ff72"
 
 S = "${WORKDIR}/git"
 
@@ -62,6 +61,7 @@ EXTRA_OECMAKE += "\
     -DBUILD_TEST=OFF \
     -DBUILD_SHARED_LIBS=ON \
     -DCMAKE_BUILD_TYPE=Release \
+    -DKVS_LINK_PIC_ALSO=ON \
     "
 
 do_install() {
