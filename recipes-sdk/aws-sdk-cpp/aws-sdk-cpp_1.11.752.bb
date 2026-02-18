@@ -19,9 +19,10 @@ SRC_URI = "\
     git://github.com/aws/aws-sdk-cpp.git;protocol=https;branch=main \
     file://run-ptest \
     file://ptest_result.py \
+    file://0001-tinyxml2-fix-null-format-string.patch \
     "
 
-SRCREV = "44b4ab576b9c6466bfd331f39afc693224963fa7"
+SRCREV = "6b347fe646fd4421513335c96b29c596f994a143"
 
 S = "${WORKDIR}/git"
 
