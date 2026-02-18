@@ -18,7 +18,7 @@ UPSTREAM_VERSION_UNKNOWN = "1"
 UPSTREAM_CHECK_GITTAGREGEX = "git_invalid_tag_regex"
 # this SRCREV commit id should not different than this:
 # https://github.com/awslabs/amazon-kinesis-video-streams-producer-c/blob/master/CMake/Dependencies/libkvspic-CMakeLists.txt
-SRCREV = "65e38dac9b30523d43a57bc009d679e627b58d9a"
+SRCREV = "a9ec1d202750d41188922590a779c9b9d213ba14"
 
 inherit cmake pkgconfig ptest
 
