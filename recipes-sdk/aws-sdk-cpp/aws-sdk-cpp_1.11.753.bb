@@ -22,7 +22,7 @@ SRC_URI = "\
     file://0001-tinyxml2-fix-null-format-string.patch \
     "
 
-SRCREV = "6b347fe646fd4421513335c96b29c596f994a143"
+SRCREV = "88725f41180b6d45a9648f0544281f59a0387fc6"
 
 S = "${WORKDIR}/git"
 
