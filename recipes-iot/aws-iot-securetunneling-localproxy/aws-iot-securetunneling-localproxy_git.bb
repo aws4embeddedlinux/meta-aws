@@ -24,7 +24,7 @@ SRC_URI = "\
     file://0005-fix-boost-system-header-only.patch \
     file://run-ptest \
     "
-SRCREV = "293f74d04012ea78fecb651896b27489770219f7"
+SRCREV = "e59b955aef2bf68ca9691933999c658e43fb8adc"
 
 S = "${WORKDIR}/git"
 
