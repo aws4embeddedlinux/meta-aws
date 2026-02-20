@@ -1,4 +1,4 @@
-From 21024971094668e0eb5c4453b40a604c19e8f869 Mon Sep 17 00:00:00 2001
+From 8ca5c6eb0bc2fe28c90660defb188fdb462fa677 Mon Sep 17 00:00:00 2001
 From: Yocto Build System <yocto@example.com>
 Date: Mon, 9 Sep 2024 11:30:00 +0000
 Subject: [PATCH] Fix Boost compatibility for Boost 1.89+
