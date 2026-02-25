@@ -8,6 +8,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=7ae2be7fb1637141840314b51970a9f7 \
 
 NO_GENERIC_LICENSE[OASIS] = "source/dependency/3rdparty/pkcs11/LICENSE.md"
 
+SRCREV = "ccc78afee1716436cca832dd3d9388ead2ba05b0"
 SRC_URI = "\
     gitsm://github.com/FreeRTOS/corePKCS11.git;protocol=https;branch=main;name=corepkscs11 \
     git://github.com/Mbed-TLS/mbedtls.git;protocol=https;branch=mbedtls-2.28;name=mbedtls;destsuffix=${S}/source/dependency/3rdparty/mbedtls \
