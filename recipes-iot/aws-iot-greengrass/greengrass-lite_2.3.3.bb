@@ -34,7 +34,7 @@ SRC_URI = "\
     git://github.com/aws-greengrass/aws-greengrass-lite.git;protocol=https;branch=release/2.3.x;name=ggl \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/FreeRTOS/coreMQTT.git;protocol=https;branch=main;name=mqtt;destsuffix=${S}/thirdparty/core_mqtt'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main;name=sigv4;destsuffix=${S}/thirdparty/aws_sigv4'} \
-    ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;branch=main;name=sdk;destsuffix=${S}/thirdparty/gg_sdk'} \
+    ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;nobranch=1;name=sdk;destsuffix=${S}/thirdparty/gg_sdk'} \
     file://001-disable_strip.patch \
     file://greengrass-lite.yaml \
     file://run-ptest \
@@ -44,7 +44,7 @@ SRC_URI = "\
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.aws.greengrass.TokenExchangeService.service.d-fleet-provisioning.conf','',d)} \
 "
 
-SRCREV_ggl = "5488d8f34d355a04e66612981ab3edfafc8386a2"
+SRCREV_ggl = "cd020bf3bf5ebe8c13e4cebcc71c6349aa86ea44"
 
 # must match fc_deps.json
 
@@ -53,7 +53,7 @@ SRCREV_mqtt = "f1827d8b46703f1c5ff05d21b34692d3122c9a04"
 # nooelint: oelint.vars.specific
 SRCREV_sigv4 = "f0409ced6c2c9430f0e972019b7e8f20bbf58f4e"
 # nooelint: oelint.vars.specific
-SRCREV_sdk = "08be374523066becf92dce52c84d3cb9bf3825a5"
+SRCREV_sdk = "v0.4.1"
 
 EXTRA_OECMAKE:append = " \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_CORE_MQTT=${S}/thirdparty/core_mqtt'} \
