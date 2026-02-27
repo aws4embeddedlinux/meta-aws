@@ -9,7 +9,7 @@ do_install:append:aws-ec2 () {
 }
 
 SYSTEMD_PACKAGES = "${PN}-systemd"
-SYSTEMD_SERVICE:${PN}-systemd = "cloud-init.service"
+SYSTEMD_SERVICE:${PN}-systemd = "cloud-init-local.service cloud-init-main.service cloud-init-network.service cloud-config.service cloud-final.service"
 SYSTEMD_AUTO_ENABLE:${PN}-systemd = "enable"
 
 inherit features_check
