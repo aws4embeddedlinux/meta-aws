@@ -1,4 +1,4 @@
-From eb359432319c6261e3d17328ba13f740f0eac7e7 Mon Sep 17 00:00:00 2001
+From 1d08429ff7ade9835effa62a740ea5676a82dc4c Mon Sep 17 00:00:00 2001
 From: OpenEmbedded <oe.patch@oe>
 Date: Tue, 22 Oct 2024 02:00:39 +0000
 Subject: [PATCH] aws-iot-securetunneling-localproxy: upgrade git -> new
