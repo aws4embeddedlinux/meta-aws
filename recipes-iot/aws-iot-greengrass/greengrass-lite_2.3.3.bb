@@ -53,7 +53,7 @@ SRCREV_mqtt = "f1827d8b46703f1c5ff05d21b34692d3122c9a04"
 # nooelint: oelint.vars.specific
 SRCREV_sigv4 = "f0409ced6c2c9430f0e972019b7e8f20bbf58f4e"
 # nooelint: oelint.vars.specific
-SRCREV_sdk = "v0.4.1"
+SRCREV_sdk = "9487b56479ebc20a67bb9dce9b3a3dfb58f91cb9"
 
 EXTRA_OECMAKE:append = " \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_CORE_MQTT=${S}/thirdparty/core_mqtt'} \
