@@ -28,7 +28,7 @@ SRC_URI = "\
     file://002-enable-tests-with-crosscompiling.patch \
     "
 
-SRCREV = "aef8478d65fd97c9319397e8a5248e344deb17b4"
+SRCREV = "9eeb40fb3f93fe74b2b53bf6a621a98afdeb9436"
 
 inherit cmake pkgconfig ptest
 

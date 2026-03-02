@@ -1,4 +1,4 @@
-From dd9a321171182968a8fba9a90159a8a8fc9bd42d Mon Sep 17 00:00:00 2001
+From ada7c320ff660cf5efea440d97ad92bf97be3491 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Wed, 23 Jul 2025 16:39:01 +0000
 Subject: [PATCH] amazon-kvs-webrtc-sdk: disable download of kvs-common-lws
@@ -12,7 +12,7 @@ Upstream-Status: Inappropriate [oe-specific]
  1 file changed, 10 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index d8867a4a6c..4f3b04bf5a 100644
+index 57d16afed6..6edff2c5d1 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -281,16 +281,6 @@ if(BUILD_DEPENDENCIES)
