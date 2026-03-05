@@ -20,7 +20,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-c-event-stream.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "f43a3d24a7c1f8b50f709ccb4fdf4c7fd2827fff"
+SRCREV = "c741f95e9050a1a4bed4b3aa7543bd3e024f6e56"
 
 inherit cmake ptest pkgconfig
 
