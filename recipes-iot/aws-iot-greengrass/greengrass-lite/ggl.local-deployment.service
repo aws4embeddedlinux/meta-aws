@@ -1,11 +1,10 @@
 [Unit]
 Description=Greengrass Lite Image-Provided Component Auto-Deployment
-After=greengrass-lite.target ggl.gg_post-fleetprovisioning.service
+After=ggl.core.ggdeploymentd.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStartPre=/bin/sh -c 'sleep 10'
 ExecStart=/usr/bin/ggl-deploy-image-components
 # Disable service after successful deployment to prevent future runs
 ExecStopPost=/bin/sh -c '\
