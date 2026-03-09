@@ -12,6 +12,10 @@ DEPENDS += "\
 
 PROVIDES += "aws/amazon-kvs-producer-sdk-cpp"
 
+# Depends on amazon-kvs-producer-pic which is incompatible with 32-bit ARM and RISC-V
+COMPATIBLE_HOST:arm = "null"
+COMPATIBLE_MACHINE:riscv64 = "null"
+
 BRANCH ?= "master"
 # nooelint: oelint.file.patchsignedoff
 SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git;protocol=https;branch=${BRANCH} \
