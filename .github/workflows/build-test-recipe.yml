@@ -303,3 +303,13 @@ jobs:
         with:
           name: ${{ matrix.machine }}-resulttool_report.txt
           path: /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/${{ matrix.machine }}-resulttool_report.txt
+      - name: Save test failure logs
+        if: '!cancelled()'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.machine }}-test-logs
+          path: |
+            /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/work/**/temp/log.do_rootfs.*
+            /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/work/**/temp/log.do_testimage.*
+            /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/log/oeqa/testresults.json
+          if-no-files-found: ignore
