@@ -24,7 +24,7 @@ SRC_URI = "\
 UPSTREAM_VERSION_UNKNOWN = "1"
 # set to match only git_invalid_tag_regex because UPSTREAM_VERSION_UNKNOWN seems to be broken for git
 UPSTREAM_CHECK_GITTAGREGEX = "git_invalid_tag_regex"
-SRCREV = "7590b2317470041e139833bdc974e3619fad495a"
+SRCREV = "a8e17c498a0200e2b36f71a9d3842c8680e03c38"
 
 inherit cmake pkgconfig ptest
 
