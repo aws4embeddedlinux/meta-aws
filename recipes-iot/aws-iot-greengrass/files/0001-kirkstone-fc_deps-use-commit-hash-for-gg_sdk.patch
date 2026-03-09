@@ -1,0 +1,21 @@
+From: Richard Elberger <rich@richelberger.com>
+Subject: [PATCH] fc_deps.json: use commit hash for gg_sdk instead of tag
+
+Kirkstone requires fixed commit hashes for SRCREV. Update fc_deps.json
+to use the commit hash that tag v0.4.1 points to.
+
+Upstream-Status: Inappropriate [kirkstone-specific]
+
+diff --git a/fc_deps.json b/fc_deps.json
+index 1234567..abcdefg 100644
+--- a/fc_deps.json
++++ b/fc_deps.json
+@@ -10,7 +10,7 @@
+   },
+   "gg_sdk": {
+     "url": "https://github.com/aws-greengrass/aws-greengrass-component-sdk.git",
+-    "rev": "v0.4.1",
++    "rev": "9487b56479ebc20a67bb9dce9b3a3dfb58f91cb9",
+     "hash": "sha256-M6FBC01oipl/HgFVoU09pHSsh2zyoEgyijrSUbzmF6g="
+   }
+ }
