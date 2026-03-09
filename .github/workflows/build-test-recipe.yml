@@ -99,7 +99,27 @@ jobs:
         with:
             path: ${{ github.workspace }}/meta-aws
       - name: Checkout BitBake
-        run: git clone https://git.openembedded.org/bitbake -b ${{ needs.changed.outputs.release }} ${{ github.workspace }}/bitbake
+        run: |
+          # Map Yocto release to BitBake version
+          case "${{ needs.changed.outputs.release }}" in
+            kirkstone)
+              BITBAKE_BRANCH="2.0"
+              ;;
+            scarthgap)
+              BITBAKE_BRANCH="2.8"
+              ;;
+            whinlatter)
+              BITBAKE_BRANCH="2.16"
+              ;;
+            master)
+              BITBAKE_BRANCH="master"
+              ;;
+            *)
+              echo "Unknown release: ${{ needs.changed.outputs.release }}"
+              exit 1
+              ;;
+          esac
+          git clone https://git.openembedded.org/bitbake -b $BITBAKE_BRANCH ${{ github.workspace }}/bitbake
       - name: Initialize Build Environment
         run: |
           chown -R yoctouser .
@@ -270,8 +290,9 @@ jobs:
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
+             bitbake core-image-minimal -c testdata_json -f
              bitbake core-image-minimal
-             bitbake core-image-minimal -f -c testimage
+             bitbake core-image-minimal -c testimage
              resulttool report tmp/log/oeqa/testresults.json | tee -a ${{ matrix.machine }}-resulttool_report.txt'
             set -e
             echo RECIPES to test: $RECIPES
@@ -283,3 +304,13 @@ jobs:
         with:
           name: ${{ matrix.machine }}-resulttool_report.txt
           path: /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/${{ matrix.machine }}-resulttool_report.txt
+      - name: Save test failure logs
+        if: '!cancelled()'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.machine }}-test-logs
+          path: |
+            /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/work/**/temp/log.do_rootfs.*
+            /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/work/**/temp/log.do_testimage.*
+            /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/log/oeqa/testresults.json
+          if-no-files-found: ignore

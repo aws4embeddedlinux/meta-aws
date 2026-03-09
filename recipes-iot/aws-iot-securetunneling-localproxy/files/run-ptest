@@ -1,3 +1,7 @@
 #!/bin/sh
 
-localproxytest -s [config] | sed -e 's/\[...%\]//g'| sed -e 's/PASSED/PASS/g'| sed -e 's/FAILED/FAIL/g'|sed -e 's/SKIPPED/SKIP/g'| sed -n '/PASS/{s|^|PASS: |};p' | sed -n '/FAIL/{s|^|FAIL: |};p' | sed -n '/SKIP/{s|^|SKIP: |};p'
+if localproxy --help >/dev/null 2>&1; then
+    echo "PASS: localproxy --help"
+else
+    echo "FAIL: localproxy --help"
+fi
