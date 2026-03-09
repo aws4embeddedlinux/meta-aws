@@ -290,7 +290,7 @@ jobs:
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
-             bitbake core-image-minimal -c rootfs -f
+             bitbake core-image-minimal -c image_complete -f
              bitbake core-image-minimal -c testimage
              resulttool report tmp/log/oeqa/testresults.json | tee -a ${{ matrix.machine }}-resulttool_report.txt'
             set -e
