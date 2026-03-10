@@ -1,14 +1,23 @@
-Upstream-Status: Inappropriate [oe-specific]
+From 730d1838fa91bd5ef756fc2dc2a816a06f225835 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Mon, 14 Jul 2025 13:58:24 +0000
+Subject: [PATCH] Add aws-iot-device-sdk-embedded-c libs as separate recipes
 
-Index: jobs-for-aws-iot-embedded-sdk-1.0+git/source/jobs.c
-===================================================================
---- jobs-for-aws-iot-embedded-sdk-1.0+git.orig/source/jobs.c
-+++ jobs-for-aws-iot-embedded-sdk-1.0+git/source/jobs.c
+Upstream-Status: Inappropriate [oe-specific]
+---
+ source/jobs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/source/jobs.c b/source/jobs.c
+index 873cf30..92631e1 100644
+--- a/source/jobs.c
++++ b/source/jobs.c
 @@ -34,7 +34,7 @@
  /* Internal Includes */
  #include "jobs.h"
  /* External Dependencies */
 -#include "core_json.h"
 +#include <core_json/core_json.h>
-
+ 
  /** @cond DO_NOT_DOCUMENT */
+ 
