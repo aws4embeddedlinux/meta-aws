@@ -100,25 +100,30 @@ jobs:
             path: ${{ github.workspace }}/meta-aws
       - name: Checkout BitBake
         run: |
+          # TODO: Use proper BitBake versions aligned with Yocto releases
+          # See GitHub issue for configuration management improvements
           # Map Yocto release to BitBake version
-          case "${{ needs.changed.outputs.release }}" in
-            kirkstone)
-              BITBAKE_BRANCH="2.0"
-              ;;
-            scarthgap)
-              BITBAKE_BRANCH="2.8"
-              ;;
-            whinlatter)
-              BITBAKE_BRANCH="2.16"
-              ;;
-            master)
-              BITBAKE_BRANCH="master"
-              ;;
-            *)
-              echo "Unknown release: ${{ needs.changed.outputs.release }}"
-              exit 1
-              ;;
-          esac
+          # case "${{ needs.changed.outputs.release }}" in
+          #   kirkstone)
+          #     BITBAKE_BRANCH="2.0"
+          #     ;;
+          #   scarthgap)
+          #     BITBAKE_BRANCH="2.8"
+          #     ;;
+          #   whinlatter)
+          #     BITBAKE_BRANCH="2.16"
+          #     ;;
+          #   master)
+          #     BITBAKE_BRANCH="master"
+          #     ;;
+          #   *)
+          #     echo "Unknown release: ${{ needs.changed.outputs.release }}"
+          #     exit 1
+          #     ;;
+          # esac
+          
+          # Temporarily use master for all branches until proper version alignment is implemented
+          BITBAKE_BRANCH="master"
           git clone https://git.openembedded.org/bitbake -b $BITBAKE_BRANCH ${{ github.workspace }}/bitbake
       - name: Initialize Build Environment
         run: |
