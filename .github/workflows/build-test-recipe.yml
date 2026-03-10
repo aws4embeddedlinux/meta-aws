@@ -3,9 +3,6 @@ on:
   workflow_dispatch:
   pull_request:
   merge_group:
-permissions:
-  contents: read
-
 jobs:
   changed:
     name: Get changed recipes
@@ -91,132 +88,61 @@ jobs:
           - qemuarm
           - qemuarm64
           - qemux86-64
-          - qemuriscv64
     runs-on: codebuild-${{ vars.CODEBUILD_RUNNER_NAME || 'meta-aws' }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout meta-aws
         uses: actions/checkout@v4
         with:
             path: ${{ github.workspace }}/meta-aws
-      - name: Checkout BitBake
+      - name: Checkout meta-oe
+        uses: actions/checkout@v4
+        with:
+          repository: openembedded/meta-openembedded
+          path: ${{ github.workspace }}/meta-openembedded
+          ref: ${{ needs.changed.outputs.release }}
+      - name: Checkout poky
         run: |
-          # Map Yocto release to BitBake version
-          case "${{ needs.changed.outputs.release }}" in
-            kirkstone)
-              BITBAKE_BRANCH="2.0"
-              ;;
-            scarthgap)
-              BITBAKE_BRANCH="2.8"
-              ;;
-            whinlatter)
-              BITBAKE_BRANCH="2.16"
-              ;;
-            master)
-              BITBAKE_BRANCH="master"
-              ;;
-            *)
-              echo "Unknown release: ${{ needs.changed.outputs.release }}"
-              exit 1
-              ;;
-          esac
-          git clone https://git.openembedded.org/bitbake -b $BITBAKE_BRANCH ${{ github.workspace }}/bitbake
-      - name: Initialize Build Environment
-        run: |
-          chown -R yoctouser .
-          sudo -u yoctouser bitbake/bin/bitbake-setup --setting default top-dir-prefix /home/yoctouser \
-            init --non-interactive \
-            ${{ github.workspace }}/meta-aws/.github/workflows/poky-without-meta-aws.conf.json \
-            poky distro/poky-altcfg machine/${{ matrix.machine }} core/yocto/root-login-with-empty-password
+          git clone git://git.yoctoproject.org/poky --single-branch  ${{ github.workspace }}/poky -b ${{ needs.changed.outputs.release }}
       - name: Get changed Recipes or defaults
         id: recipes_to_build_test
         shell: bash
         run: |
           echo diff:
           echo ${{ needs.changed.outputs.diff }}
-
-          # Map machine to architecture for COMPATIBLE_HOST check
-          case "${{ matrix.machine }}" in
-            qemuarm)
-              ARCH="arm"
-              ;;
-            qemuarm64)
-              ARCH="aarch64"
-              ;;
-            qemux86-64)
-              ARCH="x86-64"
-              ;;
-          esac
-
           export RECIPES=$( echo "${{ needs.changed.outputs.diff }}" | tr ' ' '\n' | grep '\.bb.*$' | sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
           if [ "" == "$RECIPES" ]; then
             echo "No changed recipes, adding everything with a ptest to test, build"
-            THINGS_TO_EXCLUDE="! -name aws-lc* ! -name neo-ai-tv* ! -name corretto-17-bin* ! -name corretto-21-bin* ! -name corretto-8-bin* ! -name corretto-25-bin* ! -name firecracker-bin* ! -name jailer-bin* ! -name amazon-kvs-producer-sdk-c* ! -name  aws-cli-v2* ! -name  aws-iot-device-sdk-embedded-c* ! -name greengrass_* ! -name greengrass-bin* "
+            THINGS_TO_EXCLUDE="! -name aws-lc* ! -name neo-ai-tv* ! -name corretto-17-bin* ! -name corretto-21-bin*  ! -name corretto-25-bin* ! -name corretto-8-bin* ! -name firecracker-bin* ! -name jailer-bin* ! -name amazon-kvs-producer-sdk-c* ! -name  aws-cli-v2* ! -name aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning* ! -name aws-c-iot* ! -name  aws-iot-device-sdk-embedded-c* "
+            if [ ${{ matrix.machine }} == "qemuarm" ]; then
+              THINGS_TO_EXCLUDE+="! -name amazon-kvs-webrtc-sdk* ! -name amazon-kvs-producer-pic* ! -name greengrass-lite*"
+            fi
             export RECIPES=$(find meta-aws/ -name *.bb -type f \( ${THINGS_TO_EXCLUDE} \) -print | xargs grep -l 'inherit.*ptest.*'| sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
             echo THINGS_TO_EXCLUDE: $THINGS_TO_EXCLUDE
           fi
 
-          # Filter out recipes with COMPATIBLE_HOST or COMPATIBLE_MACHINE restrictions
+          # Filter out recipes with COMPATIBLE_HOST:$ARCH = "null" or COMPATIBLE_MACHINE restrictions
           FILTERED_RECIPES=""
           for recipe in $RECIPES; do
             SKIP_RECIPE=false
-            RECIPE_FILES=$(find meta-aws/ -name "${recipe}.bb" -o -name "${recipe}_*.bb" 2>/dev/null)
-            
-            if [ -z "$RECIPE_FILES" ]; then
-              continue
-            fi
 
-            # Check COMPATIBLE_HOST:$ARCH = "null"
-            if echo "$RECIPE_FILES" | xargs grep -q "COMPATIBLE_HOST:${ARCH}[[:space:]]*=[[:space:]]*\"null\"" 2>/dev/null; then
-              echo "Skipping $recipe: COMPATIBLE_HOST:${ARCH} = null"
+            # Check COMPATIBLE_HOST
+            if find meta-aws/ -name "${recipe}.bb" -o -name "${recipe}_*.bb" | xargs grep -q "COMPATIBLE_HOST:${ARCH}[[:space:]]*=[[:space:]]*\"null\"" 2>/dev/null; then
               SKIP_RECIPE=true
             fi
 
-            # Check for default COMPATIBLE_MACHINE = "null" without override for this arch
-            if echo "$RECIPE_FILES" | xargs grep -q "^COMPATIBLE_MACHINE[[:space:]]*=[[:space:]]*\"null\"" 2>/dev/null; then
-              # Check if there's an override for this specific architecture
-              case "${{ matrix.machine }}" in
-                qemuarm)
-                  if ! echo "$RECIPE_FILES" | xargs grep -q "COMPATIBLE_MACHINE:armv7[av][[:space:]]*=[[:space:]]*\"(.*)\"" 2>/dev/null; then
-                    echo "Skipping $recipe: COMPATIBLE_MACHINE = null (no armv7 override)"
-                    SKIP_RECIPE=true
-                  fi
-                  ;;
-                qemuarm64)
-                  if ! echo "$RECIPE_FILES" | xargs grep -q "COMPATIBLE_MACHINE:aarch64[[:space:]]*=[[:space:]]*\"(.*)\"" 2>/dev/null; then
-                    echo "Skipping $recipe: COMPATIBLE_MACHINE = null (no aarch64 override)"
-                    SKIP_RECIPE=true
-                  fi
-                  ;;
-                qemux86-64)
-                  if ! echo "$RECIPE_FILES" | xargs grep -q "COMPATIBLE_MACHINE:x86-64[[:space:]]*=[[:space:]]*\"(.*)\"" 2>/dev/null; then
-                    echo "Skipping $recipe: COMPATIBLE_MACHINE = null (no x86-64 override)"
-                    SKIP_RECIPE=true
-                  fi
-                  ;;
-                qemuriscv64)
-                  if ! echo "$RECIPE_FILES" | xargs grep -q "COMPATIBLE_MACHINE:riscv64[[:space:]]*=[[:space:]]*\"(.*)\"" 2>/dev/null; then
-                    echo "Skipping $recipe: COMPATIBLE_MACHINE = null (no riscv64 override)"
-                    SKIP_RECIPE=true
-                  fi
-                  ;;
-              esac
+            # Check COMPATIBLE_MACHINE for ARM32
+            if [ "${{ matrix.machine }}" == "qemuarm" ]; then
+              if find meta-aws/ -name "${recipe}.bb" -o -name "${recipe}_*.bb" | xargs grep -q "COMPATIBLE_MACHINE:armv7[av][[:space:]]*=[[:space:]]*\"null\"" 2>/dev/null; then
+                SKIP_RECIPE=true
+              fi
             fi
 
-            # Check explicit COMPATIBLE_MACHINE:$ARCH = "null"
-            case "${{ matrix.machine }}" in
-              qemuarm)
-                if echo "$RECIPE_FILES" | xargs grep -q "COMPATIBLE_MACHINE:armv7[av][[:space:]]*=[[:space:]]*\"null\"" 2>/dev/null; then
-                  echo "Skipping $recipe: COMPATIBLE_MACHINE:armv7 = null"
-                  SKIP_RECIPE=true
-                fi
-                ;;
-              qemuriscv64)
-                if echo "$RECIPE_FILES" | xargs grep -q "COMPATIBLE_MACHINE:riscv64[[:space:]]*=[[:space:]]*\"null\"" 2>/dev/null; then
-                  echo "Skipping $recipe: COMPATIBLE_MACHINE:riscv64 = null"
-                  SKIP_RECIPE=true
-                fi
-                ;;
-            esac
+            # Check COMPATIBLE_MACHINE for RISC-V
+            if [ "${{ matrix.machine }}" == "qemuriscv64" ]; then
+              if find meta-aws/ -name "${recipe}.bb" -o -name "${recipe}_*.bb" | xargs grep -q "COMPATIBLE_MACHINE:riscv64[[:space:]]*=[[:space:]]*\"null\"" 2>/dev/null; then
+                SKIP_RECIPE=true
+              fi
+            fi
 
             if [ "$SKIP_RECIPE" = "false" ]; then
               FILTERED_RECIPES+="$recipe "
@@ -229,16 +155,15 @@ jobs:
       - name: Run build
         env:
           RECIPES: ${{ steps.recipes_to_build_test.outputs.recipes }}
-          BUILD_DIR: /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}
         run: |
            echo RECIPES to build: $RECIPES
-           echo "Using build directory: $BUILD_DIR"
            chown yoctouser /sstate-cache
            chown yoctouser /downloads
+           chown -R yoctouser .
            sysctl vm.mmap_min_addr=65536
-           sudo RECIPES="$RECIPES" BUILD_DIR="$BUILD_DIR" -u yoctouser bash -c '
+           sudo RECIPES="$RECIPES" -u yoctouser bash -c '
              cd  ${{ github.workspace }}
-             source ${BUILD_DIR}/build/init-build-env
+             source poky/oe-init-build-env build
              echo QEMU_USE_KVM = \"\" >> conf/local.conf
              # set to max for arm32
              echo QB_MEM:arm = \"-m 3G\" >> conf/local.conf
@@ -248,25 +173,32 @@ jobs:
              echo TEST_RUNQEMUPARAMS += \"slirp\" >> conf/local.conf
              echo TEST_SERVER_IP = \"127.0.0.1\" >> conf/local.conf
              echo DISTRO_FEATURES += \"ptest\" >> conf/local.conf
+             echo DISTRO = \"poky-altcfg\" >> conf/local.conf
              # this will specify what test should run when running testimage cmd - oeqa layer tests + ptests:
              # Ping and SSH are not required, but do help in debugging. ptest will discover all ptest packages.
-             echo TEST_SUITES = \" ping ssh ptest parselogs\" >> conf/local.conf
+             echo TEST_SUITES = \" ping ssh ptest\" >> conf/local.conf
              # this will allow - running testimage cmd: bitbake core-image-minimal -c testimage
              echo IMAGE_CLASSES += \"testimage\" >> conf/local.conf
              cat conf/local.conf
+             bitbake-layers add-layer ../meta-openembedded/meta-oe
+             bitbake-layers add-layer ../meta-openembedded/meta-python
+             bitbake-layers add-layer ../meta-openembedded/meta-networking
+             bitbake-layers add-layer ../meta-openembedded/meta-multimedia
+             bitbake-layers add-layer ../meta-aws
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
+             export MACHINE=${{ matrix.machine }}
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
-             bitbake $RECIPES -f -k | tee -a ${{ matrix.machine }}-build.log'
+             bitbake $RECIPES -f -k | tee -a $MACHINE-build.log'
            set -e
            echo RECIPES to build: $RECIPES
-           if [ -e "${BUILD_DIR}/build/${{ matrix.machine }}-build.log" ]; then
-            if grep -A3 -E ' failed| ERROR:' "${BUILD_DIR}/build/${{ matrix.machine }}-build.log"; then
+           if [ -e "build/${{ matrix.machine }}-build.log" ]; then
+            if grep -A3 -E ' failed| ERROR:' "build/${{ matrix.machine }}-build.log"; then
               echo "Found failed or ERROR in build log"
               exit 1
             fi
            else
-            echo "Build log file not found: ${BUILD_DIR}/build/${{ matrix.machine }}-build.log"
+            echo "Build log file not found: build/${{ matrix.machine }}-build.log"
             exit 1
            fi
       - name: Save ${{ matrix.machine }}-build.log
@@ -274,43 +206,31 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.machine }}-build.log
-          path: /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/${{ matrix.machine }}-build.log
+          path: build/${{ matrix.machine }}-build.log
       - name: Run test
         env:
           RECIPES: ${{ steps.recipes_to_build_test.outputs.recipes }}
-          BUILD_DIR: /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}
         run: |
-           sudo RECIPES="$RECIPES" BUILD_DIR="$BUILD_DIR" -u yoctouser bash -c '
+           sudo RECIPES="$RECIPES" -u yoctouser bash -c '
              cd  ${{ github.workspace }}
-             source ${BUILD_DIR}/build/init-build-env
+             source poky/oe-init-build-env build
              # PUT = package under test
              for recipe in $RECIPES; do PUT+="${recipe}-ptest "; done
              echo IMAGE_INSTALL:append = \" ptest-runner ssh ${PUT}\" >> conf/local.conf
-             echo IMAGE_FEATURES:append = \" allow-empty-password empty-root-password allow-root-login\" >> conf/local.conf
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
+             export MACHINE=${{ matrix.machine }}
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
-             bitbake core-image-minimal -c testdata_json -f
              bitbake core-image-minimal
              bitbake core-image-minimal -c testimage
              resulttool report tmp/log/oeqa/testresults.json | tee -a ${{ matrix.machine }}-resulttool_report.txt'
             set -e
             echo RECIPES to test: $RECIPES
-            test -e ${BUILD_DIR}/build/tmp/log/oeqa/testresults.json && ! grep -B3 "\"FAILED\""  ${BUILD_DIR}/build/tmp/log/oeqa/testresults.json
+            test -e build/tmp/log/oeqa/testresults.json && ! grep -B3 "\"FAILED\""  build/tmp/log/oeqa/testresults.json
 
       - name: Save resulttool_report.txt
         if: '!cancelled()'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.machine }}-resulttool_report.txt
-          path: /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/${{ matrix.machine }}-resulttool_report.txt
-      - name: Save test failure logs
-        if: '!cancelled()'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.machine }}-test-logs
-          path: |
-            /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/work/**/temp/log.do_rootfs.*
-            /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/work/**/temp/log.do_testimage.*
-            /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/log/oeqa/testresults.json
-          if-no-files-found: ignore
+          path: build/${{ matrix.machine }}-resulttool_report.txt
