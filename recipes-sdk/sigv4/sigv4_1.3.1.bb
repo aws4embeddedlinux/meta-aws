@@ -10,7 +10,7 @@ SRC_URI = "\
     file://Findsigv4.cmake \
     file://run-ptest \
 "
-SRCREV = "892bcbb2d4b95daf2b7306ba3210e74b25bfae16"
+SRCREV = "b4ac78a0d5d4cff9b28a44f665067057e07be09f"
 
 S = "${WORKDIR}/git"
 
