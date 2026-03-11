@@ -37,7 +37,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "37d86461a95782fd5d8b77873f9e1cb134ea2f95"
+SRCREV = "95187142bb3e7b87bf3a18767ac6e47862c0ea35"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 # nooelint: oelint.vars.specific
