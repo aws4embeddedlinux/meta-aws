@@ -318,3 +318,4 @@ jobs:
             /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/work/**/temp/log.do_testimage.*
             /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/log/oeqa/testresults.json
           if-no-files-found: ignore
+          follow-symlinks: false
