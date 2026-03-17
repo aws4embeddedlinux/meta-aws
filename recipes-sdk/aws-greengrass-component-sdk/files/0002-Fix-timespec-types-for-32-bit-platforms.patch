@@ -1,9 +1,17 @@
-Upstream-Status: Pending
+From a19d2ff604cb1a4fa7b861599ce3a9363a766e08 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Thu, 27 Nov 2025 12:49:26 +0000
+Subject: [PATCH] aws-greengrass-component-sdk: use bindgen to correct create
 
-Index: aws-greengrass-component-sdk-0.4.0/rust/src/ipc.rs
-===================================================================
---- aws-greengrass-component-sdk-0.4.0.orig/rust/src/ipc.rs
-+++ aws-greengrass-component-sdk-0.4.0/rust/src/ipc.rs
+Upstream-Status: Pending
+---
+ rust/src/ipc.rs | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/rust/src/ipc.rs b/rust/src/ipc.rs
+index a78648c..ccedd12 100644
+--- a/rust/src/ipc.rs
++++ b/rust/src/ipc.rs
 @@ -3,7 +3,7 @@
  // SPDX-License-Identifier: Apache-2.0
  
@@ -13,7 +21,7 @@ Index: aws-greengrass-component-sdk-0.4.0/rust/src/ipc.rs
      marker::PhantomData,
      mem, ptr, result, slice, str,
      sync::{Mutex, OnceLock},
-@@ -548,8 +548,8 @@ impl Ipc {
+@@ -547,8 +547,8 @@ impl Sdk {
                  t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
              #[expect(clippy::cast_possible_wrap)]
              c::timespec {

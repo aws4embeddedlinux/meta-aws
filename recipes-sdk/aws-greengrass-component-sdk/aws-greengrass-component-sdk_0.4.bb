@@ -6,9 +6,9 @@ HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-component-sdk"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-PV = "0.4.0+git${SRCPV}"
+PV = "1.0.0"
 
-SRCREV = "4ee9ad4ef5ae5a190a5076e7a823510f9ee2a433"
+SRCREV = "e98417cb2fcaf619167e8de1c04ff21a5763e597"
 SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;branch=main \
            file://0001-Add-bindgen-to-build.rs.patch \
            file://0003-Build-gg-sdk-as-cdylib.patch \
