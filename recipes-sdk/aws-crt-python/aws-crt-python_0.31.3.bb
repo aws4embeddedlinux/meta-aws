@@ -107,8 +107,14 @@ EOF
 }
 
 RDEPENDS:${PN} += "\
-    python3 \
+    python3-core \
     python3-asyncio \
+"
+
+RDEPENDS:${PN}-ptest += "\
+    python3 \
+    python3-websockets \
+    bash \
 "
 
 do_install_ptest() {
