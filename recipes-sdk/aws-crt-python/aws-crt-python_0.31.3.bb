@@ -46,6 +46,10 @@ CFLAGS:append = " -Wl,-Bsymbolic"
 # https://github.com/aws4embeddedlinux/meta-aws/issues/13929
 # nooelint: oelint.vars.specific
 LDFLAGS:append:arm = " ${@bb.utils.contains('PACKAGECONFIG', 'no-buildin-sdk', '', ' -latomic', d)}"
+LDFLAGS:append:mips = " ${@bb.utils.contains('PACKAGECONFIG', 'no-buildin-sdk', '', ' -latomic', d)}"
+LDFLAGS:append:mipsel = " ${@bb.utils.contains('PACKAGECONFIG', 'no-buildin-sdk', '', ' -latomic', d)}"
+LDFLAGS:append:powerpc = " ${@bb.utils.contains('PACKAGECONFIG', 'no-buildin-sdk', '', ' -latomic', d)}"
+LDFLAGS:append:riscv32 = " ${@bb.utils.contains('PACKAGECONFIG', 'no-buildin-sdk', '', ' -latomic', d)}"
 
 # use the libcrypto included on your system
 export AWS_CRT_BUILD_USE_SYSTEM_LIBCRYPTO = "1"
