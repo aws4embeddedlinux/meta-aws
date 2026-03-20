@@ -308,14 +308,19 @@ jobs:
         with:
           name: ${{ matrix.machine }}-resulttool_report.txt
           path: /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/${{ matrix.machine }}-resulttool_report.txt
+      - name: Collect test failure logs
+        if: '!cancelled()'
+        env:
+          BUILD_DIR: /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}
+        run: |
+          mkdir -p /tmp/test-logs
+          find "${BUILD_DIR}/build/tmp/work" -path "*/temp/log.do_rootfs.*" -not -type l 2>/dev/null | xargs -I{} cp {} /tmp/test-logs/ || true
+          find "${BUILD_DIR}/build/tmp/work" -path "*/temp/log.do_testimage.*" -not -type l 2>/dev/null | xargs -I{} cp {} /tmp/test-logs/ || true
+          cp "${BUILD_DIR}/build/tmp/log/oeqa/testresults.json" /tmp/test-logs/ 2>/dev/null || true
       - name: Save test failure logs
         if: '!cancelled()'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.machine }}-test-logs
-          path: |
-            /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/work/**/temp/log.do_rootfs.*
-            /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/work/**/temp/log.do_testimage.*
-            /home/yoctouser/bitbake-builds/poky-without-meta-aws-poky-distro_poky-altcfg-machine_${{ matrix.machine }}/build/tmp/log/oeqa/testresults.json
+          path: /tmp/test-logs/
           if-no-files-found: ignore
-          follow-symlinks: false
