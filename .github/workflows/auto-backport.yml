@@ -25,5 +25,5 @@ jobs:
           target_branches: kirkstone-next scarthgap-next whinlatter-next
           # copy all labels (backport labels are automatically skipped)
           copy_labels_pattern: .+
-          github_token: ${{ secrets.BOT_CREDENTIAL }}
+          github_token: ${{ secrets.MAINTAINER_TOKEN }}
           conflict_resolution: draft_commit_conflicts

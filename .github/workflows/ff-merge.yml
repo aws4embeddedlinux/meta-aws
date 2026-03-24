@@ -23,14 +23,14 @@ jobs:
               ref: ${{ matrix.branch }}
               path: meta-aws
               fetch-depth: 0
-              token: ${{ secrets.BOT_CREDENTIAL }}
+              token: ${{ secrets.MAINTAINER_TOKEN }}
          - name: merge branch-next into branch
            working-directory: meta-aws
            env:
              BRANCH_NAME: ${{ matrix.branch }}
            run: |
-             git config --global user.name aws-iot-embedded-linux-ci
-             git config --global user.email aws-iot-embedded-linux-ci@users.noreply.github.com
+             git config --global user.name meta-aws-maintainer
+             git config --global user.email meta-aws-maintainer@users.noreply.github.com
              git merge --ff-only "origin/${BRANCH_NAME}-next"
          - name: push branch
            working-directory: meta-aws

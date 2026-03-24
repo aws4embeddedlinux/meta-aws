@@ -17,8 +17,8 @@ jobs:
           build-essential chrpath socat cpio python3 python3-pip \
           python3-pexpect xz-utils debianutils iputils-ping python3-git \
           python3-jinja2 xterm python3-subunit zstd liblz4-tool
-          git config --global user.name aws-iot-embedded-linux-ci
-          git config --global user.email aws-iot-embedded-linux-ci@users.noreply.github.com
+          git config --global user.name meta-aws-maintainer
+          git config --global user.email meta-aws-maintainer@users.noreply.github.com
       - name: Clone BitBake
         run: git clone https://git.openembedded.org/bitbake -b ${{ github.ref_name }}
       - name: Clone Our Layer
@@ -66,7 +66,7 @@ jobs:
       - name: Create Pulls
         working-directory: ${{ github.workspace }}/meta-aws
         env:
-          GITHUB_TOKEN: ${{ secrets.BOT_CREDENTIAL }}
+          GITHUB_TOKEN: ${{ secrets.MAINTAINER_TOKEN }}
         run: upgrader create-pulls --branch-file=/home/runner/bitbake-builds/poky-without-meta-aws-poky-distro_poky-machine_qemux86-64/build/branches.txt --repo=${{ github.repository }} --target-branch=${{ github.ref_name }}-next
       - name: Publish Artifacts
         uses: actions/upload-artifact@v4
