@@ -258,6 +258,7 @@ jobs:
              echo TEST_SUITES = \" ping ssh ptest parselogs\" >> conf/local.conf
              # this will allow - running testimage cmd: bitbake core-image-minimal -c testimage
              echo IMAGE_CLASSES += \"testimage\" >> conf/local.conf
+             echo BB_HASHSERVE_DB_DIR = \"${TMPDIR}\" >> conf/local.conf
              cat conf/local.conf
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
@@ -292,6 +293,7 @@ jobs:
              for recipe in $RECIPES; do PUT+="${recipe}-ptest "; done
              echo IMAGE_INSTALL:append = \" ptest-runner ssh ${PUT}\" >> conf/local.conf
              echo IMAGE_FEATURES:append = \" allow-empty-password empty-root-password allow-root-login\" >> conf/local.conf
+             echo BB_HASHSERVE_DB_DIR = \"${TMPDIR}\" >> conf/local.conf
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
