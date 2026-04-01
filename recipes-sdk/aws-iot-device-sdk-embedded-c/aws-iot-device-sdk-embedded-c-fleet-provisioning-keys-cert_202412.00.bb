@@ -10,6 +10,7 @@ SRC_URI = "\
     file://002-config.patch \
     file://003-fix-includes.patch \
     file://004-convert-pem-to-der.patch \
+    file://0001-adapt-to-coremqtt-5.x-api.patch \
     file://CMakeLists.txt_mbedtls \
     file://CMakeLists.txt \
     file://run-ptest \

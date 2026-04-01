@@ -1,0 +1,122 @@
+Upstream-Status: Pending [upstream SDK updating demos for coreMQTT 5.x]
+
+--- a/demos/shadow/shadow_demo_main/shadow_demo_main.c	2026-04-01 12:46:34.690846456 -0400
++++ b/demos/shadow/shadow_demo_main/shadow_demo_main.c	2026-04-01 12:49:20.157353684 -0400
+@@ -235,9 +235,12 @@
+  * @param[in] pPacketInfo Packet Info pointer for the incoming packet.
+  * @param[in] pDeserializedInfo Deserialized information from the incoming packet.
+  */
+-static void eventCallback( MQTTContext_t * pMqttContext,
++static bool eventCallback( MQTTContext_t * pMqttContext,
+                            MQTTPacketInfo_t * pPacketInfo,
+-                           MQTTDeserializedInfo_t * pDeserializedInfo );
++                           MQTTDeserializedInfo_t * pDeserializedInfo,
++                           MQTTSuccessFailReasonCode_t * pReasonCode,
++                           MQTTPropBuilder_t * pSendPropsBuffer,
++                           MQTTPropBuilder_t * pGetPropsBuffer );
+ 
+ /**
+  * @brief Process payload from /update/delta topic.
+@@ -556,10 +559,16 @@
+  * function to determine whether the incoming message is a device shadow message
+  * or not. If it is, it handles the message depending on the message type.
+  */
+-static void eventCallback( MQTTContext_t * pMqttContext,
++static bool eventCallback( MQTTContext_t * pMqttContext,
+                            MQTTPacketInfo_t * pPacketInfo,
+-                           MQTTDeserializedInfo_t * pDeserializedInfo )
++                           MQTTDeserializedInfo_t * pDeserializedInfo,
++                           MQTTSuccessFailReasonCode_t * pReasonCode,
++                           MQTTPropBuilder_t * pSendPropsBuffer,
++                           MQTTPropBuilder_t * pGetPropsBuffer )
+ {
++    ( void ) pReasonCode;
++    ( void ) pSendPropsBuffer;
++    ( void ) pGetPropsBuffer;
+     ShadowMessageType_t messageType = ShadowMessageTypeMaxNum;
+     const char * pThingName = NULL;
+     uint8_t thingNameLength = 0U;
+@@ -638,6 +647,8 @@
+     {
+         HandleOtherIncomingPacket( pPacketInfo, packetIdentifier );
+     }
++
++    return true;
+ }
+ 
+ /*-----------------------------------------------------------*/
+--- a/demos/shadow/shadow_demo_main/shadow_demo_helpers.c	2026-04-01 12:46:34.692708880 -0400
++++ b/demos/shadow/shadow_demo_main/shadow_demo_helpers.c	2026-04-01 12:49:40.473778155 -0400
+@@ -686,7 +686,8 @@
+                        outgoingPublishPackets[ index ].packetId ) );
+             mqttStatus = MQTT_Publish( pMqttContext,
+                                        &outgoingPublishPackets[ index ].pubInfo,
+-                                       outgoingPublishPackets[ index ].packetId );
++                                       outgoingPublishPackets[ index ].packetId,
++                                       NULL );
+ 
+             if( mqttStatus != MQTTSuccess )
+             {
+@@ -770,7 +771,9 @@
+                                                pOutgoingPublishRecords,
+                                                OUTGOING_PUBLISH_RECORD_LEN,
+                                                pIncomingPublishRecords,
+-                                               INCOMING_PUBLISH_RECORD_LEN );
++                                               INCOMING_PUBLISH_RECORD_LEN,
++                                               NULL,
++                                               0 );
+ 
+             if( mqttStatus != MQTTSuccess )
+             {
+@@ -812,7 +815,9 @@
+                                            &connectInfo,
+                                            NULL,
+                                            CONNACK_RECV_TIMEOUT_MS,
+-                                           &sessionPresent );
++                                           &sessionPresent,
++                                           NULL,
++                                           NULL );
+ 
+                 if( mqttStatus != MQTTSuccess )
+                 {
+@@ -877,7 +882,9 @@
+     if( mqttSessionEstablished == true )
+     {
+         /* Send DISCONNECT. */
+-        mqttStatus = MQTT_Disconnect( pMqttContext );
++        mqttStatus = MQTT_Disconnect( pMqttContext,
++                                      NULL,
++                                      NULL );
+ 
+         if( mqttStatus != MQTTSuccess )
+         {
+@@ -922,7 +929,8 @@
+     mqttStatus = MQTT_Subscribe( pMqttContext,
+                                  pSubscriptionList,
+                                  sizeof( pSubscriptionList ) / sizeof( MQTTSubscribeInfo_t ),
+-                                 globalSubscribePacketIdentifier );
++                                 globalSubscribePacketIdentifier,
++                                 NULL );
+ 
+     if( mqttStatus != MQTTSuccess )
+     {
+@@ -980,7 +988,8 @@
+     mqttStatus = MQTT_Unsubscribe( pMqttContext,
+                                    pSubscriptionList,
+                                    sizeof( pSubscriptionList ) / sizeof( MQTTSubscribeInfo_t ),
+-                                   globalUnsubscribePacketIdentifier );
++                                   globalUnsubscribePacketIdentifier,
++                                   NULL );
+ 
+     if( mqttStatus != MQTTSuccess )
+     {
+@@ -1051,7 +1060,8 @@
+         /* Send PUBLISH packet. */
+         mqttStatus = MQTT_Publish( pMqttContext,
+                                    &outgoingPublishPackets[ publishIndex ].pubInfo,
+-                                   outgoingPublishPackets[ publishIndex ].packetId );
++                                   outgoingPublishPackets[ publishIndex ].packetId,
++                                   NULL );
+ 
+         if( mqttStatus != MQTTSuccess )
+         {
