@@ -16,6 +16,7 @@ SRC_URI = "\
     git://github.com/aws/aws-iot-device-sdk-embedded-C.git;protocol=https;branch=main \
     file://CMakeLists.txt \
     file://run-ptest \
+    file://0001-adapt-to-coremqtt-5.x-api.patch \
     "
 
 SRCREV = "da99638ec373c791a45557b0cd91fc20968d492d"

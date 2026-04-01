@@ -16,6 +16,7 @@ DEPENDS = "\
 SRC_URI = "\
     git://github.com/aws/aws-iot-device-sdk-embedded-C.git;protocol=https;branch=main \
     file://001-fix-includes.patch \
+    file://0001-adapt-to-coremqtt-5.x-api.patch \
     file://CMakeLists.txt \
     file://run-ptest \
     "
