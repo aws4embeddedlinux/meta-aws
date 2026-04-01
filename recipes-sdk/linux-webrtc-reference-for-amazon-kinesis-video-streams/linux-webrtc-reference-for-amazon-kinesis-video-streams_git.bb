@@ -28,6 +28,7 @@ OECMAKE_C_FLAGS:append = " -DLIBRARY_LOG_LEVEL=LOG_INFO"
 
 # nooelint: oelint.vars.specific
 CFLAGS:append:arm = " -Wno-error=format="
+CFLAGS:append = " -Wno-error=discarded-qualifiers"
 
 SRC_URI = "\
      gitsm://github.com/awslabs/linux-webrtc-reference-for-amazon-kinesis-video-streams.git;protocol=https;branch=main \
