@@ -1,0 +1,112 @@
+Upstream-Status: Pending [upstream SDK updating demos for coreMQTT 5.x]
+
+--- a/demos/defender/defender_demo_json/mqtt_operations.c	2026-04-01 12:46:34.694243562 -0400
++++ b/demos/defender/defender_demo_json/mqtt_operations.c	2026-04-01 12:50:30.165527498 -0400
+@@ -341,9 +341,12 @@
+  * @param[in] pPacketInfo Packet Info pointer for the incoming packet.
+  * @param[in] pDeserializedInfo Deserialized information from the incoming packet.
+  */
+-static void mqttCallback( MQTTContext_t * pMqttContext,
++static bool mqttCallback( MQTTContext_t * pMqttContext,
+                           MQTTPacketInfo_t * pPacketInfo,
+-                          MQTTDeserializedInfo_t * pDeserializedInfo );
++                          MQTTDeserializedInfo_t * pDeserializedInfo,
++                          MQTTSuccessFailReasonCode_t * pReasonCode,
++                          MQTTPropBuilder_t * pSendPropsBuffer,
++                          MQTTPropBuilder_t * pGetPropsBuffer );
+ 
+ /**
+  * @brief Resend the publishes if a session is re-established with the broker.
+@@ -553,10 +556,16 @@
+ }
+ /*-----------------------------------------------------------*/
+ 
+-static void mqttCallback( MQTTContext_t * pMqttContext,
++static bool mqttCallback( MQTTContext_t * pMqttContext,
+                           MQTTPacketInfo_t * pPacketInfo,
+-                          MQTTDeserializedInfo_t * pDeserializedInfo )
+-{
++                          MQTTDeserializedInfo_t * pDeserializedInfo,
++                          MQTTSuccessFailReasonCode_t * pReasonCode,
++                          MQTTPropBuilder_t * pSendPropsBuffer,
++                          MQTTPropBuilder_t * pGetPropsBuffer )
++{
++    ( void ) pReasonCode;
++    ( void ) pSendPropsBuffer;
++    ( void ) pGetPropsBuffer;
+     uint16_t packetIdentifier;
+ 
+     assert( pMqttContext != NULL );
+@@ -659,7 +668,8 @@
+                         outgoingPublishPackets[ index ].packetId ) );
+             mqttStatus = MQTT_Publish( pMqttContext,
+                                        &outgoingPublishPackets[ index ].pubInfo,
+-                                       outgoingPublishPackets[ index ].packetId );
++                                       outgoingPublishPackets[ index ].packetId,
++                                       NULL );
+ 
+             if( mqttStatus != MQTTSuccess )
+             {
+@@ -799,7 +809,9 @@
+                                                pOutgoingPublishRecords,
+                                                OUTGOING_PUBLISH_RECORD_LEN,
+                                                pIncomingPublishRecords,
+-                                               INCOMING_PUBLISH_RECORD_LEN );
++                                               INCOMING_PUBLISH_RECORD_LEN,
++                                               NULL,
++                                               0 );
+ 
+             if( mqttStatus != MQTTSuccess )
+             {
+@@ -842,7 +854,9 @@
+                                            &connectInfo,
+                                            NULL,
+                                            CONNACK_RECV_TIMEOUT_MS,
+-                                           &sessionPresent );
++                                           &sessionPresent,
++                                           NULL,
++                                           NULL );
+ 
+                 if( mqttStatus != MQTTSuccess )
+                 {
+@@ -908,7 +922,9 @@
+     if( mqttSessionEstablished == true )
+     {
+         /* Send DISCONNECT. */
+-        mqttStatus = MQTT_Disconnect( pMqttContext );
++        mqttStatus = MQTT_Disconnect( pMqttContext,
++                                      NULL,
++                                      NULL );
+ 
+         if( mqttStatus != MQTTSuccess )
+         {
+@@ -956,7 +972,8 @@
+     mqttStatus = MQTT_Subscribe( pMqttContext,
+                                  pSubscriptionList,
+                                  sizeof( pSubscriptionList ) / sizeof( MQTTSubscribeInfo_t ),
+-                                 globalSubscribePacketIdentifier );
++                                 globalSubscribePacketIdentifier,
++                                 NULL );
+ 
+     if( mqttStatus != MQTTSuccess )
+     {
+@@ -1012,7 +1029,8 @@
+     mqttStatus = MQTT_Unsubscribe( pMqttContext,
+                                    pSubscriptionList,
+                                    sizeof( pSubscriptionList ) / sizeof( MQTTSubscribeInfo_t ),
+-                                   globalUnsubscribePacketIdentifier );
++                                   globalUnsubscribePacketIdentifier,
++                                   NULL );
+ 
+     if( mqttStatus != MQTTSuccess )
+     {
+@@ -1080,7 +1098,8 @@
+         /* Send PUBLISH packet. */
+         mqttStatus = MQTT_Publish( pMqttContext,
+                                    &outgoingPublishPackets[ publishIndex ].pubInfo,
+-                                   outgoingPublishPackets[ publishIndex ].packetId );
++                                   outgoingPublishPackets[ publishIndex ].packetId,
++                                   NULL );
+ 
+         if( mqttStatus != MQTTSuccess )
+         {
