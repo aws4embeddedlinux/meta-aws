@@ -124,7 +124,12 @@ jobs:
           
           # Temporarily use master for all branches until proper version alignment is implemented
           BITBAKE_BRANCH="master"
-          git clone https://git.openembedded.org/bitbake -b $BITBAKE_BRANCH ${{ github.workspace }}/bitbake
+          for i in 1 2 3 4 5; do
+            git clone https://git.openembedded.org/bitbake -b $BITBAKE_BRANCH ${{ github.workspace }}/bitbake && break
+            echo "Attempt $i failed, retrying in $((i * 30))s..."
+            rm -rf ${{ github.workspace }}/bitbake
+            sleep $((i * 30))
+          done
       - name: Initialize Build Environment
         run: |
           chown -R yoctouser .
