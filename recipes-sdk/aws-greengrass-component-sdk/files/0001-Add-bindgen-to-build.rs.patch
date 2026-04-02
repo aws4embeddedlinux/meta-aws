@@ -1,9 +1,18 @@
-Upstream-Status: Pending
+From 08b48b9ccdac7a125028965c098e0a18422f443e Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Thu, 27 Nov 2025 12:49:26 +0000
+Subject: [PATCH] aws-greengrass-component-sdk: use bindgen to correct create
 
-Index: aws-greengrass-component-sdk-0.4.0/rust/Cargo.toml
-===================================================================
---- aws-greengrass-component-sdk-0.4.0.orig/rust/Cargo.toml
-+++ aws-greengrass-component-sdk-0.4.0/rust/Cargo.toml
+Upstream-Status: Pending
+---
+ rust/Cargo.toml |  1 +
+ rust/build.rs   | 42 ++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 43 insertions(+)
+
+diff --git a/rust/Cargo.toml b/rust/Cargo.toml
+index ab2f67e..0e8d846 100644
+--- a/rust/Cargo.toml
++++ b/rust/Cargo.toml
 @@ -11,6 +11,7 @@ categories = ["api-bindings"]
  
  [build-dependencies]
@@ -12,10 +21,10 @@ Index: aws-greengrass-component-sdk-0.4.0/rust/Cargo.toml
  
  [profile.release]
  strip = true
-Index: aws-greengrass-component-sdk-0.4.0/rust/build.rs
-===================================================================
---- aws-greengrass-component-sdk-0.4.0.orig/rust/build.rs
-+++ aws-greengrass-component-sdk-0.4.0/rust/build.rs
+diff --git a/rust/build.rs b/rust/build.rs
+index d6737f4..21b2f27 100644
+--- a/rust/build.rs
++++ b/rust/build.rs
 @@ -16,6 +16,47 @@ fn main() {
      let project_root =
          PathBuf::from(&manifest_dir).parent().unwrap().to_path_buf();
@@ -64,7 +73,7 @@ Index: aws-greengrass-component-sdk-0.4.0/rust/build.rs
      let mut src_files = Vec::new();
      let mut dirs = vec![project_root.join("src")];
      while let Some(dir) = dirs.pop() {
-@@ -61,6 +102,7 @@ fn main() {
+@@ -60,6 +101,7 @@ fn main() {
  
      build.compile("gg-sdk");
  

@@ -1,11 +1,19 @@
+From 2d2fb888274ed33def1ac33305c349f736207080 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Thu, 27 Nov 2025 12:49:26 +0000
+Subject: [PATCH] aws-greengrass-component-sdk: use bindgen to correct create
+
 Upstream-Status: Inappropriate [Yocto-specific]
 
 Let Yocto handle stripping instead of Cargo.
+---
+ rust/Cargo.toml | 1 -
+ 1 file changed, 1 deletion(-)
 
-Index: aws-greengrass-component-sdk-0.4.0/rust/Cargo.toml
-===================================================================
---- aws-greengrass-component-sdk-0.4.0.orig/rust/Cargo.toml
-+++ aws-greengrass-component-sdk-0.4.0/rust/Cargo.toml
+diff --git a/rust/Cargo.toml b/rust/Cargo.toml
+index 5520625..3a51c2b 100644
+--- a/rust/Cargo.toml
++++ b/rust/Cargo.toml
 @@ -17,7 +17,6 @@ cc = "1"
  bindgen = "0.72"
  
