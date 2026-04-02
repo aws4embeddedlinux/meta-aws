@@ -102,7 +102,12 @@ jobs:
           ref: ${{ needs.changed.outputs.release }}
       - name: Checkout poky
         run: |
-          git clone git://git.yoctoproject.org/poky --single-branch  ${{ github.workspace }}/poky -b ${{ needs.changed.outputs.release }}
+          for i in 1 2 3 4 5; do
+            git clone git://git.yoctoproject.org/poky --single-branch ${{ github.workspace }}/poky -b ${{ needs.changed.outputs.release }} && break
+            echo "Attempt $i failed, retrying in $((i * 30))s..."
+            rm -rf ${{ github.workspace }}/poky
+            sleep $((i * 30))
+          done
       - name: Get changed Recipes or defaults
         id: recipes_to_build_test
         shell: bash
