@@ -4,7 +4,7 @@ Index: git/CMakeLists.txt
 ===================================================================
 --- git.orig/CMakeLists.txt
 +++ git/CMakeLists.txt
-@@ -200,7 +200,8 @@ try_add_link_option(compress-debug-secti
+@@ -224,7 +224,8 @@ try_add_link_option(compress-debug-secti
  # try_add_link_option_if(gc-sections $<NOT:$<CONFIG:Debug>>
  # LINKER:--gc-sections)
 
