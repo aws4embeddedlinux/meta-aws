@@ -31,7 +31,7 @@ LDFLAGS:append:libc-musl = " -largp"
 
 # THIS IS DISABLED IF exernalsrc is enabled
 SRC_URI = "\
-    git://github.com/aws-greengrass/aws-greengrass-lite.git;protocol=https;branch=release/2.3.x;name=ggl \
+    git://github.com/aws-greengrass/aws-greengrass-lite.git;protocol=https;branch=main;name=ggl \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/FreeRTOS/coreMQTT.git;protocol=https;branch=main;name=mqtt;destsuffix=${S}/thirdparty/core_mqtt'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main;name=sigv4;destsuffix=${S}/thirdparty/aws_sigv4'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;nobranch=1;name=sdk;destsuffix=${S}/thirdparty/gg_sdk'} \
@@ -46,16 +46,16 @@ SRC_URI = "\
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.aws.greengrass.TokenExchangeService.service.d-fleet-provisioning.conf','',d)} \
 "
 
-SRCREV_ggl = "cd020bf3bf5ebe8c13e4cebcc71c6349aa86ea44"
+SRCREV_ggl = "7a0d7bed443e3c69dfc041c9c1cd9fdeb20d7dbf"
 
 # must match fc_deps.json
 
 # nooelint: oelint.vars.specific
-SRCREV_mqtt = "f1827d8b46703f1c5ff05d21b34692d3122c9a04"
+SRCREV_mqtt = "8f129a1eddfe92f7196da3253acc292c4331e285"
 # nooelint: oelint.vars.specific
-SRCREV_sigv4 = "f0409ced6c2c9430f0e972019b7e8f20bbf58f4e"
+SRCREV_sigv4 = "v1.3.1"
 # nooelint: oelint.vars.specific
-SRCREV_sdk = "v0.4.1"
+SRCREV_sdk = "v1.0.0"
 
 EXTRA_OECMAKE:append = " \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_CORE_MQTT=${S}/thirdparty/core_mqtt'} \
@@ -117,7 +117,7 @@ PACKAGECONFIG[localdeployment] = ""
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DBUILD_EXAMPLES=ON,-DBUILD_TESTING=OFF,"
 
 # default is stripped, we wanna do this by yocto
-EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
+EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo -DGGL_RELEASE=ON"
 # EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=MinSizeRel"
 
 EXTRA_OECMAKE:append = " -DGG_LOG_LEVEL=INFO"
