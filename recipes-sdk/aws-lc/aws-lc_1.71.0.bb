@@ -879,6 +879,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 SRCREV = "47389586f8aa77c83245173793f4d44ed1d6c3a8"
+S = "${WORKDIR}/git"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 # nooelint: oelint.vars.specific
