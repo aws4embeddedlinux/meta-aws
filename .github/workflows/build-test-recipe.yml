@@ -236,7 +236,7 @@ jobs:
 
           # Handle mutually exclusive recipes (see #15435)
           if echo "$RECIPES" | grep -qw "aws-cli-v2" && echo "$RECIPES" | grep -qw "aws-cli"; then
-            RECIPES=$(echo "$RECIPES" | sed 's/\baws-cli\b//g' | tr -s ' ')
+            RECIPES=$(echo "$RECIPES" | tr ' ' '\n' | grep -v '^aws-cli$' | tr '\n' ' ')
             echo "Excluded aws-cli (v1) due to conflict with aws-cli-v2"
           fi
 
