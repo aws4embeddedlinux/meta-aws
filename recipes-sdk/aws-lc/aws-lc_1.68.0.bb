@@ -199,6 +199,8 @@ RDEPENDS:${PN}-ptest = "\
 # Notify that libraries are not versioned
 FILES_SOLIBSDEV = ""
 
+COMPATIBLE_HOST:arm = "null"
+
 BBCLASSEXTEND = "native nativesdk"
 
 inherit update-alternatives
