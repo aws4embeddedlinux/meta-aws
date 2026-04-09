@@ -103,7 +103,7 @@ jobs:
       - name: Checkout poky
         run: |
           for i in 1 2 3 4 5; do
-            git clone git://git.yoctoproject.org/poky --single-branch ${{ github.workspace }}/poky -b ${{ needs.changed.outputs.release }} && break
+            git clone https://git.yoctoproject.org/poky --single-branch ${{ github.workspace }}/poky -b ${{ needs.changed.outputs.release }} && break
             echo "Attempt $i failed, retrying in $((i * 30))s..."
             rm -rf ${{ github.workspace }}/poky
             sleep $((i * 30))

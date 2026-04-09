@@ -37,7 +37,7 @@ jobs:
       - name: checkout poky
         run: |
           cd yocto_checklayer/
-          git clone git://git.yoctoproject.org/poky --single-branch -b ${{steps.get-yocto-release-name.outputs.release_name}}
+          git clone https://git.yoctoproject.org/poky --single-branch -b ${{steps.get-yocto-release-name.outputs.release_name}}
       - name: run yocto-check-layer
         run: |
           cd yocto_checklayer/
