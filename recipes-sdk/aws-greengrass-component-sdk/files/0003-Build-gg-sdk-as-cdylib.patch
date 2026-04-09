@@ -1,10 +1,18 @@
-Upstream-Status: Inappropriate [Yocto-specific]
+From f15cb741afa2177be9c9515180225f158ba08f39 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Thu, 27 Nov 2025 12:49:26 +0000
+Subject: [PATCH] aws-greengrass-component-sdk: use bindgen to correct create
 
-Index: aws-greengrass-component-sdk-0.4.0/rust/Cargo.toml
-===================================================================
---- aws-greengrass-component-sdk-0.4.0.orig/rust/Cargo.toml
-+++ aws-greengrass-component-sdk-0.4.0/rust/Cargo.toml
-@@ -10,6 +10,9 @@ readme = "../README.md"
+Upstream-Status: Inappropriate [Yocto-specific]
+---
+ rust/Cargo.toml | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/rust/Cargo.toml b/rust/Cargo.toml
+index 0e8d846..5520625 100644
+--- a/rust/Cargo.toml
++++ b/rust/Cargo.toml
+@@ -9,6 +9,9 @@ readme = "../README.md"
  keywords = ["aws", "greengrass", "iot"]
  categories = ["api-bindings"]
  
