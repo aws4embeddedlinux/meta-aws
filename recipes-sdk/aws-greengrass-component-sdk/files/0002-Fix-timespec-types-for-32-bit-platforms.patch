@@ -1,34 +1,32 @@
-From 21604c048828a00ed05e8cf6705112c9f3bbeddb Mon Sep 17 00:00:00 2001
-From: Thomas Roos <throos@amazon.de>
-Date: Thu, 27 Nov 2025 12:49:26 +0000
-Subject: [PATCH] aws-greengrass-component-sdk: use bindgen to correct create
+From ccd16ebc966033f538b1174047ca21b7f943d65c Mon Sep 17 00:00:00 2001
+From: Richard Elberger <elberger@amazon.com>
+Date: Thu, 9 Apr 2026 14:41:43 -0400
+Subject: [PATCH 2/4] Fix timespec types for 32-bit platforms
+
+Use c_long instead of i64 for timespec fields. On 32-bit ARM,
+c_long is 32 bits while i64 is 64 bits, causing struct layout
+mismatch with the C timespec.
 
 Upstream-Status: Pending
 ---
- rust/src/ipc.rs | 6 +++---
- 1 file changed, 3 insertions(+), 3 deletions(-)
+ rust/src/ipc.rs | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/rust/src/ipc.rs b/rust/src/ipc.rs
-index a78648c..ccedd12 100644
+index 4056fbb..42366ea 100644
 --- a/rust/src/ipc.rs
 +++ b/rust/src/ipc.rs
-@@ -3,7 +3,7 @@
- // SPDX-License-Identifier: Apache-2.0
+@@ -486,8 +486,8 @@ impl Sdk {
  
- use std::{
--    env, ffi,
-+    env, ffi::{self, c_long},
-     marker::PhantomData,
-     mem, ptr, result, slice, str,
-     sync::{Mutex, OnceLock},
-@@ -547,8 +547,8 @@ impl Sdk {
-                 t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
              #[expect(clippy::cast_possible_wrap)]
-             c::timespec {
--                tv_sec: duration.as_secs() as i64,
--                tv_nsec: i64::from(duration.subsec_nanos()),
-+                tv_sec: duration.as_secs() as c_long,
-+                tv_nsec: duration.subsec_nanos() as c_long,
-             }
-         });
+             let timespec = timestamp.map(|d| c::timespec {
+-                tv_sec: d.as_secs() as i64,
+-                tv_nsec: i64::from(d.subsec_nanos()),
++                tv_sec: d.as_secs() as ffi::c_long,
++                tv_nsec: d.subsec_nanos() as ffi::c_long,
+             });
  
+             Result::from(unsafe {
+-- 
+2.43.0
+

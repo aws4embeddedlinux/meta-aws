@@ -10,10 +10,9 @@ PV = "1.0.1"
 
 SRCREV = "1e2495b4e7a616d35b374bba4635a95dbb678b95"
 SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;branch=main \
-           file://0001-Add-bindgen-to-build.rs.patch \
-           file://0003-Build-gg-sdk-as-cdylib.patch \
-           file://0004-Update-Cargo.lock-for-bindgen.patch \
-           file://0005-Disable-strip-in-Cargo-profile.patch \
+           file://0001-Add-timespec-blocklist-and-portable-struct-for-cross.patch \
+           file://0003-Build-gg-sdk-as-cdylib-for-shared-library-support.patch \
+           file://0004-Disable-strip-in-Cargo-profile.patch \
 "
 
 # nooelint: oelint.vars.specific

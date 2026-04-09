@@ -1,0 +1,28 @@
+From 747efdccb2f1f6aa40c7dcbc94dd060cb63f3902 Mon Sep 17 00:00:00 2001
+From: Richard Elberger <elberger@amazon.com>
+Date: Thu, 9 Apr 2026 14:42:05 -0400
+Subject: [PATCH 3/4] Build gg-sdk as cdylib for shared library support
+
+Add crate-type cdylib so the Rust library produces a C-compatible
+shared library (libgg_sdk.so) in addition to the rlib.
+
+Upstream-Status: Inappropriate [Yocto-specific]
+---
+ rust/Cargo.toml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/rust/Cargo.toml b/rust/Cargo.toml
+index c8d2bb9..31a472e 100644
+--- a/rust/Cargo.toml
++++ b/rust/Cargo.toml
+@@ -21,6 +21,7 @@ include = [
+ 
+ [lib]
+ name = "gg_sdk"
++crate-type = ["cdylib", "rlib"]
+ 
+ [build-dependencies]
+ bindgen = "0.72.1"
+-- 
+2.43.0
+
