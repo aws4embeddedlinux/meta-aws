@@ -12,6 +12,7 @@ ARCH_DIR:aarch64 = "aarch64"
 COMPATIBLE_MACHINE = "null"
 COMPATIBLE_MACHINE:aarch64 = "(.*)"
 COMPATIBLE_MACHINE:x86-64 = "(.*)"
+COMPATIBLE_HOST:arm = "null"
 
 # nooelint: oelint.vars.srcurichecksum
 SRC_URI = "https://github.com/firecracker-microvm/firecracker/releases/download/v${PV}/firecracker-v${PV}-${ARCH_DIR}.tgz;name=${ARCH_DIR}"
