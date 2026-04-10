@@ -1,6 +1,6 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 2d29cd4f25124074a7f541e839d9b53aea02e968 Mon Sep 17 00:00:00 2001
 From: Yocto Builder <builder@yoctoproject.org>
-Date: Wed, 27 Nov 2025 10:35:00 +0000
+Date: Thu, 27 Nov 2025 10:35:00 +0000
 Subject: [PATCH] Update Cargo.lock for bindgen dependencies
 
 Add bindgen and all its dependencies to Cargo.lock for runtime binding generation.
@@ -9,6 +9,9 @@ Upstream-Status: Submitted [https://github.com/aws-greengrass/aws-greengrass-com
 
 Signed-off-by: Yocto Builder <builder@yoctoproject.org>
 ---
+ rust/Cargo.lock | 213 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 213 insertions(+)
+
 diff --git a/rust/Cargo.lock b/rust/Cargo.lock
 index 5a6be9d..fbd927d 100644
 --- a/rust/Cargo.lock
