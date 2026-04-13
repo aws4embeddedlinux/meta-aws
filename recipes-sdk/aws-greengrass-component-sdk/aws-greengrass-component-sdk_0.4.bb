@@ -132,7 +132,7 @@ do_install() {
         fi
 
         # Install C static library
-        install -m 0644 ${B}/target/${CARGO_TARGET_SUBDIR}/build/gg-sdk-*/out/libgg-sdk.a ${D}${libdir}/
+        install -m 0644 ${B}/target/${CARGO_TARGET_SUBDIR}/build/aws-greengrass-component-sdk-*/out/libgg-sdk.a ${D}${libdir}/
 
         # Install headers
         install -d ${D}${includedir}/gg
