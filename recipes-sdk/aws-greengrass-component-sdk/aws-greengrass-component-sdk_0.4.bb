@@ -6,14 +6,13 @@ HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-component-sdk"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-PV = "0.4.0+git${SRCPV}"
+PV = "1.0.1"
 
-SRCREV = "4ee9ad4ef5ae5a190a5076e7a823510f9ee2a433"
+SRCREV = "1e2495b4e7a616d35b374bba4635a95dbb678b95"
 SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;branch=main \
-           file://0001-Add-bindgen-to-build.rs.patch \
-           file://0003-Build-gg-sdk-as-cdylib.patch \
-           file://0004-Update-Cargo.lock-for-bindgen.patch \
-           file://0005-Disable-strip-in-Cargo-profile.patch \
+           file://0001-Add-timespec-blocklist-and-portable-struct-for-cross.patch \
+           file://0003-Build-gg-sdk-as-cdylib-for-shared-library-support.patch \
+           file://0004-Disable-strip-in-Cargo-profile.patch \
 "
 
 # nooelint: oelint.vars.specific
@@ -133,7 +132,7 @@ do_install() {
         fi
 
         # Install C static library
-        install -m 0644 ${B}/target/${CARGO_TARGET_SUBDIR}/build/gg-sdk-*/out/libgg-sdk.a ${D}${libdir}/
+        install -m 0644 ${B}/target/${CARGO_TARGET_SUBDIR}/build/aws-greengrass-component-sdk-*/out/libgg-sdk.a ${D}${libdir}/
 
         # Install headers
         install -d ${D}${includedir}/gg

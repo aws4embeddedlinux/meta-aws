@@ -1,0 +1,49 @@
+From 747efdccb2f1f6aa40c7dcbc94dd060cb63f3902 Mon Sep 17 00:00:00 2001
+From: Richard Elberger <elberger@amazon.com>
+Date: Thu, 9 Apr 2026 14:42:05 -0400
+Subject: [PATCH 3/4] Build gg-sdk as cdylib for shared library support
+
+Add crate-type cdylib so the Rust library produces a C-compatible
+shared library (libgg_sdk.so) in addition to the rlib.
+
+Since the crate is no_std, a cdylib target requires a panic_handler.
+Add one that aborts on panic, matching the upstream Cargo.toml
+profile.release panic = "abort" setting.
+
+Upstream-Status: Inappropriate [Yocto-specific]
+---
+ rust/Cargo.toml | 1 +
+ rust/src/lib.rs | 6 ++++++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/rust/Cargo.toml b/rust/Cargo.toml
+index c8d2bb9..31a472e 100644
+--- a/rust/Cargo.toml
++++ b/rust/Cargo.toml
+@@ -21,6 +21,7 @@ include = [
+ 
+ [lib]
+ name = "gg_sdk"
++crate-type = ["cdylib", "rlib"]
+ 
+ [build-dependencies]
+ bindgen = "0.72.1"
+diff --git a/rust/src/lib.rs b/rust/src/lib.rs
+index 42fc8ef..53e52b4 100644
+--- a/rust/src/lib.rs
++++ b/rust/src/lib.rs
+@@ -8,6 +8,12 @@
+ #![warn(missing_docs, clippy::pedantic, clippy::cargo)]
+ #![allow(clippy::enum_glob_use)]
+ 
++#[cfg(not(test))]
++#[panic_handler]
++fn panic(_info: &core::panic::PanicInfo) -> ! {
++    loop {}
++}
++
+ #[cfg(test)]
+ extern crate std;
+ 
+-- 
+2.43.0
