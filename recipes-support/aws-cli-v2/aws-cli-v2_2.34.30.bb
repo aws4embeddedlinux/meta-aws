@@ -23,7 +23,7 @@ DEPENDS += "\
     python3-ruamel-yaml-clib-native \
     python3-ruamel-yaml-native \
     python3-s3transfer \
-    python3-urllib3-1.x-native \
+    python3-urllib3-native \
     python3-zipp-native \
 "
 
@@ -32,7 +32,7 @@ SRC_URI = "\
     file://run-ptest \
 "
 
-SRCREV = "7309c49d8d10a8232031c4baa6a020c505f2f06b"
+SRCREV = "7f985d7ae64be6d278fba26fc44773150b32f561"
 
 S = "${WORKDIR}/git"
 
@@ -70,7 +70,7 @@ RDEPENDS:${PN} += "\
     python3-ruamel-yaml \
     python3-sqlite3 \
     python3-unixadmin \
-    python3-urllib3-1.x \
+    python3-urllib3 \
     python3-zipp \
 "
 

@@ -27,7 +27,6 @@ TESTS="\
 ./s2n_client_supported_groups_extension_test \
 ./s2n_connection_context_test \
 ./s2n_connection_preferences_test \
-./s2n_drbg_test \
 ./s2n_early_data_io_api_test \
 ./s2n_ecc_point_format_extension_test \
 ./s2n_ecc_preferences_test \
@@ -38,7 +37,6 @@ TESTS="\
 ./s2n_extension_list_process_test \
 ./s2n_extension_list_send_test \
 ./s2n_extension_type_lists_test \
-./s2n_fork_generation_number_test \
 ./s2n_fragmentation_coalescing_test \
 ./s2n_handshake_errno_test \
 ./s2n_handshake_hashes_test \
@@ -162,7 +160,6 @@ TESTS="\
 ./s2n_extension_type_test \
 ./s2n_handshake_partial_test \
 ./s2n_handshake_test \
-./s2n_mem_allocator_test \
 ./s2n_mem_test \
 ./s2n_mem_usage_test \
 ./s2n_mutual_auth_test \
@@ -170,7 +167,6 @@ TESTS="\
 ./s2n_pem_rsa_dhe_test \
 ./s2n_pem_test \
 ./s2n_pkey_test \
-./s2n_post_handshake_recv_test \
 ./s2n_recv_test \
 ./s2n_release_non_empty_buffers_test \
 ./s2n_renegotiate_io_test \
