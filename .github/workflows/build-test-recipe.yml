@@ -193,6 +193,15 @@ jobs:
           done
           export RECIPES="$FILTERED_RECIPES"
 
+          # Handle mutually exclusive recipes
+          # aws-cli v1 and v2 both install /usr/bin/aws (see #15435)
+          # aws-cli-v2 on scarthgap needs python3-urllib3-1.x which conflicts
+          # with python3-urllib3 2.x pulled by boto3/botocore/s3transfer
+          if echo "$RECIPES" | grep -qw "aws-cli-v2"; then
+            RECIPES=$(echo "$RECIPES" | tr ' ' '\n' | grep -v '^aws-cli$' | grep -v '^aws-cli-v2$' | tr '\n' ' ')
+            echo "Excluded aws-cli and aws-cli-v2 from ptest (file clash + urllib3 1.x/2.x conflict)"
+          fi
+
           echo RECIPES to build, test: "$RECIPES"
           echo "recipes=$RECIPES" >> $GITHUB_OUTPUT
       - name: Run build
