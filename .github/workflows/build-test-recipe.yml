@@ -234,6 +234,12 @@ jobs:
           done
           export RECIPES="$FILTERED_RECIPES"
 
+          # Handle mutually exclusive recipes (see #15435)
+          if echo "$RECIPES" | grep -qw "aws-cli-v2" && echo "$RECIPES" | grep -qw "aws-cli"; then
+            RECIPES=$(echo "$RECIPES" | tr ' ' '\n' | grep -v '^aws-cli$' | tr '\n' ' ')
+            echo "Excluded aws-cli (v1) due to conflict with aws-cli-v2"
+          fi
+
           echo RECIPES to build, test: "$RECIPES"
           echo "recipes=$RECIPES" >> $GITHUB_OUTPUT
       - name: Run build
