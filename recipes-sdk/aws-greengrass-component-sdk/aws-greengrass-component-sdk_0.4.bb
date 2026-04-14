@@ -11,7 +11,6 @@ PV = "1.0.1"
 SRCREV = "1e2495b4e7a616d35b374bba4635a95dbb678b95"
 SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;branch=main \
            file://0001-Add-timespec-blocklist-and-portable-struct-for-cross.patch \
-           file://0003-Build-gg-sdk-as-cdylib-for-shared-library-support.patch \
            file://0004-Disable-strip-in-Cargo-profile.patch \
 "
 
@@ -49,7 +48,7 @@ export BINDGEN_EXTRA_CLANG_ARGS = "--sysroot=${STAGING_DIR_TARGET} ${TARGET_CC_A
 
 EXTRA_OECMAKE = " \
     -DCMAKE_BUILD_TYPE=MinSizeRel \
-    -DBUILD_SHARED_LIBS=ON \
+    -DBUILD_SHARED_LIBS=OFF \
     -DBUILD_SAMPLES=ON \
     -DENABLE_WERROR=OFF \
 "
@@ -122,7 +121,6 @@ do_install() {
 
         # Install Rust shared library for runtime
         install -d ${D}${libdir}
-        install -m 0755 ${B}/target/${CARGO_TARGET_SUBDIR}/libgg_sdk.so ${D}${libdir}/
 
         # Install Rust rlib for compile-time
         install -d ${D}${libdir}/rustlib/${RUST_HOST_SYS}/lib
@@ -201,7 +199,6 @@ PACKAGES = "${PN} ${PN}-dev ${PN}-staticdev ${PN}-doc ${PN}-ptest ${PN}-dbg"
 
 FILES:${PN} = " \
     ${libdir}/libgg-sdk.so* \
-    ${libdir}/libgg_sdk.so* \
     ${bindir}/* \
 "
 

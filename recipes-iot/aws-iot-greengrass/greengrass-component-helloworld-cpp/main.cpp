@@ -1,7 +1,6 @@
 #include <gg/buffer.hpp>
 #include <gg/ipc/client.hpp>
 #include <gg/object.hpp>
-#include <gg/types.hpp>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
