@@ -49,12 +49,12 @@ export BINDGEN_EXTRA_CLANG_ARGS = "--sysroot=${STAGING_DIR_TARGET} ${TARGET_CC_A
 EXTRA_OECMAKE = " \
     -DCMAKE_BUILD_TYPE=MinSizeRel \
     -DBUILD_SHARED_LIBS=OFF \
-    -DBUILD_SAMPLES=ON \
     -DENABLE_WERROR=OFF \
 "
 
 PACKAGECONFIG ??= "rust"
 PACKAGECONFIG[rust] = ",,,"
+PACKAGECONFIG[samples] = "-DBUILD_SAMPLES=ON,-DBUILD_SAMPLES=OFF,"
 
 # default is stripped, we wanna do this by yocto
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
@@ -85,9 +85,14 @@ do_configure:prepend() {
 do_compile() {
     cmake_do_compile
 
-    if echo "${PACKAGECONFIG}" | grep -q "rust"; then
-        bbnote "Building Rust examples"
+    if ${@bb.utils.contains('PACKAGECONFIG', 'rust', 'true', 'false', d)}; then
+        bbnote "Building Rust library"
         cargo_do_compile
+
+        if ${@bb.utils.contains('PACKAGECONFIG', 'samples', 'true', 'false', d)}; then
+            bbnote "Building Rust examples"
+            cargo_do_compile --examples
+        fi
     fi
 }
 
@@ -96,25 +101,45 @@ SRC_URI:append = " file://run-ptest"
 do_install() {
     cmake --install ${B} --prefix ${D}${prefix}
 
-    install -d ${D}${bindir}
-    if [ -d "${B}/bin" ]; then
-        for sample in ${B}/bin/*; do
-            if [ -f "$sample" ]; then
-                install -m 0755 "$sample" ${D}${bindir}/
+    # Install C/C++ sample binaries and component recipes
+    if ${@bb.utils.contains('PACKAGECONFIG', 'samples', 'true', 'false', d)}; then
+        install -d ${D}${bindir}
+        if [ -d "${B}/bin" ]; then
+            for sample in ${B}/bin/*; do
+                if [ -f "$sample" ]; then
+                    install -m 0755 "$sample" ${D}${bindir}/
+                fi
+            done
+        fi
+
+        # Install component recipe JSONs for deployment reference
+        install -d ${D}${datadir}/greengrass/component-recipes
+        for recipe_json in ${S}/samples/*.json ${S}/cpp/samples/*.json; do
+            if [ -f "$recipe_json" ]; then
+                install -m 0644 "$recipe_json" ${D}${datadir}/greengrass/component-recipes/
             fi
         done
     fi
 
     if ${@bb.utils.contains('PACKAGECONFIG', 'rust', 'true', 'false', d)}; then
-        if [ -d "${B}/target/${CARGO_TARGET_SUBDIR}/examples" ]; then
-            for example in ${B}/target/${CARGO_TARGET_SUBDIR}/examples/*; do
-                if [ -f "$example" ] && [ -x "$example" ] && [ ! "${example##*.}" = "d" ]; then
-                    case "$(basename $example)" in
-                        *-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])
-                            continue
-                            ;;
-                    esac
-                    install -m 0755 "$example" ${D}${bindir}/rust_$(basename $example)
+        if ${@bb.utils.contains('PACKAGECONFIG', 'samples', 'true', 'false', d)}; then
+            if [ -d "${B}/target/${CARGO_TARGET_SUBDIR}/examples" ]; then
+                for example in ${B}/target/${CARGO_TARGET_SUBDIR}/examples/*; do
+                    if [ -f "$example" ] && [ -x "$example" ] && [ ! "${example##*.}" = "d" ]; then
+                        case "$(basename $example)" in
+                            *-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])
+                                continue
+                                ;;
+                        esac
+                        install -m 0755 "$example" ${D}${bindir}/rust_$(basename $example)
+                    fi
+                done
+            fi
+
+            # Install Rust example component recipe JSONs
+            for recipe_json in ${S}/rust/examples/*.json; do
+                if [ -f "$recipe_json" ]; then
+                    install -m 0644 "$recipe_json" ${D}${datadir}/greengrass/component-recipes/
                 fi
             done
         fi
@@ -169,37 +194,44 @@ do_install() {
 do_install_ptest() {
     install -m 0755 ${WORKDIR}/sources/run-ptest ${D}${PTEST_PATH}/
 
-    if [ -d "${B}/bin" ]; then
-        for sample in ${B}/bin/*; do
-            if [ -f "$sample" ]; then
-                install -m 0755 "$sample" ${D}${PTEST_PATH}/
-            fi
-        done
-    fi
-
-    if ${@bb.utils.contains('PACKAGECONFIG', 'rust', 'true', 'false', d)}; then
-        if [ -d "${B}/target/${CARGO_TARGET_SUBDIR}/examples" ]; then
-            for example in ${B}/target/${CARGO_TARGET_SUBDIR}/examples/*; do
-                if [ -f "$example" ] && [ -x "$example" ] && [ ! "${example##*.}" = "d" ]; then
-                    case "$(basename $example)" in
-                        *-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])
-                            continue
-                            ;;
-                    esac
-                    install -m 0755 "$example" ${D}${PTEST_PATH}/rust_$(basename $example)
+    if ${@bb.utils.contains('PACKAGECONFIG', 'samples', 'true', 'false', d)}; then
+        if [ -d "${B}/bin" ]; then
+            for sample in ${B}/bin/*; do
+                if [ -f "$sample" ]; then
+                    install -m 0755 "$sample" ${D}${PTEST_PATH}/
                 fi
             done
+        fi
+
+        if ${@bb.utils.contains('PACKAGECONFIG', 'rust', 'true', 'false', d)}; then
+            if [ -d "${B}/target/${CARGO_TARGET_SUBDIR}/examples" ]; then
+                for example in ${B}/target/${CARGO_TARGET_SUBDIR}/examples/*; do
+                    if [ -f "$example" ] && [ -x "$example" ] && [ ! "${example##*.}" = "d" ]; then
+                        case "$(basename $example)" in
+                            *-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])
+                                continue
+                                ;;
+                        esac
+                        install -m 0755 "$example" ${D}${PTEST_PATH}/rust_$(basename $example)
+                    fi
+                done
+            fi
         fi
     fi
 
     rm -rf ${D}${PTEST_PATH}/.debug
 }
 
-PACKAGES = "${PN} ${PN}-dev ${PN}-staticdev ${PN}-doc ${PN}-ptest ${PN}-dbg"
+PACKAGES = "${PN} ${PN}-samples ${PN}-dev ${PN}-staticdev ${PN}-doc ${PN}-ptest ${PN}-dbg"
 
 FILES:${PN} = " \
     ${libdir}/libgg-sdk.so* \
-    ${bindir}/* \
+"
+
+FILES:${PN}-samples = " \
+    ${bindir}/sample_* \
+    ${bindir}/rust_* \
+    ${datadir}/greengrass/component-recipes/* \
 "
 
 FILES:${PN}-dev = " \
