@@ -6,8 +6,6 @@ HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-component-sdk"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-PV = "1.0.1"
-
 SRCREV = "1e2495b4e7a616d35b374bba4635a95dbb678b95"
 SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;branch=main \
            file://0001-Add-timespec-blocklist-and-portable-struct-for-cross.patch \
