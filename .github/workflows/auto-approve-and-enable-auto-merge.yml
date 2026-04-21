@@ -6,6 +6,7 @@ on:
     branches:
       - '*-next'
 
+permissions: {}
 jobs:
   auto-approve-and-merge:
     runs-on: ubuntu-22.04
@@ -19,17 +20,17 @@ jobs:
         uses: docker://agilepathway/pull-request-label-checker:v1.6.55
         with:
           any_of: version-upgrade
-          repo_token: ${{ secrets.BOT2_CREDENTIAL }}
+          repo_token: ${{ secrets.REVIEWER_TOKEN }}
 
       - name: Auto approve
         uses: juliangruber/approve-pull-request-action@v2.0.6
         with:
-          github-token: ${{ secrets.BOT2_CREDENTIAL }}
+          github-token: ${{ secrets.REVIEWER_TOKEN }}
           number: ${{ github.event.pull_request.number }}
 
       - name: Enable Pull Request Automerge
         uses: peter-evans/enable-pull-request-automerge@v3.0.0
         with:
-          token: ${{ secrets.BOT2_CREDENTIAL }}
+          token: ${{ secrets.REVIEWER_TOKEN }}
           pull-request-number: ${{ github.event.pull_request.number }}
           merge-method: rebase
