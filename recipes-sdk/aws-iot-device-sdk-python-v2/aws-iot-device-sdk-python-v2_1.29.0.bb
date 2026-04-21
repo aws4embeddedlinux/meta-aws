@@ -8,7 +8,7 @@ SRC_URI = "\
         git://github.com/aws/aws-iot-device-sdk-python-v2.git;protocol=https;branch=${BRANCH} \
         file://run-ptest\
         "
-SRCREV = "cd5115cdd1aa4c24b75af354fbfae56dd1e4b0bd"
+SRCREV = "bb7ceeaaba160e9a1efff7eea7c771fec3006c4b"
 
 inherit setuptools3 ptest
 
