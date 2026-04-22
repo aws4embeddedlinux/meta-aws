@@ -1,7 +1,7 @@
-From ccd16ebc966033f538b1174047ca21b7f943d65c Mon Sep 17 00:00:00 2001
+From b57e4945c0ea6dd23b309d59742fcf639acba695 Mon Sep 17 00:00:00 2001
 From: Richard Elberger <elberger@amazon.com>
 Date: Thu, 9 Apr 2026 14:41:43 -0400
-Subject: [PATCH 2/4] Fix timespec types for 32-bit platforms
+Subject: [PATCH] Fix timespec types for 32-bit platforms
 
 Use c_long instead of i64 for timespec fields. On 32-bit ARM,
 c_long is 32 bits while i64 is 64 bits, causing struct layout
@@ -27,6 +27,3 @@ index 4056fbb..42366ea 100644
              });
  
              Result::from(unsafe {
--- 
-2.43.0
-
