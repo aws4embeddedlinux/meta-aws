@@ -1,7 +1,7 @@
-From 50faa52900cb9e49767178eaae84248409a7a80c Mon Sep 17 00:00:00 2001
+From e6178e2ba97ae9944aa5f42d030da44feb945a07 Mon Sep 17 00:00:00 2001
 From: Richard Elberger <elberger@amazon.com>
 Date: Thu, 9 Apr 2026 14:40:46 -0400
-Subject: [PATCH 1/4] Add timespec blocklist and portable struct for
+Subject: [PATCH] Add timespec blocklist and portable struct for
  cross-compilation
 
 Blocklist the system timespec type from bindgen and provide a
@@ -37,6 +37,3 @@ index 5297a1d..0dbc5a7 100644
          .generate()
          .unwrap()
          .write_to_file(manifest_dir.join("src/c.rs"))
--- 
-2.43.0
-
