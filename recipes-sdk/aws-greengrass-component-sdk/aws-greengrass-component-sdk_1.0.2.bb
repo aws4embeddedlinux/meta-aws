@@ -6,14 +6,10 @@ HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-component-sdk"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-SRCREV = "1e2495b4e7a616d35b374bba4635a95dbb678b95"
+SRCREV = "0cd2f0c7bbce2da617822f290950ff35ae153cbc"
 SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;branch=main \
-           file://0001-Add-timespec-blocklist-and-portable-struct-for-cross.patch \
            file://0004-Disable-strip-in-Cargo-profile.patch \
 "
-
-# nooelint: oelint.vars.specific
-SRC_URI:append:arm = " file://0002-Fix-timespec-types-for-32-bit-platforms.patch"
 
 inherit cmake ptest cargo cargo-update-recipe-crates
 
@@ -42,7 +38,7 @@ do_create_bindings() {
 export LIBCLANG_PATH = "${STAGING_LIBDIR_NATIVE}"
 
 # Set bindgen to use target sysroot
-export BINDGEN_EXTRA_CLANG_ARGS = "--sysroot=${STAGING_DIR_TARGET} ${TARGET_CC_ARCH}"
+export BINDGEN_EXTRA_CLANG_ARGS = "--target=${RUST_HOST_SYS} --sysroot=${STAGING_DIR_TARGET}"
 
 EXTRA_OECMAKE = " \
     -DCMAKE_BUILD_TYPE=MinSizeRel \
