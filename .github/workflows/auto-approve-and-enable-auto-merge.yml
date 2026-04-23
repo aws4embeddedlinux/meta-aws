@@ -6,30 +6,36 @@ on:
     branches:
       - '*-next'
 
-permissions: {}
+permissions:
+  pull-requests: read
 
 jobs:
   auto-approve-and-merge:
     runs-on: ubuntu-22.04
     name: auto approve and enable auto-merge
     steps:
-      - name: Sleep (give PR time to create labels)
-        run: sleep 1m
-        shell: bash
-
-      - name: Check label after delay
-        uses: docker://agilepathway/pull-request-label-checker:v1.6.55
-        with:
-          any_of: version-upgrade
-          repo_token: ${{ secrets.REVIEWER_TOKEN }}
+      - name: Check for version-upgrade label
+        id: check-label
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          labels=$(gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels --jq '.[].name' 2>/dev/null || echo "")
+          if echo "$labels" | grep -q "^version-upgrade$"; then
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "PR does not have version-upgrade label, skipping."
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Auto approve
+        if: steps.check-label.outputs.found == 'true'
         uses: juliangruber/approve-pull-request-action@v2.0.6
         with:
           github-token: ${{ secrets.REVIEWER_TOKEN }}
           number: ${{ github.event.pull_request.number }}
 
       - name: Enable Pull Request Automerge
+        if: steps.check-label.outputs.found == 'true'
         uses: peter-evans/enable-pull-request-automerge@v3.0.0
         with:
           token: ${{ secrets.REVIEWER_TOKEN }}
