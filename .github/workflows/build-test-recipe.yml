@@ -104,9 +104,6 @@ jobs:
           # See GitHub issue for configuration management improvements
           # Map Yocto release to BitBake version
           # case "${{ needs.changed.outputs.release }}" in
-          #   kirkstone)
-          #     BITBAKE_BRANCH="2.0"
-          #     ;;
           #   scarthgap)
           #     BITBAKE_BRANCH="2.8"
           #     ;;
