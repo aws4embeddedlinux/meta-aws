@@ -1,7 +1,7 @@
-From c526d08ac614253af1a4cecf0e9d8f0d18a749a4 Mon Sep 17 00:00:00 2001
+From 19b35fedc8b1ba11464975f15a0fc59e3ab1f77c Mon Sep 17 00:00:00 2001
 From: Richard Elberger <elberger@amazon.com>
 Date: Thu, 9 Apr 2026 14:42:33 -0400
-Subject: [PATCH 4/4] Disable strip in Cargo profile
+Subject: [PATCH] Disable strip in Cargo profile
 
 Let Yocto handle stripping instead of Cargo doing it during
 compilation.
@@ -12,10 +12,10 @@ Upstream-Status: Inappropriate [Yocto-specific]
  1 file changed, 1 deletion(-)
 
 diff --git a/rust/Cargo.toml b/rust/Cargo.toml
-index 31a472e..dead60b 100644
+index c8d2bb9..866f7f8 100644
 --- a/rust/Cargo.toml
 +++ b/rust/Cargo.toml
-@@ -28,7 +28,6 @@ bindgen = "0.72.1"
+@@ -27,7 +27,6 @@ bindgen = "0.72.1"
  cc = "1"
  
  [profile.release]
@@ -23,6 +23,3 @@ index 31a472e..dead60b 100644
  opt-level = "z"
  lto = true
  codegen-units = 1
--- 
-2.43.0
-
