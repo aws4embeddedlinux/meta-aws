@@ -12,11 +12,42 @@ The **meta-aws project** provides *recipes* for building in AWS edge software ca
 
 Please check out [our sister project meta-aws-demos](https://github.com/aws-samples/meta-aws-demos)!  Over time, we will continuously be adding MACHINE specific demonstrations for AWS software on Embedded Linux built by the Yocto Project build framework with the meta-aws Metadata Layer.
 
+### Releases and Pinning
+
+We publish **tested weekly release tags** for all active branches. Use these tags to pin meta-aws in your build configuration — do not pin to commit SHAs on branches.
+
+**All releases:** https://github.com/aws4embeddedlinux/meta-aws/releases
+
+**Release naming:** `{branch}-{YYYY}.{WW}.{revision}` (e.g. `scarthgap-2026.16.0`)
+
+Example for `kas.yml`:
+```yaml
+repos:
+  meta-aws:
+    url: https://github.com/aws4embeddedlinux/meta-aws.git
+    refspec: scarthgap-2026.16.0
+```
+
+Example for `bblayers.conf` with git submodule:
+```bash
+git submodule add -b scarthgap https://github.com/aws4embeddedlinux/meta-aws.git
+cd meta-aws && git checkout scarthgap-2026.16.0
+```
+
+> **⚠️ Do not pin to commit SHAs on branches.** Branch history may change during routine maintenance operations. Release tags are stable and will not be affected.
+
 ### Supported Yocto Project Releases
+
+| Branch | Yocto Release | Status | EOL |
+|--------|---------------|--------|-----|
+| master | Development | Active | — |
+| whinlatter | 5.3 | Active | May 2026 |
+| scarthgap | 5.0 LTS | Active | April 2028 |
+
+See [Yocto Project Releases](https://wiki.yoctoproject.org/wiki/Releases) for official EOL dates.
 
 We are supporting customers building solutions on AWS with meta-aws. Let us know if you need AWS device software for a specific Yocto Project release and we will work with you through Github Issues to resolve the challenge you might be facing.  We also encourage [contributions](CONTRIBUTING.md) by the community.
 We are yocto project compatible<a href="https://www.yoctoproject.org/software-overview/layers/?searchTerm=meta-aws" target="none" title="What is this?">(?)</a>.
-Currently maintained releases are all [NOT-EOL ones](https://wiki.yoctoproject.org/wiki/Releases). All prior releases will be handled on a case by case basis. Again, please let us know if you're in a crunch on earlier releases and we'll help you the best we can!
 
 [![build-test in all supported branches](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/build-test-all-branches.yml/badge.svg)](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/build-test-all-branches.yml)
 
@@ -64,4 +95,4 @@ These are the currently supported services, software, and SDKs you can use to bu
 
 * Automotive Grade Linux: The AGL distribution uses a specific static ID process. When adding AWS IoT Greengrass, you will need to define users in the passwd and group files manually. Please see https://github.com/aws/meta-aws/issues/75 for more information.
 
-© 2019-2025, Amazon Web Services, Inc. or its affiliates. All rights reserved.
+© 2019-2026, Amazon Web Services, Inc. or its affiliates. All rights reserved.
