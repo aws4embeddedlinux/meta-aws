@@ -117,7 +117,7 @@ jobs:
           export RECIPES=$( echo "${{ needs.changed.outputs.diff }}" | tr ' ' '\n' | grep '\.bb.*$' | sed 's!.*/!!' | sed 's!.bb!!' | sed 's!_.*!!' | sort | uniq | sed -z $'s/\\\n/ /g')
           if [ "" == "$RECIPES" ]; then
             echo "No changed recipes, adding everything with a ptest to test, build"
-            THINGS_TO_EXCLUDE="! -name aws-lc* ! -name neo-ai-tv* ! -name corretto-17-bin* ! -name corretto-21-bin*  ! -name corretto-25-bin* ! -name corretto-8-bin* ! -name firecracker-bin* ! -name jailer-bin* ! -name amazon-kvs-producer-sdk-c* ! -name  aws-cli-v2* ! -name aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning* ! -name aws-c-iot* ! -name  aws-iot-device-sdk-embedded-c* "
+            THINGS_TO_EXCLUDE="! -name aws-lc* ! -name neo-ai-tv* ! -name amazon-kvs-producer-sdk-c* ! -name aws-cli-v2* ! -name aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning* ! -name aws-c-iot* ! -name aws-iot-device-sdk-embedded-c* "
             if [ ${{ matrix.machine }} == "qemuarm" ]; then
               THINGS_TO_EXCLUDE+="! -name amazon-kvs-webrtc-sdk* ! -name amazon-kvs-producer-pic* ! -name greengrass-lite*"
             fi
@@ -157,12 +157,12 @@ jobs:
               SKIP_RECIPE=true
             fi
 
-            # Check for default COMPATIBLE_MACHINE = "null" without override for this arch
-            if echo "$RECIPE_FILES" | xargs grep -q "^COMPATIBLE_MACHINE[[:space:]]*=[[:space:]]*\"null\"" 2>/dev/null; then
+            # Check for default COMPATIBLE_MACHINE = "null" or "(^$)" without override for this arch
+            if echo "$RECIPE_FILES" | xargs grep -qE 'COMPATIBLE_MACHINE[[:space:]]*=[[:space:]]*"(null|\(\^)' 2>/dev/null; then
               case "${{ matrix.machine }}" in
                 qemuarm)
-                  if ! echo "$RECIPE_FILES" | xargs grep -q "COMPATIBLE_MACHINE:armv7[av][[:space:]]*=[[:space:]]*\"(.*)\"" 2>/dev/null; then
-                    echo "Skipping $recipe: COMPATIBLE_MACHINE = null (no armv7 override)"
+                  if ! echo "$RECIPE_FILES" | xargs grep -qE "COMPATIBLE_MACHINE:(arm|armv7[ave]*)[[:space:]]*=[[:space:]]*\"\(.\?\*\)\"" 2>/dev/null; then
+                    echo "Skipping $recipe: COMPATIBLE_MACHINE default blocks, no arm/armv7 override"
                     SKIP_RECIPE=true
                   fi
                   ;;
@@ -200,6 +200,13 @@ jobs:
           if echo "$RECIPES" | grep -qw "aws-cli-v2"; then
             RECIPES=$(echo "$RECIPES" | tr ' ' '\n' | grep -v '^aws-cli$' | grep -v '^aws-cli-v2$' | tr '\n' ' ')
             echo "Excluded aws-cli and aws-cli-v2 from ptest (file clash + urllib3 1.x/2.x conflict)"
+          fi
+
+          # Handle mutually exclusive corretto versions - keep only corretto-11-bin
+          if echo "$RECIPES" | grep -qw "corretto-11-bin"; then
+            RECIPES=$(echo "$RECIPES" | tr ' ' '\n' | grep -v '^corretto-[0-9]*-bin$' | tr '\n' ' ')
+            RECIPES="$RECIPES corretto-11-bin"
+            echo "Kept only corretto-11-bin (corretto versions are mutually exclusive)"
           fi
 
           echo RECIPES to build, test: "$RECIPES"
