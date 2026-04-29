@@ -10,7 +10,7 @@ SRC_URI = "gitsm://github.com/FreeRTOS/coreMQTT.git;protocol=https;branch=main \
     file://run-ptest \
 "
 
-SRCREV = "76e9d89cb8e2fb4cff965329d835594cebebf618"
+SRCREV = "04845c6a8e5f9cf2d232f1c6e80baeb81302e690"
 
 inherit cmake ptest
 
