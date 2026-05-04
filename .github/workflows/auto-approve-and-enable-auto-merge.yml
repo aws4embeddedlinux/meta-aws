@@ -7,8 +7,6 @@ on:
       - '*-next'
 
 permissions: {}
-
-permissions: {}
 jobs:
   auto-approve-and-merge:
     runs-on: ubuntu-22.04
