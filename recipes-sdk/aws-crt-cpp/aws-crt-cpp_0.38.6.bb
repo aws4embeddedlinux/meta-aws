@@ -33,6 +33,7 @@ SRCREV = "bd19f640464f22b666660fe724531a6819f80c25"
 inherit cmake pkgconfig ptest
 
 CFLAGS:append = " -Wl,-Bsymbolic"
+CFLAGS:append = " ${@oe.utils.vartrue('DEBUG_BUILD', '-DXXH_NO_INLINE_HINTS=1', '', d)}"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
