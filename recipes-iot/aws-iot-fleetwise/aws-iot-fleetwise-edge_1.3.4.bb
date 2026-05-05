@@ -25,7 +25,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "62c9e23d1d6b7f836577d42c228f8295ad9334db"
+SRCREV = "15e20f306615f2800ea56eebe66898c2911383c6"
 
 inherit cmake systemd ptest pkgconfig
 
