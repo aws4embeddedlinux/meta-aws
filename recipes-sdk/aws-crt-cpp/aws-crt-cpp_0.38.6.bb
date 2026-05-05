@@ -28,11 +28,12 @@ SRC_URI = "\
     file://002-enable-tests-with-crosscompiling.patch \
     "
 
-SRCREV = "bca5d26fd37b0d39ba8fbffb3058560f0d4d193f"
+SRCREV = "bd19f640464f22b666660fe724531a6819f80c25"
 
 inherit cmake pkgconfig ptest
 
 CFLAGS:append = " -Wl,-Bsymbolic"
+CFLAGS:append = " ${@oe.utils.vartrue('DEBUG_BUILD', '-DXXH_NO_INLINE_HINTS=1', '', d)}"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \

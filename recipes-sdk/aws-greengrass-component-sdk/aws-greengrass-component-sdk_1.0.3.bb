@@ -6,7 +6,7 @@ HOMEPAGE = "https://github.com/aws-greengrass/aws-greengrass-component-sdk"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-SRCREV = "0cd2f0c7bbce2da617822f290950ff35ae153cbc"
+SRCREV = "494a597ae7c4a92d9b715a2e89b51d8223b0428a"
 SRC_URI = "git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;branch=main \
            file://0004-Disable-strip-in-Cargo-profile.patch \
 "
