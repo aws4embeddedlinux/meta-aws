@@ -1,4 +1,4 @@
-From 82784e747b107535ebd5339cdd3e7b03731928f2 Mon Sep 17 00:00:00 2001
+From 53c5b5114303185c8d4a69ec241901835554df33 Mon Sep 17 00:00:00 2001
 From: AWS Meta Layer <meta-aws@amazon.com>
 Date: Thu, 24 Jul 2025 12:00:00 +0000
 Subject: [PATCH] Fix cross-compilation support
@@ -15,10 +15,10 @@ Signed-off-by: AWS Meta Layer <meta-aws@amazon.com>
  1 file changed, 12 insertions(+)
 
 diff --git a/setup.py b/setup.py
-index c71b7db..e14b2fd 100644
+index 380e5e9..9dfd6ea 100644
 --- a/setup.py
 +++ b/setup.py
-@@ -298,12 +298,24 @@ class awscrt_build_ext(setuptools.command.build_ext.build_ext):
+@@ -370,12 +370,24 @@ class awscrt_build_ext(setuptools.command.build_ext.build_ext):
              f'-DCMAKE_BUILD_TYPE={build_type}',
          ])
  
