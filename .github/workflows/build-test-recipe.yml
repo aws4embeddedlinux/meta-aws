@@ -249,6 +249,13 @@ jobs:
             echo "Excluded aws-cli (v1) due to conflict with aws-cli-v2"
           fi
 
+          # Handle RCONFLICTS: aws-iot-device-sdk-cpp-v2 conflicts with aws-c-iot (see #15582)
+          # The SDK bundles its own aws-c-iot when build-deps is enabled
+          if echo "$RECIPES" | grep -qw "aws-iot-device-sdk-cpp-v2" && echo "$RECIPES" | grep -qw "aws-c-iot"; then
+            RECIPES=$(echo "$RECIPES" | tr ' ' '\n' | grep -v '^aws-c-iot$' | tr '\n' ' ')
+            echo "Excluded aws-c-iot due to RCONFLICTS with aws-iot-device-sdk-cpp-v2"
+          fi
+
           echo RECIPES to build, test: "$RECIPES"
           echo "recipes=$RECIPES" >> $GITHUB_OUTPUT
       - name: Run build
