@@ -1,4 +1,4 @@
-From e23e9158b0a2e41cc981427fdb96a8af59ea2c65 Mon Sep 17 00:00:00 2001
+From e9933dd0ed1c299167639c90901a18956302e96a Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Mon, 29 Sep 2025 12:51:03 +0000
 Subject: [PATCH] This enable the tests even when crosscompiling.
