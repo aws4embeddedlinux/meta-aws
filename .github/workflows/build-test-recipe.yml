@@ -249,6 +249,24 @@ jobs:
             echo "Excluded aws-cli (v1) due to conflict with aws-cli-v2"
           fi
 
+          # Handle RCONFLICTS: aws-iot-device-sdk-cpp-v2 conflicts with aws-c-iot (see #15582)
+          # The SDK bundles its own aws-c-iot when build-deps is enabled
+          if echo "$RECIPES" | grep -qw "aws-iot-device-sdk-cpp-v2" && echo "$RECIPES" | grep -qw "aws-c-iot"; then
+            RECIPES=$(echo "$RECIPES" | tr ' ' '\n' | grep -v '^aws-c-iot$' | tr '\n' ' ')
+            echo "Excluded aws-c-iot due to RCONFLICTS with aws-iot-device-sdk-cpp-v2"
+          fi
+
+          # Filter out recipes that do not inherit ptest (see #15672)
+          PTEST_RECIPES=""
+          for recipe in $RECIPES; do
+            RECIPE_FILES=$(find meta-aws/ -name "${recipe}.bb" -o -name "${recipe}_*.bb" 2>/dev/null)
+            if [ -n "$RECIPE_FILES" ] && echo "$RECIPE_FILES" | xargs grep -ql 'inherit.*ptest' 2>/dev/null; then
+              PTEST_RECIPES+="$recipe "
+            else
+              echo "Skipping $recipe: does not inherit ptest"
+            fi
+          done
+          export RECIPES="$PTEST_RECIPES"
           echo RECIPES to build, test: "$RECIPES"
           echo "recipes=$RECIPES" >> $GITHUB_OUTPUT
       - name: Run build
