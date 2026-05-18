@@ -96,5 +96,6 @@ OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanit
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN} += "32bit-time"
+INSANE_SKIP:${PN}-dbg += "32bit-time"
 
 BRANCH = "main"
