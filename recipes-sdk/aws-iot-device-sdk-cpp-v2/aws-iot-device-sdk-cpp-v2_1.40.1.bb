@@ -45,6 +45,8 @@ PACKAGECONFIG ??= "\
     "
 
 FILES:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '/usr/lib/*', '', d)}"
+FILES:${PN} += "${libdir}/lib*.so.*"
+
 FILES:${PN}-dev += "\
     ${libdir}/*/cmake \
     ${libdir}/pkgconfig/*.pc \
