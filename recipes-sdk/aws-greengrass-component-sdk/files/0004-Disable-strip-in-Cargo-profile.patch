@@ -1,4 +1,4 @@
-From 544a2c87326e7019a93f3c98c990d72697236348 Mon Sep 17 00:00:00 2001
+From 878966a637765184d41121c44e8726f72ead5825 Mon Sep 17 00:00:00 2001
 From: Richard Elberger <elberger@amazon.com>
 Date: Thu, 9 Apr 2026 14:42:33 -0400
 Subject: [PATCH] Disable strip in Cargo profile
@@ -12,7 +12,7 @@ Upstream-Status: Inappropriate [Yocto-specific]
  1 file changed, 1 deletion(-)
 
 diff --git a/rust/Cargo.toml b/rust/Cargo.toml
-index 8fc1abb..c631ec9 100644
+index 12803e4..b40b979 100644
 --- a/rust/Cargo.toml
 +++ b/rust/Cargo.toml
 @@ -27,7 +27,6 @@ bindgen = "0.72.1"
