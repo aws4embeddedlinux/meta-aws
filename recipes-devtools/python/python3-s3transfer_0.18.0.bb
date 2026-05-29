@@ -11,7 +11,7 @@ SRC_URI = "\
     file://run-ptest \
     file://python_dependency_test.py \
     "
-SRCREV = "5a988c8357d24a5fc3b49eea07e762d1dee27904"
+SRCREV = "7ae4c0eae26bdd987749e52b2e5dbeed0a45260d"
 
 S = "${WORKDIR}/git"
 
