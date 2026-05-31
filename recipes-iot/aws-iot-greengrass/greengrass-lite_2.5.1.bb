@@ -46,16 +46,16 @@ SRC_URI = "\
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.aws.greengrass.TokenExchangeService.service.d-fleet-provisioning.conf','',d)} \
 "
 
-SRCREV_ggl = "7a0d7bed443e3c69dfc041c9c1cd9fdeb20d7dbf"
+SRCREV_ggl = "068dd106f138a59f762acaa79460aba1e263a8c4"
 
 # must match fc_deps.json
 
 # nooelint: oelint.vars.specific
-SRCREV_mqtt = "8f129a1eddfe92f7196da3253acc292c4331e285"
+SRCREV_mqtt = "bda794aa54785aa96224f19e37d2e19e66bcd7ab"
 # nooelint: oelint.vars.specific
 SRCREV_sigv4 = "v1.3.1"
 # nooelint: oelint.vars.specific
-SRCREV_sdk = "v1.0.0"
+SRCREV_sdk = "v1.0.3"
 
 EXTRA_OECMAKE:append = " \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_CORE_MQTT=${S}/thirdparty/core_mqtt'} \
