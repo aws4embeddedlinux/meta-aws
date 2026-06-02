@@ -937,8 +937,5 @@ FILES_SOLIBSDEV = ""
 
 BBCLASSEXTEND = "native nativesdk"
 
-inherit update-alternatives
-ALTERNATIVE_PRIORITY = "200"
-ALTERNATIVE:${PN} = "openssl"
-
-ALTERNATIVE_TARGET[openssl] = "${bindir}/openssl"
+# aws-lc provides libssl.so/libcrypto.so which conflict with openssl
+RCONFLICTS:${PN} = "openssl"
