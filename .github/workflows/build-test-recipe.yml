@@ -311,6 +311,10 @@ jobs:
              # PUT = package under test
              for recipe in $RECIPES; do PUT+="${recipe}-ptest "; done
              echo IMAGE_INSTALL:append = \" ptest-runner ssh ${PUT}\" >> conf/local.conf
+             # aws-lc conflicts with openssl; use dropbear for SSH when testing aws-lc
+             if echo "$RECIPES" | grep -qw "aws-lc"; then
+               echo "PREFERRED_PROVIDER_virtual/ssh = \"dropbear\"" >> conf/local.conf
+             fi
              echo IMAGE_FEATURES:append = \" allow-empty-password empty-root-password allow-root-login\" >> conf/local.conf
              echo BB_HASHSERVE = \"hashserv.internal:8686\" >> conf/local.conf
              echo BB_SIGNATURE_HANDLER = \"OEEquivHash\" >> conf/local.conf
