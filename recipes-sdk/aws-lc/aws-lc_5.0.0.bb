@@ -878,7 +878,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-lc.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "44766fa7daa88e5afc7fc6de3311c48eeeb02f39"
+SRCREV = "6f246af4cd1de8cee8c62d76139bcda299c1aa00"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 # nooelint: oelint.vars.specific
@@ -938,7 +938,7 @@ FILES_SOLIBSDEV = ""
 BBCLASSEXTEND = "native nativesdk"
 
 inherit update-alternatives
-ALTERNATIVE_PRIORITY = "100"
+ALTERNATIVE_PRIORITY = "200"
 ALTERNATIVE:${PN} = "openssl"
 
 ALTERNATIVE_TARGET[openssl] = "${bindir}/openssl"
