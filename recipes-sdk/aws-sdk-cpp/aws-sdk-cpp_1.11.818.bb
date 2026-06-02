@@ -64,6 +64,12 @@ OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PTEST_ENABLED', '1', '-Wno-maybe-uni
 
 OECMAKE_CXX_FLAGS += "-Wno-psabi"
 
+# GCC 16 false positive: -Warray-bounds triggers on placement-new into aligned storage
+# for std::mutex in MonitoringManager.cpp on arm64/arm/riscv64 (not x86-64 due to
+# differing mutex size). Upstream: https://github.com/aws/aws-sdk-cpp/issues/3198
+# TODO: Remove this workaround once upstream fixes GCC 16 compatibility.
+OECMAKE_CXX_FLAGS += "-Wno-error=array-bounds"
+
 EXTRA_OECMAKE += "\
     -DBUILD_DEPS=OFF \
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
