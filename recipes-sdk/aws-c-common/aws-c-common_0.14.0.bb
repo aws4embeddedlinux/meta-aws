@@ -14,7 +14,7 @@ SRC_URI = "\
     file://ptest_result.py \
     file://0001-skip-iso8601-tests-on-32bit.patch \
 "
-SRCREV = "d3b926fd87e6c37887ae12bb2253550334e7445a"
+SRCREV = "48dd6cdff7bac0005a9c6b49c15a0765622c0e70"
 
 # will match only x.x.x for auto upgrades, because: https://github.com/awslabs/aws-c-common/issues/1025
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>\d\.\d+(\.\d+)+)"
