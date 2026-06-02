@@ -1,4 +1,4 @@
-From 001641e967ec8b869cb24b03c43cd5d1f745863d Mon Sep 17 00:00:00 2001
+From 77b249dbc3258423412f956d35981c3e72aebbdc Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Tue, 20 May 2025 08:45:29 +0000
 Subject: [PATCH] aws-crt-cpp: change to build-deps as default

@@ -28,7 +28,7 @@ SRC_URI = "\
     file://002-enable-tests-with-crosscompiling.patch \
     "
 
-SRCREV = "b60cd5c3b27e8eb8bd3769b7b7330eff311f5530"
+SRCREV = "b540e9314f3ecc5a6c592efb07a516a6b20c5bbb"
 
 inherit cmake pkgconfig ptest
 
@@ -96,5 +96,7 @@ OECMAKE_CXX_FLAGS += "${@bb.utils.contains('PACKAGECONFIG', 'sanitize', '-fsanit
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN} += "32bit-time"
+# nooelint: oelint.vars.insaneskip:INSANE_SKIP
+INSANE_SKIP:${PN}-dbg += "32bit-time"
 
 BRANCH = "main"
