@@ -1,0 +1,36 @@
+From: Greg Breen <gregbreen@github.com>
+Subject: [PATCH] iotcored: fix maybe-uninitialized warnings in set_proxy_args
+
+GCC with LTO detects that proxy_uri.data and no_proxy.data may be used
+uninitialized when ggl_gg_config_read_str does not return GG_ERR_OK.
+Initialize both GgBuffer variables to zero at declaration.
+
+Upstream-Status: Pending [fix confirmed for next release]
+
+Signed-off-by: Greg Breen <gregbreen@github.com>
+---
+ modules/iotcored/src/entry.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/modules/iotcored/src/entry.c b/modules/iotcored/src/entry.c
+index 1234567..abcdefg 100644
+--- a/modules/iotcored/src/entry.c
++++ b/modules/iotcored/src/entry.c
+@@ -131,7 +131,7 @@ static void set_proxy_args(IotcoredArgs *args) {
+         GgArena alloc = gg_arena_init(gg_buffer_substr(
+             GG_BUF(proxy_uri_mem), 0, sizeof(proxy_uri_mem) - 1
+         ));
+-        GgBuffer proxy_uri;
++        GgBuffer proxy_uri = { 0 };
+         GgError ret = ggl_gg_config_read_str(
+             GG_BUF_LIST(
+                 GG_STR("services"),
+@@ -163,7 +163,7 @@ static void set_proxy_args(IotcoredArgs *args) {
+         GgArena alloc = gg_arena_init(
+             gg_buffer_substr(GG_BUF(no_proxy_mem), 0, sizeof(no_proxy_mem) - 1)
+         );
+-        GgBuffer no_proxy;
++        GgBuffer no_proxy = { 0 };
+         GgError ret = ggl_gg_config_read_str(
+             GG_BUF_LIST(
+                 GG_STR("services"),
