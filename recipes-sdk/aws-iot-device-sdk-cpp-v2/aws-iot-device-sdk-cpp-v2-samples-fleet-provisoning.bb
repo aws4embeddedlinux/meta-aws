@@ -1,11 +1,10 @@
 # nooelint: oelint.file.underscores
 require aws-iot-device-sdk-cpp-v2-samples.inc
 
-S = "${WORKDIR}/git/samples/fleet_provisioning/provision-basic"
+S = "${WORKDIR}/git/samples/service_clients/fleet_provisioning/provision-basic"
 
 SRC_URI:append = " \
     file://run-ptest \
-    file://001-fix-dangling-reference-fleet-provisioning.patch \
 "
 
 RDEPENDS:${PN}-ptest += "python3 aws-cli"
@@ -20,7 +19,7 @@ inherit ptest
 do_install_ptest() {
     install -d ${D}${PTEST_PATH}/tests
 
-    install -m 0755 ${S}/../../../utils/parse_cert_set_result.py ${D}${PTEST_PATH}/
+    install -m 0755 ${S}/../../../../utils/parse_cert_set_result.py ${D}${PTEST_PATH}/
 }
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
