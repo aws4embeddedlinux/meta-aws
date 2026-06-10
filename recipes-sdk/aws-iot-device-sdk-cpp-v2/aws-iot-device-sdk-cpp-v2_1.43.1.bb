@@ -47,6 +47,7 @@ PACKAGECONFIG ??= "\
     "
 
 FILES:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '/usr/lib/*', '', d)}"
+FILES:${PN} += "${libdir}/lib*.so.*"
 FILES:${PN}-dev += "\
     ${libdir}/*/cmake \
     ${libdir}/pkgconfig/*.pc \
@@ -71,7 +72,7 @@ RCONFLICTS:${PN} = "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'aws-c-i
 INSANE_SKIP:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'ldflags', '', d)}"
 
 RDEPENDS:${PN}-ptest:prepend = "\
-    aws-iot-device-sdk-cpp-v2-samples-mqtt5-pubsub \
+    aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning \
     "
 
 BBCLASSEXTEND = "native nativesdk"
