@@ -1,15 +1,21 @@
-This enable the tests even when crosscompiling.
+From e01ddc18867253e389f19aeb7e8e49422b4d6e09 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Mon, 29 Sep 2025 12:51:03 +0000
+Subject: [PATCH] This enable the tests even when crosscompiling.
 
 Upstream-Status: Inappropriate [oe specific]
+---
+ CMakeLists.txt | 2 --
+ 1 file changed, 2 deletions(-)
 
-Index: aws-c-sdkutils-0.2.4/CMakeLists.txt
-===================================================================
---- aws-c-sdkutils-0.2.4.orig/CMakeLists.txt
-+++ aws-c-sdkutils-0.2.4/CMakeLists.txt
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0457e0f..b42625f 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
 @@ -90,9 +90,7 @@ install(FILES ${EXPORT_MODULES}
          DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}/modules"
          COMPONENT Development)
-
+ 
 -if (NOT CMAKE_CROSSCOMPILING)
      include(CTest)
      if (BUILD_TESTING)
