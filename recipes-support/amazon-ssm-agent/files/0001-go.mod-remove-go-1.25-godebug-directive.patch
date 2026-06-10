@@ -1,0 +1,92 @@
+From: meta-aws maintainers <meta-aws-maintainer@users.noreply.github.com>
+Subject: [PATCH] Downgrade go version requirements for Go 1.22 compatibility
+
+Scarthgap ships Go 1.22 which does not support the godebug block syntax
+in go.mod, nor will it build vendored modules declaring go > 1.22.
+
+The godebug directive sets containermaxprocs=0 which is a workaround for a
+bug introduced in Go 1.25 related to cgroup CPU limit detection. This is
+irrelevant for embedded Linux targets that do not run in containers.
+
+The vendor/modules.txt version constraints are metadata only - the vendored
+source is already present and compatible with Go 1.22.
+
+This patch should be removed once scarthgap upgrades to Go 1.25 or newer.
+
+Upstream-Status: Inappropriate [scarthgap Go toolchain limitation]
+Signed-off-by: meta-aws maintainers <meta-aws-maintainer@users.noreply.github.com>
+---
+diff --git a/go.mod b/go.mod
+index 7e7261e3..e9fcde50 100644
+--- a/go.mod
++++ b/go.mod
+@@ -1,14 +1,11 @@
+ module github.com/aws/amazon-ssm-agent
+ 
+-go 1.25
++go 1.22
+ 
+ replace github.com/aws/aws-sdk-go => ./extra/aws-sdk-go
+ 
+ replace github.com/nightlyone/lockfile => ./extra/lockfile
+ 
+-godebug (
+-    containermaxprocs=0 // disable consideration of cgroup limits
+-)
+ 
+ require (
+ 	github.com/Jeffail/gabs v1.0.0
+diff --git a/vendor/modules.txt b/vendor/modules.txt
+index 468d149c..4799fce6 100644
+--- a/vendor/modules.txt
++++ b/vendor/modules.txt
+@@ -170,7 +170,7 @@ github.com/go-git/gcfg/scanner
+ github.com/go-git/gcfg/token
+ github.com/go-git/gcfg/types
+ # github.com/go-git/go-billy/v5 v5.8.0
+-## explicit; go 1.24.0
++## explicit; go 1.22.0
+ github.com/go-git/go-billy/v5
+ github.com/go-git/go-billy/v5/helper/chroot
+ github.com/go-git/go-billy/v5/helper/polyfill
+@@ -178,7 +178,7 @@ github.com/go-git/go-billy/v5/memfs
+ github.com/go-git/go-billy/v5/osfs
+ github.com/go-git/go-billy/v5/util
+ # github.com/go-git/go-git/v5 v5.17.1
+-## explicit; go 1.24.0
++## explicit; go 1.22.0
+ github.com/go-git/go-git/v5
+ github.com/go-git/go-git/v5/config
+ github.com/go-git/go-git/v5/internal/path_util
+@@ -315,7 +315,7 @@ go.nanomsg.org/mangos/v3/protocol/surveyor
+ go.nanomsg.org/mangos/v3/transport
+ go.nanomsg.org/mangos/v3/transport/ipc
+ # golang.org/x/crypto v0.50.0
+-## explicit; go 1.25.0
++## explicit; go 1.22.0
+ golang.org/x/crypto/argon2
+ golang.org/x/crypto/blake2b
+ golang.org/x/crypto/blowfish
+@@ -333,19 +333,19 @@ golang.org/x/crypto/ssh/agent
+ golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
+ golang.org/x/crypto/ssh/knownhosts
+ # golang.org/x/net v0.53.0
+-## explicit; go 1.25.0
++## explicit; go 1.22.0
+ golang.org/x/net/context
+ golang.org/x/net/internal/socks
+ golang.org/x/net/proxy
+ # golang.org/x/oauth2 v0.28.0
+-## explicit; go 1.23.0
++## explicit; go 1.22.0
+ golang.org/x/oauth2
+ golang.org/x/oauth2/internal
+ # golang.org/x/sync v0.10.0
+ ## explicit; go 1.18
+ golang.org/x/sync/errgroup
+ # golang.org/x/sys v0.43.0
+-## explicit; go 1.25.0
++## explicit; go 1.22.0
+ golang.org/x/sys/cpu
+ golang.org/x/sys/execabs
+ golang.org/x/sys/unix

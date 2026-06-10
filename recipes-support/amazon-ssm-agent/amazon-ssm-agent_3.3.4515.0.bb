@@ -11,6 +11,7 @@ LIC_FILES_CHKSUM = "\
 SRC_URI = "\
     git://github.com/aws/amazon-ssm-agent.git;protocol=https;branch=mainline \
     file://run-ptest \
+    file://0001-go.mod-remove-go-1.25-godebug-directive.patch \
     "
 
 SRCREV = "b8acce1284383abb5ee86089912968b9af7c4025"
