@@ -1,7 +1,7 @@
-SUMMARY = "firecracker - Binary Distribution"
-DESCRIPTION = "Secure and fast microVMs for serverless computing."
+SUMMARY = "jailer - Binary Distribution"
+DESCRIPTION = "Process for starting Firecracker in production scenarios; applies a cgroup/namespace isolation barrier and then drops privileges."
 HOMEPAGE = "https://firecracker-microvm.github.io/"
-CVE_PRODUCT = "firecracker"
+CVE_PRODUCT = "jailer"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
@@ -18,8 +18,8 @@ COMPATIBLE_HOST:arm = "null"
 # nooelint: oelint.vars.srcurichecksum
 SRC_URI = "https://github.com/firecracker-microvm/firecracker/releases/download/v${PV}/firecracker-v${PV}-${ARCH_DIR}.tgz;name=${ARCH_DIR}"
 
-SRC_URI[x86_64.sha256sum] = "d4a32ab2322d887ca1bc4a4e7afa9cc35393e6362dfc2b3becb389d362e4275a"
-SRC_URI[aarch64.sha256sum] = "00654ac1e702a22744121ea9f10a4f792ebd7c3a744cba587dfac9fcb79b41a5"
+SRC_URI[x86_64.sha256sum] = "bd04e26952d4e158085778c6230a0b383d2619c319182e27eaa9d61a212e92d6"
+SRC_URI[aarch64.sha256sum] = "531c713cdbc37d4b8bc2533d851aabc0267096afa1768086a37672abb668efd7"
 
 UPGRADE_ARCHS = "x86_64 aarch64"
 RECIPE_UPGRADE_EXTRA_TASKS = "update_other_arch_checksum"
@@ -39,15 +39,18 @@ inherit bin_package ptest
 # nooelint: oelint.vars.insaneskip
 INSANE_SKIP:${PN} += "already-stripped"
 
-
 FILES:${PN} += "\
-    ${bindir}/firecracker \
+    ${bindir}/jailer \
+"
+
+RDEPENDS:${PN}-ptest += "\
+    firecracker-bin \
 "
 
 do_install() {
     install -d ${D}${bindir}
 
-    install -m 0755 ${S}/firecracker-v${PV}-${ARCH_DIR} ${D}${bindir}/firecracker
+    install -m 0755 ${S}/jailer-v${PV}-${ARCH_DIR} ${D}${bindir}/jailer
 }
 
 # https://bugzilla.yoctoproject.org/show_bug.cgi?id=15227
