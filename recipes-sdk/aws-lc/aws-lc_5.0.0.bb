@@ -937,8 +937,4 @@ FILES_SOLIBSDEV = ""
 
 BBCLASSEXTEND = "native nativesdk"
 
-inherit update-alternatives
-ALTERNATIVE_PRIORITY = "100"
-ALTERNATIVE:${PN} = "openssl"
-
-ALTERNATIVE_TARGET[openssl] = "${bindir}/openssl"
+RCONFLICTS:${PN} = "openssl"
