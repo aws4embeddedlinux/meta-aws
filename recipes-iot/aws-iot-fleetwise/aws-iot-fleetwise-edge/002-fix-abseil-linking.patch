@@ -1,4 +1,4 @@
-From a0764a9d5ab6a56ea32dd833f2b1630e12baf167 Mon Sep 17 00:00:00 2001
+From 15db6736dcf3c691573dd6bab245f22c1535620b Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Mon, 9 Feb 2026 13:17:57 +0000
 Subject: [PATCH] aws-iot-fleetwise-edge: fix link of abseil lib
@@ -9,7 +9,7 @@ Upstream-Status: Pending
  1 file changed, 6 insertions(+)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 03a15d7..33ca1f6 100644
+index 3b35305..13a19e9 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -688,6 +688,8 @@ target_link_libraries(aws-iot-fleetwise-edge
