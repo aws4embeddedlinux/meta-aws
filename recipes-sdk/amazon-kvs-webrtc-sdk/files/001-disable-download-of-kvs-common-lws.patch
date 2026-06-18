@@ -1,4 +1,4 @@
-From 1efb3f158f7b4a94071b5d3ecee9e99bbca78956 Mon Sep 17 00:00:00 2001
+From 7d28941662ccd2279f83070b42a3335139af9708 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Wed, 23 Jul 2025 16:39:01 +0000
 Subject: [PATCH] amazon-kvs-webrtc-sdk: disable download of kvs-common-lws
