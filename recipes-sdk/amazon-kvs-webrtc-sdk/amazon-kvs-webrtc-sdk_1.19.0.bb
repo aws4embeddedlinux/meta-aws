@@ -22,7 +22,6 @@ BRANCH = "main"
 SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-webrtc-sdk-c.git;protocol=https;branch=${BRANCH} \
            file://run-ptest \
            file://ptest_result.py \
-           file://0001-Release-v1.18.2-2329.patch \
            "
 
 SRCREV = "377ecc28ddf794441ce8b3261e7c4041cfbd1cdb"
