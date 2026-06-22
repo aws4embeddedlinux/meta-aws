@@ -1,0 +1,22 @@
+Upstream-Status: Inappropriate [OE-specific, disables network fetch during build]
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d914288d57..c412017779 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -312,6 +312,7 @@ if(BUILD_DEPENDENCIES OR BUILD_WEBSOCKETS OR BUILD_SRTP OR BUILD_USRSCTP)
+   message(STATUS "Finished building dependencies.")
+ endif()
+ 
++if(BUILD_DEPENDENCIES)
+ # building kvsCommonLws also builds kvspic
+ set(BUILD_ARGS
+         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+@@ -324,6 +325,7 @@ set(BUILD_ARGS
+         -DPARALLEL_BUILD=${PARALLEL_BUILD}
+         -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS})
+ build_dependency(kvsCommonLws ${BUILD_ARGS})
++endif()
+ 
+ ############# find dependent libraries ############
+ 
