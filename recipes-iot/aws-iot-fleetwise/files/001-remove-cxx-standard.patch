@@ -1,4 +1,4 @@
-From 2ec5dff53ad7c9054f908613d70b2595539e3db4 Mon Sep 17 00:00:00 2001
+From 3bb331b24d607c2a01894c56eb831943f41951b2 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Tue, 9 Jan 2024 15:01:35 +0000
 Subject: [PATCH] aws-iot-fleetwise-edge: remove setting of cxx-standard
@@ -9,12 +9,12 @@ Upstream-Status: Submitted [author]
  1 file changed, 5 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index c6409d8..03a15d7 100644
+index 2caec14..3b35305 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -4,11 +4,6 @@ cmake_minimum_required(VERSION 3.10.2)
  
- project(iotfleetwise VERSION 1.3.4)
+ project(iotfleetwise VERSION 1.3.5)
  
 -# FWE uses C++14 for compatibility reasons with Automotive middlewares (Adaptive AUTOSAR, ROS2)
 -# Note: When built with FWE_FEATURE_ROS2, colcon will override these settings
