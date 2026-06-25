@@ -1,7 +1,15 @@
+From 00415153e4d28f5b23879bbddd72dce65ea20e47 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Mon, 22 Jun 2026 15:51:13 -0400
+Subject: [PATCH] amazon-kvs-webrtc-sdk: disable download of kvs-common-lws
+
 Upstream-Status: Inappropriate [OE-specific, disables network fetch during build]
+---
+ CMakeLists.txt | 2 ++
+ 1 file changed, 2 insertions(+)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index d914288d57..c412017779 100644
+index 1500d3c17b..1b540032a6 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -312,6 +312,7 @@ if(BUILD_DEPENDENCIES OR BUILD_WEBSOCKETS OR BUILD_SRTP OR BUILD_USRSCTP)
