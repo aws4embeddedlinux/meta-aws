@@ -25,7 +25,7 @@ SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-webrtc-sdk-c.gi
            file://ptest_result.py \
            "
 
-SRCREV = "377ecc28ddf794441ce8b3261e7c4041cfbd1cdb"
+SRCREV = "d7322f63af3c600ee7031b28436e3f8a12664272"
 
 inherit cmake pkgconfig ptest
 
