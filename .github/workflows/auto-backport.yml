@@ -26,4 +26,4 @@ jobs:
           # copy all labels (backport labels are automatically skipped)
           copy_labels_pattern: .+
           github_token: ${{ secrets.MAINTAINER_TOKEN }}
-          conflict_resolution: draft_commit_conflicts
+          experimental: '{"conflict_resolution": "draft_commit_conflicts"}'
