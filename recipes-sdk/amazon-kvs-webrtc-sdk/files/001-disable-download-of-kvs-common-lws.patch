@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 From 057ba2cebf66366a70138db965ad9ca0dbbab8c5 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Wed, 23 Jul 2025 16:39:01 +0000
@@ -13,6 +14,20 @@ Upstream-Status: Inappropriate [oe-specific]
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index c6252f65bd..542eb702c1 100644
+=======
+From 79153b50faf0bc84b3e41b6a287e7366d1c33f74 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Mon, 22 Jun 2026 15:51:13 -0400
+Subject: [PATCH] amazon-kvs-webrtc-sdk: disable download of kvs-common-lws
+
+Upstream-Status: Inappropriate [OE-specific, disables network fetch during build]
+---
+ CMakeLists.txt | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 1500d3c17b..1b540032a6 100644
+>>>>>>> b842a4688 (amazon-kvs-webrtc-sdk: upgrade 1.19.0 -> 1.19.1)
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -281,16 +281,6 @@ if(BUILD_DEPENDENCIES)
