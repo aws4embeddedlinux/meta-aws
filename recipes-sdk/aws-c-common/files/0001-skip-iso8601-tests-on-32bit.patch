@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 From 1a67d3ebcfc74050b63a983468d10d86e793e43c Mon Sep 17 00:00:00 2001
+=======
+From a3f0da25c69fa14c7f2ac71bd27869cad43e4ac8 Mon Sep 17 00:00:00 2001
+>>>>>>> bb84cacdf (aws-c-common: upgrade 0.14.0 -> 0.14.1)
 From: Thomas Roos <throos@amazon.de>
 Date: Tue, 12 Aug 2025 08:51:48 +0000
 Subject: [PATCH] Skip ISO8601 parsing tests on 32-bit architectures due to
