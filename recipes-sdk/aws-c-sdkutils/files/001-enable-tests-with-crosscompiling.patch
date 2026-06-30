@@ -1,4 +1,11 @@
+<<<<<<< HEAD
 This enable the tests even when crosscompiling.
+=======
+From f7462344018e8654fa862bbb8ddb9af2a0f74fc0 Mon Sep 17 00:00:00 2001
+From: Thomas Roos <throos@amazon.de>
+Date: Mon, 29 Sep 2025 12:51:03 +0000
+Subject: [PATCH] This enable the tests even when crosscompiling.
+>>>>>>> 8d232d3d9 (aws-c-sdkutils: upgrade 0.2.5 -> 0.2.6)
 
 Upstream-Status: Inappropriate [oe specific]
 
