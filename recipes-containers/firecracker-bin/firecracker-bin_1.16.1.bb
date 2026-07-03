@@ -18,8 +18,8 @@ COMPATIBLE_HOST:arm = "null"
 # nooelint: oelint.vars.srcurichecksum
 SRC_URI = "https://github.com/firecracker-microvm/firecracker/releases/download/v${PV}/firecracker-v${PV}-${ARCH_DIR}.tgz;name=${ARCH_DIR}"
 
-SRC_URI[x86_64.sha256sum] = "bd04e26952d4e158085778c6230a0b383d2619c319182e27eaa9d61a212e92d6"
-SRC_URI[aarch64.sha256sum] = "531c713cdbc37d4b8bc2533d851aabc0267096afa1768086a37672abb668efd7"
+SRC_URI[x86_64.sha256sum] = "382a02a869e4d6d5cb14c40577f9545e8458021ea8b0b2d3fc10ec14d9c242e6"
+SRC_URI[aarch64.sha256sum] = "8d0e69f6d6f9a1724551f607f18504052c16c1828ee3d4d7b6e6c73380871e0e"
 
 UPGRADE_ARCHS = "x86_64 aarch64"
 RECIPE_UPGRADE_EXTRA_TASKS = "update_other_arch_checksum"
