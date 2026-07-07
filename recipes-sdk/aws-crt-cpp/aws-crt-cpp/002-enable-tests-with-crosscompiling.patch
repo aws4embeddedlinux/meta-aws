@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 From b4726f63e1494496122496ee0a8eaa68bb6fba39 Mon Sep 17 00:00:00 2001
+=======
+From d09f0414b6b3981b008823e76cd230ac13a2053b Mon Sep 17 00:00:00 2001
+>>>>>>> 4ccaf5f68 (aws-crt-cpp: upgrade 0.40.1 -> 0.41.0)
 From: Thomas Roos <throos@amazon.de>
 Date: Mon, 29 Sep 2025 12:51:03 +0000
 Subject: [PATCH] This enable the tests even when crosscompiling.
