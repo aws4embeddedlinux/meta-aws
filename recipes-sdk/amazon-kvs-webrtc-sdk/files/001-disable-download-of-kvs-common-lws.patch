@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 From 1d109cbf727f8bdc120277fc20551ef9011669e0 Mon Sep 17 00:00:00 2001
+=======
+From 412a9355ac7ab73877c51c6ef92a7af9f801d91e Mon Sep 17 00:00:00 2001
+>>>>>>> bb4e59fab (amazon-kvs-webrtc-sdk: upgrade 1.19.1 -> 1.19.2)
 From: Thomas Roos <throos@amazon.de>
 Date: Wed, 23 Jul 2025 16:39:01 +0000
 Subject: [PATCH] amazon-kvs-webrtc-sdk: disable download of kvs-common-lws
@@ -12,7 +16,11 @@ Upstream-Status: Inappropriate [oe-specific]
  1 file changed, 10 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
+<<<<<<< HEAD
 index c6252f65bd..542eb702c1 100644
+=======
+index 49f0c78d8f..4492176faf 100644
+>>>>>>> bb4e59fab (amazon-kvs-webrtc-sdk: upgrade 1.19.1 -> 1.19.2)
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -281,16 +281,6 @@ if(BUILD_DEPENDENCIES)
