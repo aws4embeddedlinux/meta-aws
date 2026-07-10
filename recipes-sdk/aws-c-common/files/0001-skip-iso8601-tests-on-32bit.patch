@@ -1,4 +1,4 @@
-From a3f0da25c69fa14c7f2ac71bd27869cad43e4ac8 Mon Sep 17 00:00:00 2001
+From 8ec0c5de40f949dfdece110c6b87fbdcc0109061 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Tue, 12 Aug 2025 08:51:48 +0000
 Subject: [PATCH] Skip ISO8601 parsing tests on 32-bit architectures due to
@@ -13,7 +13,7 @@ Upstream-Status: Submitted [https://github.com/awslabs/aws-c-common/issues/1204]
  1 file changed, 24 insertions(+)
 
 diff --git a/tests/date_time_test.c b/tests/date_time_test.c
-index 69f0417f..2210981c 100644
+index 69f0417..2210981 100644
 --- a/tests/date_time_test.c
 +++ b/tests/date_time_test.c
 @@ -287,6 +287,7 @@ AWS_TEST_CASE(rfc822_invalid_auto_format, s_test_rfc822_invalid_auto_format_fn)
