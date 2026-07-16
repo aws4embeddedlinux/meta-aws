@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 From b4726f63e1494496122496ee0a8eaa68bb6fba39 Mon Sep 17 00:00:00 2001
+=======
+From 70e1056f4e140a00c113780e09ef974420685663 Mon Sep 17 00:00:00 2001
+>>>>>>> 2a02ad9e3 (aws-crt-cpp: upgrade 0.41.0 -> 0.42.0)
 From: Thomas Roos <throos@amazon.de>
 Date: Mon, 29 Sep 2025 12:51:03 +0000
 Subject: [PATCH] This enable the tests even when crosscompiling.
@@ -9,10 +13,17 @@ Upstream-Status: Inappropriate [oe specific]
  1 file changed, 2 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
+<<<<<<< HEAD
 index 83bc66b..6862d8c 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -412,7 +412,6 @@ install(FILES "${GENERATED_ROOT_DIR}/${PROJECT_NAME}-config-version.cmake"
+=======
+index 1f8d466..fdfbc32 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -446,7 +446,6 @@ install(FILES "${GENERATED_ROOT_DIR}/${PROJECT_NAME}-config-version.cmake"
+>>>>>>> 2a02ad9e3 (aws-crt-cpp: upgrade 0.41.0 -> 0.42.0)
      DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}/"
      COMPONENT Development)
  
@@ -20,7 +31,11 @@ index 83bc66b..6862d8c 100644
      if(BUILD_TESTING)
          add_subdirectory(tests)
  
+<<<<<<< HEAD
 @@ -422,4 +421,3 @@ if(NOT CMAKE_CROSSCOMPILING)
+=======
+@@ -456,4 +455,3 @@ if(NOT CMAKE_CROSSCOMPILING)
+>>>>>>> 2a02ad9e3 (aws-crt-cpp: upgrade 0.41.0 -> 0.42.0)
              add_subdirectory(bin/mqtt5_canary)
          endif()
      endif()
