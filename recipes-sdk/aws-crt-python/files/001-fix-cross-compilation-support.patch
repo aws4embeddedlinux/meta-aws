@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 From 622237504a99dbe13f28d785e650e36adf39a5fa Mon Sep 17 00:00:00 2001
+=======
+From 0741b2981e773670f2b605b3adc67be8c39a7ab6 Mon Sep 17 00:00:00 2001
+>>>>>>> 2ac10207b (aws-crt-python: upgrade 0.35.0 -> 0.36.0)
 From: AWS Meta Layer <meta-aws@amazon.com>
 Date: Thu, 24 Jul 2025 12:00:00 +0000
 Subject: [PATCH] Fix cross-compilation support
