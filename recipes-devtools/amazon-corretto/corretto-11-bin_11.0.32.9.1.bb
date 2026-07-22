@@ -23,10 +23,10 @@ BASE:x86 = "amazon-corretto-${PV}-linux-x86"
 SRC_URI:x86 = "https://corretto.aws/downloads/resources/${PV}/amazon-corretto-${PV}-linux-x86.tar.gz;name=x86"
 
 # you can find checksum here: https://github.com/corretto/corretto-11/releases  since devtool upgrade can only do one arch atm.
-SRC_URI[x86-64.sha256sum] = "70f6ff3668f27d1052f9e26c7a00d601774a556a49e6e9e7faa9d510ae1d0dbe"
-SRC_URI[aarch64.sha256sum] = "8ee5fba821463363dc76a18049e338d12c74752430a743aa405af126a62218da"
-SRC_URI[arm.sha256sum] = "2a2253ec40e3c275fa29687382f7782ff0a421114385ec34a2df2e32fd17d634"
-SRC_URI[x86.sha256sum] = "7423a636ca1000688e874cdb961a507012f6eacb9cf42afc1273a7f279c61ada"
+SRC_URI[x86-64.sha256sum] = "b09aac76316cef26dca770c89ca23ce55708bd0463e2640e86915ee528cb5bd0"
+SRC_URI[aarch64.sha256sum] = "c922bdb3b9ee3eb2e5c6c15f39147d79f4698cd17e181423fea46319b3891504"
+SRC_URI[arm.sha256sum] = "7e4c113943f73e9ff53dc9ee2cb86e206ce1d89f6acb5b985184964cd9c7e021"
+SRC_URI[x86.sha256sum] = "157dd35d976e15d17f89d331717dfa03ce24061a909e27beeef1725303185b50"
 
 # also available in master (not kirkstone) in classes-recipe: github-releases
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
