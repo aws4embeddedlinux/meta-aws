@@ -36,7 +36,6 @@ SRC_URI = "\
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main;name=sigv4;destsuffix=${S}/thirdparty/aws_sigv4'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;nobranch=1;name=sdk;destsuffix=${S}/thirdparty/gg_sdk'} \
     file://001-disable_strip.patch \
-    file://002-fix-maybe-uninitialized.patch \
     file://greengrass-lite.yaml \
     file://run-ptest \
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://ggl.local-deployment.service','',d)} \
@@ -47,7 +46,7 @@ SRC_URI = "\
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.aws.greengrass.TokenExchangeService.service.d-fleet-provisioning.conf','',d)} \
 "
 
-SRCREV_ggl = "068dd106f138a59f762acaa79460aba1e263a8c4"
+SRCREV_ggl = "283b286c4e3e8eb8060c0be3cc2f4d74c029ff5a"
 
 # must match fc_deps.json
 
@@ -56,7 +55,7 @@ SRCREV_mqtt = "bda794aa54785aa96224f19e37d2e19e66bcd7ab"
 # nooelint: oelint.vars.specific
 SRCREV_sigv4 = "v1.3.1"
 # nooelint: oelint.vars.specific
-SRCREV_sdk = "v1.0.3"
+SRCREV_sdk = "v1.0.4"
 
 EXTRA_OECMAKE:append = " \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_CORE_MQTT=${S}/thirdparty/core_mqtt'} \
@@ -125,6 +124,8 @@ EXTRA_OECMAKE:append = " -DGG_LOG_LEVEL=INFO"
 
 # No warnings should be in the code
 CFLAGS:append = " -Werror"
+# Workaround: GCC 16 raises new warnings not yet fixed upstream
+CFLAGS:append = " -Wno-error=format-security -Wno-error=int-conversion"
 
 # Disable -D_FORTIFY_SOURCE=2 as we set it to -D_FORTIFY_SOURCE=3
 TARGET_CFLAGS:remove = "-D_FORTIFY_SOURCE=2"
