@@ -46,7 +46,35 @@ jobs:
         with:
           path: meta-aws
       - name: Checkout BitBake
-        run: git clone https://git.openembedded.org/bitbake -b ${{steps.get-yocto-release-name.outputs.release}}
+        env:
+          RELEASE: ${{ steps.get-yocto-release-name.outputs.release }}
+        run: |
+          # Map Yocto release codename to BitBake branch version
+          case "$RELEASE" in
+            scarthgap)
+              BITBAKE_BRANCH="2.8"
+              ;;
+            whinlatter)
+              BITBAKE_BRANCH="2.16"
+              ;;
+            wrynose)
+              BITBAKE_BRANCH="2.18"
+              ;;
+            master)
+              BITBAKE_BRANCH="master"
+              ;;
+            *)
+              echo "Unknown release: $RELEASE, falling back to master"
+              BITBAKE_BRANCH="master"
+              ;;
+          esac
+          echo "Cloning BitBake branch: $BITBAKE_BRANCH (for release: $RELEASE)"
+          for i in 1 2 3 4 5; do
+            git clone https://git.openembedded.org/bitbake -b "$BITBAKE_BRANCH" && break
+            echo "Attempt $i failed, retrying in $((i * 30))s..."
+            rm -rf bitbake
+            sleep $((i * 30))
+          done
       - name: Initialize Build Environment
         run: |
           bitbake/bin/bitbake-setup --setting default top-dir-prefix /home/runner \
