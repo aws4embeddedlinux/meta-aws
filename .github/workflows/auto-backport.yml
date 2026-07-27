@@ -184,7 +184,7 @@ jobs:
               --repo "${{ github.repository }}" \
               --base "$branch" \
               --head "$BACKPORT_BRANCH" \
-              --title "$RECIPE: upgrade to $VERSION" \
+              --title "[Backport $branch] $RECIPE: upgrade to $VERSION" \
               --body "$BODY
 
             Recipe: \`$RECIPE\`
