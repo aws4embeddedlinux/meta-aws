@@ -12,8 +12,12 @@ SRC_URI = "\
     file://python_dependency_test.py \
     "
 
+<<<<<<< HEAD:recipes-devtools/python/python3-boto3_1.43.55.bb
 SRCREV = "2a09bb61f3d89224a4d9ceea1ac25320052d8592"
 S = "${WORKDIR}/git"
+=======
+SRCREV = "7b06b40e5bb8ac43a7ee3e4c80a348156cf7d393"
+>>>>>>> db53c6a0e (python3-boto3: upgrade 1.43.55 -> 1.43.57):recipes-devtools/python/python3-boto3_1.43.57.bb
 
 inherit setuptools3 ptest
 
