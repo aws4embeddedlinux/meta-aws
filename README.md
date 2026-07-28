@@ -47,7 +47,7 @@ cd meta-aws && git checkout scarthgap-2026.16.0
 See [Yocto Project Releases](https://wiki.yoctoproject.org/wiki/Releases) for official EOL dates.
 
 We are supporting customers building solutions on AWS with meta-aws. Let us know if you need AWS device software for a specific Yocto Project release and we will work with you through Github Issues to resolve the challenge you might be facing.  We also encourage [contributions](CONTRIBUTING.md) by the community.
-We are yocto project compatible<a href="https://www.yoctoproject.org/software-overview/layers/?searchTerm=meta-aws" target="none" title="What is this?">(?)</a>.
+We are yocto project compatible<a href="https://www.yoctoproject.org/development/yocto-project-compatible-layers/" target="none" title="What is this?">(?)</a>.
 
 [![build-test in all supported branches](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/build-test-all-branches.yml/badge.svg)](https://github.com/aws4embeddedlinux/meta-aws/actions/workflows/build-test-all-branches.yml)
 
@@ -93,6 +93,6 @@ These are the currently supported services, software, and SDKs you can use to bu
 
 **IMPORTANT NOTES**:
 
-* Automotive Grade Linux: The AGL distribution uses a specific static ID process. When adding AWS IoT Greengrass, you will need to define users in the passwd and group files manually. Please see https://github.com/aws/meta-aws/issues/75 for more information.
+* Automotive Grade Linux: The AGL distribution uses a specific static ID process. When adding AWS IoT Greengrass, you will need to define users in the passwd and group files manually. Please see https://github.com/aws4embeddedlinux/meta-aws/issues/75 for more information.
 
 © 2019-2026, Amazon Web Services, Inc. or its affiliates. All rights reserved.

@@ -296,13 +296,13 @@ jobs:
              echo TEST_SUITES = \" ping ssh ptest parselogs\" >> conf/local.conf
              # this will allow - running testimage cmd: bitbake core-image-minimal -c testimage
              echo IMAGE_CLASSES += \"testimage\" >> conf/local.conf
-             echo BB_HASHSERVE = \"hashserv.internal:8686\" >> conf/local.conf
+             echo BB_HASHSERVE = \"${{ vars[format('HASHSERV_{0}', needs.changed.outputs.release)] }}\" >> conf/local.conf
              echo BB_SIGNATURE_HANDLER = \"OEEquivHash\" >> conf/local.conf
              cat conf/local.conf
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
-             bitbake $RECIPES -f -k | tee -a ${{ matrix.machine }}-build.log'
+             bitbake $RECIPES -k | tee -a ${{ matrix.machine }}-build.log'
            set -e
            echo RECIPES to build: $RECIPES
            if [ -e "${BUILD_DIR}/build/${{ matrix.machine }}-build.log" ]; then
@@ -332,7 +332,7 @@ jobs:
              for recipe in $RECIPES; do PUT+="${recipe}-ptest "; done
              echo IMAGE_INSTALL:append = \" ptest-runner ssh ${PUT}\" >> conf/local.conf
              echo IMAGE_FEATURES:append = \" allow-empty-password empty-root-password allow-root-login\" >> conf/local.conf
-             echo BB_HASHSERVE = \"hashserv.internal:8686\" >> conf/local.conf
+             echo BB_HASHSERVE = \"${{ vars[format('HASHSERV_{0}', needs.changed.outputs.release)] }}\" >> conf/local.conf
              echo BB_SIGNATURE_HANDLER = \"OEEquivHash\" >> conf/local.conf
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
