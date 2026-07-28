@@ -302,7 +302,8 @@ jobs:
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
-             bitbake $RECIPES -f -k | tee -a ${{ matrix.machine }}-build.log'
+             bitbake $RECIPES -c cleansstate
+             bitbake $RECIPES -k | tee -a ${{ matrix.machine }}-build.log'
            set -e
            echo RECIPES to build: $RECIPES
            if [ -e "${BUILD_DIR}/build/${{ matrix.machine }}-build.log" ]; then
