@@ -1,7 +1,7 @@
-SUMMARY = "jailer - Binary Distribution"
-DESCRIPTION = "Process for starting Firecracker in production scenarios; applies a cgroup/namespace isolation barrier and then drops privileges."
+SUMMARY = "firecracker - Binary Distribution"
+DESCRIPTION = "Secure and fast microVMs for serverless computing."
 HOMEPAGE = "https://firecracker-microvm.github.io/"
-CVE_PRODUCT = "jailer"
+CVE_PRODUCT = "firecracker"
 LICENSE = "Apache-2.0"
 # nooelint: oelint.var.licenseremotefile:License-File
 LIC_FILES_CHKSUM = "file://${S}/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
@@ -16,8 +16,8 @@ COMPATIBLE_MACHINE:x86-64 = "(.*)"
 # nooelint: oelint.vars.srcurichecksum
 SRC_URI = "https://github.com/firecracker-microvm/firecracker/releases/download/v${PV}/firecracker-v${PV}-${ARCH_DIR}.tgz;name=${ARCH_DIR}"
 
-SRC_URI[x86_64.sha256sum] = "bd04e26952d4e158085778c6230a0b383d2619c319182e27eaa9d61a212e92d6"
-SRC_URI[aarch64.sha256sum] = "531c713cdbc37d4b8bc2533d851aabc0267096afa1768086a37672abb668efd7"
+SRC_URI[x86_64.sha256sum] = "382a02a869e4d6d5cb14c40577f9545e8458021ea8b0b2d3fc10ec14d9c242e6"
+SRC_URI[aarch64.sha256sum] = "8d0e69f6d6f9a1724551f607f18504052c16c1828ee3d4d7b6e6c73380871e0e"
 
 UPSTREAM_CHECK_REGEX ?= "releases/tag/v?(?P<pver>\d+(\.\d+)+)"
 
@@ -34,18 +34,15 @@ inherit bin_package ptest
 # nooelint: oelint.vars.insaneskip
 INSANE_SKIP:${PN} += "already-stripped"
 
-FILES:${PN} += "\
-    ${bindir}/jailer \
-"
 
-RDEPENDS:${PN}-ptest += "\
-    firecracker-bin \
+FILES:${PN} += "\
+    ${bindir}/firecracker \
 "
 
 do_install() {
     install -d ${D}${bindir}
 
-    install -m 0755 ${S}/jailer-v${PV}-${TARGET_ARCH} ${D}${bindir}/jailer
+    install -m 0755 ${S}/firecracker-v${PV}-${TARGET_ARCH} ${D}${bindir}/firecracker
 }
 
 # https://bugzilla.yoctoproject.org/show_bug.cgi?id=15227

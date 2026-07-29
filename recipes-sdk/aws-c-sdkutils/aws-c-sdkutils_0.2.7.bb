@@ -1,25 +1,21 @@
-SUMMARY = "AWS C S3"
-DESCRIPTION = "C99 library implementation for communicating with the S3 service, designed for maximizing throughput on high bandwidth EC2 instances."
+SUMMARY = "AWS C SDKUTILS"
+DESCRIPTION = "No description or website provided. "
 
-HOMEPAGE = "https://github.com/awslabs/aws-c-s3"
+HOMEPAGE = "https://github.com/awslabs/aws-c-sdkutils"
+
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-DEPENDS = "\
-    aws-c-auth \
-    aws-c-http \
-    aws-checksums \
-    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
-    "
+DEPENDS += "aws-c-common"
 
-PROVIDES += "aws/crt-c-s3"
+PROVIDES += "aws/c-sdkutils"
 
-BRANCH ?= "main"
 SRC_URI = "\
-    git://github.com/awslabs/aws-c-s3.git;protocol=https;branch=${BRANCH} \
+    git://github.com/awslabs/aws-c-sdkutils.git;protocol=https;branch=main \
     file://run-ptest \
+    file://001-enable-tests-with-crosscompiling.patch \
     "
-SRCREV = "e8bf59aaa77442d7f066a2df05604f40889f044a"
+SRCREV = "cb14fea362c82c995eebd34e2e96590ab4e0ed58"
 
 S = "${WORKDIR}/git"
 
@@ -36,21 +32,21 @@ PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
-
-FILES:${PN}-dev += "${libdir}/*/cmake"
-
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_BUILD_TYPE=Release \
 "
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
    cp -r ${B}/tests/* ${D}${PTEST_PATH}/tests/
-   install -m 0755 ${B}/tests/aws-c-s3-tests ${D}${PTEST_PATH}/tests/
+   install -m 0755 ${B}/tests/aws-c-sdkutils-tests ${D}${PTEST_PATH}/tests/
 }
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN}-ptest += "buildpaths"
+
+FILES:${PN}-dev += "${libdir}/*/cmake"
 
 BBCLASSEXTEND = "native nativesdk"
