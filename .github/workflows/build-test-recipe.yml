@@ -303,6 +303,8 @@ jobs:
              if [ -n "$HASHSERV" ]; then
                echo BB_HASHSERVE = \"$HASHSERV\" >> conf/local.conf
                echo BB_SIGNATURE_HANDLER = \"OEEquivHash\" >> conf/local.conf
+             else
+               echo BB_SIGNATURE_HANDLER = \"OEBasicHash\" >> conf/local.conf
              fi
              cat conf/local.conf
              export SSTATE_DIR=/sstate-cache
@@ -342,6 +344,8 @@ jobs:
              if [ -n "$HASHSERV" ]; then
                echo BB_HASHSERVE = \"$HASHSERV\" >> conf/local.conf
                echo BB_SIGNATURE_HANDLER = \"OEEquivHash\" >> conf/local.conf
+             else
+               echo BB_SIGNATURE_HANDLER = \"OEBasicHash\" >> conf/local.conf
              fi
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
