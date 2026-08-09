@@ -79,6 +79,9 @@ jobs:
             RELEASE=$(echo "$REF_NAME" | cut -d- -f1)
             ;;
         esac
+        # Uppercase to match repository variable names (e.g. HASHSERV_MASTER)
+        # which are accessed via case-sensitive bracket notation in expressions.
+        RELEASE=$(echo "$RELEASE" | tr '[:lower:]' '[:upper:]')
         echo "Determined release: $RELEASE"
         echo "release=${RELEASE}" >> $GITHUB_OUTPUT
   build-test:
