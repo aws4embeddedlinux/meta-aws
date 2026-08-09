@@ -1,29 +1,201 @@
 name: auto-backport
 
 on:
+  workflow_dispatch:
+    inputs:
+      recipe:
+        description: 'Recipe name (e.g. python3-botocore)'
+        required: true
+        type: string
+      version:
+        description: 'New version (e.g. 1.43.55)'
+        required: true
+        type: string
+      srcrev:
+        description: 'SRCREV hash (for git-based recipes, leave empty for sha256sum recipes)'
+        required: false
+        type: string
+      sha256sums:
+        description: 'JSON object of sha256sums (e.g. {"x86-64":"abc...","aarch64":"def..."})'
+        required: false
+        type: string
+      target_branches:
+        description: 'Space-separated target branches'
+        required: false
+        default: 'scarthgap-next whinlatter-next wrynose-next'
+        type: string
   pull_request_target:
     branches:
       - master-next
     types: ["closed"]
+
 permissions:
   contents: write
   pull-requests: write
+
 jobs:
   backport:
-    name: Backport pull request
+    name: Backport to release branches
     runs-on: ubuntu-22.04
-    # Only run when pull request is merged and labeled 'backport'
-    if: (github.event.pull_request.merged == true ) &&
-        (contains(github.event.pull_request.labels.*.name, 'version-upgrade') || contains(github.event.pull_request.labels.*.name, 'auto-backport'))
+    # For pull_request_target: only run when merged and labeled
+    # For workflow_dispatch: always run
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       (contains(github.event.pull_request.labels.*.name, 'version-upgrade') ||
+        contains(github.event.pull_request.labels.*.name, 'auto-backport')))
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout meta-aws
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Create backport pull requests
-        uses: korthout/backport-action@v4
+          token: ${{ secrets.MAINTAINER_TOKEN }}
+
+      - name: Checkout meta-aws-ci
+        uses: actions/checkout@v4
         with:
-          target_branches: scarthgap-next whinlatter-next wrynose-next
-          # copy all labels (backport labels are automatically skipped)
-          copy_labels_pattern: .+
-          github_token: ${{ secrets.MAINTAINER_TOKEN }}
-          experimental: '{"conflict_resolution": "draft_commit_conflicts"}'
+          repository: aws4embeddedlinux/meta-aws-ci
+          ref: master
+          path: ci
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backporter
+        run: pip install ./ci/backporter
+
+      - name: Configure git
+        run: |
+          git config user.name meta-aws-maintainer
+          git config user.email meta-aws-maintainer@users.noreply.github.com
+
+      - name: Determine backport parameters
+        id: params
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_RECIPE: ${{ inputs.recipe }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_SRCREV: ${{ inputs.srcrev }}
+          INPUT_SHA256SUMS: ${{ inputs.sha256sums }}
+          INPUT_TARGET_BRANCHES: ${{ inputs.target_branches }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Using workflow_dispatch inputs"
+            echo "recipe=$INPUT_RECIPE" >> $GITHUB_OUTPUT
+            echo "version=$INPUT_VERSION" >> $GITHUB_OUTPUT
+            echo "srcrev=$INPUT_SRCREV" >> $GITHUB_OUTPUT
+            echo "sha256sums=$INPUT_SHA256SUMS" >> $GITHUB_OUTPUT
+            echo "target_branches=$INPUT_TARGET_BRANCHES" >> $GITHUB_OUTPUT
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "Parsing merge commit: $MERGE_SHA"
+            OUTPUT=$(backporter parse-commit --commit "$MERGE_SHA" --layer-path .)
+            if [ $? -ne 0 ] || [ -z "$OUTPUT" ]; then
+              echo "Could not parse upgrade info from commit. Skipping backport."
+              echo "skip=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            echo "$OUTPUT"
+            echo "recipe=$(echo "$OUTPUT" | jq -r '.recipe')" >> $GITHUB_OUTPUT
+            echo "version=$(echo "$OUTPUT" | jq -r '.version')" >> $GITHUB_OUTPUT
+            echo "srcrev=$(echo "$OUTPUT" | jq -r '.srcrev // empty')" >> $GITHUB_OUTPUT
+            SHA256=$(echo "$OUTPUT" | jq -r '.sha256sums // empty')
+            if [ "$SHA256" != "" ] && [ "$SHA256" != "null" ]; then
+              echo "sha256sums=$SHA256" >> $GITHUB_OUTPUT
+            else
+              echo "sha256sums=" >> $GITHUB_OUTPUT
+            fi
+            echo "target_branches=scarthgap-next whinlatter-next wrynose-next" >> $GITHUB_OUTPUT
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Backport to release branches
+        if: steps.params.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.MAINTAINER_TOKEN }}
+          RECIPE: ${{ steps.params.outputs.recipe }}
+          VERSION: ${{ steps.params.outputs.version }}
+          SRCREV: ${{ steps.params.outputs.srcrev }}
+          SHA256SUMS: ${{ steps.params.outputs.sha256sums }}
+          TARGET_BRANCHES: ${{ steps.params.outputs.target_branches }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "Recipe: $RECIPE"
+          echo "Version: $VERSION"
+          echo "SRCREV: $SRCREV"
+          echo "SHA256SUMS: $SHA256SUMS"
+          echo "Target branches: $TARGET_BRANCHES"
+
+          for branch in $TARGET_BRANCHES; do
+            echo ""
+            echo "========================================="
+            echo "Backporting $RECIPE $VERSION to $branch"
+            echo "========================================="
+
+            # Build the backporter command
+            CMD="backporter upgrade --recipe $RECIPE --version $VERSION --target-branch $branch --layer-path ."
+
+            if [ -n "$SRCREV" ]; then
+              CMD="$CMD --srcrev $SRCREV"
+            elif [ -n "$SHA256SUMS" ]; then
+              # Build --sha256sum flags from JSON object
+              while IFS='=' read -r key value; do
+                CMD="$CMD --sha256sum $key=$value"
+              done < <(echo "$SHA256SUMS" | jq -r 'to_entries[] | "\(.key)=\(.value)"')
+            else
+              echo "ERROR: No SRCREV or sha256sums found. Skipping $branch."
+              continue
+            fi
+
+            # Run the backporter
+            OUTPUT=$(eval $CMD 2>&1)
+            EXIT_CODE=$?
+            echo "$OUTPUT"
+
+            # Check if it was a skip (exit 0 but no branch created) or success
+            if echo "$OUTPUT" | grep -q "^⊘"; then
+              echo "Skipped: $branch"
+              git checkout master-next 2>/dev/null || true
+              continue
+            fi
+
+            if [ $EXIT_CODE -ne 0 ]; then
+              echo "ERROR: Backporter failed for $branch. Continuing."
+              git checkout master-next 2>/dev/null || true
+              continue
+            fi
+
+            # Get the branch name that was created
+            BACKPORT_BRANCH="backport/${RECIPE}_${VERSION}_to_${branch}"
+
+            # Push the branch
+            git push origin "$BACKPORT_BRANCH" --force
+
+            # Create the PR
+            BODY="Automated backport"
+            if [ -n "$PR_NUMBER" ]; then
+              BODY="Automated backport from master-next PR #${PR_NUMBER}."
+            fi
+
+            gh pr create \
+              --repo "${{ github.repository }}" \
+              --base "$branch" \
+              --head "$BACKPORT_BRANCH" \
+              --title "[Backport $branch] $RECIPE: upgrade to $VERSION" \
+              --body "$BODY
+
+            Recipe: \`$RECIPE\`
+            Version: \`$VERSION\`" \
+              --label "version-upgrade" || {
+                echo "PR creation failed (may already exist). Continuing."
+              }
+
+            # Return to master-next for the next iteration
+            git checkout master-next
+          done
+
+          echo ""
+          echo "Backport complete."
