@@ -302,10 +302,10 @@ jobs:
              HASHSERV=${{ vars[format('HASHSERV_{0}', needs.changed.outputs.release)] }}
              if [ -n "$HASHSERV" ]; then
                echo BB_HASHSERVE = \"$HASHSERV\" >> conf/local.conf
-               echo BB_SIGNATURE_HANDLER = \"OEEquivHash\" >> conf/local.conf
              else
-               echo BB_SIGNATURE_HANDLER = \"OEBasicHash\" >> conf/local.conf
+               echo BB_HASHSERVE = \"auto\" >> conf/local.conf
              fi
+             echo BB_SIGNATURE_HANDLER = \"OEEquivHash\" >> conf/local.conf
              cat conf/local.conf
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
@@ -343,10 +343,10 @@ jobs:
              HASHSERV=${{ vars[format('HASHSERV_{0}', needs.changed.outputs.release)] }}
              if [ -n "$HASHSERV" ]; then
                echo BB_HASHSERVE = \"$HASHSERV\" >> conf/local.conf
-               echo BB_SIGNATURE_HANDLER = \"OEEquivHash\" >> conf/local.conf
              else
-               echo BB_SIGNATURE_HANDLER = \"OEBasicHash\" >> conf/local.conf
+               echo BB_HASHSERVE = \"auto\" >> conf/local.conf
              fi
+             echo BB_SIGNATURE_HANDLER = \"OEEquivHash\" >> conf/local.conf
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
