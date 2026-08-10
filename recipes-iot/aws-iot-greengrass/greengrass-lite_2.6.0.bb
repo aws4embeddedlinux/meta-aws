@@ -131,8 +131,8 @@ EXTRA_OECMAKE:append = " -DGG_LOG_LEVEL=INFO"
 
 # No warnings should be in the code
 CFLAGS:append = " -Werror"
-# Workaround: GCC 16 raises new warnings not yet fixed upstream
-CFLAGS:append = " -Wno-error=format-security -Wno-error=int-conversion"
+# Workaround: GCC 16 raises new warnings not yet fixed upstream (maybe-uninitialized via LTO)
+CFLAGS:append = " -Wno-error=format-security -Wno-error=int-conversion -Wno-error=maybe-uninitialized"
 
 # Disable -D_FORTIFY_SOURCE=2 as we set it to -D_FORTIFY_SOURCE=3
 TARGET_CFLAGS:remove = "-D_FORTIFY_SOURCE=2"
