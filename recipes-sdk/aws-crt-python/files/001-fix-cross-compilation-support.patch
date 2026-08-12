@@ -1,4 +1,4 @@
-From 8a689919bbeffc55a973e0aa7736bcfb1cd1b098 Mon Sep 17 00:00:00 2001
+From 19f5fdf4429c05c8b34eaede848cf8df7287a6e2 Mon Sep 17 00:00:00 2001
 From: AWS Meta Layer <meta-aws@amazon.com>
 Date: Thu, 24 Jul 2025 12:00:00 +0000
 Subject: [PATCH] Fix cross-compilation support
