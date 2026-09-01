@@ -25,7 +25,7 @@ SRC_URI = "\
     file://0005-fix-boost-system-header-only.patch \
     file://run-ptest \
     "
-SRCREV = "11995d0fd70edf33d01f9706ae48d2036eb92359"
+SRCREV = "8a71618acf536923e882387e8d9eca9dbc7fdbe2"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
