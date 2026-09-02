@@ -1,34 +1,21 @@
-SUMMARY = "AWS C IoT"
-DESCRIPTION = "C99 implementation of AWS IoT cloud services integration with devices"
+SUMMARY = "AWS C SDKUTILS"
+DESCRIPTION = "No description or website provided. "
 
-HOMEPAGE = "https://github.com/awslabs/aws-c-iot"
+HOMEPAGE = "https://github.com/awslabs/aws-c-sdkutils"
 
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=2ee41112a44fe7014dce33e26468ba93"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-DEPENDS += "\
-    aws-c-auth \
-    aws-c-common \
-    aws-c-event-stream \
-    aws-c-http \
-    aws-c-io \
-    aws-c-mqtt \
-    aws-c-s3 \
-    aws-checksums \
-    s2n \
-    openssl \
-    "
+DEPENDS += "aws-c-common"
 
-PROVIDES += "aws/aws-c-iot"
-
-BRANCH ?= "main"
+PROVIDES += "aws/c-sdkutils"
 
 SRC_URI = "\
-    git://github.com/awslabs/aws-c-iot.git;protocol=https;branch=${BRANCH} \
+    git://github.com/awslabs/aws-c-sdkutils.git;protocol=https;branch=main \
     file://run-ptest \
+    file://001-enable-tests-with-crosscompiling.patch \
     "
-
-SRCREV = "9f0c152ed76af1a45d99fb98286707aa23c728af"
+SRCREV = "bb4c0918b84a1a5e0ecfafb960711024cfee916f"
 
 inherit cmake ptest pkgconfig
 
@@ -42,21 +29,22 @@ PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 # CMAKE_CROSSCOMPILING=ON will disable building the tests
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
 
-FILES:${PN}-dev += "${libdir}/*/cmake"
-
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_BUILD_TYPE=Release \
 "
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
    cp -r ${B}/tests/* ${D}${PTEST_PATH}/tests/
-   install -m 0755 ${B}/tests/aws-c-iot-tests ${D}${PTEST_PATH}/tests/
+   install -m 0755 ${B}/tests/aws-c-sdkutils-tests ${D}${PTEST_PATH}/tests/
 }
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN}-ptest += "buildpaths"
+
+FILES:${PN}-dev += "${libdir}/*/cmake"
 
 BBCLASSEXTEND = "native nativesdk"

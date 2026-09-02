@@ -35,8 +35,8 @@ SRC_URI = "\
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/FreeRTOS/coreMQTT.git;protocol=https;branch=main;name=mqtt;destsuffix=${S}/thirdparty/core_mqtt'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk.git;protocol=https;branch=main;name=sigv4;destsuffix=${S}/thirdparty/aws_sigv4'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/aws-greengrass/aws-greengrass-component-sdk.git;protocol=https;nobranch=1;name=sdk;destsuffix=${S}/thirdparty/gg_sdk'} \
+    ${@'' if d.getVar('DISABLE_FETCHCONTENT') else 'git://github.com/ThrowTheSwitch/Unity.git;protocol=https;branch=master;name=unity;destsuffix=${S}/thirdparty/unity'} \
     file://001-disable_strip.patch \
-    file://002-fix-maybe-uninitialized.patch \
     file://greengrass-lite.yaml \
     file://run-ptest \
     ${@bb.utils.contains('PACKAGECONFIG','localdeployment','file://ggl.local-deployment.service','',d)} \
@@ -47,7 +47,7 @@ SRC_URI = "\
     ${@bb.utils.contains('PACKAGECONFIG','fleetprovisioning','file://ggl.aws.greengrass.TokenExchangeService.service.d-fleet-provisioning.conf','',d)} \
 "
 
-SRCREV_ggl = "068dd106f138a59f762acaa79460aba1e263a8c4"
+SRCREV_ggl = "283b286c4e3e8eb8060c0be3cc2f4d74c029ff5a"
 
 # must match fc_deps.json
 
@@ -56,22 +56,28 @@ SRCREV_mqtt = "bda794aa54785aa96224f19e37d2e19e66bcd7ab"
 # nooelint: oelint.vars.specific
 SRCREV_sigv4 = "v1.3.1"
 # nooelint: oelint.vars.specific
-SRCREV_sdk = "v1.0.3"
+SRCREV_sdk = "v1.0.4"
+# nooelint: oelint.vars.specific
+SRCREV_unity = "cbcd08fa7de711053a3deec6339ee89cad5d2697"
 
 EXTRA_OECMAKE:append = " \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_CORE_MQTT=${S}/thirdparty/core_mqtt'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_AWS_SIGV4=${S}/thirdparty/aws_sigv4'} \
     ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_GG_SDK=${S}/thirdparty/gg_sdk'} \
+    ${@'' if d.getVar('DISABLE_FETCHCONTENT') else '-DFETCHCONTENT_SOURCE_DIR_UNITY=${S}/thirdparty/unity'} \
     ${@'-DFETCHCONTENT_FULLY_DISCONNECTED=OFF' if d.getVar('DISABLE_FETCHCONTENT') else ''} \
     "
 
-SRCREV_FORMAT .= "_ggl_core_mqtt_aws_sigv4_gg_sdk"
+SRCREV_FORMAT .= "_ggl_core_mqtt_aws_sigv4_gg_sdk_unity"
 
 do_configure:prepend() {
     # verify that all dependencies have correct version
     grep -q ${SRCREV_mqtt} ${S}/fc_deps.json || bbfatal "ERROR: dependency version mismatch, please update 'SRCREV_mqtt'!"
     grep -q ${SRCREV_sigv4} ${S}/fc_deps.json || bbfatal "ERROR: dependency version mismatch, please update 'SRCREV_sigv4'!"
     grep -q ${SRCREV_sdk} ${S}/fc_deps.json || bbfatal "ERROR: dependency version mismatch, please update 'SRCREV_sdk'!"
+    if grep -q '"unity"' ${S}/fc_deps.json 2>/dev/null; then
+        grep -q ${SRCREV_unity} ${S}/fc_deps.json || bbfatal "ERROR: dependency version mismatch, please update 'SRCREV_unity'!"
+    fi
 }
 
 do_configure[network] = "${@'1' if d.getVar('DISABLE_FETCHCONTENT') else '0'}"
@@ -125,6 +131,8 @@ EXTRA_OECMAKE:append = " -DGG_LOG_LEVEL=INFO"
 
 # No warnings should be in the code
 CFLAGS:append = " -Werror"
+# Workaround: GCC 16 raises new warnings not yet fixed upstream (maybe-uninitialized via LTO)
+CFLAGS:append = " -Wno-error=format-security -Wno-error=int-conversion -Wno-error=maybe-uninitialized"
 
 # Disable -D_FORTIFY_SOURCE=2 as we set it to -D_FORTIFY_SOURCE=3
 TARGET_CFLAGS:remove = "-D_FORTIFY_SOURCE=2"
