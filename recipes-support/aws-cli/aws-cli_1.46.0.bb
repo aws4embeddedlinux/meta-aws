@@ -42,8 +42,9 @@ RDEPENDS:${PN}-ptest += "\
 
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
-        # just install some tests with low memory (less than 4GB) consumption
-        cp -rf ${S}/tests/functional/test_args.py ${D}${PTEST_PATH}/tests/
+        # just install some tests with low memory (less than 4GB)
+        # consumption
+        install -m 0755 ${S}/tests/functional/test_args.py ${D}${PTEST_PATH}/tests/
 }
 
 PACKAGES =+ "${PN}-examples"
