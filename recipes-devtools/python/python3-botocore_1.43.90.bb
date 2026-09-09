@@ -12,7 +12,7 @@ SRC_URI = "\
     file://python_dependency_test.py \
     "
 
-SRCREV = "b5c1794f453f0a0a56f3f619baba223d9321a3f9"
+SRCREV = "dc85104750c66d102006daf07b1c0dbc22eb2090"
 S = "${WORKDIR}/git"
 
 inherit setuptools3 ptest
