@@ -1,4 +1,4 @@
-From 84a8b4a487664d902d5cef8c27f62c1b78bea7f3 Mon Sep 17 00:00:00 2001
+From 50f479c9adac43e38ee84f047eee312c2424b9a4 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Tue, 20 May 2025 08:45:29 +0000
 Subject: [PATCH] aws-crt-cpp: change to build-deps as default
@@ -13,7 +13,7 @@ Upstream-Status: Inappropriate [oe specific]
  1 file changed, 2 insertions(+)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index cf04642..0d5d2e5 100644
+index ada8515..5225ad8 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -48,6 +48,7 @@ set(GENERATED_CONFIG_HEADER "${GENERATED_INCLUDE_DIR}/aws/crt/Config.h")
