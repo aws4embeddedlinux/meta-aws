@@ -1,4 +1,4 @@
-From 267c305608841b9c423042fbffb6ee5c2ccca4d0 Mon Sep 17 00:00:00 2001
+From fd205f358da42ad365a210c9edaf466f5302057c Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Mon, 29 Sep 2025 12:51:03 +0000
 Subject: [PATCH] This enable the tests even when crosscompiling.
@@ -9,7 +9,7 @@ Upstream-Status: Inappropriate [oe specific]
  1 file changed, 2 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 0d5d2e5..6746fa4 100644
+index 5225ad8..c04d236 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -446,7 +446,6 @@ install(FILES "${GENERATED_ROOT_DIR}/${PROJECT_NAME}-config-version.cmake"
