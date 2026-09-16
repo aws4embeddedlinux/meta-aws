@@ -29,6 +29,7 @@ RDEPENDS:${PN}-ptest += "\
         python3-urllib3 \
         ${PYTHON_PN}-setuptools \
 "
+# nooelint: oelint.task.nocopy
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
         cp -rf ${S}/tests/* ${D}${PTEST_PATH}/tests/
