@@ -79,6 +79,9 @@ jobs:
             RELEASE=$(echo "$REF_NAME" | cut -d- -f1)
             ;;
         esac
+        # Uppercase to match repository variable names (e.g. HASHSERV_MASTER)
+        # which are accessed via case-sensitive bracket notation in expressions.
+        RELEASE=$(echo "$RELEASE" | tr '[:lower:]' '[:upper:]')
         echo "Determined release: $RELEASE"
         echo "release=${RELEASE}" >> $GITHUB_OUTPUT
   build-test:
@@ -296,8 +299,14 @@ jobs:
              echo TEST_SUITES = \" ping ssh ptest parselogs\" >> conf/local.conf
              # this will allow - running testimage cmd: bitbake core-image-minimal -c testimage
              echo IMAGE_CLASSES += \"testimage\" >> conf/local.conf
-             echo BB_HASHSERVE = \"${{ vars[format('HASHSERV_{0}', needs.changed.outputs.release)] }}\" >> conf/local.conf
+             HASHSERV=${{ vars[format('HASHSERV_{0}', needs.changed.outputs.release)] }}
+             if [ -n "$HASHSERV" ]; then
+               echo BB_HASHSERVE = \"$HASHSERV\" >> conf/local.conf
+             else
+               echo BB_HASHSERVE = \"auto\" >> conf/local.conf
+             fi
              echo BB_SIGNATURE_HANDLER = \"OEEquivHash\" >> conf/local.conf
+             echo BB_HASHSERVE_DB_DIR = \"/tmp/hashserv-db\" >> conf/local.conf
              cat conf/local.conf
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
@@ -332,8 +341,14 @@ jobs:
              for recipe in $RECIPES; do PUT+="${recipe}-ptest "; done
              echo IMAGE_INSTALL:append = \" ptest-runner ssh ${PUT}\" >> conf/local.conf
              echo IMAGE_FEATURES:append = \" allow-empty-password empty-root-password allow-root-login\" >> conf/local.conf
-             echo BB_HASHSERVE = \"${{ vars[format('HASHSERV_{0}', needs.changed.outputs.release)] }}\" >> conf/local.conf
+             HASHSERV=${{ vars[format('HASHSERV_{0}', needs.changed.outputs.release)] }}
+             if [ -n "$HASHSERV" ]; then
+               echo BB_HASHSERVE = \"$HASHSERV\" >> conf/local.conf
+             else
+               echo BB_HASHSERVE = \"auto\" >> conf/local.conf
+             fi
              echo BB_SIGNATURE_HANDLER = \"OEEquivHash\" >> conf/local.conf
+             echo BB_HASHSERVE_DB_DIR = \"/tmp/hashserv-db\" >> conf/local.conf
              export SSTATE_DIR=/sstate-cache
              export DL_DIR=/downloads
              export BB_ENV_PASSTHROUGH_ADDITIONS="$BB_ENV_PASSTHROUGH_ADDITIONS SSTATE_DIR DL_DIR"
