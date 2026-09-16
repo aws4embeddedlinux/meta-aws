@@ -1,7 +1,7 @@
 SUMMARY = "Amazon CloudWatch Agent"
 DESCRIPTION = "CloudWatch Agent enables you to collect and export host-level metrics and logs on instances running Linux or Windows server."
 HOMEPAGE = "https://github.com/aws/amazon-cloudwatch-agent/"
-LICENSE = "MIT"
+LICENSE = "Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND GPL-3.0-only AND ISC AND MIT AND MPL-2.0 AND Zlib"
 LIC_FILES_CHKSUM = "file://src/${GO_IMPORT}/LICENSE;md5=4dde6168ca1ce801034ffe20cabf2b37"
 
 COMPATIBLE_MACHINE = "(^$)"

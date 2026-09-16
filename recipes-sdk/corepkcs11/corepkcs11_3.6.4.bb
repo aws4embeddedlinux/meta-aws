@@ -6,7 +6,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=7ae2be7fb1637141840314b51970a9f7 \
                     file://source/dependency/3rdparty/pkcs11/LICENSE.md;md5=636524f005338d77b2c83f6b111f87cd \
                     file://source/dependency/3rdparty/mbedtls/LICENSE;md5=379d5819937a6c2f1ef1630d341e026d"
 
-NO_GENERIC_LICENSE[LicenseRef-OASIS] = "source/dependency/3rdparty/pkcs11/LICENSE.md"
+NO_GENERIC_LICENSE[OASIS] = "source/dependency/3rdparty/pkcs11/LICENSE.md"
 
 SRCREV = "ccc78afee1716436cca832dd3d9388ead2ba05b0"
 SRC_URI = "\
