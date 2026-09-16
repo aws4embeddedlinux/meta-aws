@@ -117,6 +117,7 @@ RDEPENDS:${PN}-ptest += "\
     bash \
 "
 
+# nooelint: oelint.task.nocopy
 do_install_ptest() {
     install -d ${D}${PTEST_PATH}/tests
     cp -rf ${S}/test ${D}${PTEST_PATH}/tests/

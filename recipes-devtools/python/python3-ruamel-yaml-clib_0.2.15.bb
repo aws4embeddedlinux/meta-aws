@@ -40,6 +40,7 @@ do_install:prepend() {
     export RUAMEL_YAML_CLIB_BUILD_EXTENSION=1
 }
 
+# nooelint: oelint.task.nocopy
 do_install:append() {
     # Install the ruamel.yaml.clib namespace package structure
     install -d ${D}${PYTHON_SITEPACKAGES_DIR}/ruamel/yaml/clib
