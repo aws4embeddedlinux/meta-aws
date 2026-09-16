@@ -30,6 +30,7 @@ RDEPENDS:${PN}-ptest += "\
         ${PYTHON_PN}-pytest \
         ${PYTHON_PN}-setuptools \
 "
+# nooelint: oelint.task.nocopy
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
         cp -rf ${S}/tests/* ${D}${PTEST_PATH}/tests/
