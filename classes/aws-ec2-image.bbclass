@@ -8,22 +8,21 @@ EXTRA_USERS_PARAMS = "usermod -L root; useradd -p '*' user"
 
 EXTRA_IMAGE_FEATURES:append = " ssh-server-openssh"
 
-# Forcing removal of debug-tweakes as that leads to reversing some sshd_config hardening done in our bbappend when do_rootfs runs
-EXTRA_IMAGE_FEATURES:remove = "debug-tweaks"
+# Remove the debug login tweaks; they reverse the sshd_config hardening our
+# bbappend applies during do_rootfs.
+EXTRA_IMAGE_FEATURES:remove = "allow-empty-password allow-root-login empty-root-password"
 
 IMAGE_FSTYPES += " wic.vhd"
 DISTRO_FEATURES:append = " systemd"
 DISTRO_FEATURES:append = " virtualization"
 DISTRO_FEATURES:append = " usrmerge"
 
-DISTRO_FEATURES:remove = " sysvinit"
-DISTRO_FEATURES_BACKFILL_CONSIDERED:append = " sysvinit"
-
+# Force systemd as the init manager; INIT_MANAGER excludes sysvinit and sets
+# the VIRTUAL-RUNTIME_* init defaults.
 INIT_MANAGER:forcevariable = "systemd"
 POKY_INIT_MANAGER:forcevariable = "systemd"
 
 VIRTUAL-RUNTIME_init_manager = "systemd"
-VIRTUAL-RUNTIME_initscripts = "systemd-compat-units"
 VIRTUAL-RUNTIME_login_manager = "shadow-base"
 VIRTUAL-RUNTIME_dev_manager = "systemd"
 
