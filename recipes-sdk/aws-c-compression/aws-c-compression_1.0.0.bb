@@ -22,7 +22,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "281801657a7b69c316e2a52689365bc8256cbb15"
+SRCREV = "891312c058e69a4d55f569f79dde1ee221982532"
 
 inherit cmake ptest pkgconfig
 
