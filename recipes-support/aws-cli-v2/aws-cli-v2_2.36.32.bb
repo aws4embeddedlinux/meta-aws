@@ -87,6 +87,7 @@ do_patch() {
     }' ${S}/awscli/logger.py
 }
 
+# nooelint: oelint.task.nocopy
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
         # just install some tests with low memory (less than 4GB) consumption
