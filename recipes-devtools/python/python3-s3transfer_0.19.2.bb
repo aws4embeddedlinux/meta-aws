@@ -29,6 +29,7 @@ RDEPENDS:${PN}-ptest += "\
         python3-boto3 \
         "
 
+# nooelint: oelint.task.nocopy
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
         cp -rf ${S}/tests/* ${D}${PTEST_PATH}/tests/
