@@ -7,6 +7,14 @@ LIC_FILES_CHKSUM = "file://${UNPACKDIR}/${BP}/documents/LICENSE;md5=f91e61641e7a
 
 DEPENDS += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'openssl', 'aws-c-iot', d)}"
 
+# When build-deps is OFF the SDK links against the standalone CRT packages and
+# find_package()s the whole chain (not just aws-c-iot), so they must all be in
+# the recipe sysroot, and CMAKE_PREFIX_PATH must point at it for config-mode
+# find_package() to locate their *Config.cmake files. No-op when build-deps is
+# ON (the bundled submodules are built in-tree instead).
+DEPENDS += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '', 'aws-crt-cpp aws-c-auth aws-c-cal aws-c-common aws-c-compression aws-c-event-stream aws-c-http aws-c-io aws-c-mqtt aws-c-s3 aws-c-sdkutils aws-checksums s2n', d)}"
+EXTRA_OECMAKE += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '', '-DCMAKE_PREFIX_PATH=${STAGING_DIR_HOST}${prefix}', d)}"
+
 PROVIDES += "aws/aws-iot-device-sdk-cpp-v2"
 
 require aws-iot-device-sdk-cpp-v2-version.inc
