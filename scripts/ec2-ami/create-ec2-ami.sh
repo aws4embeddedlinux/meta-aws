@@ -26,6 +26,7 @@ fi
 
 IMG_DIR=$(bitbake-getvar --value -q  DEPLOY_DIR_IMAGE)
 
+export AWS_DEFAULT_OUTPUT="json"
 TESTDATA_JSON="${IMG_DIR}/${IMAGE_NAME}-${MACHINE_NAME}.rootfs.testdata.json"
 
 DISTRO=$(jq -r '.DISTRO' $TESTDATA_JSON)
