@@ -47,4 +47,4 @@ do_install:append() {
     cp -r ${S}/build/lib.linux-*/ruamel/yaml/clib/* ${D}${PYTHON_SITEPACKAGES_DIR}/ruamel/yaml/clib/
 }
 
-BBCLASSEXTEND = "native"
+BBCLASSEXTEND = "native nativesdk"
