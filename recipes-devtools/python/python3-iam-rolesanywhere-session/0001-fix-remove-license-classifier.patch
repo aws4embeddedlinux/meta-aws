@@ -1,0 +1,25 @@
+From bee363b93f0ddd305b71e1fa1d3dca6ea44c8f80 Mon Sep 17 00:00:00 2001
+From: Frede Braendstrup <frederikbraendstrup@gmail.com>
+Date: Fri, 17 Oct 2025 15:55:07 +0200
+Subject: [PATCH] fix: remove license classifier
+
+Upstream-Status: Pending
+Signed-off-by: Frede Braendstrup <frederikbraendstrup@gmail.com>
+---
+ pyproject.toml                                     | 1 -
+ src/iam_rolesanywhere_session.egg-info/PKG-INFO    | 1 -
+ src/iam_rolesanywhere_session.egg-info/SOURCES.txt | 2 ++
+ 3 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/pyproject.toml b/pyproject.toml
+index c001045..cd83a8f 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -20,7 +20,6 @@ requires-python = ">=3.8"
+ 
+ classifiers = [
+     "Development Status :: 4 - Beta",
+-    "License :: OSI Approved :: Apache Software License",
+     "Programming Language :: Python :: 3",
+ ]
+ 
