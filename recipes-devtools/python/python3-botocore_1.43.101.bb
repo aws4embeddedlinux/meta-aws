@@ -36,3 +36,5 @@ do_install_ptest() {
         cp -rf ${S}/tests/* ${D}${PTEST_PATH}/tests/
         install -m 0755 ${UNPACKDIR}/python_dependency_test.py ${D}${PTEST_PATH}/
 }
+
+BBCLASSEXTENDS += "native nativesdk"
