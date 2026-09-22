@@ -908,6 +908,7 @@ do_install_ptest () {
 EXTRA_OECMAKE += "\
     -DDISABLE_PERL=ON \
     -DDISABLE_GO=ON \
+    -DENABLE_DIST_PKG=ON \
 "
 
 EXTRA_OECMAKE += "-DCMAKE_C_FLAGS='${CFLAGS}'"
@@ -915,12 +916,12 @@ EXTRA_OECMAKE += "-DCMAKE_C_FLAGS='${CFLAGS}'"
 CXXFLAGS += "-Wno-ignored-attributes"
 
 FILES:${PN} += "\
-    ${libdir}/libcrypto.so \
-    ${libdir}/libssl.so \
+    ${libdir}/libcrypto-awslc.so.* \
+    ${libdir}/libssl-awslc.so.* \
     ${libdir}/libdecrepit.so \
     "
 
-FILES:${PN}-dev += "${libdir}/*/cmake"
+FILES:${PN}-dev += "${libdir}/*/cmake ${includedir}/aws-lc"
 
 # also test depend-on-us packages build
 RDEPENDS:${PN}-ptest = "\
@@ -932,9 +933,15 @@ RDEPENDS:${PN}-ptest = "\
     aws-checksums \
     "
 
-# Notify that libraries are not versioned
-FILES_SOLIBSDEV = ""
+# ENABLE_DIST_PKG enables SONAME versioning, so standard OE library
+# packaging works correctly (unversioned .so symlinks go to -dev).
+
+# ENABLE_DIST_PKG creates a symlink ${includedir}/openssl -> aws-lc/openssl
+# for source-level OpenSSL compatibility. This conflicts with the real OpenSSL
+# headers. We don't need it: s2n and the SDK chain find aws-lc via CMake
+# config mode, not header path fallback.
+do_install:append() {
+    rm -f ${D}${includedir}/openssl
+}
 
 BBCLASSEXTEND = "native nativesdk"
-
-RCONFLICTS:${PN} = "openssl"

@@ -5,9 +5,10 @@ LICENSE = "Apache-2.0"
 
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
-DEPENDS = "\
-    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
-    "
+# aws-lc is the preferred crypto backend (enables OpenSSL 4.0 coexistence
+# via ENABLE_DIST_PKG). Note: aws-lc is not available on arm32
+# (COMPATIBLE_HOST:arm = "null" in aws-lc recipe).
+DEPENDS = "aws-lc"
 
 PROVIDES += "aws/s2n"
 
@@ -44,6 +45,13 @@ TARGET_CC_ARCH += "${LDFLAGS}"
 
 # Assume that warnings from upstream have already been evaluated
 EXTRA_OECMAKE += "-DUNSAFE_TREAT_WARNINGS_AS_ERRORS=OFF"
+
+# Use aws-lc via ENABLE_DIST_PKG. Prefer CMake config-mode packages over
+# find-modules so that find_package(crypto) uses aws-lc's installed
+# crypto-config.cmake rather than s2n's Findcrypto.cmake fallback (which
+# searches for openssl/crypto.h and libcrypto.so — paths that don't exist
+# with aws-lc's dist-pkg layout).
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
