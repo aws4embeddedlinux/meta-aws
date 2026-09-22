@@ -12,7 +12,7 @@ DEPENDS = "\
     aws-c-cal \
     aws-c-common \
     s2n \
-    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
+    aws-lc \
     "
 
 PROVIDES += "aws/crt-c-io"
@@ -40,6 +40,8 @@ FILES:${PN}-dev += "${libdir}/*/cmake"
 
 AWS_C_INSTALL = "$D/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \

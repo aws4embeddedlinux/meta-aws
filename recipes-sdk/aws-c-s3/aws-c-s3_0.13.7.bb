@@ -9,7 +9,7 @@ DEPENDS = "\
     aws-c-auth \
     aws-c-http \
     aws-checksums \
-    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
+    aws-lc \
     "
 
 PROVIDES += "aws/crt-c-s3"
@@ -36,6 +36,8 @@ PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUI
 CFLAGS:append = " -Wl,-Bsymbolic"
 
 FILES:${PN}-dev += "${libdir}/*/cmake"
+
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \

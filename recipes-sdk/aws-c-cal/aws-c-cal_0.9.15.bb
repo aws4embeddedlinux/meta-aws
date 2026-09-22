@@ -8,7 +8,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 DEPENDS = "\
     aws-c-common \
     s2n \
-    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
+    aws-lc \
     "
 
 PROVIDES += "aws/crt-c-cal"
@@ -53,6 +53,8 @@ do_install_ptest () {
 INSANE_SKIP:${PN}-ptest += "buildpaths"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
+
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \

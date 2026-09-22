@@ -70,9 +70,12 @@ OECMAKE_CXX_FLAGS += "-Wno-psabi"
 # TODO: Remove this workaround once upstream fixes GCC 16 compatibility.
 OECMAKE_CXX_FLAGS += "-Wno-error=array-bounds"
 
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DBUILD_DEPS=OFF \
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
+    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
 "
 
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
