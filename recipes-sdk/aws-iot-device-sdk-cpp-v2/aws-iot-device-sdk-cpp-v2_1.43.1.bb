@@ -5,7 +5,9 @@ LICENSE = "Apache-2.0"
 
 LIC_FILES_CHKSUM = "file://${UNPACKDIR}/${BP}/documents/LICENSE;md5=f91e61641e7a96835dea6926a65f4702"
 
-DEPENDS += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'openssl', 'aws-c-iot', d)}"
+DEPENDS += "aws-c-iot aws-crt-cpp aws-c-auth aws-c-cal aws-c-common \
+    aws-c-compression aws-c-event-stream aws-c-http aws-c-io aws-c-mqtt \
+    aws-c-s3 aws-c-sdkutils aws-checksums s2n aws-lc"
 
 PROVIDES += "aws/aws-iot-device-sdk-cpp-v2"
 
@@ -22,11 +24,13 @@ UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>\d+\.\d+(\.\d+)*)"
 CXXFLAGS:append = " -fPIC"
 LDFLAGS:append = " -Wl,-Bsymbolic"
 
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
+    -DCMAKE_PREFIX_PATH=${STAGING_DIR_HOST}${prefix} \
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DBUILD_TESTING=OFF \
     -DCMAKE_BUILD_TYPE=Release \
-    -DUSE_OPENSSL=ON  \
 "
 
 # Notify that libraries are not versioned
@@ -41,10 +45,9 @@ PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 PACKAGECONFIG[build-deps] = "-DBUILD_DEPS=ON,-DBUILD_DEPS=OFF"
 
 PACKAGECONFIG ??= "\
-    build-deps \
     "
 
-FILES:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '/usr/lib/*', '', d)}"
+FILES:${PN} += ""
 FILES:${PN} += "${libdir}/lib*.so.*"
 FILES:${PN}-dev += "\
     ${libdir}/*/cmake \
@@ -64,10 +67,10 @@ FILES:${PN}-dev += "\
     ${libdir}/libaws-c-iot.so \
 "
 
-RCONFLICTS:${PN} = "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'aws-c-iot', '', d)}"
+# RCONFLICTS removed - no longer vendoring SDK libs
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
-INSANE_SKIP:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'ldflags', '', d)}"
+INSANE_SKIP:${PN} += ""
 
 RDEPENDS:${PN}-ptest:prepend = "\
     aws-iot-device-sdk-cpp-v2-samples-fleet-provisoning \

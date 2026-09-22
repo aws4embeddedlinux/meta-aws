@@ -11,7 +11,7 @@ DEPENDS += "\
     aws-c-compression \
     aws-c-io \
     s2n \
-    openssl \
+    aws-lc \
     "
 
 PROVIDES += "aws/crt-c-http"
@@ -48,6 +48,8 @@ INSANE_SKIP:${PN}-ptest += "buildpaths"
 
 AWS_C_INSTALL = "$D/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DBUILD_TEST_DEPS=OFF \
     -DBUILD_TESTING=OFF \

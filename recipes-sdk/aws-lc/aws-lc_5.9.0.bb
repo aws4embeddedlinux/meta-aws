@@ -882,9 +882,11 @@ SRCREV = "39b142ec346e514af5e49cbd6036e2ed3b893466"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 # nooelint: oelint.vars.specific
-COMPATIBLE_HOST:arm = "null"
 
 inherit cmake ptest pkgconfig
+
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 PACKAGECONFIG ??= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \

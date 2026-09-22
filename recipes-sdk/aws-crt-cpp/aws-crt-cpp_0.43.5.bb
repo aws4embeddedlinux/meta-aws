@@ -5,7 +5,7 @@ HOMEPAGE = "https://github.com/awslabs/aws-crt-cpp"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
-DEPENDS += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'openssl', '\
+DEPENDS += "\
     aws-c-auth \
     aws-c-common \
     aws-c-event-stream \
@@ -15,7 +15,8 @@ DEPENDS += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'openssl', '\
     aws-c-s3 \
     aws-checksums \
     s2n \
-', d)}"
+    aws-lc \
+    "
 
 PROVIDES += "aws/crt-cpp"
 
@@ -35,10 +36,11 @@ inherit cmake pkgconfig ptest
 CFLAGS:append = " -Wl,-Bsymbolic"
 CFLAGS:append = " ${@oe.utils.vartrue('DEBUG_BUILD', '-DXXH_NO_INLINE_HINTS=1', '', d)}"
 
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
-    -DUSE_OPENSSL=ON \
     "
 
 # for generating Makefiles to run tests
@@ -49,7 +51,6 @@ OECMAKE_GENERATOR = "Unix Makefiles"
 PACKAGECONFIG[build-deps] = "-DBUILD_DEPS=ON,-DBUILD_DEPS=OFF"
 
 PACKAGECONFIG ??= "\
-    build-deps \
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
     "
 
@@ -72,7 +73,6 @@ FILES:${PN}-dev += "\
     ${includedir}/aws/crt/* \
     ${libdir}/aws-crt-cpp/* \
     ${includedir}/aws/iot/* \
-    ${@bb.utils.contains('PACKAGECONFIG', 'build-deps', '${libdir}/s2n/cmake', '', d)} \
     "
 
 # Notify that libraries are not versioned

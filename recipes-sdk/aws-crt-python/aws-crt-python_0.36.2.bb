@@ -24,7 +24,7 @@ DEPENDS += "\
     aws-c-sdkutils \
     s2n \
     ', '', d)} \
-    openssl \
+    aws-lc \
     "
 
 SRC_URI = "\

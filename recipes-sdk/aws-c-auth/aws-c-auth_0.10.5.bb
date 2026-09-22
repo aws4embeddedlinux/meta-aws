@@ -13,7 +13,7 @@ DEPENDS += "\
     aws-c-io \
     aws-c-sdkutils \
     s2n \
-    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
+    aws-lc \
     "
 
 PROVIDES += "aws/crt-c-auth"
@@ -28,6 +28,8 @@ SRCREV = "9300470b602747b47d3fedd39a37350c27459366"
 inherit cmake ptest pkgconfig
 
 CFLAGS:append = " -Wl,-Bsymbolic"
+
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
