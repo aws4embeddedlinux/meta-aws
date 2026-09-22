@@ -16,7 +16,7 @@ DEPENDS += "\
     aws-c-s3 \
     aws-checksums \
     s2n \
-    openssl \
+    aws-lc \
     "
 
 PROVIDES += "aws/aws-c-iot"
@@ -45,6 +45,8 @@ PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUI
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
