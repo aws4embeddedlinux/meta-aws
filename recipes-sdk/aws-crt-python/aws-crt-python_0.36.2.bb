@@ -57,6 +57,12 @@ export AWS_CRT_BUILD_USE_SYSTEM_LIBCRYPTO = "1"
 # create static libs always, to not conflict with might installed system ones
 export AWS_CRT_BUILD_FORCE_STATIC_LIBS = "1"
 
+# Use system-installed SDK libraries instead of vendoring from git submodules.
+# This ensures aws-crt-python links against the same aws-lc (ENABLE_DIST_PKG)
+# as the rest of the SDK chain.
+PACKAGECONFIG ??= "no-buildin-sdk"
+PACKAGECONFIG[no-buildin-sdk] = ",,"
+
 do_configure:prepend(){
     sed -i "s/__version__ = '1.0.0.dev0'/__version__ = '${PV}'/" ${S}/awscrt/__init__.py
 }
