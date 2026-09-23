@@ -40,6 +40,7 @@ FILES:${PN}-staticdev += "${libdir}/lib*.a"
 
 RDEPENDS:${PN} = "\
     aws-c-common \
+    aws-lc \
     s2n \
     "
 
