@@ -20,6 +20,8 @@ SRCREV = "69cd45209db4246d0055628a5a4cc727ce4ac716"
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>\d\.\d+(\.\d+)+)"
 
 inherit cmake ptest
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 OECMAKE_GENERATOR = "Unix Makefiles"

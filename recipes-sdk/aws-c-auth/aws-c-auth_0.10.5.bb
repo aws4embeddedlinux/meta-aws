@@ -26,6 +26,8 @@ SRC_URI = "\
 SRCREV = "9300470b602747b47d3fedd39a37350c27459366"
 
 inherit cmake ptest pkgconfig
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 

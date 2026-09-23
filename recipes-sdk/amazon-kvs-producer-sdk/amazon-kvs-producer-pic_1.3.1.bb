@@ -23,6 +23,7 @@ SRCREV = "a9ec1d202750d41188922590a779c9b9d213ba14"
 inherit cmake pkgconfig ptest
 
 COMPATIBLE_MACHINE:riscv64 = "null"
+# nooelint: oelint.vars.specific
 COMPATIBLE_HOST:arm = "null"
 
 PACKAGECONFIG ??= "\

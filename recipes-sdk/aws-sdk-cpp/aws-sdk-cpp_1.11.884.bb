@@ -22,6 +22,8 @@ SRC_URI = "\
 SRCREV = "acb9a0a9bcc48065bcfa71c73240c34da8deccb9"
 
 inherit cmake ptest pkgconfig
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 PACKAGECONFIG ?= "\
     ${@bb.utils.filter('DISTRO_FEATURES', 'pulseaudio', d)} \

@@ -18,6 +18,8 @@ SRC_URI:append = " \
     "
 
 inherit cmake pkgconfig ptest
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>\d+\.\d+(\.\d+)*)"
 

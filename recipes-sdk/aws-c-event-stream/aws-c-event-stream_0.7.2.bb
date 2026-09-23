@@ -23,6 +23,8 @@ SRC_URI = "\
 SRCREV = "be448067250706b2f2739c7a3b1c0db0e19c5aed"
 
 inherit cmake ptest pkgconfig
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
