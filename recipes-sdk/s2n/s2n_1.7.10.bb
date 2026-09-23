@@ -10,6 +10,9 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 # (COMPATIBLE_HOST:arm = "null" in aws-lc recipe).
 DEPENDS = "aws-lc"
 
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
+
 PROVIDES += "aws/s2n"
 
 BRANCH ?= "main"

@@ -10,6 +10,8 @@ DEPENDS += "aws-iot-device-sdk-cpp-v2"
 require aws-iot-device-sdk-cpp-v2-version.inc
 
 inherit cmake
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 BRANCH ?= "main"
 

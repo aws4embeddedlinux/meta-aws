@@ -32,6 +32,8 @@ SRC_URI = "\
 SRCREV = "1f333376b2b2801bb3844ce5c315d3a87ecacd4b"
 
 inherit cmake pkgconfig ptest
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 CFLAGS:append = " ${@oe.utils.vartrue('DEBUG_BUILD', '-DXXH_NO_INLINE_HINTS=1', '', d)}"
