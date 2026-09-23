@@ -18,6 +18,8 @@ SRC_URI = "\
 SRCREV = "bb4c0918b84a1a5e0ecfafb960711024cfee916f"
 
 inherit cmake ptest pkgconfig
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 PACKAGECONFIG ??= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \

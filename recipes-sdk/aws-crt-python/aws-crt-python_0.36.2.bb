@@ -40,6 +40,8 @@ SRCREV = "241be07f82ebd3031a812492443d545676cb2018"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 inherit setuptools3_legacy ptest
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
@@ -54,8 +56,9 @@ LDFLAGS:append:riscv32 = " ${@bb.utils.contains('PACKAGECONFIG', 'no-buildin-sdk
 # use the libcrypto included on your system
 export AWS_CRT_BUILD_USE_SYSTEM_LIBCRYPTO = "1"
 
-# create static libs always, to not conflict with might installed system ones
-export AWS_CRT_BUILD_FORCE_STATIC_LIBS = "1"
+# When vendoring (no no-buildin-sdk), create static libs to not conflict
+# with system ones. When using system SDK, link against shared libs.
+export AWS_CRT_BUILD_FORCE_STATIC_LIBS = "${@bb.utils.contains('PACKAGECONFIG', 'no-buildin-sdk', '0', '1', d)}"
 
 # Use system-installed SDK libraries instead of vendoring from git submodules.
 # This ensures aws-crt-python links against the same aws-lc (ENABLE_DIST_PKG)
