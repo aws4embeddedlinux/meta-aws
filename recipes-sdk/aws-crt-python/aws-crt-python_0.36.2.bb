@@ -84,13 +84,11 @@ set(CMAKE_C_FLAGS "${CFLAGS}" CACHE STRING "C flags")
 set(CMAKE_CXX_FLAGS "${CXXFLAGS}" CACHE STRING "CXX flags")
 set(CMAKE_EXE_LINKER_FLAGS "${LDFLAGS}" CACHE STRING "Linker flags")
 
-# OpenSSL/Crypto paths for nativesdk builds (use native sysroot)
-set(crypto_INCLUDE_DIR "${STAGING_DIR_NATIVE}/usr/include")
-set(crypto_LIBRARY "${STAGING_DIR_NATIVE}/usr/lib/libcrypto.so")
-set(OPENSSL_ROOT_DIR "${STAGING_DIR_NATIVE}/usr")
-set(OPENSSL_INCLUDE_DIR "${STAGING_DIR_NATIVE}/usr/include")
-set(OPENSSL_CRYPTO_LIBRARY "${STAGING_DIR_NATIVE}/usr/lib/libcrypto.so")
-set(OPENSSL_SSL_LIBRARY "${STAGING_DIR_NATIVE}/usr/lib/libssl.so")
+# Use aws-lc from the target sysroot (installed with ENABLE_DIST_PKG)
+# Prefer config-mode packages so find_package(crypto) uses aws-lc's
+# crypto-config.cmake rather than searching for openssl-style paths.
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
+set(CMAKE_PREFIX_PATH "${STAGING_DIR_TARGET}/usr/lib/cmake;${STAGING_DIR_TARGET}/usr/lib" CACHE STRING "Prefix path")
 EOF
 
         # Set up cross-compilation environment for CMake
@@ -98,11 +96,8 @@ EOF
         export OECORE_TARGET_SYSROOT="${STAGING_DIR_TARGET}"
         export CROSS_COMPILE="${TARGET_PREFIX}"
     else
-        # For native builds, set OpenSSL paths explicitly
-        export OPENSSL_ROOT_DIR="${STAGING_DIR_NATIVE}/usr"
-        export OPENSSL_INCLUDE_DIR="${STAGING_DIR_NATIVE}/usr/include"
-        export OPENSSL_CRYPTO_LIBRARY="${STAGING_DIR_NATIVE}/usr/lib/libcrypto.so"
-        export OPENSSL_SSL_LIBRARY="${STAGING_DIR_NATIVE}/usr/lib/libssl.so"
+        # For native builds, set crypto paths to aws-lc
+        export CMAKE_FIND_PACKAGE_PREFER_CONFIG=ON
     fi
 }
 
