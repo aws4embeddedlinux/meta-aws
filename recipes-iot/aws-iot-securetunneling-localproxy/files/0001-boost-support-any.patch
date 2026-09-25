@@ -1,4 +1,4 @@
-From 944382fc9e165b87008fd7227b6fced8e21f7ea8 Mon Sep 17 00:00:00 2001
+From f00448e81ba2a1ee04bc79db2db2cf4f7e0738c0 Mon Sep 17 00:00:00 2001
 From: Thomas Roos <throos@amazon.de>
 Date: Fri, 10 Mar 2023 12:46:05 +0000
 Subject: [PATCH] aws-iot-securetunneling-localproxy: support any boost version
