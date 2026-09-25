@@ -1,0 +1,461 @@
+From 66563e6c05ccc81c478bfe995be3c6addf6c6f2c Mon Sep 17 00:00:00 2001
+From: vabhasin <69602923+vabhasin@users.noreply.github.com>
+Date: Tue, 7 Jul 2026 15:38:01 -0700
+Subject: [PATCH] Release v1.19.2 (#2361)
+
+* Add bounds checks for VP8 RTP payload descriptor parsing (#2358)
+
+* Add bounds check for STAP-A/STAP-B subNaluSize in H.264 depayloader (#2357)
+
+* Add bounds check for STAP-A/STAP-B subNaluSize in H.264 depayloader
+
+* Use UB-free integer comparison for STAP-A/B bounds checks
+
+* fix(ice): prevent local candidate batch overflow (#2344)
+
+- Limit local candidate reporting to KVS_ICE_MAX_NEW_LOCAL_CANDIDATES_TO_REPORT_AT_ONCE per timer tick
+- Leave candidates beyond the batch unreported so the next timer invocation can report them
+- Defer candidate gathering completion while unreported local candidates remain
+- Add regression coverage for reporting more local candidates than the batch size
+
+Signed-off-by: KyL0N <y13308074856@gmail.com>
+
+* Fix FU-B depayloader OOB read for non-starting packets (#2359)
+
+* Update CMakeLists version for WebRTCClient to 1.19.2
+
+---------
+
+Signed-off-by: KyL0N <y13308074856@gmail.com>
+Co-authored-by: Kylin <56434533+KyL0N@users.noreply.github.com>
+---
+ CMakeLists.txt                           |   2 +-
+ src/source/Ice/IceAgent.c                |  28 +++--
+ src/source/Rtp/Codecs/RtpH264Payloader.c |  24 +++-
+ src/source/Rtp/Codecs/RtpVP8Payloader.c  |   5 +
+ tst/IceFunctionalityTest.cpp             |  71 +++++++++++
+ tst/RtpFunctionalityTest.cpp             | 147 +++++++++++++++++++++++
+ 6 files changed, 261 insertions(+), 16 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 1500d3c17b..49f0c78d8f 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,7 +5,7 @@ include(CheckIncludeFiles)
+ include(CheckFunctionExists)
+ 
+ # The version MUST be updated before every release
+-project(KinesisVideoWebRTCClient VERSION 1.19.1 LANGUAGES C)
++project(KinesisVideoWebRTCClient VERSION 1.19.2 LANGUAGES C)
+ 
+ # User Flags
+ option(ADD_MUCLIBC "Add -muclibc c flag" OFF)
+diff --git a/src/source/Ice/IceAgent.c b/src/source/Ice/IceAgent.c
+index e1b0364d7e..482455b3b8 100644
+--- a/src/source/Ice/IceAgent.c
++++ b/src/source/Ice/IceAgent.c
+@@ -1808,7 +1808,7 @@ STATUS iceAgentGatherCandidateTimerCallback(UINT32 timerId, UINT64 currentTime,
+     IceCandidate newLocalCandidates[KVS_ICE_MAX_NEW_LOCAL_CANDIDATES_TO_REPORT_AT_ONCE];
+     UINT32 newLocalCandidateCount = 0;
+     PIceAgent pIceAgent = (PIceAgent) customData;
+-    BOOL locked = FALSE, stopScheduling = FALSE;
++    BOOL locked = FALSE, stopScheduling = FALSE, moreNewLocalCandidates = FALSE;
+     PDoubleListNode pCurNode = NULL;
+     UINT64 data;
+     PIceCandidate pIceCandidate = NULL;
+@@ -1842,11 +1842,15 @@ STATUS iceAgentGatherCandidateTimerCallback(UINT32 timerId, UINT64 currentTime,
+         // If the candidate has moved to valid state, then we can report it and start creating pairs with
+         // srflx candidates.
+         else if (pIceCandidate->state == ICE_CANDIDATE_STATE_VALID && !pIceCandidate->reported) {
+-            newLocalCandidates[newLocalCandidateCount++] = *pIceCandidate;
+-            pIceCandidate->reported = TRUE;
++            if (newLocalCandidateCount < ARRAY_SIZE(newLocalCandidates)) {
++                newLocalCandidates[newLocalCandidateCount++] = *pIceCandidate;
++                pIceCandidate->reported = TRUE;
+ 
+-            if (pIceCandidate->iceCandidateType == ICE_CANDIDATE_TYPE_SERVER_REFLEXIVE) {
+-                CHK_STATUS(createIceCandidatePairs(pIceAgent, pIceCandidate, FALSE));
++                if (pIceCandidate->iceCandidateType == ICE_CANDIDATE_TYPE_SERVER_REFLEXIVE) {
++                    CHK_STATUS(createIceCandidatePairs(pIceAgent, pIceCandidate, FALSE));
++                }
++            } else {
++                moreNewLocalCandidates = TRUE;
+             }
+         }
+     }
+@@ -1860,11 +1864,15 @@ STATUS iceAgentGatherCandidateTimerCallback(UINT32 timerId, UINT64 currentTime,
+     if (ATOMIC_LOAD_BOOL(&pIceAgent->stopGathering) ||
+         (totalCandidateCount > 0 && pendingCandidateCount == 0 && ATOMIC_LOAD_BOOL(&pIceAgent->addedRelayCandidate)) ||
+         currentTime >= pIceAgent->candidateGatheringEndTime) {
+-        DLOGI("Candidate gathering completed.");
+-        PROFILE_WITH_START_END_TIME_OBJ(pIceAgent->candidateGatheringStartTime, pIceAgent->candidateGatheringProcessEndTime,
+-                                        pIceAgent->iceAgentProfileDiagnostics.candidateGatheringTime, "Candidate gathering time");
+-        stopScheduling = TRUE;
+-        pIceAgent->iceCandidateGatheringTimerTask = MAX_UINT32;
++        if (moreNewLocalCandidates) {
++            DLOGD("Deferring candidate gathering completion while there are new local candidates to report.");
++        } else {
++            DLOGI("Candidate gathering completed.");
++            PROFILE_WITH_START_END_TIME_OBJ(pIceAgent->candidateGatheringStartTime, pIceAgent->candidateGatheringProcessEndTime,
++                                            pIceAgent->iceAgentProfileDiagnostics.candidateGatheringTime, "Candidate gathering time");
++            stopScheduling = TRUE;
++            pIceAgent->iceCandidateGatheringTimerTask = MAX_UINT32;
++        }
+     }
+ 
+     MUTEX_UNLOCK(pIceAgent->lock);
+diff --git a/src/source/Rtp/Codecs/RtpH264Payloader.c b/src/source/Rtp/Codecs/RtpH264Payloader.c
+index 3209fc2259..77cab503bc 100644
+--- a/src/source/Rtp/Codecs/RtpH264Payloader.c
++++ b/src/source/Rtp/Codecs/RtpH264Payloader.c
+@@ -264,26 +264,38 @@ STATUS depayH264FromRtpPayload(PBYTE pRawPacket, UINT32 packetLength, PBYTE pNal
+         case FU_B_INDICATOR:
+             // FU-B indicator
+             CHK(packetLength > FU_B_HEADER_SIZE, STATUS_RTP_INPUT_PACKET_TOO_SMALL);
+-            naluLength = packetLength - FU_B_HEADER_SIZE + 1;
++            naluRefIdc = *pCurPtr & 0x60;
++            pCurPtr++;
++            naluType = *pCurPtr & 0x1f;
++            isStartingPacket = (*pCurPtr & (1 << 7)) != 0;
++            if (isStartingPacket) {
++                naluLength = packetLength - FU_B_HEADER_SIZE + 1;
++            } else {
++                naluLength = packetLength - FU_B_HEADER_SIZE;
++            }
+             break;
+         case STAP_A_INDICATOR:
+             pCurPtr += STAP_A_HEADER_SIZE;
++            CHK(SIZEOF(UINT16) <= (UINT32) (pRawPacket + packetLength - pCurPtr), STATUS_RTP_INPUT_PACKET_TOO_SMALL);
+             do {
+                 subNaluSize = getUnalignedInt16BigEndian(pCurPtr);
+                 pCurPtr += SIZEOF(UINT16);
++                CHK(subNaluSize <= (UINT32) (pRawPacket + packetLength - pCurPtr), STATUS_RTP_INPUT_PACKET_TOO_SMALL);
+                 naluLength += subNaluSize + SIZEOF(start4ByteCode);
+                 pCurPtr += subNaluSize;
+-            } while (subNaluSize > 0 && pCurPtr < pRawPacket + packetLength);
++            } while (subNaluSize > 0 && SIZEOF(UINT16) <= (UINT32) (pRawPacket + packetLength - pCurPtr));
+             isStartingPacket = TRUE;
+             break;
+         case STAP_B_INDICATOR:
++            CHK(packetLength >= STAP_B_HEADER_SIZE + SIZEOF(UINT16), STATUS_RTP_INPUT_PACKET_TOO_SMALL);
+             pCurPtr += STAP_B_HEADER_SIZE;
+             do {
+                 subNaluSize = getUnalignedInt16BigEndian(pCurPtr);
+                 pCurPtr += SIZEOF(UINT16);
++                CHK(subNaluSize <= (UINT32) (pRawPacket + packetLength - pCurPtr), STATUS_RTP_INPUT_PACKET_TOO_SMALL);
+                 naluLength += subNaluSize + SIZEOF(start4ByteCode);
+                 pCurPtr += subNaluSize;
+-            } while (subNaluSize > 0 && pCurPtr < pRawPacket + packetLength);
++            } while (subNaluSize > 0 && SIZEOF(UINT16) <= (UINT32) (pRawPacket + packetLength - pCurPtr));
+             isStartingPacket = TRUE;
+             break;
+         default:
+@@ -330,13 +342,14 @@ STATUS depayH264FromRtpPayload(PBYTE pRawPacket, UINT32 packetLength, PBYTE pNal
+             do {
+                 subNaluSize = getUnalignedInt16BigEndian(pCurPtr);
+                 pCurPtr += SIZEOF(UINT16);
++                CHK(subNaluSize <= (UINT32) (pRawPacket + packetLength - pCurPtr), STATUS_RTP_INPUT_PACKET_TOO_SMALL);
+                 MEMCPY(pNaluData, start4ByteCode, SIZEOF(start4ByteCode));
+                 pNaluData += SIZEOF(start4ByteCode);
+                 MEMCPY(pNaluData, pCurPtr, subNaluSize);
+                 pCurPtr += subNaluSize;
+                 pNaluData += subNaluSize;
+                 naluLength += SIZEOF(start4ByteCode) + subNaluSize;
+-            } while (subNaluSize > 0 && pCurPtr < pRawPacket + packetLength);
++            } while (subNaluSize > 0 && SIZEOF(UINT16) <= (UINT32) (pRawPacket + packetLength - pCurPtr));
+             DLOGS("STAP_A_INDICATOR starting packet %d len %d", isStartingPacket, naluLength);
+             break;
+         case STAP_B_INDICATOR:
+@@ -345,13 +358,14 @@ STATUS depayH264FromRtpPayload(PBYTE pRawPacket, UINT32 packetLength, PBYTE pNal
+             do {
+                 subNaluSize = getUnalignedInt16BigEndian(pCurPtr);
+                 pCurPtr += SIZEOF(UINT16);
++                CHK(subNaluSize <= (UINT32) (pRawPacket + packetLength - pCurPtr), STATUS_RTP_INPUT_PACKET_TOO_SMALL);
+                 MEMCPY(pNaluData, start4ByteCode, SIZEOF(start4ByteCode));
+                 pNaluData += SIZEOF(start4ByteCode);
+                 MEMCPY(pNaluData, pCurPtr, subNaluSize);
+                 pCurPtr += subNaluSize;
+                 pNaluData += subNaluSize;
+                 naluLength += SIZEOF(start4ByteCode) + subNaluSize;
+-            } while (subNaluSize > 0 && pCurPtr < pRawPacket + packetLength);
++            } while (subNaluSize > 0 && SIZEOF(UINT16) <= (UINT32) (pRawPacket + packetLength - pCurPtr));
+             DLOGS("STAP_B_INDICATOR starting packet %d len %d", isStartingPacket, naluLength);
+             break;
+         default:
+diff --git a/src/source/Rtp/Codecs/RtpVP8Payloader.c b/src/source/Rtp/Codecs/RtpVP8Payloader.c
+index e2227a5174..b1f99ef254 100644
+--- a/src/source/Rtp/Codecs/RtpVP8Payloader.c
++++ b/src/source/Rtp/Codecs/RtpVP8Payloader.c
+@@ -71,6 +71,7 @@ STATUS depayVP8FromRtpPayload(PBYTE pRawPacket, UINT32 packetLength, PBYTE pVp8D
+     payloadDescriptorLength++;
+ 
+     if (haveExtendedControlBits) {
++        CHK(payloadDescriptorLength < packetLength, STATUS_RTP_INPUT_PACKET_TOO_SMALL);
+         havePictureID = (pRawPacket[payloadDescriptorLength] & 0x80) >> 7;
+         haveTL0PICIDX = (pRawPacket[payloadDescriptorLength] & 0x40) >> 6;
+         haveTID = (pRawPacket[payloadDescriptorLength] & 0x20) >> 5;
+@@ -79,6 +80,7 @@ STATUS depayVP8FromRtpPayload(PBYTE pRawPacket, UINT32 packetLength, PBYTE pVp8D
+     }
+ 
+     if (havePictureID) {
++        CHK(payloadDescriptorLength < packetLength, STATUS_RTP_INPUT_PACKET_TOO_SMALL);
+         if ((pRawPacket[payloadDescriptorLength] & 0x80) > 0) { // PID is 16bit
+             payloadDescriptorLength += 2;
+         } else {
+@@ -87,13 +89,16 @@ STATUS depayVP8FromRtpPayload(PBYTE pRawPacket, UINT32 packetLength, PBYTE pVp8D
+     }
+ 
+     if (haveTL0PICIDX == 1) {
++        CHK(payloadDescriptorLength < packetLength, STATUS_RTP_INPUT_PACKET_TOO_SMALL);
+         payloadDescriptorLength++;
+     }
+ 
+     if (haveTID || haveKEYIDX == 1) {
++        CHK(payloadDescriptorLength < packetLength, STATUS_RTP_INPUT_PACKET_TOO_SMALL);
+         payloadDescriptorLength++;
+     }
+ 
++    CHK(payloadDescriptorLength <= packetLength, STATUS_RTP_INPUT_PACKET_TOO_SMALL);
+     vp8Length -= payloadDescriptorLength;
+     CHK(!sizeCalculationOnly, retStatus);
+ 
+diff --git a/tst/IceFunctionalityTest.cpp b/tst/IceFunctionalityTest.cpp
+index eec32656c7..4c01fb9b6d 100644
+--- a/tst/IceFunctionalityTest.cpp
++++ b/tst/IceFunctionalityTest.cpp
+@@ -495,6 +495,77 @@ TEST_F(IceFunctionalityTest, IceAgentAddRemoteCandidateUnitTest)
+     EXPECT_EQ(STATUS_SUCCESS, doubleListFree(iceAgent.localCandidates));
+ }
+ 
++TEST_F(IceFunctionalityTest, IceAgentGatherCandidateTimerCallbackReportsLocalCandidatesInBatches)
++{
++    typedef struct {
++        std::vector<std::string> list;
++    } CandidateList;
++
++    IceAgent iceAgent;
++    IceCandidate localCandidates[KVS_ICE_MAX_NEW_LOCAL_CANDIDATES_TO_REPORT_AT_ONCE + 2];
++    CandidateList candidateList;
++    UINT32 i;
++
++    MEMSET(&iceAgent, 0x00, SIZEOF(IceAgent));
++    MEMSET(localCandidates, 0x00, SIZEOF(localCandidates));
++
++    auto onICECandidateHdlr = [](UINT64 customData, PCHAR candidateStr) -> void {
++        CandidateList* candidateList1 = (CandidateList*) customData;
++        candidateList1->list.push_back(candidateStr != NULL ? std::string(candidateStr) : std::string(""));
++    };
++
++    iceAgent.lock = MUTEX_CREATE(TRUE);
++    iceAgent.iceAgentCallbacks.customData = (UINT64) &candidateList;
++    iceAgent.iceAgentCallbacks.newLocalCandidateFn = onICECandidateHdlr;
++    iceAgent.candidateGatheringStartTime = GETTIME();
++    iceAgent.candidateGatheringEndTime = 0;
++    iceAgent.iceCandidateGatheringTimerTask = 1;
++    ATOMIC_STORE_BOOL(&iceAgent.addedRelayCandidate, TRUE);
++    ATOMIC_STORE_BOOL(&iceAgent.candidateGatheringFinished, FALSE);
++    ATOMIC_STORE_BOOL(&iceAgent.stopGathering, FALSE);
++    ASSERT_EQ(STATUS_SUCCESS, doubleListCreate(&iceAgent.localCandidates));
++
++    for (i = 0; i < ARRAY_SIZE(localCandidates); ++i) {
++        localCandidates[i].iceCandidateType = ICE_CANDIDATE_TYPE_HOST;
++        localCandidates[i].state = ICE_CANDIDATE_STATE_VALID;
++        localCandidates[i].foundation = i + 1;
++        localCandidates[i].priority = ICE_PRIORITY_HOST_CANDIDATE_TYPE_PREFERENCE;
++        localCandidates[i].remoteProtocol = KVS_SOCKET_PROTOCOL_UDP;
++        localCandidates[i].ipAddress.family = KVS_IP_FAMILY_TYPE_IPV4;
++        localCandidates[i].ipAddress.address[0] = 127;
++        localCandidates[i].ipAddress.address[3] = (BYTE) (i + 1);
++        localCandidates[i].ipAddress.port = htons(10000 + i);
++        SNPRINTF(localCandidates[i].id, ARRAY_SIZE(localCandidates[i].id), "cand%03u", i);
++        ASSERT_EQ(STATUS_SUCCESS, doubleListInsertItemTail(iceAgent.localCandidates, (UINT64) &localCandidates[i]));
++    }
++
++    ASSERT_EQ(STATUS_SUCCESS, iceAgentGatherCandidateTimerCallback(0, 1, (UINT64) &iceAgent));
++    ASSERT_EQ(KVS_ICE_MAX_NEW_LOCAL_CANDIDATES_TO_REPORT_AT_ONCE, candidateList.list.size());
++    EXPECT_FALSE(ATOMIC_LOAD_BOOL(&iceAgent.candidateGatheringFinished));
++    EXPECT_NE(MAX_UINT32, iceAgent.iceCandidateGatheringTimerTask);
++
++    for (i = 0; i < KVS_ICE_MAX_NEW_LOCAL_CANDIDATES_TO_REPORT_AT_ONCE; ++i) {
++        EXPECT_TRUE(localCandidates[i].reported);
++    }
++    for (; i < ARRAY_SIZE(localCandidates); ++i) {
++        EXPECT_FALSE(localCandidates[i].reported);
++    }
++
++    ASSERT_EQ(STATUS_TIMER_QUEUE_STOP_SCHEDULING, iceAgentGatherCandidateTimerCallback(0, 2, (UINT64) &iceAgent));
++    ASSERT_EQ(ARRAY_SIZE(localCandidates) + 1, candidateList.list.size());
++    ASSERT_TRUE(candidateList.list.back().empty());
++    EXPECT_TRUE(ATOMIC_LOAD_BOOL(&iceAgent.candidateGatheringFinished));
++    EXPECT_EQ(MAX_UINT32, iceAgent.iceCandidateGatheringTimerTask);
++
++    for (i = 0; i < ARRAY_SIZE(localCandidates); ++i) {
++        EXPECT_TRUE(localCandidates[i].reported);
++    }
++
++    MUTEX_FREE(iceAgent.lock);
++    EXPECT_EQ(STATUS_SUCCESS, doubleListClear(iceAgent.localCandidates, FALSE));
++    EXPECT_EQ(STATUS_SUCCESS, doubleListFree(iceAgent.localCandidates));
++}
++
+ TEST_F(IceFunctionalityTest, IceAgentFindCandidateWithIpUnitTest)
+ {
+     DoubleList candidateList;
+diff --git a/tst/RtpFunctionalityTest.cpp b/tst/RtpFunctionalityTest.cpp
+index 70d35eb072..71402e0314 100644
+--- a/tst/RtpFunctionalityTest.cpp
++++ b/tst/RtpFunctionalityTest.cpp
+@@ -896,6 +896,153 @@ TEST_F(RtpFunctionalityTest, depayH265FuRejectsTooSmallPacket)
+     EXPECT_EQ(0u, naluLength);
+ }
+ 
++// Test that STAP-A packets with subNaluSize larger than remaining packet data
++// are rejected rather than causing an out-of-bounds read.
++TEST_F(RtpFunctionalityTest, depayH264StapARejectsOversizedSubNalu)
++{
++    UINT32 naluLength = 0;
++    BOOL isStart = FALSE;
++
++    // Crafted STAP-A: indicator=0x78 (type 24), subNaluSize=0x6742 (26434)
++    // but packet is only 26 bytes total. The subNaluSize exceeds available data.
++    BYTE stapAPacket[] = {0x78, 0x67, 0x42, 0xe0, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++                          0x00, 0x00, 0x00, 0x09, 0x68, 0xce, 0x38, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00};
++
++    // Size calculation pass should fail
++    EXPECT_EQ(STATUS_RTP_INPUT_PACKET_TOO_SMALL,
++              depayH264FromRtpPayload(stapAPacket, SIZEOF(stapAPacket), NULL, &naluLength, &isStart));
++    EXPECT_EQ(0u, naluLength);
++}
++
++// Test that STAP-A with only the indicator byte (no room for size field) is rejected
++TEST_F(RtpFunctionalityTest, depayH264StapARejectsTruncatedPacket)
++{
++    UINT32 naluLength = 0;
++    BOOL isStart = FALSE;
++
++    // Only indicator byte, no size field
++    BYTE stapAPacket[] = {0x78};
++
++    EXPECT_EQ(STATUS_RTP_INPUT_PACKET_TOO_SMALL,
++              depayH264FromRtpPayload(stapAPacket, SIZEOF(stapAPacket), NULL, &naluLength, &isStart));
++    EXPECT_EQ(0u, naluLength);
++}
++
++// Test that STAP-B with oversized subNaluSize is rejected
++TEST_F(RtpFunctionalityTest, depayH264StapBRejectsOversizedSubNalu)
++{
++    UINT32 naluLength = 0;
++    BOOL isStart = FALSE;
++
++    // STAP-B indicator (type 25 = 0x19 | 0x60 for NRI), 2-byte DON, then large subNaluSize
++    // indicator=0x79, DON=0x0001, subNaluSize=0xFFFF (65535) but packet is tiny
++    BYTE stapBPacket[] = {0x79, 0x00, 0x01, 0xFF, 0xFF, 0x00, 0x00};
++
++    EXPECT_EQ(STATUS_RTP_INPUT_PACKET_TOO_SMALL,
++              depayH264FromRtpPayload(stapBPacket, SIZEOF(stapBPacket), NULL, &naluLength, &isStart));
++    EXPECT_EQ(0u, naluLength);
++}
++
++// VP8 depayloader must reject packets too short for their declared descriptor fields.
++TEST_F(RtpFunctionalityTest, depayVP8RejectsTruncatedDescriptor)
++{
++    UINT32 vp8Length = 0;
++    BOOL isStart = FALSE;
++
++    // 1 byte with extension bit set — needs at least 2 bytes for extended control
++    BYTE pkt1[] = {0x81};
++    EXPECT_EQ(STATUS_RTP_INPUT_PACKET_TOO_SMALL,
++              depayVP8FromRtpPayload(pkt1, SIZEOF(pkt1), NULL, &vp8Length, &isStart));
++    EXPECT_EQ(0u, vp8Length);
++
++    // 2 bytes: extension=1, PictureID=1, TL0PICIDX=1, TID=0, KEYIDX=1
++    // Needs bytes at offsets 2,3,4 — only 2 available
++    BYTE pkt2[] = {0x81, 0xD9};
++    vp8Length = 0;
++    EXPECT_EQ(STATUS_RTP_INPUT_PACKET_TOO_SMALL,
++              depayVP8FromRtpPayload(pkt2, SIZEOF(pkt2), NULL, &vp8Length, &isStart));
++    EXPECT_EQ(0u, vp8Length);
++
++    // Extension + PictureID(16-bit) declared but only 3 bytes available
++    // Byte 0: 0x90 (ext=1), Byte 1: 0x80 (PID=1), Byte 2: 0x80 (M=1 → 16-bit PID)
++    BYTE pkt3[] = {0x90, 0x80, 0x80};
++    vp8Length = 0;
++    EXPECT_EQ(STATUS_RTP_INPUT_PACKET_TOO_SMALL,
++              depayVP8FromRtpPayload(pkt3, SIZEOF(pkt3), NULL, &vp8Length, &isStart));
++    EXPECT_EQ(0u, vp8Length);
++}
++
++// VP8 depayloader should succeed on a well-formed minimal packet
++TEST_F(RtpFunctionalityTest, depayVP8AcceptsValidMinimalPacket)
++{
++    UINT32 vp8Length = 0;
++    BOOL isStart = FALSE;
++
++    // No extension: 1 byte descriptor + payload
++    BYTE pkt[] = {0x10, 0xAA, 0xBB, 0xCC};
++    EXPECT_EQ(STATUS_SUCCESS,
++              depayVP8FromRtpPayload(pkt, SIZEOF(pkt), NULL, &vp8Length, &isStart));
++    EXPECT_EQ(3u, vp8Length);
++}
++
++// FU-B non-starting packet must not over-read source buffer.
++// naluLength should be packetLength - FU_B_HEADER_SIZE (not +1) for continuation packets.
++TEST_F(RtpFunctionalityTest, depayH264FuBNonStartNoOverread)
++{
++    UINT32 naluLength = 0;
++    BOOL isStart = FALSE;
++
++    // Crash input from fuzzer: FU-B indicator (0xdd & 0x1F = 0x1D = 29),
++    // FU header byte 0x7c has start bit = 0 (non-starting packet).
++    // 12 bytes total. Without fix, naluLength = 12 - 4 + 1 = 9, but only 8 bytes
++    // are available after the 4-byte header → OOB read.
++    BYTE fuBPacket[] = {0xdd, 0x7c, 0x85, 0x7c, 0x05, 0x00, 0x7c, 0x85, 0x00, 0x00, 0x00, 0x4c};
++
++    // Size calculation: should be 8 (not 9)
++    EXPECT_EQ(STATUS_SUCCESS, depayH264FromRtpPayload(fuBPacket, SIZEOF(fuBPacket), NULL, &naluLength, &isStart));
++    EXPECT_FALSE(isStart);
++    EXPECT_EQ(8u, naluLength);
++
++    // Copy pass: should succeed without OOB
++    BYTE output[8];
++    UINT32 outputLen = SIZEOF(output);
++    EXPECT_EQ(STATUS_SUCCESS, depayH264FromRtpPayload(fuBPacket, SIZEOF(fuBPacket), output, &outputLen, &isStart));
++    EXPECT_EQ(8u, outputLen);
++}
++
++// FU-B starting packet should produce naluLength = packetLength - FU_B_HEADER_SIZE + 1
++TEST_F(RtpFunctionalityTest, depayH264FuBStartingPacket)
++{
++    UINT32 naluLength = 0;
++    BOOL isStart = FALSE;
++
++    // FU-B with start bit set: indicator=0x1D|0x60=0x7D, FU header=0x85 (S=1, type=5)
++    // DON=0x00 0x01, payload=0xAA 0xBB 0xCC
++    BYTE fuBStart[] = {0x7d, 0x85, 0x00, 0x01, 0xAA, 0xBB, 0xCC};
++
++    // naluLength = 7 - 4 + 1 = 4 (3 payload bytes + 1 reconstructed NAL byte)
++    // Plus start4ByteCode: total = 4 + 4 = 8
++    EXPECT_EQ(STATUS_SUCCESS, depayH264FromRtpPayload(fuBStart, SIZEOF(fuBStart), NULL, &naluLength, &isStart));
++    EXPECT_TRUE(isStart);
++    EXPECT_EQ(8u, naluLength);
++
++    // Copy pass
++    BYTE output[8];
++    UINT32 outputLen = SIZEOF(output);
++    EXPECT_EQ(STATUS_SUCCESS, depayH264FromRtpPayload(fuBStart, SIZEOF(fuBStart), output, &outputLen, &isStart));
++    // First 4 bytes: start code
++    EXPECT_EQ(0x00, output[0]);
++    EXPECT_EQ(0x00, output[1]);
++    EXPECT_EQ(0x00, output[2]);
++    EXPECT_EQ(0x01, output[3]);
++    // Byte 4: reconstructed NAL (naluRefIdc | naluType = 0x60 | 0x05 = 0x65)
++    EXPECT_EQ(0x65, output[4]);
++    // Bytes 5-7: payload
++    EXPECT_EQ(0xAA, output[5]);
++    EXPECT_EQ(0xBB, output[6]);
++    EXPECT_EQ(0xCC, output[7]);
++}
++
+ } // namespace webrtcclient
+ } // namespace video
+ } // namespace kinesis
