@@ -14,15 +14,19 @@ SRC_URI = "\
     file://ptest_result.py \
     file://0001-skip-iso8601-tests-on-32bit.patch \
 "
-SRCREV = "3d274e1af954592b344a33fdf042af37b936f3d5"
+SRCREV = "69cd45209db4246d0055628a5a4cc727ce4ac716"
 
 # will match only x.x.x for auto upgrades, because: https://github.com/awslabs/aws-c-common/issues/1025
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>\d\.\d+(\.\d+)+)"
 
 inherit cmake ptest
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 OECMAKE_GENERATOR = "Unix Makefiles"
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', '-DCMAKE_BUILD_TYPE=Debug -DALLOW_CROSS_COMPILED_TESTS=ON', '-DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release', d)} \
     -DBUILD_SHARED_LIBS=ON \

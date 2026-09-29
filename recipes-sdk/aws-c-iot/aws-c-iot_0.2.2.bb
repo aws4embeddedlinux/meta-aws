@@ -16,7 +16,7 @@ DEPENDS += "\
     aws-c-s3 \
     aws-checksums \
     s2n \
-    openssl \
+    aws-lc \
     "
 
 PROVIDES += "aws/aws-c-iot"
@@ -31,6 +31,8 @@ SRC_URI = "\
 SRCREV = "84c7a1a4182ecdc8d86405a5c86bd39a9995193b"
 
 inherit cmake ptest pkgconfig
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 PACKAGECONFIG ??= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
@@ -45,6 +47,8 @@ PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUI
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \

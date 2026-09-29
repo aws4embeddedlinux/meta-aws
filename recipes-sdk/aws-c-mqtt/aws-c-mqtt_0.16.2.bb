@@ -26,8 +26,12 @@ SRC_URI = "\
 SRCREV = "95739b3f34830e9e32a392b783994df5279387d9"
 
 inherit cmake ptest
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
     -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \

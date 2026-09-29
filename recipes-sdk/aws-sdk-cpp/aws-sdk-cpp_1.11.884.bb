@@ -22,6 +22,8 @@ SRC_URI = "\
 SRCREV = "acb9a0a9bcc48065bcfa71c73240c34da8deccb9"
 
 inherit cmake ptest pkgconfig
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 PACKAGECONFIG ?= "\
     ${@bb.utils.filter('DISTRO_FEATURES', 'pulseaudio', d)} \
@@ -70,9 +72,12 @@ OECMAKE_CXX_FLAGS += "-Wno-psabi"
 # TODO: Remove this workaround once upstream fixes GCC 16 compatibility.
 OECMAKE_CXX_FLAGS += "-Wno-error=array-bounds"
 
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DBUILD_DEPS=OFF \
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
+    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
 "
 
 EXTRA_OECMAKE:append = " -DCMAKE_BUILD_TYPE=RelWithDebInfo"
