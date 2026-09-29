@@ -19,9 +19,11 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "32fed6fc25a90146bd0ac7e5c639e3778b78fdf1"
+SRCREV = "ee7c435de1677754c14e488aab699ed603ae552e"
 
 inherit cmake ptest pkgconfig
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 PACKAGECONFIG ??= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
@@ -44,9 +46,11 @@ INSANE_SKIP:${PN}-ptest += "buildpaths"
 AWS_C_INSTALL = "$D/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
 CFLAGS:append = " ${@oe.utils.vartrue('DEBUG_BUILD', '-DXXH_NO_INLINE_HINTS=1', '', d)}"
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
     -DCMAKE_BUILD_TYPE=Release \
 "
 
