@@ -133,6 +133,13 @@ EXTRA_OECMAKE:append = " -DGG_LOG_LEVEL=INFO"
 CFLAGS:append = " -Werror"
 # Workaround: GCC 16 raises new warnings not yet fixed upstream (maybe-uninitialized via LTO)
 CFLAGS:append = " -Wno-error=format-security -Wno-error=int-conversion -Wno-error=maybe-uninitialized"
+# Workaround: on 32-bit targets (e.g. arm/cortexa15t2hf-neon for qemuarm) Unity
+# does not auto-enable 64-bit assertion support, so UNITY_DISPLAY_STYLE_INT64 /
+# UNITY_DISPLAY_STYLE_UINT64 are undeclared and the bundled gg_sdk test helpers
+# (thirdparty/gg_sdk/unity/gg_test) fail to compile. Force it on. Harmless on
+# 64-bit where Unity already defines it (guarded by #ifndef UNITY_SUPPORT_64).
+# Remove once the upstream aws-greengrass-component-sdk fix is in the pinned rev.
+CFLAGS:append = " -DUNITY_SUPPORT_64"
 
 # Disable -D_FORTIFY_SOURCE=2 as we set it to -D_FORTIFY_SOURCE=3
 TARGET_CFLAGS:remove = "-D_FORTIFY_SOURCE=2"

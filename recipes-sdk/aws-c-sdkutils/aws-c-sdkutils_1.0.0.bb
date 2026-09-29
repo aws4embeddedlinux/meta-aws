@@ -15,9 +15,11 @@ SRC_URI = "\
     file://run-ptest \
     file://001-enable-tests-with-crosscompiling.patch \
     "
-SRCREV = "bb4c0918b84a1a5e0ecfafb960711024cfee916f"
+SRCREV = "de0fbe807a409158c3fa285bafb88120c8989609"
 
 inherit cmake ptest pkgconfig
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 PACKAGECONFIG ??= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
@@ -30,9 +32,11 @@ PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
     -DCMAKE_BUILD_TYPE=Release \
 "
 
