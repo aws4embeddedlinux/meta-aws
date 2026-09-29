@@ -29,7 +29,7 @@ SRC_URI = "\
     file://002-enable-tests-with-crosscompiling.patch \
     "
 
-SRCREV = "1f333376b2b2801bb3844ce5c315d3a87ecacd4b"
+SRCREV = "72f9b52d34b746b0a017f5c3c191ce687805bc24"
 
 inherit cmake pkgconfig ptest
 # nooelint: oelint.vars.specific
@@ -42,7 +42,7 @@ EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
     "
 
 # for generating Makefiles to run tests
