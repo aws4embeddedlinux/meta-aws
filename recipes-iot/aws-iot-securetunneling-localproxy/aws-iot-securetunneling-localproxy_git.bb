@@ -19,13 +19,9 @@ BRANCH ?= "main"
 # nooelint: oelint.file.patchsignedoff
 SRC_URI = "\
     git://git@github.com/aws-samples/aws-iot-securetunneling-localproxy.git;branch=${BRANCH};protocol=https \
-    file://0001-boost-support-any.patch \
-    file://0002-remove-cxx-standard.patch \
-    file://0004-cmake-version.patch \
-    file://0005-fix-boost-system-header-only.patch \
     file://run-ptest \
     "
-SRCREV = "11995d0fd70edf33d01f9706ae48d2036eb92359"
+SRCREV = "5e599cabfc4195dd39a8acab5ad843fbbd4faf70"
 
 UPSTREAM_CHECK_COMMITS = "1"
 
@@ -38,12 +34,30 @@ PACKAGECONFIG ??= "\
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTS=ON,-DBUILD_TESTS=OFF,"
 
 EXTRA_OECMAKE += "-DLINK_STATIC_OPENSSL=OFF"
+EXTRA_OECMAKE += "-DBOOST_ROOT=${STAGING_DIR_HOST}${prefix}"
+EXTRA_OECMAKE += "-DBoost_NO_SYSTEM_PATHS=ON"
 
+# Upstream defaults to system mode when cross-compiling, which is what we want.
+# Override CXX standard: upstream sets C++14 but we need C++20 for GCC 16 compat.
+# Use shared protobuf: upstream forces static in system mode via lp_static_lib_path.
 do_configure:prepend() {
-    sed -i "s/Protobuf_LITE_STATIC_LIBRARY/Protobuf_LITE_LIBRARY/g" ${S}/CMakeLists.txt
-    sed -i "/string(REPLACE.*CMAKE_SHARED_LIBRARY_SUFFIX.*CMAKE_STATIC_LIBRARY_SUFFIX/{ N; /Protobuf_LITE_LIBRARY/d; }" ${S}/CMakeLists.txt
-    sed -i "s/set_property.*PROTOBUF_USE_STATIC_LIBS.*/#&/g" ${S}/CMakeLists.txt
-    sed -i "s/find_package(Protobuf/set(Protobuf_USE_STATIC_LIBS OFF)\nfind_package(Protobuf/g" ${S}/CMakeLists.txt
+    # Remove CMAKE_CXX_STANDARD 14 so our CXXFLAGS -std=c++20 takes effect
+    sed -i '/^set(CMAKE_CXX_STANDARD 14)/d' ${S}/CMakeLists.txt
+    sed -i '/^set(CMAKE_CXX_STANDARD_REQUIRED ON)/d' ${S}/CMakeLists.txt
+
+    # Use shared protobuf-lite instead of static: replace the static-lib
+    # rewrite with a direct assignment of the shared library path
+    sed -i 's|lp_static_lib_path(Protobuf_LITE_STATIC_LIBRARY "${Protobuf_LITE_LIBRARY}")|set(Protobuf_LITE_STATIC_LIBRARY "${Protobuf_LITE_LIBRARY}")|' ${S}/cmake/LocalproxyProtobuf.cmake
+
+    # OE's Boost 1.92 (built with b2) installs BoostConfig.cmake but not
+    # per-component configs. Bypass it with Boost_NO_BOOST_CMAKE. Also
+    # disable static libs (OE has shared only), and hint the library dir
+    # so FindBoost can locate the shared libraries in the sysroot.
+    # Remove 'system' from COMPONENTS — Boost.System is header-only since
+    # Boost 1.69 and OE doesn't build a libboost_system.so stub.
+    sed -i '/find_package(/i set(Boost_NO_BOOST_CMAKE ON)' ${S}/cmake/LocalproxyBoost.cmake
+    sed -i 's/set(Boost_USE_STATIC_LIBS ON)/set(Boost_USE_STATIC_LIBS OFF)/' ${S}/cmake/LocalproxyBoost.cmake
+    sed -i '/^ *system$/d' ${S}/cmake/LocalproxyBoost.cmake
 }
 
 do_install () {
