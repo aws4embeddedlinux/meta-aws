@@ -21,12 +21,12 @@ RDEPENDS:${PN} += "\
     python3-jmespath \
     python3-logging \
     python3-html \
+    python3-urllib3 \
     "
 
 RDEPENDS:${PN}-ptest += "\
         python3 \
         python3-pytest \
-        python3-urllib3 \
         ${PYTHON_PN}-setuptools \
 "
 
