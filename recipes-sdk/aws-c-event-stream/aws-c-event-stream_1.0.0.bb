@@ -10,7 +10,7 @@ DEPENDS += "\
     aws-c-io \
     aws-checksums \
     s2n \
-    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
+    aws-lc \
     "
 
 PROVIDES += "aws/crt-c-event-stream"
@@ -20,9 +20,11 @@ SRC_URI = "\
     git://github.com/awslabs/aws-c-event-stream.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "be448067250706b2f2739c7a3b1c0db0e19c5aed"
+SRCREV = "d32600bfecc6616cab0c478f96ea5a779f03e05e"
 
 inherit cmake ptest pkgconfig
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
@@ -32,10 +34,12 @@ do_install_ptest () {
 
 AWS_C_INSTALL = "${D}/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DBUILD_TEST_DEPS=OFF \
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
 "
 
 PACKAGECONFIG ??= "\

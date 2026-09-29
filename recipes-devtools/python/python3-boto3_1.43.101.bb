@@ -12,7 +12,7 @@ SRC_URI = "\
     file://python_dependency_test.py \
     "
 
-SRCREV = "1ee61ff25b7b2a11577095ac1d478f975c454b1a"
+SRCREV = "a1acf79e6beaf80ae73eff47fbe81b052b9c14f8"
 
 inherit setuptools3 ptest
 
@@ -30,6 +30,7 @@ RDEPENDS:${PN}-ptest += "\
         ${PYTHON_PN}-pytest \
         ${PYTHON_PN}-setuptools \
 "
+# nooelint: oelint.task.nocopy
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
         cp -rf ${S}/tests/* ${D}${PTEST_PATH}/tests/

@@ -9,7 +9,7 @@ SRC_URI = "\
     file://run-ptest \
 "
 
-SRCREV = "8233a63cd1e50e8c36da109bb624cb832942a32b"
+SRCREV = "1fc0e4bb2649c3f40460fcaf75e604a1d6929bce"
 
 # version 2.x has got library link issues - so stick to version 1.x for now
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>1\.\d+(\.\d+)+)"
@@ -42,8 +42,9 @@ RDEPENDS:${PN}-ptest += "\
 
 do_install_ptest() {
         install -d ${D}${PTEST_PATH}/tests
-        # just install some tests with low memory (less than 4GB) consumption
-        cp -rf ${S}/tests/functional/test_args.py ${D}${PTEST_PATH}/tests/
+        # just install some tests with low memory (less than 4GB)
+        # consumption
+        install -m 0755 ${S}/tests/functional/test_args.py ${D}${PTEST_PATH}/tests/
 }
 
 PACKAGES =+ "${PN}-examples"
