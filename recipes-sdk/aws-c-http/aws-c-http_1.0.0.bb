@@ -11,7 +11,7 @@ DEPENDS += "\
     aws-c-compression \
     aws-c-io \
     s2n \
-    openssl \
+    aws-lc \
     "
 
 PROVIDES += "aws/crt-c-http"
@@ -23,9 +23,11 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "bd6f0b0cf0814e87249cc621466800ab1ae2aa5d"
+SRCREV = "2b563f8a7bd67a902a8b558bb44113748045877c"
 
 inherit cmake ptest pkgconfig
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 PACKAGECONFIG ??= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
@@ -48,11 +50,13 @@ INSANE_SKIP:${PN}-ptest += "buildpaths"
 
 AWS_C_INSTALL = "$D/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DBUILD_TEST_DEPS=OFF \
     -DBUILD_TESTING=OFF \
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
     -DCMAKE_BUILD_TYPE=Release \
 "
 

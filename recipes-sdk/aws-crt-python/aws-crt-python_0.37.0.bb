@@ -24,7 +24,7 @@ DEPENDS += "\
     aws-c-sdkutils \
     s2n \
     ', '', d)} \
-    openssl \
+    aws-lc \
     "
 
 SRC_URI = "\
@@ -36,10 +36,12 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "241be07f82ebd3031a812492443d545676cb2018"
+SRCREV = "f13db5070deb0a20e892dcc561026a0708c32c88"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>.*)"
 
 inherit setuptools3_legacy ptest
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
@@ -54,8 +56,15 @@ LDFLAGS:append:riscv32 = " ${@bb.utils.contains('PACKAGECONFIG', 'no-buildin-sdk
 # use the libcrypto included on your system
 export AWS_CRT_BUILD_USE_SYSTEM_LIBCRYPTO = "1"
 
-# create static libs always, to not conflict with might installed system ones
-export AWS_CRT_BUILD_FORCE_STATIC_LIBS = "1"
+# When vendoring (no no-buildin-sdk), create static libs to not conflict
+# with system ones. When using system SDK, link against shared libs.
+export AWS_CRT_BUILD_FORCE_STATIC_LIBS = "${@bb.utils.contains('PACKAGECONFIG', 'no-buildin-sdk', '0', '1', d)}"
+
+# Use system-installed SDK libraries instead of vendoring from git submodules.
+# This ensures aws-crt-python links against the same aws-lc (ENABLE_DIST_PKG)
+# as the rest of the SDK chain.
+PACKAGECONFIG ??= "no-buildin-sdk"
+PACKAGECONFIG[no-buildin-sdk] = ",,"
 
 do_configure:prepend(){
     sed -i "s/__version__ = '1.0.0.dev0'/__version__ = '${PV}'/" ${S}/awscrt/__init__.py
@@ -84,13 +93,11 @@ set(CMAKE_C_FLAGS "${CFLAGS}" CACHE STRING "C flags")
 set(CMAKE_CXX_FLAGS "${CXXFLAGS}" CACHE STRING "CXX flags")
 set(CMAKE_EXE_LINKER_FLAGS "${LDFLAGS}" CACHE STRING "Linker flags")
 
-# OpenSSL/Crypto paths for nativesdk builds (use native sysroot)
-set(crypto_INCLUDE_DIR "${STAGING_DIR_NATIVE}/usr/include")
-set(crypto_LIBRARY "${STAGING_DIR_NATIVE}/usr/lib/libcrypto.so")
-set(OPENSSL_ROOT_DIR "${STAGING_DIR_NATIVE}/usr")
-set(OPENSSL_INCLUDE_DIR "${STAGING_DIR_NATIVE}/usr/include")
-set(OPENSSL_CRYPTO_LIBRARY "${STAGING_DIR_NATIVE}/usr/lib/libcrypto.so")
-set(OPENSSL_SSL_LIBRARY "${STAGING_DIR_NATIVE}/usr/lib/libssl.so")
+# Use aws-lc from the target sysroot (installed with ENABLE_DIST_PKG)
+# Prefer config-mode packages so find_package(crypto) uses aws-lc's
+# crypto-config.cmake rather than searching for openssl-style paths.
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
+set(CMAKE_PREFIX_PATH "${STAGING_DIR_TARGET}/usr/lib/cmake;${STAGING_DIR_TARGET}/usr/lib" CACHE STRING "Prefix path")
 EOF
 
         # Set up cross-compilation environment for CMake
@@ -98,11 +105,8 @@ EOF
         export OECORE_TARGET_SYSROOT="${STAGING_DIR_TARGET}"
         export CROSS_COMPILE="${TARGET_PREFIX}"
     else
-        # For native builds, set OpenSSL paths explicitly
-        export OPENSSL_ROOT_DIR="${STAGING_DIR_NATIVE}/usr"
-        export OPENSSL_INCLUDE_DIR="${STAGING_DIR_NATIVE}/usr/include"
-        export OPENSSL_CRYPTO_LIBRARY="${STAGING_DIR_NATIVE}/usr/lib/libcrypto.so"
-        export OPENSSL_SSL_LIBRARY="${STAGING_DIR_NATIVE}/usr/lib/libssl.so"
+        # For native builds, set crypto paths to aws-lc
+        export CMAKE_FIND_PACKAGE_PREFER_CONFIG=ON
     fi
 }
 
@@ -117,6 +121,7 @@ RDEPENDS:${PN}-ptest += "\
     bash \
 "
 
+# nooelint: oelint.task.nocopy
 do_install_ptest() {
     install -d ${D}${PTEST_PATH}/tests
     cp -rf ${S}/test ${D}${PTEST_PATH}/tests/

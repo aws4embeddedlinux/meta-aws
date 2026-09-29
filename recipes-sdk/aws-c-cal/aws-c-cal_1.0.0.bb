@@ -8,7 +8,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 DEPENDS = "\
     aws-c-common \
     s2n \
-    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
+    aws-lc \
     "
 
 PROVIDES += "aws/crt-c-cal"
@@ -21,9 +21,11 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "8aa2a48a09f93c65d4cf06388e143a6584de6321"
+SRCREV = "2441187f3bdbe0f0fe7fa5dd1736be98227ad556"
 
 inherit cmake ptest pkgconfig
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 PACKAGECONFIG ??= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
@@ -40,6 +42,7 @@ FILES:${PN}-staticdev += "${libdir}/lib*.a"
 
 RDEPENDS:${PN} = "\
     aws-c-common \
+    aws-lc \
     s2n \
     "
 
@@ -54,9 +57,11 @@ INSANE_SKIP:${PN}-ptest += "buildpaths"
 
 CFLAGS:append = " -Wl,-Bsymbolic"
 
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
     -DCMAKE_BUILD_TYPE=Release \
 "
 

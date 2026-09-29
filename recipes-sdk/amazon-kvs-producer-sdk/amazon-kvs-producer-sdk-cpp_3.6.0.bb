@@ -13,6 +13,7 @@ DEPENDS += "\
 PROVIDES += "aws/amazon-kvs-producer-sdk-cpp"
 
 # Depends on amazon-kvs-producer-pic which is incompatible with 32-bit ARM and RISC-V
+# nooelint: oelint.vars.specific
 COMPATIBLE_HOST:arm = "null"
 COMPATIBLE_MACHINE:riscv64 = "null"
 

@@ -1,36 +1,29 @@
-SUMMARY = "AWS C IoT"
-DESCRIPTION = "C99 implementation of AWS IoT cloud services integration with devices"
+SUMMARY = "AWS C S3"
+DESCRIPTION = "C99 library implementation for communicating with the S3 service, designed for maximizing throughput on high bandwidth EC2 instances."
 
-HOMEPAGE = "https://github.com/awslabs/aws-c-iot"
-
+HOMEPAGE = "https://github.com/awslabs/aws-c-s3"
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=2ee41112a44fe7014dce33e26468ba93"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-DEPENDS += "\
+DEPENDS = "\
     aws-c-auth \
-    aws-c-common \
-    aws-c-event-stream \
     aws-c-http \
-    aws-c-io \
-    aws-c-mqtt \
-    aws-c-s3 \
     aws-checksums \
-    s2n \
-    openssl \
+    aws-lc \
     "
 
-PROVIDES += "aws/aws-c-iot"
+PROVIDES += "aws/crt-c-s3"
 
 BRANCH ?= "main"
-
 SRC_URI = "\
-    git://github.com/awslabs/aws-c-iot.git;protocol=https;branch=${BRANCH} \
+    git://github.com/awslabs/aws-c-s3.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-
-SRCREV = "84c7a1a4182ecdc8d86405a5c86bd39a9995193b"
+SRCREV = "07262f7ec17186712d56bccdb7c6eed744e31fb7"
 
 inherit cmake ptest pkgconfig
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 PACKAGECONFIG ??= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
@@ -42,18 +35,21 @@ PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 # CMAKE_CROSSCOMPILING=ON will disable building the tests
 PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUILD_TESTING=OFF,"
 
+CFLAGS:append = " -Wl,-Bsymbolic"
+
 FILES:${PN}-dev += "${libdir}/*/cmake"
 
-CFLAGS:append = " -Wl,-Bsymbolic"
+EXTRA_OECMAKE += "-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON"
+
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
 "
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
    cp -r ${B}/tests/* ${D}${PTEST_PATH}/tests/
-   install -m 0755 ${B}/tests/aws-c-iot-tests ${D}${PTEST_PATH}/tests/
+   install -m 0755 ${B}/tests/aws-c-s3-tests ${D}${PTEST_PATH}/tests/
 }
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
