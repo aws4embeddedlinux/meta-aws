@@ -21,7 +21,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "8aa2a48a09f93c65d4cf06388e143a6584de6321"
+SRCREV = "2441187f3bdbe0f0fe7fa5dd1736be98227ad556"
 
 inherit cmake ptest pkgconfig
 
@@ -56,7 +56,7 @@ CFLAGS:append = " -Wl,-Bsymbolic"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
     -DCMAKE_BUILD_TYPE=Release \
 "
 
