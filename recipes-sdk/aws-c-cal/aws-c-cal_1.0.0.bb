@@ -1,29 +1,27 @@
-SUMMARY = "AWS C HTTP"
-DESCRIPTION = "C99 implementation of the HTTP/1.1 and HTTP/2 specifications"
+SUMMARY = "AWS C Cal"
+DESCRIPTION = "AWS Crypto Abstraction Layer: Cross-Platform, C99 wrapper for cryptography primitives."
 
-HOMEPAGE = "https://github.com/awslabs/aws-c-http"
+HOMEPAGE = "https://github.com/awslabs/aws-c-cal"
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=34400b68072d710fecd0a2940a0d1658"
 
-DEPENDS += "\
-    aws-c-cal \
+DEPENDS = "\
     aws-c-common \
-    aws-c-compression \
-    aws-c-io \
     s2n \
-    openssl \
+    ${@bb.utils.contains('PACKAGECONFIG', 'static', 'aws-lc', 'openssl', d)} \
     "
 
-PROVIDES += "aws/crt-c-http"
+PROVIDES += "aws/crt-c-cal"
 
 BRANCH ?= "main"
 
 SRC_URI = "\
-    git://github.com/awslabs/aws-c-http.git;protocol=https;branch=${BRANCH} \
+    git://github.com/awslabs/aws-c-cal.git;protocol=https;branch=${BRANCH}; \
+    file://001-enable-tests-with-crosscompiling.patch \
     file://run-ptest \
     "
 
-SRCREV = "bd6f0b0cf0814e87249cc621466800ab1ae2aa5d"
+SRCREV = "2441187f3bdbe0f0fe7fa5dd1736be98227ad556"
 
 inherit cmake ptest pkgconfig
 
@@ -37,25 +35,29 @@ PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON -DCMAKE_CROSSCOMPILING=OFF,-DBUI
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
 
+FILES:${PN}-dev += "${libdir}/*/cmake"
+FILES:${PN}-staticdev += "${libdir}/lib*.a"
+
+RDEPENDS:${PN} = "\
+    aws-c-common \
+    s2n \
+    "
+
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
    cp -r ${B}/tests/* ${D}${PTEST_PATH}/tests/
-   install -m 0755 ${B}/tests/aws-c-http-tests ${D}${PTEST_PATH}/tests/
+   install -m 0755 ${B}/tests/aws-c-cal-tests ${D}${PTEST_PATH}/tests/
 }
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN}-ptest += "buildpaths"
 
-AWS_C_INSTALL = "$D/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
+
 EXTRA_OECMAKE += "\
-    -DBUILD_TEST_DEPS=OFF \
-    -DBUILD_TESTING=OFF \
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
     -DCMAKE_BUILD_TYPE=Release \
 "
-
-FILES:${PN}-dev += "${libdir}/*/cmake"
 
 BBCLASSEXTEND = "native nativesdk"
