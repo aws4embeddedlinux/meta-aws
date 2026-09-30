@@ -19,7 +19,7 @@ SRC_URI = "\
     git://github.com/awslabs/aws-c-s3.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
-SRCREV = "45c946d1e83c990e5fd33c0b1aaac56c911460b1"
+SRCREV = "07262f7ec17186712d56bccdb7c6eed744e31fb7"
 
 S = "${WORKDIR}/git"
 
@@ -41,7 +41,7 @@ FILES:${PN}-dev += "${libdir}/*/cmake"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
 "
 
 do_install_ptest () {
