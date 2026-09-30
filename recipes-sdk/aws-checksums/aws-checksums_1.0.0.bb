@@ -19,7 +19,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "32fed6fc25a90146bd0ac7e5c639e3778b78fdf1"
+SRCREV = "ee7c435de1677754c14e488aab699ed603ae552e"
 
 S = "${WORKDIR}/git"
 
@@ -47,7 +47,7 @@ AWS_C_INSTALL = "$D/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
     -DCMAKE_BUILD_TYPE=Release \
 "
 
