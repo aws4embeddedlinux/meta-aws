@@ -24,6 +24,7 @@ LDFLAGS:append = " -Wl,-Bsymbolic"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
     -DBUILD_TESTING=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DUSE_OPENSSL=ON  \
@@ -67,10 +68,6 @@ RCONFLICTS:${PN} = "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'aws-c-i
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
 INSANE_SKIP:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'build-deps', 'ldflags', '', d)}"
-
-RDEPENDS:${PN}-ptest:prepend = "\
-    aws-iot-device-sdk-cpp-v2-samples-mqtt5-pubsub \
-    "
 
 BBCLASSEXTEND = "native nativesdk"
 
