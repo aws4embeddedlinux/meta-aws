@@ -1,25 +1,28 @@
-SUMMARY = "AWS Checksums"
-DESCRIPTION = "Cross-Platform HW accelerated CRC32c and CRC32 with fallback to efficient SW implementations. C interface with language bindings for each of our SDKs"
+SUMMARY = "AWS C Compression"
+DESCRIPTION = "This is a cross-platform C99 implementation of compression algorithms such as gzip, and huffman encoding/decoding. Currently only huffman is implemented."
 
-HOMEPAGE = "https://github.com/awslabs/aws-checksums"
+HOMEPAGE = "https://github.com/awslabs/aws-c-compression"
 
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
 DEPENDS += "\
+    aws-c-cal \
     aws-c-common \
+    aws-c-io \
     s2n \
     "
 
-PROVIDES += "aws/checksums"
+PROVIDES += "aws/crt-c-compression"
 
 BRANCH ?= "main"
+
 SRC_URI = "\
-    git://github.com/awslabs/aws-checksums.git;protocol=https;branch=${BRANCH} \
+    git://github.com/awslabs/aws-c-compression.git;protocol=https;branch=${BRANCH} \
     file://run-ptest \
     "
 
-SRCREV = "32fed6fc25a90146bd0ac7e5c639e3778b78fdf1"
+SRCREV = "891312c058e69a4d55f569f79dde1ee221982532"
 
 inherit cmake ptest pkgconfig
 
@@ -27,15 +30,15 @@ PACKAGECONFIG ??= "\
     ${@bb.utils.contains('PTEST_ENABLED', '1', 'with-tests', '', d)} \
     "
 
-PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF,"
-
 # enable PACKAGECONFIG = "static" to build static instead of shared libs
 PACKAGECONFIG[static] = "-DBUILD_SHARED_LIBS=OFF,-DBUILD_SHARED_LIBS=ON"
+
+PACKAGECONFIG[with-tests] = "-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF"
 
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
    cp -r ${B}/tests/* ${D}${PTEST_PATH}/tests/
-   install -m 0755 ${B}/tests/aws-checksums-tests ${D}${PTEST_PATH}/tests/
+   install -m 0755 ${B}/tests/aws-c-compression-tests ${D}${PTEST_PATH}/tests/
 }
 
 # nooelint: oelint.vars.insaneskip:INSANE_SKIP
@@ -45,8 +48,7 @@ AWS_C_INSTALL = "$D/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
-    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
 "
 
 FILES:${PN}-dev += "${libdir}/*/cmake"

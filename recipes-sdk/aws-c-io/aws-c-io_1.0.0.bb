@@ -23,7 +23,7 @@ SRC_URI = "\
     file://001-enable-tests-with-crosscompiling.patch \
     file://run-ptest \
     "
-SRCREV = "ad7d398a1aa5a59a59f3a3b6abc08aa910422896"
+SRCREV = "1685abcd331dcced3da63b8d4cd3ced38a8bb14a"
 
 inherit cmake ptest pkgconfig
 
@@ -42,7 +42,7 @@ AWS_C_INSTALL = "$D/usr"
 CFLAGS:append = " -Wl,-Bsymbolic"
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
 "
 do_install_ptest () {
    install -d ${D}${PTEST_PATH}/tests
