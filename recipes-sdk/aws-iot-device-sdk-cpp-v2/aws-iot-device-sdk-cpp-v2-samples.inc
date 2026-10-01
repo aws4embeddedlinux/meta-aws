@@ -10,6 +10,8 @@ DEPENDS += "aws-iot-device-sdk-cpp-v2"
 require aws-iot-device-sdk-cpp-v2-version.inc
 
 inherit cmake
+# nooelint: oelint.vars.specific
+COMPATIBLE_HOST:arm = "null"
 
 BRANCH ?= "main"
 
@@ -22,7 +24,8 @@ CXXFLAGS:append = " -Wdangling-reference"
 
 EXTRA_OECMAKE += "\
     -DCMAKE_MODULE_PATH=${STAGING_LIBDIR}/cmake \
-    -DCMAKE_PREFIX_PATH="${STAGING_DIR_HOST}${prefix};${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_PREFIX_PATH="${STAGING_LIBDIR}/cmake;${STAGING_LIBDIR}" \
+    -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON \
     -DBUILD_DEPS=OFF \
     -DBUILD_TESTING=OFF \
     -DBUILD_SHARED_LIBS=ON \
