@@ -23,7 +23,7 @@ SRC_URI = "\
     file://001-enable-tests-with-crosscompiling.patch \
     file://run-ptest \
     "
-SRCREV = "1685abcd331dcced3da63b8d4cd3ced38a8bb14a"
+SRCREV = "cbc36857376bffb8f4654e6c4e443b6939e1629c"
 
 inherit cmake ptest pkgconfig
 # nooelint: oelint.vars.specific
