@@ -23,7 +23,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "f510465775dcce35be8a5cea1aec26893b8c975a"
+SRCREV = "96af751fa58d4d6704881463a4d6895b107268ed"
 
 inherit cmake ptest
 # nooelint: oelint.vars.specific
