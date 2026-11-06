@@ -13,7 +13,7 @@ SRC_URI = "\
     file://run-ptest \
     "
 
-SRCREV = "c8fa314de8050cd5dcb3740a29c3ce769f533dcd"
+SRCREV = "9c74eb2e6d5628a0e20e08d088375bb5d7a3d90b"
 
 GO_IMPORT = ""
 
