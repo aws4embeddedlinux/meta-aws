@@ -24,7 +24,7 @@ SRC_URI = "git://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cp
            file://run-ptest \
 "
 
-SRCREV = "a6efdf5d2fe1fcc5be85048a0c1b6a90ab80ff72"
+SRCREV = "b4114705b357da0946341df60469c39221cff9b9"
 
 inherit cmake pkgconfig ptest
 
